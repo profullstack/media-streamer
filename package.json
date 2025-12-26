@@ -12,7 +12,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "prepare": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks || true",
     "precommit": "pnpm build && pnpm test",
     "supabase:update-emails": "tsx scripts/supabase-update-emails.ts"
   },
