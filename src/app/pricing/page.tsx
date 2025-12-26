@@ -134,7 +134,7 @@ export default function PricingPage(): React.ReactElement {
         throw new Error(data.error || 'Payment failed');
       }
 
-      // Redirect to CoinPayPortal payment page
+      // Redirect to CoinPayPortal hosted payment page
       if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
       }

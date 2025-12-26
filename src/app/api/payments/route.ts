@@ -8,17 +8,24 @@
 import { NextResponse } from 'next/server';
 import { createPaymentRequest, getSubscriptionPrice } from '@/lib/payments';
 import { getCurrentUser as getAuthUser } from '@/lib/auth';
+import { getCoinPayPortalClient, type CryptoBlockchain } from '@/lib/coinpayportal';
 
 // Valid plans (no free tier)
 const VALID_PLANS = ['premium', 'family'] as const;
 type ValidPlan = typeof VALID_PLANS[number];
 
-// Valid crypto types
+// Valid crypto types - mapped to CoinPayPortal blockchain codes
 const VALID_CRYPTO_TYPES = ['BTC', 'ETH', 'LTC', 'USDT', 'USDC'] as const;
 type ValidCryptoType = typeof VALID_CRYPTO_TYPES[number];
 
-// CoinPayPortal base URL (would be configured via env in production)
-const COINPAYPORTAL_URL = process.env.COINPAYPORTAL_URL || 'https://coinpayportal.com/pay';
+// Map our crypto types to CoinPayPortal blockchain codes
+const BLOCKCHAIN_MAP: Record<ValidCryptoType, CryptoBlockchain> = {
+  BTC: 'BTC',
+  ETH: 'ETH',
+  LTC: 'BTC', // LTC not supported, use BTC
+  USDT: 'USDC_ETH', // Use USDC on Ethereum for stablecoins
+  USDC: 'USDC_ETH',
+};
 
 interface PaymentRequestBody {
   plan: string;
@@ -34,7 +41,7 @@ async function getCurrentUser(): Promise<{ id: string; email: string } | null> {
 
 /**
  * POST /api/payments
- * 
+ *
  * Create a new payment request for a subscription plan
  */
 export async function POST(request: Request): Promise<NextResponse> {
@@ -77,7 +84,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Create payment request
+    // Create local payment request for tracking
     const payment = createPaymentRequest({
       userId: user.id,
       plan: plan as ValidPlan,
@@ -87,28 +94,61 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Get price for the plan
     const price = getSubscriptionPrice(plan as ValidPlan);
 
-    // Generate CoinPayPortal payment URL
-    const paymentUrl = `${COINPAYPORTAL_URL}?` + new URLSearchParams({
-      merchant: process.env.COINPAYPORTAL_MERCHANT_ID || 'bittorrented',
-      amount: price.usd.toString(),
-      currency: cryptoType,
-      orderId: payment.id,
-      description: `BitTorrented ${plan} subscription`,
-      callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/payments/webhook`,
-      successUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings?payment=success`,
-      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/pricing?payment=cancelled`,
-    }).toString();
+    // Get CoinPayPortal client
+    let coinPayPortal;
+    try {
+      coinPayPortal = getCoinPayPortalClient();
+    } catch (error) {
+      console.error('CoinPayPortal client error:', error);
+      return NextResponse.json(
+        { error: 'Payment service not configured' },
+        { status: 503 }
+      );
+    }
 
+    // Map crypto type to CoinPayPortal blockchain code
+    const blockchain = BLOCKCHAIN_MAP[cryptoType as ValidCryptoType];
+
+    // Create payment via CoinPayPortal API
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const coinPayResponse = await coinPayPortal.createPayment({
+      amount: price.usd,
+      blockchain,
+      description: `BitTorrented ${plan} subscription`,
+      metadata: {
+        orderId: payment.id,
+        userId: user.id,
+        plan,
+        userEmail: user.email,
+      },
+      webhookUrl: `${baseUrl}/api/payments/webhook`,
+      redirectUrl: `${baseUrl}/settings?payment=success`,
+    });
+
+    if (!coinPayResponse.success || !coinPayResponse.payment) {
+      console.error('CoinPayPortal API error:', coinPayResponse);
+      return NextResponse.json(
+        { error: 'Failed to create payment with payment provider' },
+        { status: 500 }
+      );
+    }
+
+    // Return payment details with redirect URL to CoinPayPortal hosted payment page
     return NextResponse.json({
       success: true,
       payment: {
         id: payment.id,
+        coinPayId: coinPayResponse.payment.id,
         plan: payment.plan,
         amountUsd: payment.amountUsd,
         cryptoType: payment.cryptoType,
-        status: payment.status,
+        cryptoAmount: coinPayResponse.payment.crypto_amount,
+        paymentAddress: coinPayResponse.payment.payment_address,
+        status: coinPayResponse.payment.status,
+        expiresAt: coinPayResponse.payment.expires_at,
       },
-      paymentUrl,
+      // Redirect to CoinPayPortal hosted payment page
+      paymentUrl: coinPayResponse.paymentUrl,
     });
   } catch (error) {
     console.error('Payment creation error:', error);

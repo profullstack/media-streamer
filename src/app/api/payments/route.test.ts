@@ -29,9 +29,35 @@ vi.mock('@/lib/auth', () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({ id: 'user-123', email: 'test@example.com' })),
 }));
 
+// Mock CoinPayPortal client
+const mockCreatePayment = vi.fn();
+vi.mock('@/lib/coinpayportal', () => ({
+  getCoinPayPortalClient: vi.fn(() => ({
+    createPayment: mockCreatePayment,
+  })),
+}));
+
 describe('Payment API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Mock successful CoinPayPortal API response
+    mockCreatePayment.mockResolvedValue({
+      success: true,
+      payment: {
+        id: 'coinpay-payment-123',
+        business_id: 'test-business-id',
+        amount: 4.99,
+        currency: 'USD',
+        blockchain: 'BTC',
+        crypto_amount: '0.00012345',
+        payment_address: 'bc1qtest123',
+        status: 'pending',
+        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+      },
+      paymentUrl: 'https://coinpayportal.com/pay/coinpay-payment-123',
+    });
   });
 
   describe('POST /api/payments', () => {
@@ -191,7 +217,7 @@ describe('Payment API Route', () => {
       expect(data.error).toBeDefined();
     });
 
-    it('should return payment URL for CoinPayPortal', async () => {
+    it('should return payment URL for CoinPayPortal hosted page', async () => {
       const { POST } = await import('./route');
       
       const request = new Request('http://localhost:3000/api/payments', {
@@ -208,19 +234,55 @@ describe('Payment API Route', () => {
 
       expect(response.status).toBe(200);
       expect(data.paymentUrl).toBeDefined();
-      expect(data.paymentUrl).toContain('coinpayportal');
+      expect(data.paymentUrl).toContain('coinpayportal.com/pay');
+    });
+
+    it('should include CoinPayPortal payment ID in response', async () => {
+      const { POST } = await import('./route');
+      
+      const request = new Request('http://localhost:3000/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: 'premium',
+          cryptoType: 'BTC',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.payment.coinPayId).toBe('coinpay-payment-123');
+    });
+
+    it('should handle CoinPayPortal API errors', async () => {
+      mockCreatePayment.mockRejectedValueOnce(new Error('CoinPayPortal API error'));
+
+      const { POST } = await import('./route');
+      
+      const request = new Request('http://localhost:3000/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: 'premium',
+          cryptoType: 'BTC',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBeDefined();
     });
   });
 
   describe('GET /api/payments', () => {
     it('should return user payment history', async () => {
       const { GET } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'GET',
-      });
 
-      const response = await GET(request);
+      const response = await GET();
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -233,12 +295,8 @@ describe('Payment API Route', () => {
       vi.mocked(authModule.getCurrentUser).mockResolvedValueOnce(null);
 
       const { GET } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'GET',
-      });
 
-      const response = await GET(request);
+      const response = await GET();
       const data = await response.json();
 
       expect(response.status).toBe(401);
