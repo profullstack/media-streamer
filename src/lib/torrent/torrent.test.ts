@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { TorrentMetadata, TorrentFileInfo } from './torrent';
+import type { TorrentMetadata, TorrentFileInfo, MetadataProgressEvent } from './torrent';
 
 // Create mock functions at module level
 const mockAdd = vi.fn();
@@ -731,6 +731,125 @@ describe('TorrentService', () => {
 
       // Slow one should timeout
       await expect(slowPromise).rejects.toThrow(TorrentTimeoutError);
+    });
+  });
+
+  describe('Progress events', () => {
+    it('should emit progress events during metadata fetch', async () => {
+      const progressEvents: Array<{ stage: string; progress: number }> = [];
+      
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        length: 1000000,
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        numPeers: 0,
+        progress: 0,
+        files: [
+          { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
+        ],
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (event === 'metadata') {
+            setTimeout(() => callback(), 50);
+          }
+        }),
+        deselect: vi.fn(),
+      };
+
+      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+        callback(mockTorrent);
+        return mockTorrent;
+      });
+
+      const service = new TorrentService();
+      const magnetUri = 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678';
+      
+      await service.fetchMetadata(magnetUri, (event) => {
+        progressEvents.push({ stage: event.stage, progress: event.progress });
+      });
+
+      // Should have at least connecting and complete stages
+      expect(progressEvents.length).toBeGreaterThanOrEqual(2);
+      expect(progressEvents[0].stage).toBe('connecting');
+      expect(progressEvents[progressEvents.length - 1].stage).toBe('complete');
+      expect(progressEvents[progressEvents.length - 1].progress).toBe(100);
+    });
+
+    it('should emit peer count updates', async () => {
+      const progressEvents: Array<{ numPeers?: number }> = [];
+      
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        length: 1000000,
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        numPeers: 0,
+        progress: 0,
+        files: [
+          { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
+        ],
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (event === 'wire') {
+            // Simulate peer connection
+            mockTorrent.numPeers = 1;
+            setTimeout(() => callback({ remoteAddress: '1.2.3.4' }), 10);
+          }
+          if (event === 'metadata') {
+            setTimeout(() => callback(), 50);
+          }
+        }),
+        deselect: vi.fn(),
+      };
+
+      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+        callback(mockTorrent);
+        return mockTorrent;
+      });
+
+      const service = new TorrentService();
+      const magnetUri = 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678';
+      
+      await service.fetchMetadata(magnetUri, (event) => {
+        progressEvents.push({ numPeers: event.numPeers });
+      });
+
+      // Should have received peer count updates
+      expect(progressEvents.some(e => e.numPeers !== undefined)).toBe(true);
+    });
+
+    it('should work without progress callback', async () => {
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        length: 1000000,
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        numPeers: 0,
+        progress: 0,
+        files: [
+          { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
+        ],
+        on: vi.fn((event: string, callback: () => void) => {
+          if (event === 'metadata') {
+            setTimeout(callback, 10);
+          }
+        }),
+        deselect: vi.fn(),
+      };
+
+      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+        callback(mockTorrent);
+        return mockTorrent;
+      });
+
+      const service = new TorrentService();
+      const magnetUri = 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678';
+      
+      // Should work without callback
+      const metadata = await service.fetchMetadata(magnetUri);
+      expect(metadata.infohash).toBe('1234567890abcdef1234567890abcdef12345678');
     });
   });
 });

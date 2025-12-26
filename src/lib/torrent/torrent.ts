@@ -80,9 +80,49 @@ export interface TorrentMetadata {
  * Options for TorrentService
  */
 export interface TorrentServiceOptions {
-  /** Timeout for metadata fetch in milliseconds (default: 30000) */
+  /** Timeout for metadata fetch in milliseconds (default: 60000) */
   metadataTimeout?: number;
 }
+
+/**
+ * Progress event stages during metadata fetch
+ */
+export type MetadataProgressStage =
+  | 'connecting'    // Initial connection to DHT/trackers
+  | 'searching'     // Searching for peers
+  | 'downloading'   // Downloading metadata from peers
+  | 'complete'      // Metadata fetch complete
+  | 'error';        // Error occurred
+
+/**
+ * Progress event emitted during metadata fetch
+ */
+export interface MetadataProgressEvent {
+  /** Current stage of the metadata fetch */
+  stage: MetadataProgressStage;
+  /** Progress percentage (0-100) */
+  progress: number;
+  /** Number of connected peers */
+  numPeers: number;
+  /** Elapsed time in milliseconds */
+  elapsedMs: number;
+  /** Human-readable status message */
+  message: string;
+  /** Infohash of the torrent */
+  infohash: string;
+}
+
+/**
+ * Callback for progress events during metadata fetch
+ */
+export type MetadataProgressCallback = (event: MetadataProgressEvent) => void;
+
+// Default timeout for metadata fetch (60 seconds)
+// Can be overridden via TORRENT_METADATA_TIMEOUT_MS environment variable
+const DEFAULT_METADATA_TIMEOUT = parseInt(
+  process.env.TORRENT_METADATA_TIMEOUT_MS ?? '60000',
+  10
+);
 
 // Well-known DHT bootstrap nodes for reliable peer discovery
 const DHT_BOOTSTRAP_NODES = [
@@ -100,8 +140,11 @@ export class TorrentService {
   private metadataTimeout: number;
 
   constructor(options: TorrentServiceOptions = {}) {
+    const timeout = options.metadataTimeout ?? DEFAULT_METADATA_TIMEOUT;
+    
     logger.info('Initializing TorrentService', {
-      timeout: options.metadataTimeout ?? 30000,
+      timeout,
+      defaultTimeout: DEFAULT_METADATA_TIMEOUT,
       dhtBootstrapNodes: DHT_BOOTSTRAP_NODES,
     });
     
@@ -116,7 +159,7 @@ export class TorrentService {
       webSeeds: true,
     } as WebTorrent.Options);
     
-    this.metadataTimeout = options.metadataTimeout ?? 30000;
+    this.metadataTimeout = timeout;
     
     // Log client events
     this.client.on('error', (err) => {
@@ -149,20 +192,24 @@ export class TorrentService {
 
   /**
    * Fetch metadata for a torrent from a magnet URI
-   * 
+   *
    * This fetches ONLY the metadata (file list, sizes, etc.) without downloading
    * any actual file content.
-   * 
+   *
    * @param magnetUri - The magnet URI to fetch metadata for
+   * @param onProgress - Optional callback for progress events
    * @returns Promise resolving to torrent metadata
    * @throws TorrentMetadataError if the magnet URI is invalid
    * @throws TorrentTimeoutError if metadata fetch times out
    */
-  async fetchMetadata(magnetUri: string): Promise<TorrentMetadata> {
+  async fetchMetadata(
+    magnetUri: string,
+    onProgress?: MetadataProgressCallback
+  ): Promise<TorrentMetadata> {
     const startTime = Date.now();
-    logger.info('Starting metadata fetch', { 
+    logger.info('Starting metadata fetch', {
       magnetUri: magnetUri.substring(0, 100) + '...',
-      timeout: this.metadataTimeout 
+      timeout: this.metadataTimeout
     });
 
     // Validate magnet URI
@@ -172,21 +219,46 @@ export class TorrentService {
     }
 
     const parsed = parseMagnetUri(magnetUri);
-    logger.debug('Parsed magnet URI', { 
+    logger.debug('Parsed magnet URI', {
       infohash: parsed.infohash,
       displayName: parsed.displayName,
-      trackerCount: parsed.trackers.length 
+      trackerCount: parsed.trackers.length
     });
+
+    // Helper to emit progress events
+    const emitProgress = (
+      stage: MetadataProgressStage,
+      progress: number,
+      numPeers: number,
+      message: string
+    ): void => {
+      if (onProgress) {
+        const event: MetadataProgressEvent = {
+          stage,
+          progress,
+          numPeers,
+          elapsedMs: Date.now() - startTime,
+          message,
+          infohash: parsed.infohash,
+        };
+        onProgress(event);
+        logger.debug('Progress event emitted', event);
+      }
+    };
+
+    // Emit initial connecting event
+    emitProgress('connecting', 0, 0, 'Connecting to DHT and trackers...');
 
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let progressIntervalId: ReturnType<typeof setInterval> | null = null;
       let torrent: WebTorrent.Torrent | null = null;
       let metadataReceived = false;
 
       // Set up timeout
       timeoutId = setTimeout(() => {
         const elapsed = Date.now() - startTime;
-        logger.warn('Metadata fetch timeout', { 
+        logger.warn('Metadata fetch timeout', {
           infohash: parsed.infohash,
           elapsed: `${elapsed}ms`,
           timeout: `${this.metadataTimeout}ms`,
@@ -195,6 +267,14 @@ export class TorrentService {
           numPeers: torrent?.numPeers ?? 0,
           progress: torrent?.progress ?? 0
         });
+        
+        // Clear progress interval
+        if (progressIntervalId) {
+          clearInterval(progressIntervalId);
+        }
+        
+        // Emit error progress event
+        emitProgress('error', 0, torrent?.numPeers ?? 0, 'Metadata fetch timed out');
         
         if (torrent) {
           logger.debug('Removing torrent after timeout', { infohash: parsed.infohash });
@@ -208,23 +288,47 @@ export class TorrentService {
       // Add torrent and wait for metadata
       try {
         torrent = this.client.add(magnetUri, (t) => {
-          logger.debug('Torrent added callback fired', { 
+          logger.debug('Torrent added callback fired', {
             infohash: t.infoHash,
             name: t.name,
             numPeers: t.numPeers
           });
 
+          // Emit searching event
+          emitProgress('searching', 10, t.numPeers, 'Searching for peers...');
+
+          // Set up progress interval to emit updates every 2 seconds
+          progressIntervalId = setInterval(() => {
+            if (!metadataReceived && torrent) {
+              const numPeers = t.numPeers;
+              // Estimate progress based on peers found (max 50% before metadata)
+              const peerProgress = Math.min(numPeers * 10, 40);
+              const stage: MetadataProgressStage = numPeers > 0 ? 'downloading' : 'searching';
+              const message = numPeers > 0
+                ? `Downloading metadata from ${numPeers} peer${numPeers > 1 ? 's' : ''}...`
+                : 'Searching for peers...';
+              emitProgress(stage, 10 + peerProgress, numPeers, message);
+            }
+          }, 2000);
+
           // Listen for various events for debugging
           t.on('wire', (wire) => {
-            logger.debug('New peer connected', { 
+            logger.debug('New peer connected', {
               infohash: t.infoHash,
               peerAddress: wire.remoteAddress,
               numPeers: t.numPeers
             });
+            // Emit progress when peer connects
+            emitProgress(
+              'downloading',
+              10 + Math.min(t.numPeers * 10, 40),
+              t.numPeers,
+              `Connected to ${t.numPeers} peer${t.numPeers > 1 ? 's' : ''}, downloading metadata...`
+            );
           });
 
           t.on('warning', (warn) => {
-            logger.warn('Torrent warning', { 
+            logger.warn('Torrent warning', {
               infohash: t.infoHash,
               warning: String(warn)
             });
@@ -238,7 +342,7 @@ export class TorrentService {
           t.on('metadata', () => {
             metadataReceived = true;
             const elapsed = Date.now() - startTime;
-            logger.info('Metadata received', { 
+            logger.info('Metadata received', {
               infohash: t.infoHash,
               name: t.name,
               elapsed: `${elapsed}ms`,
@@ -250,6 +354,12 @@ export class TorrentService {
             if (timeoutId) {
               clearTimeout(timeoutId);
             }
+            if (progressIntervalId) {
+              clearInterval(progressIntervalId);
+            }
+
+            // Emit complete progress event
+            emitProgress('complete', 100, t.numPeers, 'Metadata received successfully');
 
             // Deselect all files to prevent downloading
             t.deselect(0, t.pieces.length - 1, 0);
@@ -322,6 +432,10 @@ export class TorrentService {
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
+        if (progressIntervalId) {
+          clearInterval(progressIntervalId);
+        }
+        emitProgress('error', 0, 0, `Failed to add torrent: ${error instanceof Error ? error.message : 'Unknown error'}`);
         logger.error('Failed to add torrent', error, { magnetUri: magnetUri.substring(0, 100) });
         reject(new TorrentMetadataError(`Failed to add torrent: ${error instanceof Error ? error.message : 'Unknown error'}`));
       }

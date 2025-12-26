@@ -1,6 +1,6 @@
 /**
  * Torrent Module
- * 
+ *
  * Provides WebTorrent-based metadata fetching for torrents.
  * This is a SERVER-SIDE ONLY module.
  */
@@ -15,4 +15,7 @@ export type {
   TorrentMetadata,
   TorrentFileInfo,
   TorrentServiceOptions,
+  MetadataProgressEvent,
+  MetadataProgressStage,
+  MetadataProgressCallback,
 } from './torrent';
