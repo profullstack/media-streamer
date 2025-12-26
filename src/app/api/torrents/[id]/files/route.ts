@@ -1,11 +1,13 @@
 /**
  * Torrent Files API
- * 
+ *
  * GET /api/torrents/[id]/files - Get files for a specific torrent
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
+import { transformTorrentFiles } from '@/lib/transforms';
+import type { TorrentFile as DbTorrentFile } from '@/lib/supabase/types';
 
 interface RouteParams {
   params: Promise<{
@@ -61,8 +63,11 @@ export async function GET(
       );
     }
 
+    // Transform to camelCase for frontend
+    const transformedFiles = transformTorrentFiles((files ?? []) as DbTorrentFile[]);
+
     return NextResponse.json({
-      files: files ?? [],
+      files: transformedFiles,
       total: count ?? 0,
     });
   } catch (error) {

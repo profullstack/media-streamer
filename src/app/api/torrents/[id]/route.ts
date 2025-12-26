@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getTorrentById, getTorrentByInfohash, getTorrentFiles, deleteTorrent } from '@/lib/supabase/queries';
+import { transformTorrent, transformTorrentFiles } from '@/lib/transforms';
 import type { Torrent } from '@/lib/supabase/types';
 
 interface RouteParams {
@@ -74,9 +75,10 @@ export async function GET(
     // Get files using the torrent's UUID
     const files = await getTorrentFiles(torrent.id);
 
+    // Transform to camelCase for frontend
     return NextResponse.json({
-      torrent,
-      files,
+      torrent: transformTorrent(torrent),
+      files: transformTorrentFiles(files),
     });
   } catch (error) {
     console.error('Error fetching torrent:', error);

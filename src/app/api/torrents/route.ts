@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { IndexerService, IndexerError } from '@/lib/indexer';
 import { createLogger, generateRequestId } from '@/lib/logger';
+import { transformTorrents } from '@/lib/transforms';
+import type { Torrent as DbTorrent } from '@/lib/supabase/types';
 
 const logger = createLogger('API:torrents');
 
@@ -74,8 +76,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       total: count ?? 0 
     });
 
+    // Transform to camelCase for frontend
+    const transformedTorrents = transformTorrents((torrents ?? []) as DbTorrent[]);
+
     return NextResponse.json({
-      torrents: torrents ?? [],
+      torrents: transformedTorrents,
       total: count ?? 0,
       limit,
       offset,
