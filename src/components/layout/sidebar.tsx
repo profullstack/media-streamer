@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
@@ -105,10 +106,15 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center px-6">
-            <Link href="/" className="flex items-center gap-2" onClick={closeMobile}>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-accent">
-                <MagnetIcon className="text-white" size={18} />
-              </div>
+            <Link href="/" className="flex items-center gap-3" onClick={closeMobile}>
+              <Image
+                src="/logo.svg"
+                alt="BitTorrented"
+                width={32}
+                height={32}
+                className="h-8 w-8"
+                priority
+              />
               <span className="text-lg font-semibold text-text-primary">BitTorrented</span>
             </Link>
           </div>

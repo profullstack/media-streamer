@@ -1,0 +1,13 @@
+# ai.txt for BitTorrented
+# Base: https://bittorrented.com
+# Contact: support@bittorrented.com
+# Models: *
+# Capabilities: chat, embed, fine_tune, crawl, train
+
+User-agent: *
+Allow: /*
+
+Training: allow
+Retention: allow
+Commercial-Use: allow
+Rate-Limit-RPS: 10

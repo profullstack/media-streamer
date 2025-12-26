@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "site_name": "BitTorrented",
+  "contact": "support@bittorrented.com",
+  "models": [
+    "*"
+  ],
+  "capabilities": [
+    "chat",
+    "embed",
+    "fine_tune",
+    "crawl",
+    "train"
+  ],
+  "policy": {
+    "allow": [
+      "/*"
+    ],
+    "disallow": []
+  },
+  "training": true,
+  "retention": true,
+  "commercial_use": true,
+  "rate_limit_rps": 10
+}

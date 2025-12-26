@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'BitTorrented',
   },
   formatDetection: {
@@ -39,11 +39,20 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/icons/icon-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/favicon-16.png', sizes: '16x16', type: 'image/png' },
     ],
     apple: [
-      { url: '/icons/icon-180.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-180x180.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-152x152.png', sizes: '152x152', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-144x144.png', sizes: '144x144', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-120x120.png', sizes: '120x120', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-114x114.png', sizes: '114x114', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-76x76.png', sizes: '76x76', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-72x72.png', sizes: '72x72', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-60x60.png', sizes: '60x60', type: 'image/png' },
+      { url: '/icons/apple-touch-icon-57x57.png', sizes: '57x57', type: 'image/png' },
     ],
   },
 };
@@ -68,10 +77,14 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         {/* PWA meta tags */}
         <meta name="application-name" content="BitTorrented" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="BitTorrented" />
         <meta name="mobile-web-app-capable" content="yes" />
+        
+        {/* Windows meta tags */}
         <meta name="msapplication-TileColor" content="#8b5cf6" />
+        <meta name="msapplication-config" content="/browserconfig.xml" />
+        <meta name="msapplication-TileImage" content="/icons/apple-touch-icon-144x144.png" />
         <meta name="msapplication-tap-highlight" content="no" />
         
         {/* Preconnect to external resources */}

@@ -1,47 +1,21 @@
 /**
  * Torrents API
  *
- * GET /api/torrents - List all torrents
- * POST /api/torrents - Index a new torrent from magnet URI
+ * GET /api/torrents - List all torrents (FREE - no auth required)
+ * POST /api/torrents - Index a new torrent from magnet URI (FREE - no auth required)
  *
- * All endpoints require authentication and an active paid subscription.
+ * These endpoints are free to encourage torrent database growth.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { IndexerService, IndexerError } from '@/lib/indexer';
-import { getCurrentUser } from '@/lib/auth';
-import { getSubscriptionRepository } from '@/lib/subscription';
-
-/**
- * Check if user has an active paid subscription
- */
-async function requireActiveSubscription(userId: string): Promise<{ allowed: boolean; error?: string }> {
-  const subscriptionRepo = getSubscriptionRepository();
-  const subscription = await subscriptionRepo.getSubscription(userId);
-  
-  if (!subscription) {
-    return { allowed: false, error: 'No subscription found. Please subscribe to access this feature.' };
-  }
-  
-  if (subscription.status !== 'active') {
-    return { allowed: false, error: 'Your subscription is not active. Please renew to continue.' };
-  }
-  
-  // Check if subscription has expired (check both trial and paid subscription expiry)
-  const expiresAt = subscription.subscription_expires_at ?? subscription.trial_expires_at;
-  if (expiresAt && new Date(expiresAt) < new Date()) {
-    return { allowed: false, error: 'Your subscription has expired. Please renew to continue.' };
-  }
-  
-  return { allowed: true };
-}
 
 /**
  * GET /api/torrents
  *
  * List all torrents with pagination.
- * Requires authentication and active paid subscription.
+ * FREE - No authentication required.
  *
  * Query parameters:
  * - limit: number (optional, default 50, max 100)
@@ -50,29 +24,9 @@ async function requireActiveSubscription(userId: string): Promise<{ allowed: boo
  *
  * Response:
  * - 200: List of torrents
- * - 401: Authentication required
- * - 403: Subscription required
  * - 500: Server error
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  // Require authentication
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
-    );
-  }
-
-  // Require active subscription
-  const subscriptionCheck = await requireActiveSubscription(user.id);
-  if (!subscriptionCheck.allowed) {
-    return NextResponse.json(
-      { error: subscriptionCheck.error },
-      { status: 403 }
-    );
-  }
-
   const { searchParams } = new URL(request.url);
   
   const limitParam = searchParams.get('limit');
@@ -125,7 +79,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  * POST /api/torrents
  *
  * Index a new torrent from a magnet URI.
- * Requires authentication and active paid subscription.
+ * FREE - No authentication required to encourage database growth.
  *
  * Request body:
  * - magnetUri: string (required) - The magnet URI to index
@@ -134,29 +88,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  * - 201: New torrent indexed
  * - 200: Existing torrent returned
  * - 400: Invalid request
- * - 401: Authentication required
- * - 403: Subscription required
  * - 500: Server error
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Require authentication
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
-    );
-  }
-
-  // Require active subscription
-  const subscriptionCheck = await requireActiveSubscription(user.id);
-  if (!subscriptionCheck.allowed) {
-    return NextResponse.json(
-      { error: subscriptionCheck.error },
-      { status: 403 }
-    );
-  }
-
   let body: unknown;
   
   try {

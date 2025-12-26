@@ -1,0 +1,5 @@
+/* TEAM */
+/* SITE */
+Last update: 2025/12/26
+Language: English
+Components: React, Next.js, Supabase, Tailwind, Ubuntu
