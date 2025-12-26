@@ -132,6 +132,27 @@ const DHT_BOOTSTRAP_NODES = [
   'dht.aelitis.com:6881',
 ];
 
+// WebSocket trackers that work in cloud environments (no UDP required)
+// These are added to every magnet URI to improve peer discovery
+const WEBSOCKET_TRACKERS = [
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
+
+// Additional UDP/HTTP trackers for better peer discovery
+const ADDITIONAL_TRACKERS = [
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://open.stealth.si:80/announce',
+  'udp://tracker.torrent.eu.org:451/announce',
+  'udp://tracker.bittor.pw:1337/announce',
+  'udp://public.popcorn-tracker.org:6969/announce',
+  'udp://tracker.dler.org:6969/announce',
+  'udp://exodus.desync.com:6969/announce',
+  'http://tracker.opentrackr.org:1337/announce',
+];
+
 /**
  * Service for fetching torrent metadata without downloading content
  */
@@ -225,6 +246,13 @@ export class TorrentService {
       trackerCount: parsed.trackers.length
     });
 
+    // Enhance magnet URI with additional trackers for better peer discovery
+    const enhancedMagnetUri = this.enhanceMagnetUri(magnetUri);
+    logger.debug('Enhanced magnet URI with additional trackers', {
+      originalTrackers: parsed.trackers.length,
+      addedTrackers: WEBSOCKET_TRACKERS.length + ADDITIONAL_TRACKERS.length,
+    });
+
     // Helper to emit progress events
     const emitProgress = (
       stage: MetadataProgressStage,
@@ -285,149 +313,174 @@ export class TorrentService {
 
       logger.debug('Adding torrent to client', { infohash: parsed.infohash });
 
+      // Helper function to extract metadata from torrent
+      const extractMetadata = (t: WebTorrent.Torrent): void => {
+        if (metadataReceived) return; // Prevent double processing
+        metadataReceived = true;
+        
+        const elapsed = Date.now() - startTime;
+        logger.info('Metadata received', {
+          infohash: t.infoHash,
+          name: t.name,
+          elapsed: `${elapsed}ms`,
+          fileCount: t.files.length,
+          totalSize: t.length,
+          numPeers: t.numPeers
+        });
+
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        if (progressIntervalId) {
+          clearInterval(progressIntervalId);
+        }
+
+        // Emit complete progress event
+        emitProgress('complete', 100, t.numPeers, 'Metadata received successfully');
+
+        // Deselect all files to prevent downloading
+        t.deselect(0, t.pieces.length - 1, 0);
+        logger.debug('Deselected all pieces to prevent download');
+
+        // Calculate file offsets (WebTorrent doesn't expose offset directly)
+        let currentOffset = 0;
+        const fileOffsets: number[] = [];
+        for (const file of t.files) {
+          fileOffsets.push(currentOffset);
+          currentOffset += file.length;
+        }
+
+        // Extract file information
+        const files: TorrentFileInfo[] = t.files.map((file, index) => {
+          const extension = this.extractExtension(file.name);
+          // Pass full filename to getMediaCategory and getMimeType
+          const mediaCategory = getMediaCategory(file.name);
+          const mimeType = getMimeType(file.name);
+          const offset = fileOffsets[index];
+
+          // Calculate piece indices
+          const pieceStart = Math.floor(offset / t.pieceLength);
+          const pieceEnd = Math.floor((offset + file.length - 1) / t.pieceLength);
+
+          return {
+            index,
+            name: file.name,
+            path: file.path,
+            size: file.length,
+            offset,
+            pieceStart,
+            pieceEnd,
+            extension,
+            mediaCategory,
+            mimeType,
+          };
+        });
+
+        const metadata: TorrentMetadata = {
+          infohash: t.infoHash.toLowerCase(),
+          name: t.name,
+          totalSize: t.length,
+          pieceLength: t.pieceLength,
+          files,
+          magnetUri: parsed.originalUri,
+        };
+
+        logger.info('Metadata extraction complete', {
+          infohash: metadata.infohash,
+          name: metadata.name,
+          fileCount: files.length,
+          totalSize: metadata.totalSize,
+          elapsed: `${Date.now() - startTime}ms`
+        });
+
+        resolve(metadata);
+      };
+
       // Add torrent and wait for metadata
       try {
-        torrent = this.client.add(magnetUri, (t) => {
-          logger.debug('Torrent added callback fired', {
+        torrent = this.client.add(enhancedMagnetUri);
+        
+        logger.debug('Torrent object created', {
+          infohash: torrent.infoHash,
+          ready: torrent.ready,
+          numPeers: torrent.numPeers
+        });
+
+        // Check if metadata is already available (torrent might already have it)
+        // This happens when the torrent was previously added or metadata came very fast
+        if (torrent.files && torrent.files.length > 0 && torrent.length > 0) {
+          logger.info('Metadata already available on torrent object', {
+            infohash: torrent.infoHash,
+            fileCount: torrent.files.length,
+            totalSize: torrent.length
+          });
+          extractMetadata(torrent);
+          return;
+        }
+
+        // Emit searching event
+        emitProgress('searching', 10, torrent.numPeers, 'Searching for peers...');
+
+        // Set up progress interval to emit updates every 2 seconds
+        const t = torrent;
+        progressIntervalId = setInterval(() => {
+          if (!metadataReceived && t) {
+            const numPeers = t.numPeers;
+            // Estimate progress based on peers found (max 50% before metadata)
+            const peerProgress = Math.min(numPeers * 10, 40);
+            const stage: MetadataProgressStage = numPeers > 0 ? 'downloading' : 'searching';
+            const message = numPeers > 0
+              ? `Downloading metadata from ${numPeers} peer${numPeers > 1 ? 's' : ''}...`
+              : 'Searching for peers...';
+            emitProgress(stage, 10 + peerProgress, numPeers, message);
+          }
+        }, 2000);
+
+        // Listen for various events for debugging
+        torrent.on('wire', (wire) => {
+          logger.debug('New peer connected', {
             infohash: t.infoHash,
-            name: t.name,
+            peerAddress: wire.remoteAddress,
             numPeers: t.numPeers
           });
+          // Emit progress when peer connects
+          emitProgress(
+            'downloading',
+            10 + Math.min(t.numPeers * 10, 40),
+            t.numPeers,
+            `Connected to ${t.numPeers} peer${t.numPeers > 1 ? 's' : ''}, downloading metadata...`
+          );
+        });
 
-          // Emit searching event
-          emitProgress('searching', 10, t.numPeers, 'Searching for peers...');
-
-          // Set up progress interval to emit updates every 2 seconds
-          progressIntervalId = setInterval(() => {
-            if (!metadataReceived && torrent) {
-              const numPeers = t.numPeers;
-              // Estimate progress based on peers found (max 50% before metadata)
-              const peerProgress = Math.min(numPeers * 10, 40);
-              const stage: MetadataProgressStage = numPeers > 0 ? 'downloading' : 'searching';
-              const message = numPeers > 0
-                ? `Downloading metadata from ${numPeers} peer${numPeers > 1 ? 's' : ''}...`
-                : 'Searching for peers...';
-              emitProgress(stage, 10 + peerProgress, numPeers, message);
-            }
-          }, 2000);
-
-          // Listen for various events for debugging
-          t.on('wire', (wire) => {
-            logger.debug('New peer connected', {
-              infohash: t.infoHash,
-              peerAddress: wire.remoteAddress,
-              numPeers: t.numPeers
-            });
-            // Emit progress when peer connects
-            emitProgress(
-              'downloading',
-              10 + Math.min(t.numPeers * 10, 40),
-              t.numPeers,
-              `Connected to ${t.numPeers} peer${t.numPeers > 1 ? 's' : ''}, downloading metadata...`
-            );
-          });
-
-          t.on('warning', (warn) => {
-            logger.warn('Torrent warning', {
-              infohash: t.infoHash,
-              warning: String(warn)
-            });
-          });
-
-          t.on('error', (err) => {
-            logger.error('Torrent error', err, { infohash: t.infoHash });
-          });
-
-          // Listen for metadata event
-          t.on('metadata', () => {
-            metadataReceived = true;
-            const elapsed = Date.now() - startTime;
-            logger.info('Metadata received', {
-              infohash: t.infoHash,
-              name: t.name,
-              elapsed: `${elapsed}ms`,
-              fileCount: t.files.length,
-              totalSize: t.length,
-              numPeers: t.numPeers
-            });
-
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-            }
-            if (progressIntervalId) {
-              clearInterval(progressIntervalId);
-            }
-
-            // Emit complete progress event
-            emitProgress('complete', 100, t.numPeers, 'Metadata received successfully');
-
-            // Deselect all files to prevent downloading
-            t.deselect(0, t.pieces.length - 1, 0);
-            logger.debug('Deselected all pieces to prevent download');
-
-            // Calculate file offsets (WebTorrent doesn't expose offset directly)
-            let currentOffset = 0;
-            const fileOffsets: number[] = [];
-            for (const file of t.files) {
-              fileOffsets.push(currentOffset);
-              currentOffset += file.length;
-            }
-
-            // Extract file information
-            const files: TorrentFileInfo[] = t.files.map((file, index) => {
-              const extension = this.extractExtension(file.name);
-              // Pass full filename to getMediaCategory and getMimeType
-              const mediaCategory = getMediaCategory(file.name);
-              const mimeType = getMimeType(file.name);
-              const offset = fileOffsets[index];
-
-              // Calculate piece indices
-              const pieceStart = Math.floor(offset / t.pieceLength);
-              const pieceEnd = Math.floor((offset + file.length - 1) / t.pieceLength);
-
-              return {
-                index,
-                name: file.name,
-                path: file.path,
-                size: file.length,
-                offset,
-                pieceStart,
-                pieceEnd,
-                extension,
-                mediaCategory,
-                mimeType,
-              };
-            });
-
-            const metadata: TorrentMetadata = {
-              infohash: t.infoHash.toLowerCase(),
-              name: t.name,
-              totalSize: t.length,
-              pieceLength: t.pieceLength,
-              files,
-              magnetUri: parsed.originalUri,
-            };
-
-            logger.info('Metadata extraction complete', {
-              infohash: metadata.infohash,
-              name: metadata.name,
-              fileCount: files.length,
-              totalSize: metadata.totalSize,
-              elapsed: `${Date.now() - startTime}ms`
-            });
-
-            resolve(metadata);
+        torrent.on('warning', (warn) => {
+          logger.warn('Torrent warning', {
+            infohash: t.infoHash,
+            warning: String(warn)
           });
         });
 
-        // Log torrent state after adding
-        if (torrent) {
-          logger.debug('Torrent object created', {
-            infohash: torrent.infoHash,
-            ready: torrent.ready,
-            numPeers: torrent.numPeers
+        torrent.on('error', (err) => {
+          logger.error('Torrent error', err, { infohash: t.infoHash });
+        });
+
+        // Listen for metadata event - this fires when metadata is received from peers
+        torrent.on('metadata', () => {
+          logger.debug('metadata event fired');
+          extractMetadata(t);
+        });
+
+        // Also listen for 'ready' event as a backup - this fires when torrent is ready to use
+        torrent.on('ready', () => {
+          logger.debug('ready event fired', {
+            infohash: t.infoHash,
+            fileCount: t.files?.length ?? 0,
+            metadataReceived
           });
-        }
+          // Only extract if we haven't already
+          if (!metadataReceived && t.files && t.files.length > 0) {
+            extractMetadata(t);
+          }
+        });
       } catch (error) {
         if (timeoutId) {
           clearTimeout(timeoutId);
@@ -474,5 +527,25 @@ export class TorrentService {
       return null;
     }
     return filename.slice(lastDot + 1).toLowerCase();
+  }
+
+  /**
+   * Enhance a magnet URI with additional trackers for better peer discovery
+   * This is especially important in cloud environments where UDP is blocked
+   */
+  private enhanceMagnetUri(magnetUri: string): string {
+    // Combine WebSocket and additional trackers
+    const allTrackers = [...WEBSOCKET_TRACKERS, ...ADDITIONAL_TRACKERS];
+    
+    // Add trackers that aren't already in the magnet URI
+    let enhanced = magnetUri;
+    for (const tracker of allTrackers) {
+      const encodedTracker = encodeURIComponent(tracker);
+      if (!magnetUri.includes(encodedTracker) && !magnetUri.includes(tracker)) {
+        enhanced += `&tr=${encodedTracker}`;
+      }
+    }
+    
+    return enhanced;
   }
 }

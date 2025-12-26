@@ -45,12 +45,16 @@ describe('TorrentService', () => {
 
   describe('fetchMetadata', () => {
     it('should fetch metadata from a valid magnet URI', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: 'Test Torrent',
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [
           {
             name: 'file1.mp3',
@@ -63,16 +67,22 @@ describe('TorrentService', () => {
             length: 500000,
           },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        // Fire metadata event after a short delay
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -88,12 +98,16 @@ describe('TorrentService', () => {
     });
 
     it('should calculate piece indices for files', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: 'abcdef1234567890abcdef1234567890abcdef12',
         name: 'Music Album',
         length: 100000,
         pieceLength: 16384,
         pieces: { length: 10 },
+        numPeers: 0,
+        ready: false,
         files: [
           {
             name: 'track01.flac',
@@ -106,16 +120,21 @@ describe('TorrentService', () => {
             length: 50000,
           },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -137,12 +156,16 @@ describe('TorrentService', () => {
     });
 
     it('should detect media category for files', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: 'abcdef1234567890abcdef1234567890abcdef12',
         name: 'Mixed Media',
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [
           { name: 'song.mp3', path: 'Mixed Media/song.mp3', length: 100000 },
           { name: 'movie.mkv', path: 'Mixed Media/movie.mkv', length: 500000 },
@@ -150,16 +173,21 @@ describe('TorrentService', () => {
           { name: 'notes.txt', path: 'Mixed Media/notes.txt', length: 100000 },
           { name: 'readme', path: 'Mixed Media/readme', length: 100000 },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -186,13 +214,14 @@ describe('TorrentService', () => {
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [],
         on: vi.fn(), // Never calls the metadata callback
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
         return mockTorrent;
       });
 
@@ -204,26 +233,35 @@ describe('TorrentService', () => {
     });
 
     it('should deselect all files after fetching metadata', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
       const mockDeselect = vi.fn();
+      
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: 'Test Torrent',
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [
           { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: mockDeselect,
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -305,23 +343,32 @@ describe('TorrentService', () => {
 
   describe('Edge cases', () => {
     it('should handle torrent with no files', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: 'Empty Torrent',
         length: 0,
         pieceLength: 16384,
         pieces: { length: 0 },
+        numPeers: 0,
+        ready: false,
         files: [],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -334,25 +381,34 @@ describe('TorrentService', () => {
     });
 
     it('should handle files with no extension', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: 'Test',
         length: 1000,
         pieceLength: 16384,
         pieces: { length: 1 },
+        numPeers: 0,
+        ready: false,
         files: [
           { name: 'README', path: 'Test/README', length: 1000 },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -365,29 +421,38 @@ describe('TorrentService', () => {
     });
 
     it('should handle deeply nested file paths', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: 'Music',
         length: 1000,
         pieceLength: 16384,
         pieces: { length: 1 },
+        numPeers: 0,
+        ready: false,
         files: [
-          { 
-            name: 'track.flac', 
-            path: 'Music/Artist/Album/Disc 1/track.flac', 
+          {
+            name: 'track.flac',
+            path: 'Music/Artist/Album/Disc 1/track.flac',
             length: 1000,
           },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -401,6 +466,8 @@ describe('TorrentService', () => {
 
   describe('PRD Addendum: Large metadata stress tests', () => {
     it('should handle torrents with 10,000+ files', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       // Generate 10,000 mock files
       const fileCount = 10000;
       const mockFiles = Array.from({ length: fileCount }, (_, i) => ({
@@ -415,17 +482,24 @@ describe('TorrentService', () => {
         length: mockFiles.reduce((sum, f) => sum + f.length, 0),
         pieceLength: 16384,
         pieces: { length: Math.ceil(mockFiles.reduce((sum, f) => sum + f.length, 0) / 16384) },
+        numPeers: 0,
+        ready: false,
         files: mockFiles,
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -446,6 +520,8 @@ describe('TorrentService', () => {
     });
 
     it('should handle torrents with deeply nested directory structures (100+ levels)', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       // Create a deeply nested path
       const depth = 100;
       const nestedPath = Array.from({ length: depth }, (_, i) => `folder_${i}`).join('/');
@@ -456,6 +532,8 @@ describe('TorrentService', () => {
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [
           {
             name: 'file.txt',
@@ -463,16 +541,21 @@ describe('TorrentService', () => {
             length: 1000000,
           },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -485,6 +568,8 @@ describe('TorrentService', () => {
     });
 
     it('should handle torrents with very large total size (multi-TB)', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const TB = 1024 * 1024 * 1024 * 1024;
       const totalSize = 300 * TB; // 300 TB
       
@@ -494,6 +579,8 @@ describe('TorrentService', () => {
         length: totalSize,
         pieceLength: 16 * 1024 * 1024, // 16 MB pieces for large torrents
         pieces: { length: Math.ceil(totalSize / (16 * 1024 * 1024)) },
+        numPeers: 0,
+        ready: false,
         files: [
           {
             name: 'huge_file.bin',
@@ -501,16 +588,21 @@ describe('TorrentService', () => {
             length: totalSize,
           },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -523,12 +615,16 @@ describe('TorrentService', () => {
     });
 
     it('should handle files with unicode characters in names', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: 'abcdef1234567890abcdef1234567890abcdef12',
         name: '音楽コレクション',
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [
           {
             name: '日本語ファイル名.mp3',
@@ -541,16 +637,21 @@ describe('TorrentService', () => {
             length: 500000,
           },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -564,12 +665,16 @@ describe('TorrentService', () => {
     });
 
     it('should handle files with special characters in names', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: 'abcdef1234567890abcdef1234567890abcdef12',
         name: 'Special Chars',
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [
           {
             name: 'file with spaces & symbols!@#$%.mp3',
@@ -582,16 +687,21 @@ describe('TorrentService', () => {
             length: 500000,
           },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
@@ -612,13 +722,14 @@ describe('TorrentService', () => {
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [],
         on: vi.fn(), // Never calls metadata callback
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
         return mockTorrent;
       });
 
@@ -635,13 +746,14 @@ describe('TorrentService', () => {
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [],
         on: vi.fn(),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
         return mockTorrent;
       });
 
@@ -665,13 +777,14 @@ describe('TorrentService', () => {
         length: 1000000,
         pieceLength: 16384,
         pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
         files: [],
         on: vi.fn(),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
         return mockTorrent;
       });
 
@@ -691,32 +804,42 @@ describe('TorrentService', () => {
     it('should handle multiple concurrent metadata fetches with different timeouts', async () => {
       let callCount = 0;
       
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: unknown) => void) => {
+      mockAdd.mockImplementation((_magnetUri: string) => {
         callCount++;
         const currentCall = callCount;
+        const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
         
+        // For the second torrent, return empty files to prevent "ready" event from resolving
         const mockTorrent = {
           infoHash: `${currentCall}234567890abcdef1234567890abcdef1234567`,
           name: `Torrent ${currentCall}`,
-          length: 1000000,
+          length: currentCall === 1 ? 1000000 : 0,
           pieceLength: 16384,
-          pieces: { length: 100 },
-          files: [
-            { name: 'file.mp3', path: `Torrent ${currentCall}/file.mp3`, length: 1000000 },
-          ],
-          on: vi.fn((event: string, cb: () => void) => {
-            if (event === 'metadata') {
-              // First torrent responds quickly, second times out
-              if (currentCall === 1) {
-                setTimeout(cb, 10);
-              }
-              // Second torrent never responds (will timeout)
+          pieces: { length: currentCall === 1 ? 100 : 0 },
+          numPeers: 0,
+          ready: false,
+          files: currentCall === 1
+            ? [{ name: 'file.mp3', path: `Torrent ${currentCall}/file.mp3`, length: 1000000 }]
+            : [], // Empty files for second torrent - won't trigger ready resolution
+          on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+            if (!eventHandlers[event]) {
+              eventHandlers[event] = [];
             }
+            eventHandlers[event].push(cb);
           }),
           deselect: vi.fn(),
         };
         
-        callback(mockTorrent);
+        // First torrent responds quickly, second times out
+        if (currentCall === 1) {
+          setTimeout(() => {
+            if (eventHandlers['metadata']) {
+              eventHandlers['metadata'].forEach(cb => cb());
+            }
+          }, 10);
+        }
+        // Second torrent never responds (will timeout) - no metadata or ready events
+        
         return mockTorrent;
       });
 
@@ -736,6 +859,7 @@ describe('TorrentService', () => {
 
   describe('Progress events', () => {
     it('should emit progress events during metadata fetch', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
       const progressEvents: Array<{ stage: string; progress: number }> = [];
       
       const mockTorrent = {
@@ -745,20 +869,25 @@ describe('TorrentService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         numPeers: 0,
-        progress: 0,
+        ready: false,
         files: [
           { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
         ],
         on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
-          if (event === 'metadata') {
-            setTimeout(() => callback(), 50);
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 50);
         return mockTorrent;
       });
 
@@ -777,6 +906,7 @@ describe('TorrentService', () => {
     });
 
     it('should emit peer count updates', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
       const progressEvents: Array<{ numPeers?: number }> = [];
       
       const mockTorrent = {
@@ -786,25 +916,31 @@ describe('TorrentService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         numPeers: 0,
-        progress: 0,
+        ready: false,
         files: [
           { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
         ],
         on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
+          }
+          eventHandlers[event].push(callback);
+          
           if (event === 'wire') {
             // Simulate peer connection
             mockTorrent.numPeers = 1;
             setTimeout(() => callback({ remoteAddress: '1.2.3.4' }), 10);
           }
-          if (event === 'metadata') {
-            setTimeout(() => callback(), 50);
-          }
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 50);
         return mockTorrent;
       });
 
@@ -820,6 +956,8 @@ describe('TorrentService', () => {
     });
 
     it('should work without progress callback', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: 'Test Torrent',
@@ -827,20 +965,25 @@ describe('TorrentService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         numPeers: 0,
-        progress: 0,
+        ready: false,
         files: [
           { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
         ],
-        on: vi.fn((event: string, callback: () => void) => {
-          if (event === 'metadata') {
-            setTimeout(callback, 10);
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
           }
+          eventHandlers[event].push(callback);
         }),
         deselect: vi.fn(),
       };
 
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
-        callback(mockTorrent);
+      mockAdd.mockImplementation((_magnetUri: string) => {
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
         return mockTorrent;
       });
 
