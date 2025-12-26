@@ -1,0 +1,191 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { NextRequest } from 'next/server';
+
+// Mock the indexer module
+vi.mock('@/lib/indexer', () => ({
+  IndexerService: vi.fn(() => ({
+    indexMagnet: vi.fn(),
+    destroy: vi.fn(),
+  })),
+  IndexerError: class IndexerError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'IndexerError';
+    }
+  },
+  DuplicateTorrentError: class DuplicateTorrentError extends Error {
+    constructor(infohash: string) {
+      super(`Torrent with infohash ${infohash} already exists`);
+      this.name = 'DuplicateTorrentError';
+    }
+  },
+}));
+
+import { POST } from './route';
+import { IndexerService } from '@/lib/indexer';
+
+const mockIndexerService = vi.mocked(IndexerService);
+
+describe('Torrents API Route', () => {
+  let mockIndexMagnet: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    mockIndexMagnet = vi.fn();
+    mockIndexerService.mockImplementation(() => ({
+      indexMagnet: mockIndexMagnet,
+      destroy: vi.fn(),
+    }) as unknown as IndexerService);
+  });
+
+  describe('POST /api/torrents', () => {
+    it('should index a new torrent successfully', async () => {
+      const mockResult = {
+        torrentId: 'torrent-uuid-123',
+        infohash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        fileCount: 10,
+        totalSize: 1000000,
+        isNew: true,
+      };
+
+      mockIndexMagnet.mockResolvedValue(mockResult);
+
+      const request = new NextRequest('http://localhost:3000/api/torrents', {
+        method: 'POST',
+        body: JSON.stringify({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Test+Torrent',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.torrentId).toBe('torrent-uuid-123');
+      expect(data.infohash).toBe('1234567890abcdef1234567890abcdef12345678');
+      expect(data.name).toBe('Test Torrent');
+      expect(data.isNew).toBe(true);
+    });
+
+    it('should return existing torrent if already indexed', async () => {
+      const mockResult = {
+        torrentId: 'existing-torrent-uuid',
+        infohash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        fileCount: 10,
+        totalSize: 1000000,
+        isNew: false,
+      };
+
+      mockIndexMagnet.mockResolvedValue(mockResult);
+
+      const request = new NextRequest('http://localhost:3000/api/torrents', {
+        method: 'POST',
+        body: JSON.stringify({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.isNew).toBe(false);
+    });
+
+    it('should return 400 for missing magnetUri', async () => {
+      const request = new NextRequest('http://localhost:3000/api/torrents', {
+        method: 'POST',
+        body: JSON.stringify({}),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('magnetUri is required');
+    });
+
+    it('should return 400 for empty magnetUri', async () => {
+      const request = new NextRequest('http://localhost:3000/api/torrents', {
+        method: 'POST',
+        body: JSON.stringify({ magnetUri: '' }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('magnetUri is required');
+    });
+
+    it('should return 400 for invalid JSON body', async () => {
+      const request = new NextRequest('http://localhost:3000/api/torrents', {
+        method: 'POST',
+        body: 'invalid json',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('Invalid JSON body');
+    });
+
+    it('should return 400 for invalid magnet URI', async () => {
+      const { IndexerError } = await import('@/lib/indexer');
+      mockIndexMagnet.mockRejectedValue(new IndexerError('Invalid magnet URI'));
+
+      const request = new NextRequest('http://localhost:3000/api/torrents', {
+        method: 'POST',
+        body: JSON.stringify({ magnetUri: 'invalid' }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('Invalid magnet URI');
+    });
+
+    it('should handle indexer errors gracefully', async () => {
+      mockIndexMagnet.mockRejectedValue(new Error('Network error'));
+
+      const request = new NextRequest('http://localhost:3000/api/torrents', {
+        method: 'POST',
+        body: JSON.stringify({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe('Failed to index torrent');
+    });
+  });
+});

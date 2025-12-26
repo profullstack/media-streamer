@@ -1,0 +1,259 @@
+/**
+ * Transcoding Service Tests
+ * 
+ * Tests for FFmpeg transcoding configuration and command generation
+ */
+
+import { describe, it, expect } from 'vitest';
+import {
+  getTranscodeProfile,
+  buildFFmpegArgs,
+  getOutputFormat,
+  isTranscodingSupported,
+  TranscodeProfile,
+  MediaType,
+} from './transcoding';
+
+describe('Transcoding Service', () => {
+  describe('getTranscodeProfile', () => {
+    describe('video profiles', () => {
+      it('should return web-optimized profile for MKV', () => {
+        const profile = getTranscodeProfile('video', 'mkv');
+        expect(profile).toEqual({
+          outputFormat: 'mp4',
+          videoCodec: 'libx264',
+          audioCodec: 'aac',
+          videoBitrate: '2000k',
+          audioBitrate: '128k',
+          preset: 'fast',
+          crf: 23,
+        });
+      });
+
+      it('should return web-optimized profile for AVI', () => {
+        const profile = getTranscodeProfile('video', 'avi');
+        expect(profile.outputFormat).toBe('mp4');
+        expect(profile.videoCodec).toBe('libx264');
+      });
+
+      it('should return web-optimized profile for WMV', () => {
+        const profile = getTranscodeProfile('video', 'wmv');
+        expect(profile.outputFormat).toBe('mp4');
+      });
+
+      it('should return web-optimized profile for FLV', () => {
+        const profile = getTranscodeProfile('video', 'flv');
+        expect(profile.outputFormat).toBe('mp4');
+      });
+
+      it('should return web-optimized profile for MOV', () => {
+        const profile = getTranscodeProfile('video', 'mov');
+        expect(profile.outputFormat).toBe('mp4');
+      });
+
+      it('should return null for already supported formats', () => {
+        expect(getTranscodeProfile('video', 'mp4')).toBeNull();
+        expect(getTranscodeProfile('video', 'webm')).toBeNull();
+        expect(getTranscodeProfile('video', 'ogg')).toBeNull();
+      });
+    });
+
+    describe('audio profiles', () => {
+      it('should return web-optimized profile for FLAC', () => {
+        const profile = getTranscodeProfile('audio', 'flac');
+        expect(profile).toEqual({
+          outputFormat: 'mp3',
+          audioCodec: 'libmp3lame',
+          audioBitrate: '320k',
+          sampleRate: 44100,
+        });
+      });
+
+      it('should return web-optimized profile for WMA', () => {
+        const profile = getTranscodeProfile('audio', 'wma');
+        expect(profile.outputFormat).toBe('mp3');
+        expect(profile.audioCodec).toBe('libmp3lame');
+      });
+
+      it('should return web-optimized profile for AIFF', () => {
+        const profile = getTranscodeProfile('audio', 'aiff');
+        expect(profile.outputFormat).toBe('mp3');
+      });
+
+      it('should return web-optimized profile for APE', () => {
+        const profile = getTranscodeProfile('audio', 'ape');
+        expect(profile.outputFormat).toBe('mp3');
+      });
+
+      it('should return null for already supported formats', () => {
+        expect(getTranscodeProfile('audio', 'mp3')).toBeNull();
+        expect(getTranscodeProfile('audio', 'wav')).toBeNull();
+        expect(getTranscodeProfile('audio', 'ogg')).toBeNull();
+        expect(getTranscodeProfile('audio', 'aac')).toBeNull();
+      });
+    });
+  });
+
+  describe('buildFFmpegArgs', () => {
+    it('should build video transcoding arguments', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        videoBitrate: '2000k',
+        audioBitrate: '128k',
+        preset: 'fast',
+        crf: 23,
+      };
+
+      const args = buildFFmpegArgs('/input/video.mkv', '/output/video.mp4', profile);
+
+      expect(args).toContain('-i');
+      expect(args).toContain('/input/video.mkv');
+      expect(args).toContain('-c:v');
+      expect(args).toContain('libx264');
+      expect(args).toContain('-c:a');
+      expect(args).toContain('aac');
+      expect(args).toContain('-b:v');
+      expect(args).toContain('2000k');
+      expect(args).toContain('-b:a');
+      expect(args).toContain('128k');
+      expect(args).toContain('-preset');
+      expect(args).toContain('fast');
+      expect(args).toContain('-crf');
+      expect(args).toContain('23');
+      expect(args).toContain('/output/video.mp4');
+    });
+
+    it('should build audio transcoding arguments', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp3',
+        audioCodec: 'libmp3lame',
+        audioBitrate: '320k',
+        sampleRate: 44100,
+      };
+
+      const args = buildFFmpegArgs('/input/audio.flac', '/output/audio.mp3', profile);
+
+      expect(args).toContain('-i');
+      expect(args).toContain('/input/audio.flac');
+      expect(args).toContain('-c:a');
+      expect(args).toContain('libmp3lame');
+      expect(args).toContain('-b:a');
+      expect(args).toContain('320k');
+      expect(args).toContain('-ar');
+      expect(args).toContain('44100');
+      expect(args).toContain('/output/audio.mp3');
+    });
+
+    it('should include movflags for MP4 output', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+      };
+
+      const args = buildFFmpegArgs('/input/video.mkv', '/output/video.mp4', profile);
+
+      expect(args).toContain('-movflags');
+      expect(args).toContain('+faststart');
+    });
+
+    it('should include overwrite flag', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp3',
+        audioCodec: 'libmp3lame',
+      };
+
+      const args = buildFFmpegArgs('/input/audio.flac', '/output/audio.mp3', profile);
+
+      expect(args).toContain('-y');
+    });
+  });
+
+  describe('getOutputFormat', () => {
+    it('should return mp4 for video formats requiring transcoding', () => {
+      expect(getOutputFormat('video', 'mkv')).toBe('mp4');
+      expect(getOutputFormat('video', 'avi')).toBe('mp4');
+      expect(getOutputFormat('video', 'wmv')).toBe('mp4');
+      expect(getOutputFormat('video', 'flv')).toBe('mp4');
+    });
+
+    it('should return mp3 for audio formats requiring transcoding', () => {
+      expect(getOutputFormat('audio', 'flac')).toBe('mp3');
+      expect(getOutputFormat('audio', 'wma')).toBe('mp3');
+      expect(getOutputFormat('audio', 'aiff')).toBe('mp3');
+      expect(getOutputFormat('audio', 'ape')).toBe('mp3');
+    });
+
+    it('should return null for already supported formats', () => {
+      expect(getOutputFormat('video', 'mp4')).toBeNull();
+      expect(getOutputFormat('video', 'webm')).toBeNull();
+      expect(getOutputFormat('audio', 'mp3')).toBeNull();
+      expect(getOutputFormat('audio', 'ogg')).toBeNull();
+    });
+  });
+
+  describe('isTranscodingSupported', () => {
+    it('should return true for video formats that need transcoding', () => {
+      expect(isTranscodingSupported('video', 'mkv')).toBe(true);
+      expect(isTranscodingSupported('video', 'avi')).toBe(true);
+      expect(isTranscodingSupported('video', 'wmv')).toBe(true);
+      expect(isTranscodingSupported('video', 'flv')).toBe(true);
+      expect(isTranscodingSupported('video', 'mov')).toBe(true);
+    });
+
+    it('should return true for audio formats that need transcoding', () => {
+      expect(isTranscodingSupported('audio', 'flac')).toBe(true);
+      expect(isTranscodingSupported('audio', 'wma')).toBe(true);
+      expect(isTranscodingSupported('audio', 'aiff')).toBe(true);
+      expect(isTranscodingSupported('audio', 'ape')).toBe(true);
+    });
+
+    it('should return false for already supported formats', () => {
+      expect(isTranscodingSupported('video', 'mp4')).toBe(false);
+      expect(isTranscodingSupported('video', 'webm')).toBe(false);
+      expect(isTranscodingSupported('audio', 'mp3')).toBe(false);
+      expect(isTranscodingSupported('audio', 'ogg')).toBe(false);
+    });
+
+    it('should return false for unknown formats', () => {
+      expect(isTranscodingSupported('video', 'xyz')).toBe(false);
+      expect(isTranscodingSupported('audio', 'abc')).toBe(false);
+    });
+  });
+
+  describe('MediaType type', () => {
+    it('should include video and audio', () => {
+      const types: MediaType[] = ['video', 'audio'];
+      types.forEach(type => {
+        expect(typeof type).toBe('string');
+      });
+    });
+  });
+
+  describe('TranscodeProfile type', () => {
+    it('should allow video profile properties', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        videoBitrate: '2000k',
+        audioBitrate: '128k',
+        preset: 'fast',
+        crf: 23,
+      };
+      expect(profile.outputFormat).toBe('mp4');
+    });
+
+    it('should allow audio-only profile properties', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp3',
+        audioCodec: 'libmp3lame',
+        audioBitrate: '320k',
+        sampleRate: 44100,
+      };
+      expect(profile.outputFormat).toBe('mp3');
+    });
+  });
+});

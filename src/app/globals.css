@@ -1,0 +1,175 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Background layers */
+    --bg-primary: #0a0a0b;
+    --bg-secondary: #141416;
+    --bg-tertiary: #1c1c1f;
+    --bg-hover: #252528;
+    
+    /* Accent colors */
+    --accent-primary: #8b5cf6;
+    --accent-secondary: #06b6d4;
+    
+    /* Media type accents */
+    --accent-audio: #22c55e;
+    --accent-video: #ef4444;
+    --accent-ebook: #f59e0b;
+    
+    /* Text */
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    
+    /* Borders */
+    --border-subtle: #27272a;
+    --border-default: #3f3f46;
+  }
+
+  * {
+    @apply border-border-subtle;
+  }
+
+  html {
+    @apply antialiased;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-bg-primary text-text-primary;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar for dark mode */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-bg-secondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-default rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+
+  /* Focus styles */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-primary;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-accent-primary/30 text-text-primary;
+  }
+}
+
+@layer components {
+  /* Card component */
+  .card {
+    @apply bg-bg-secondary rounded-lg border border-border-subtle;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200 hover:bg-bg-tertiary hover:border-border-default;
+  }
+
+  /* Button variants */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg font-medium transition-colors;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent-primary text-white hover:bg-accent-primary/90;
+  }
+
+  .btn-secondary {
+    @apply btn bg-bg-tertiary text-text-primary hover:bg-bg-hover;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-2;
+    @apply text-text-primary placeholder:text-text-muted;
+    @apply focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary;
+  }
+
+  /* Media type badges */
+  .badge-audio {
+    @apply inline-flex items-center rounded-full bg-accent-audio/20 px-2 py-0.5 text-xs font-medium text-accent-audio;
+  }
+
+  .badge-video {
+    @apply inline-flex items-center rounded-full bg-accent-video/20 px-2 py-0.5 text-xs font-medium text-accent-video;
+  }
+
+  .badge-ebook {
+    @apply inline-flex items-center rounded-full bg-accent-ebook/20 px-2 py-0.5 text-xs font-medium text-accent-ebook;
+  }
+
+  /* Skeleton loader */
+  .skeleton {
+    @apply animate-pulse rounded bg-bg-tertiary;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-accent bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Safe area padding for mobile */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Touch action for better mobile experience */
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+
+  .touch-pan-x {
+    touch-action: pan-x;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
