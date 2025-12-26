@@ -1255,4 +1255,221 @@ describe('StreamingService', () => {
       expect(service.getActiveStreamCount()).toBe(0);
     });
   });
+
+  describe('Torrent timeout and cleanup', () => {
+    it('should remove torrent from client when metadata fetch times out', async () => {
+      // Create a torrent that never becomes ready (simulating timeout)
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: undefined,
+        files: [],
+        pieceLength: 16384,
+        pieces: { length: 0 },
+        ready: false,
+        on: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockGet.mockReturnValue(null);
+      mockAdd.mockImplementation((_magnetUri: string, _callback: (torrent: typeof mockTorrent) => void) => {
+        // Don't call callback - simulating metadata never arriving
+        return mockTorrent;
+      });
+
+      const service = new StreamingService({ streamTimeout: 100 }); // Short timeout for test
+
+      // Should timeout and throw
+      await expect(
+        service.createStream({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+          fileIndex: 0,
+        })
+      ).rejects.toThrow(StreamingError);
+
+      // Torrent should be removed from client after timeout
+      expect(mockRemove).toHaveBeenCalledWith(mockTorrent, expect.any(Function));
+    });
+
+    it('should wait for existing non-ready torrent instead of adding duplicate', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // Torrent that starts not ready but becomes ready
+      let readyCallback: (() => void) | null = null;
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        ready: false,
+        on: vi.fn((event: string, callback: () => void) => {
+          if (event === 'ready') {
+            readyCallback = callback;
+          }
+        }),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      // Return existing non-ready torrent
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 5000 });
+
+      // Start the stream request
+      const streamPromise = service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+      });
+
+      // Simulate torrent becoming ready after a short delay
+      setTimeout(() => {
+        mockTorrent.ready = true;
+        if (readyCallback) readyCallback();
+      }, 50);
+
+      const result = await streamPromise;
+
+      // Should NOT have tried to add a new torrent
+      expect(mockAdd).not.toHaveBeenCalled();
+      expect(result.size).toBe(5000000);
+    });
+
+    it('should handle retry after timeout by allowing re-add of same torrent', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // First attempt: torrent never becomes ready
+      const mockTorrentNotReady = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: undefined,
+        files: [],
+        pieceLength: 16384,
+        pieces: { length: 0 },
+        ready: false,
+        on: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      // Second attempt: torrent becomes ready
+      const mockTorrentReady = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        ready: false,
+        on: vi.fn((event: string, callback: () => void) => {
+          if (event === 'ready') {
+            setTimeout(callback, 10);
+          }
+        }),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      let addCallCount = 0;
+      mockGet.mockReturnValue(null);
+      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrentReady) => void) => {
+        addCallCount++;
+        if (addCallCount === 1) {
+          // First call: don't call callback (timeout)
+          return mockTorrentNotReady;
+        }
+        // Second call: call callback (success)
+        callback(mockTorrentReady);
+        return mockTorrentReady;
+      });
+
+      // Mock remove to actually clear the torrent
+      mockRemove.mockImplementation((_torrent: unknown, callback?: () => void) => {
+        if (callback) callback();
+      });
+
+      const service = new StreamingService({ streamTimeout: 100 });
+
+      // First attempt should timeout
+      await expect(
+        service.createStream({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+          fileIndex: 0,
+        })
+      ).rejects.toThrow(StreamingError);
+
+      // Verify torrent was removed after timeout
+      expect(mockRemove).toHaveBeenCalled();
+
+      // Second attempt should succeed (torrent was cleaned up)
+      const result = await service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+      });
+
+      expect(result.size).toBe(5000000);
+      expect(addCallCount).toBe(2);
+    });
+
+    it('should remove torrent from client when torrent error occurs', async () => {
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: undefined,
+        files: [],
+        pieceLength: 16384,
+        pieces: { length: 0 },
+        ready: false,
+        on: vi.fn((event: string, callback: (err?: Error) => void) => {
+          if (event === 'error') {
+            // Simulate error after a short delay
+            setTimeout(() => callback(new Error('Torrent error')), 10);
+          }
+        }),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockGet.mockReturnValue(null);
+      mockAdd.mockImplementation((_magnetUri: string, _callback: (torrent: typeof mockTorrent) => void) => {
+        return mockTorrent;
+      });
+
+      const service = new StreamingService({ streamTimeout: 5000 });
+
+      await expect(
+        service.createStream({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+          fileIndex: 0,
+        })
+      ).rejects.toThrow(StreamingError);
+
+      // Torrent should be removed from client after error
+      expect(mockRemove).toHaveBeenCalledWith(mockTorrent, expect.any(Function));
+    });
+  });
 });

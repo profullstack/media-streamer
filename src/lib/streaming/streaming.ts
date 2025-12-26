@@ -419,19 +419,48 @@ export class StreamingService {
    * Get an existing torrent or add a new one
    */
   private async getOrAddTorrent(magnetUri: string, infohash: string): Promise<WebTorrent.Torrent> {
+    logger.debug('Getting or adding torrent', { infohash });
+    const startTime = Date.now();
+
     // Check if torrent already exists
     const existing = this.client.get(infohash);
-    if (existing && existing.ready) {
-      logger.debug('Using existing torrent', { infohash, name: existing.name });
-      return existing;
+    if (existing) {
+      if (existing.ready) {
+        logger.debug('Using existing ready torrent', { infohash, name: existing.name });
+        return existing;
+      }
+      
+      // Torrent exists but not ready - wait for it to become ready
+      logger.debug('Waiting for existing non-ready torrent', { infohash });
+      return this.waitForTorrentReady(existing, infohash, startTime);
     }
 
     logger.debug('Adding new torrent', { infohash });
-    const startTime = Date.now();
 
     // Add new torrent and wait for it to be ready
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let torrent: WebTorrent.Torrent | null = null;
+
+      const cleanup = (): void => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
+
+      const removeTorrentAndReject = (error: StreamingError): void => {
+        cleanup();
+        if (torrent) {
+          logger.debug('Removing torrent after failure', { infohash });
+          // Use type assertion since WebTorrent types don't match runtime behavior
+          // The remove method accepts a callback as second argument at runtime
+          (this.client.remove as (torrent: WebTorrent.Torrent, callback?: () => void) => void)(torrent, () => {
+            logger.debug('Torrent removed after failure', { infohash });
+          });
+        }
+        reject(error);
+      };
 
       timeoutId = setTimeout(() => {
         logger.warn('Torrent metadata fetch timeout', {
@@ -439,10 +468,10 @@ export class StreamingService {
           timeout: this.streamTimeout,
           elapsed: `${Date.now() - startTime}ms`
         });
-        reject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
+        removeTorrentAndReject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
       }, this.streamTimeout);
 
-      const torrent = this.client.add(magnetUri, (t) => {
+      torrent = this.client.add(magnetUri, (t) => {
         logger.debug('Torrent add callback fired', {
           infohash: t.infoHash,
           ready: t.ready,
@@ -451,9 +480,7 @@ export class StreamingService {
 
         // Wait for ready event
         const onReady = (): void => {
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-          }
+          cleanup();
           logger.info('Torrent ready', {
             infohash: t.infoHash,
             name: t.name,
@@ -479,7 +506,7 @@ export class StreamingService {
         logger.debug('Peer connected', {
           infohash,
           peerAddress: wire.remoteAddress,
-          numPeers: torrent.numPeers
+          numPeers: torrent?.numPeers
         });
       });
 
@@ -492,11 +519,73 @@ export class StreamingService {
 
       // Use type assertion for error event since WebTorrent types are incomplete
       (torrent as unknown as NodeJS.EventEmitter).on('error', (err: Error) => {
+        logger.error('Torrent error', err, { infohash });
+        removeTorrentAndReject(new StreamingError(`Torrent error: ${err.message}`));
+      });
+    });
+  }
+
+  /**
+   * Wait for an existing torrent to become ready
+   */
+  private waitForTorrentReady(torrent: WebTorrent.Torrent, infohash: string, startTime: number): Promise<WebTorrent.Torrent> {
+    return new Promise((resolve, reject) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+      const cleanup = (): void => {
         if (timeoutId) {
           clearTimeout(timeoutId);
+          timeoutId = null;
         }
-        logger.error('Torrent error', err, { infohash });
-        reject(new StreamingError(`Torrent error: ${err.message}`));
+      };
+
+      const removeTorrentAndReject = (error: StreamingError): void => {
+        cleanup();
+        logger.debug('Removing torrent after failure', { infohash });
+        // Use type assertion since WebTorrent types don't match runtime behavior
+        // The remove method accepts a callback as second argument at runtime
+        (this.client.remove as (torrent: WebTorrent.Torrent, callback?: () => void) => void)(torrent, () => {
+          logger.debug('Torrent removed after failure', { infohash });
+        });
+        reject(error);
+      };
+
+      timeoutId = setTimeout(() => {
+        logger.warn('Torrent metadata fetch timeout (waiting for existing)', {
+          infohash,
+          timeout: this.streamTimeout,
+          elapsed: `${Date.now() - startTime}ms`
+        });
+        removeTorrentAndReject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
+      }, this.streamTimeout);
+
+      const onReady = (): void => {
+        cleanup();
+        logger.info('Existing torrent ready', {
+          infohash: torrent.infoHash,
+          name: torrent.name,
+          fileCount: torrent.files.length,
+          totalSize: torrent.length,
+          numPeers: torrent.numPeers,
+          elapsed: `${Date.now() - startTime}ms`
+        });
+        // Deselect all files initially
+        torrent.deselect(0, torrent.pieces.length - 1, 0);
+        resolve(torrent);
+      };
+
+      // Check if already ready (race condition protection)
+      if (torrent.ready) {
+        onReady();
+        return;
+      }
+
+      torrent.on('ready', onReady);
+
+      // Use type assertion for error event since WebTorrent types are incomplete
+      (torrent as unknown as NodeJS.EventEmitter).on('error', (err: Error) => {
+        logger.error('Torrent error (waiting for existing)', err, { infohash });
+        removeTorrentAndReject(new StreamingError(`Torrent error: ${err.message}`));
       });
     });
   }
