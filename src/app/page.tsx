@@ -5,7 +5,7 @@
  */
 
 import { MainLayout } from '@/components/layout';
-import { MusicIcon, VideoIcon, BookIcon, MagnetIcon, SearchIcon } from '@/components/ui/icons';
+import { MusicIcon, VideoIcon, BookIcon, MagnetIcon, SearchIcon, TvIcon } from '@/components/ui/icons';
 import Link from 'next/link';
 
 export default function HomePage(): React.ReactElement {
@@ -57,7 +57,7 @@ export default function HomePage(): React.ReactElement {
         {/* Media Categories */}
         <section>
           <h2 className="mb-4 text-xl font-semibold text-text-primary">Browse by Category</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <CategoryCard
               href="/music"
               icon={MusicIcon}
@@ -78,6 +78,13 @@ export default function HomePage(): React.ReactElement {
               title="Books"
               count={0}
               color="accent-ebook"
+            />
+            <CategoryCard
+              href="/live-tv"
+              icon={TvIcon}
+              title="Live TV"
+              count={0}
+              color="accent-primary"
             />
           </div>
         </section>
