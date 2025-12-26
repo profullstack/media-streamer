@@ -87,7 +87,14 @@ export function createSubscriptionRepository(
         if (error.code === 'PGRST116') {
           return null;
         }
-        throw new Error(error.message);
+        // Provide more context for API key errors
+        if (error.message.includes('Invalid API key')) {
+          throw new Error(
+            `Supabase API key error: ${error.message}. ` +
+            `Check that SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are correctly set.`
+          );
+        }
+        throw new Error(`Subscription query failed: ${error.message} (code: ${error.code})`);
       }
 
       return data;
