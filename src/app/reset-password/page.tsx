@@ -2,16 +2,17 @@
 
 /**
  * Reset Password Page
- * 
+ *
  * Allows users to set a new password after clicking the reset link.
  */
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { MagnetIcon, LoadingSpinner, CheckIcon, KeyIcon } from '@/components/ui/icons';
+import { LoadingSpinner, CheckIcon, KeyIcon } from '@/components/ui/icons';
 
 function ResetPasswordForm(): React.ReactElement {
   const searchParams = useSearchParams();
@@ -159,9 +160,17 @@ function ResetPasswordForm(): React.ReactElement {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-accent mb-4">
-            <MagnetIcon className="text-white" size={24} />
-          </div>
+          <Link href="/" className="inline-block mb-4">
+            <Image
+              src="/logo.svg"
+              alt="BitTorrented"
+              width={256}
+              height={64}
+              className="w-64 h-auto mx-auto"
+              style={{ margin: '0.8rem' }}
+              priority
+            />
+          </Link>
           <h1 className="text-2xl font-bold text-text-primary">Set new password</h1>
           <p className="text-text-secondary mt-1">
             Enter your new password below.

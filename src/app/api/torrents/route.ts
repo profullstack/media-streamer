@@ -10,6 +10,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { IndexerService, IndexerError } from '@/lib/indexer';
+import { createLogger, generateRequestId } from '@/lib/logger';
+
+const logger = createLogger('API:torrents');
 
 /**
  * GET /api/torrents
@@ -27,6 +30,9 @@ import { IndexerService, IndexerError } from '@/lib/indexer';
  * - 500: Server error
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const requestId = generateRequestId();
+  const reqLogger = logger.child({ requestId });
+  
   const { searchParams } = new URL(request.url);
   
   const limitParam = searchParams.get('limit');
@@ -35,6 +41,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 50, 100);
   const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
+  reqLogger.info('GET /api/torrents', { limit, offset, status });
 
   try {
     const supabase = getServerClient();
@@ -50,15 +58,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       query = query.eq('status', status as typeof validStatuses[number]);
     }
 
+    reqLogger.debug('Executing Supabase query');
     const { data: torrents, error, count } = await query;
 
     if (error) {
-      console.error('Failed to fetch torrents:', error);
+      reqLogger.error('Failed to fetch torrents from database', error);
       return NextResponse.json(
         { error: 'Failed to fetch torrents' },
         { status: 500 }
       );
     }
+
+    reqLogger.info('Torrents fetched successfully', { 
+      count: torrents?.length ?? 0, 
+      total: count ?? 0 
+    });
 
     return NextResponse.json({
       torrents: torrents ?? [],
@@ -67,7 +81,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       offset,
     });
   } catch (error) {
-    console.error('Torrents API error:', error);
+    reqLogger.error('Torrents API error', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -91,11 +105,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  * - 500: Server error
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const requestId = generateRequestId();
+  const reqLogger = logger.child({ requestId });
+  
+  reqLogger.info('POST /api/torrents - Starting');
+  
   let body: unknown;
   
   try {
     body = await request.json();
-  } catch {
+    reqLogger.debug('Request body parsed', { hasBody: !!body });
+  } catch (parseError) {
+    reqLogger.warn('Invalid JSON body', { error: String(parseError) });
     return NextResponse.json(
       { error: 'Invalid JSON body' },
       { status: 400 }
@@ -104,6 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Validate request body
   if (!body || typeof body !== 'object') {
+    reqLogger.warn('Request body is not an object');
     return NextResponse.json(
       { error: 'magnetUri is required' },
       { status: 400 }
@@ -113,18 +135,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { magnetUri } = body as { magnetUri?: string };
 
   if (!magnetUri || typeof magnetUri !== 'string' || magnetUri.trim() === '') {
+    reqLogger.warn('magnetUri is missing or invalid');
     return NextResponse.json(
       { error: 'magnetUri is required' },
       { status: 400 }
     );
   }
 
+  reqLogger.info('Indexing magnet URI', { 
+    magnetUri: magnetUri.substring(0, 100) + '...' 
+  });
+
   const indexer = new IndexerService();
 
   try {
+    reqLogger.debug('Calling indexer.indexMagnet');
     const result = await indexer.indexMagnet(magnetUri);
 
     const status = result.isNew ? 201 : 200;
+    reqLogger.info('Magnet indexed successfully', {
+      torrentId: result.torrentId,
+      infohash: result.infohash,
+      name: result.name,
+      isNew: result.isNew,
+      status
+    });
+
     return NextResponse.json({
       torrentId: result.torrentId,
       infohash: result.infohash,
@@ -135,18 +171,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }, { status });
   } catch (error) {
     if (error instanceof IndexerError) {
+      reqLogger.error('IndexerError during magnet indexing', error, {
+        cause: error.cause?.message
+      });
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
       );
     }
 
-    console.error('Failed to index torrent:', error);
+    reqLogger.error('Unexpected error during magnet indexing', error);
     return NextResponse.json(
       { error: 'Failed to index torrent' },
       { status: 500 }
     );
   } finally {
+    reqLogger.debug('Destroying indexer service');
     indexer.destroy();
   }
 }

@@ -20,6 +20,9 @@ import {
   recordRequest,
   DEFAULT_RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { createLogger, generateRequestId } from '@/lib/logger';
+
+const logger = createLogger('API:magnets');
 
 // Create rate limiter for magnet ingestion
 const magnetRateLimiter = createRateLimiter(DEFAULT_RATE_LIMITS.magnet);
@@ -54,11 +57,20 @@ function getClientIp(request: NextRequest): string {
  * - 500: Server error
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Rate limiting
+  const requestId = generateRequestId();
+  const reqLogger = logger.child({ requestId });
   const clientIp = getClientIp(request);
+  
+  reqLogger.info('POST /api/magnets - Starting', { clientIp });
+
+  // Rate limiting
   const rateLimitResult = checkRateLimit(magnetRateLimiter, clientIp);
   
   if (!rateLimitResult.allowed) {
+    reqLogger.warn('Rate limit exceeded', { 
+      clientIp, 
+      retryAfter: rateLimitResult.retryAfter 
+    });
     return NextResponse.json(
       {
         error: 'Rate limit exceeded. Please try again later.',
@@ -79,7 +91,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: unknown;
   try {
     body = await request.json();
-  } catch {
+    reqLogger.debug('Request body parsed');
+  } catch (parseError) {
+    reqLogger.warn('Invalid JSON body', { error: String(parseError) });
     return NextResponse.json(
       { error: 'Invalid JSON body' },
       { status: 400 }
@@ -88,6 +102,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Validate request body
   if (!body || typeof body !== 'object') {
+    reqLogger.warn('Request body is not an object');
     return NextResponse.json(
       { error: 'Request body must be an object' },
       { status: 400 }
@@ -97,6 +112,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { magnetUri } = body as { magnetUri?: string };
 
   if (!magnetUri || typeof magnetUri !== 'string') {
+    reqLogger.warn('magnetUri is missing or invalid');
     return NextResponse.json(
       { error: 'magnetUri is required and must be a string' },
       { status: 400 }
@@ -105,6 +121,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Validate magnet URI format
   if (!validateMagnetUri(magnetUri)) {
+    reqLogger.warn('Invalid magnet URI format', { 
+      magnetUri: magnetUri.substring(0, 100) 
+    });
     return NextResponse.json(
       { error: 'Invalid magnet URI format' },
       { status: 400 }
@@ -114,10 +133,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Record the request for rate limiting
   recordRequest(magnetRateLimiter, clientIp);
 
+  reqLogger.info('Ingesting magnet URI', { 
+    magnetUri: magnetUri.substring(0, 100) + '...' 
+  });
+
   // Ingest the magnet (no user ID for anonymous submissions)
   const result = await ingestMagnet(magnetUri, null);
 
   if (!result.success) {
+    reqLogger.error('Failed to ingest magnet', undefined, { 
+      error: result.error,
+      magnetUri: magnetUri.substring(0, 100)
+    });
     return NextResponse.json(
       { error: result.error ?? 'Failed to ingest magnet' },
       { status: 500 }
@@ -126,6 +153,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Return appropriate status based on whether it's a duplicate
   const status = result.isDuplicate ? 200 : 201;
+
+  reqLogger.info('Magnet ingested successfully', {
+    torrentId: result.torrentId,
+    infohash: result.infohash,
+    isDuplicate: result.isDuplicate,
+    status
+  });
 
   return NextResponse.json(
     {
@@ -159,11 +193,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
  * - 404: Torrent not found
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const requestId = generateRequestId();
+  const reqLogger = logger.child({ requestId });
+  
   const { searchParams } = new URL(request.url);
   const infohash = searchParams.get('infohash');
 
+  reqLogger.info('GET /api/magnets', { infohash });
+
   // Validate infohash parameter
   if (!infohash) {
+    reqLogger.warn('Missing infohash parameter');
     return NextResponse.json(
       { error: 'infohash query parameter is required' },
       { status: 400 }
@@ -172,21 +212,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Validate infohash format (40 hex characters)
   if (!/^[a-fA-F0-9]{40}$/.test(infohash)) {
+    reqLogger.warn('Invalid infohash format', { infohash });
     return NextResponse.json(
       { error: 'Invalid infohash format. Must be 40 hexadecimal characters.' },
       { status: 400 }
     );
   }
 
+  reqLogger.debug('Fetching torrent by infohash', { infohash });
+
   // Get torrent by infohash
   const torrent = await getTorrentByInfohash(infohash);
 
   if (!torrent) {
+    reqLogger.info('Torrent not found', { infohash });
     return NextResponse.json(
       { error: 'Torrent not found' },
       { status: 404 }
     );
   }
+
+  reqLogger.info('Torrent found', { 
+    infohash, 
+    torrentId: torrent.id,
+    name: torrent.name 
+  });
 
   return NextResponse.json(torrent);
 }

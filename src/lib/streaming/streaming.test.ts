@@ -17,6 +17,7 @@ vi.mock('webtorrent', () => ({
     destroy: mockDestroy,
     get: mockGet,
     torrents: [],
+    on: vi.fn(),
   })),
 }));
 

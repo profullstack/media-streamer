@@ -15,6 +15,7 @@ vi.mock('webtorrent', () => ({
     remove: mockRemove,
     destroy: mockDestroy,
     torrents: [],
+    on: vi.fn(), // Add mock for client-level event listener
   })),
 }));
 

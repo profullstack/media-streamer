@@ -105,17 +105,17 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center px-6">
-            <Link href="/" className="flex items-center gap-3" onClick={closeMobile}>
+          <div className="flex h-20 items-center px-3">
+            <Link href="/" className="flex items-center" onClick={closeMobile}>
               <Image
                 src="/logo.svg"
                 alt="BitTorrented"
-                width={32}
-                height={32}
-                className="h-8 w-8"
+                width={256}
+                height={64}
+                className="w-64 h-auto"
+                style={{ margin: '0.8rem' }}
                 priority
               />
-              <span className="text-lg font-semibold text-text-primary">BitTorrented</span>
             </Link>
           </div>
 

@@ -2,15 +2,16 @@
 
 /**
  * Login Page
- * 
+ *
  * User authentication with email/password.
  */
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { MagnetIcon, LoadingSpinner } from '@/components/ui/icons';
+import { LoadingSpinner } from '@/components/ui/icons';
 
 export default function LoginPage(): React.ReactElement {
   const [email, setEmail] = useState('');
@@ -41,9 +42,17 @@ export default function LoginPage(): React.ReactElement {
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="mb-8 text-center">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-accent mb-4">
-              <MagnetIcon className="text-white" size={24} />
-            </div>
+            <Link href="/" className="inline-block mb-4">
+              <Image
+                src="/logo.svg"
+                alt="BitTorrented"
+                width={256}
+                height={64}
+                className="w-64 h-auto mx-auto"
+                style={{ margin: '0.8rem' }}
+                priority
+              />
+            </Link>
             <h1 className="text-2xl font-bold text-text-primary">Welcome back</h1>
             <p className="text-text-secondary mt-1">Sign in to your account</p>
           </div>

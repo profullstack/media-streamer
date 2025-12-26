@@ -12,6 +12,9 @@ import {
   createTorrentFiles,
   type TorrentFileInsert,
 } from '../supabase';
+import { createLogger } from '../logger';
+
+const logger = createLogger('IndexerService');
 
 /**
  * Custom error for indexer failures
@@ -66,6 +69,7 @@ export class IndexerService {
   private torrentService: TorrentService;
 
   constructor() {
+    logger.info('Initializing IndexerService');
     this.torrentService = new TorrentService();
   }
 
@@ -82,13 +86,31 @@ export class IndexerService {
    */
   async indexMagnet(magnetUri: string, options: IndexOptions = {}): Promise<IndexResult> {
     const { skipDuplicates = true } = options;
+    const startTime = Date.now();
+
+    logger.info('Starting magnet indexing', { 
+      magnetUri: magnetUri.substring(0, 100) + '...',
+      skipDuplicates 
+    });
 
     let metadata: TorrentMetadata;
 
     // Fetch metadata from torrent network
     try {
+      logger.debug('Fetching metadata from torrent network');
       metadata = await this.torrentService.fetchMetadata(magnetUri);
+      logger.info('Metadata fetched successfully', {
+        infohash: metadata.infohash,
+        name: metadata.name,
+        fileCount: metadata.files.length,
+        totalSize: metadata.totalSize,
+        elapsed: `${Date.now() - startTime}ms`
+      });
     } catch (error) {
+      logger.error('Failed to fetch torrent metadata', error, {
+        magnetUri: magnetUri.substring(0, 100),
+        elapsed: `${Date.now() - startTime}ms`
+      });
       throw new IndexerError(
         `Failed to fetch torrent metadata: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error : undefined
@@ -97,9 +119,16 @@ export class IndexerService {
 
     // Check if torrent already exists
     try {
+      logger.debug('Checking for existing torrent', { infohash: metadata.infohash });
       const existingTorrent = await getTorrentByInfohash(metadata.infohash);
 
       if (existingTorrent) {
+        logger.info('Torrent already exists in database', {
+          infohash: metadata.infohash,
+          torrentId: existingTorrent.id,
+          skipDuplicates
+        });
+
         if (!skipDuplicates) {
           throw new DuplicateTorrentError(metadata.infohash);
         }
@@ -114,10 +143,12 @@ export class IndexerService {
           isNew: false,
         };
       }
+      logger.debug('No existing torrent found, proceeding with creation');
     } catch (error) {
       if (error instanceof DuplicateTorrentError) {
         throw error;
       }
+      logger.error('Failed to check for existing torrent', error, { infohash: metadata.infohash });
       throw new IndexerError(
         `Failed to check for existing torrent: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error : undefined
@@ -127,6 +158,10 @@ export class IndexerService {
     // Create new torrent record
     let torrentId: string;
     try {
+      logger.debug('Creating torrent record in database', {
+        infohash: metadata.infohash,
+        name: metadata.name
+      });
       const torrent = await createTorrent({
         infohash: metadata.infohash,
         magnet_uri: metadata.magnetUri,
@@ -136,7 +171,9 @@ export class IndexerService {
         piece_length: metadata.pieceLength,
       });
       torrentId = torrent.id;
+      logger.info('Torrent record created', { torrentId, infohash: metadata.infohash });
     } catch (error) {
+      logger.error('Failed to create torrent record', error, { infohash: metadata.infohash });
       throw new IndexerError(
         `Failed to create torrent record: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error : undefined
@@ -146,11 +183,23 @@ export class IndexerService {
     // Create file records
     if (metadata.files.length > 0) {
       try {
+        logger.debug('Creating file records', { 
+          torrentId, 
+          fileCount: metadata.files.length 
+        });
         const fileInserts: TorrentFileInsert[] = metadata.files.map((file) => 
           this.mapFileToInsert(torrentId, file)
         );
         await createTorrentFiles(fileInserts);
+        logger.info('File records created', { 
+          torrentId, 
+          fileCount: fileInserts.length 
+        });
       } catch (error) {
+        logger.error('Failed to create file records', error, { 
+          torrentId, 
+          fileCount: metadata.files.length 
+        });
         throw new IndexerError(
           `Failed to create file records: ${error instanceof Error ? error.message : 'Unknown error'}`,
           error instanceof Error ? error : undefined
@@ -158,7 +207,7 @@ export class IndexerService {
       }
     }
 
-    return {
+    const result: IndexResult = {
       torrentId,
       infohash: metadata.infohash,
       name: metadata.name,
@@ -166,6 +215,13 @@ export class IndexerService {
       totalSize: metadata.totalSize,
       isNew: true,
     };
+
+    logger.info('Magnet indexing complete', {
+      ...result,
+      elapsed: `${Date.now() - startTime}ms`
+    });
+
+    return result;
   }
 
   /**
@@ -190,6 +246,7 @@ export class IndexerService {
    * Destroy the underlying torrent service
    */
   async destroy(): Promise<void> {
+    logger.info('Destroying IndexerService');
     await this.torrentService.destroy();
   }
 }
