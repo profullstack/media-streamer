@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "prepare": "git config core.hooksPath .githooks || true",
     "precommit": "pnpm build && pnpm test",
-    "supabase:update-emails": "tsx scripts/supabase-update-emails.ts",
+    "supabase:update-emails": "tsx --env-file=.env scripts/supabase-update-emails.ts",
     "supabase:delete-torrent": "tsx --env-file=.env scripts/supabase-delete-infohash.ts"
   },
   "dependencies": {
