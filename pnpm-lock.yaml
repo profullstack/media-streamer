@@ -100,8 +100,8 @@ importers:
         specifier: ^14.6.1
         version: 14.6.1(@testing-library/dom@10.4.1)
       '@types/node':
-        specifier: ^22.10.2
-        version: 22.19.3
+        specifier: ^25.0.3
+        version: 25.0.3
       '@types/react':
         specifier: ^19.0.2
         version: 19.2.7
@@ -113,10 +113,10 @@ importers:
         version: 0.109.10
       '@vitejs/plugin-react':
         specifier: ^4.3.4
-        version: 4.7.0(vite@5.4.21(@types/node@22.19.3))
+        version: 4.7.0(vite@5.4.21(@types/node@25.0.3))
       '@vitest/coverage-v8':
         specifier: ^2.1.8
-        version: 2.1.9(vitest@2.1.9(@types/node@22.19.3)(happy-dom@15.11.7))
+        version: 2.1.9(vitest@2.1.9(@types/node@25.0.3)(happy-dom@15.11.7))
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.23(postcss@8.5.6)
@@ -143,7 +143,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.3)(happy-dom@15.11.7)
+        version: 2.1.9(@types/node@25.0.3)(happy-dom@15.11.7)
 
 packages:
 
@@ -1585,8 +1585,8 @@ packages:
   '@types/magnet-uri@5.1.5':
     resolution: {integrity: sha512-SbBjlb1KGe38VfjRR+mwqztJd/4skhdKkRbIzPDhTy7IAeEAPZWIVSEkZw00Qr4ZZOGR3/ATJ20WWPBfrKHGdA==}
 
-  '@types/node@22.19.3':
-    resolution: {integrity: sha512-1N9SBnWYOJTrNZCdh/yJE+t910Y128BoyY+zBLWhL3r0TYzlTmFdXrPwHL9DyFZmlEXNQQolTZh3KHV31QDhyA==}
+  '@types/node@25.0.3':
+    resolution: {integrity: sha512-W609buLVRVmeW693xKfzHeIV6nJGGz98uCPfeXI1ELMLXVeKYZ9m15fAMSaUPBHYLGFsVRcMmSCksQOrZV9BYA==}
 
   '@types/parse-torrent-file@4.0.6':
     resolution: {integrity: sha512-SxqVth0Iv0WuEkqWS5MaY4S4Tlyi+QHkElQREvsUPw2xHcPgKyQ2dkJRRv5vAxmLzH+tnMdOj1Nws/wsenbzUw==}
@@ -4080,8 +4080,8 @@ packages:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
     engines: {node: '>= 0.4'}
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+  undici-types@7.16.0:
+    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
   unordered-array-remove@1.0.2:
     resolution: {integrity: sha512-45YsfD6svkgaCBNyvD+dFHm4qFX9g3wRSIVgWVPtm2OCnphvPxzJoe20ATsiNpNJrmzHifnxm+BN5F7gFT/4gw==}
@@ -5539,7 +5539,7 @@ snapshots:
 
   '@types/bittorrent-protocol@3.1.7':
     dependencies:
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
 
   '@types/estree@1.0.8': {}
 
@@ -5553,20 +5553,20 @@ snapshots:
 
   '@types/magnet-uri@5.1.5':
     dependencies:
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
 
-  '@types/node@22.19.3':
+  '@types/node@25.0.3':
     dependencies:
-      undici-types: 6.21.0
+      undici-types: 7.16.0
 
   '@types/parse-torrent-file@4.0.6':
     dependencies:
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
 
   '@types/parse-torrent@5.8.8':
     dependencies:
       '@types/magnet-uri': 5.1.5
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
       '@types/parse-torrent-file': 4.0.6
 
   '@types/phoenix@1.6.7': {}
@@ -5581,20 +5581,20 @@ snapshots:
 
   '@types/simple-peer@9.11.9':
     dependencies:
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
 
   '@types/video.js@7.3.58': {}
 
   '@types/webtorrent@0.109.10':
     dependencies:
       '@types/bittorrent-protocol': 3.1.7
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
       '@types/parse-torrent': 5.8.8
       '@types/simple-peer': 9.11.9
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
 
   '@typescript-eslint/eslint-plugin@8.50.1(@typescript-eslint/parser@8.50.1(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3))(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)':
     dependencies:
@@ -5768,7 +5768,7 @@ snapshots:
       global: 4.4.0
       is-function: 1.0.2
 
-  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@22.19.3))':
+  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@25.0.3))':
     dependencies:
       '@babel/core': 7.28.5
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.28.5)
@@ -5776,11 +5776,11 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 5.4.21(@types/node@22.19.3)
+      vite: 5.4.21(@types/node@25.0.3)
     transitivePeerDependencies:
       - supports-color
 
-  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@22.19.3)(happy-dom@15.11.7))':
+  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@25.0.3)(happy-dom@15.11.7))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -5794,7 +5794,7 @@ snapshots:
       std-env: 3.10.0
       test-exclude: 7.0.1
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@22.19.3)(happy-dom@15.11.7)
+      vitest: 2.1.9(@types/node@25.0.3)(happy-dom@15.11.7)
     transitivePeerDependencies:
       - supports-color
 
@@ -5805,13 +5805,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@22.19.3))':
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@25.0.3))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 5.4.21(@types/node@22.19.3)
+      vite: 5.4.21(@types/node@25.0.3)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -8517,7 +8517,7 @@ snapshots:
       has-symbols: 1.1.0
       which-boxed-primitive: 1.1.1
 
-  undici-types@6.21.0: {}
+  undici-types@7.16.0: {}
 
   unordered-array-remove@1.0.2: {}
 
@@ -8630,13 +8630,13 @@ snapshots:
     dependencies:
       global: 4.4.0
 
-  vite-node@2.1.9(@types/node@22.19.3):
+  vite-node@2.1.9(@types/node@25.0.3):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 1.1.2
-      vite: 5.4.21(@types/node@22.19.3)
+      vite: 5.4.21(@types/node@25.0.3)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -8648,19 +8648,19 @@ snapshots:
       - supports-color
       - terser
 
-  vite@5.4.21(@types/node@22.19.3):
+  vite@5.4.21(@types/node@25.0.3):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.5.6
       rollup: 4.54.0
     optionalDependencies:
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
       fsevents: 2.3.3
 
-  vitest@2.1.9(@types/node@22.19.3)(happy-dom@15.11.7):
+  vitest@2.1.9(@types/node@25.0.3)(happy-dom@15.11.7):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.19.3))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@25.0.3))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
@@ -8676,11 +8676,11 @@ snapshots:
       tinyexec: 0.3.2
       tinypool: 1.1.1
       tinyrainbow: 1.2.0
-      vite: 5.4.21(@types/node@22.19.3)
-      vite-node: 2.1.9(@types/node@22.19.3)
+      vite: 5.4.21(@types/node@25.0.3)
+      vite-node: 2.1.9(@types/node@25.0.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 22.19.3
+      '@types/node': 25.0.3
       happy-dom: 15.11.7
     transitivePeerDependencies:
       - less
