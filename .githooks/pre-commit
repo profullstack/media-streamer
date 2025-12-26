@@ -1,0 +1,37 @@
+#!/bin/sh
+# BitTorrented.com Pre-commit Hook
+# Enforces TDD by running build and tests before every commit
+
+echo "🔨 Running pre-commit checks..."
+echo ""
+
+# Run build
+echo "📦 Building application..."
+pnpm build
+BUILD_EXIT_CODE=$?
+
+if [ $BUILD_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ Build failed! Please fix build errors before committing."
+    exit 1
+fi
+
+echo ""
+echo "✅ Build successful!"
+echo ""
+
+# Run tests
+echo "🧪 Running tests..."
+pnpm test
+TEST_EXIT_CODE=$?
+
+if [ $TEST_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ Tests failed! Please fix failing tests before committing."
+    exit 1
+fi
+
+echo ""
+echo "✅ All tests passed!"
+echo ""
+echo "🚀 Pre-commit checks complete. Proceeding with commit..."

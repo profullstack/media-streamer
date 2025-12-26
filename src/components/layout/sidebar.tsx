@@ -21,6 +21,7 @@ import {
   MenuIcon,
   CloseIcon,
   CreditCardIcon,
+  LibraryIcon,
 } from '@/components/ui/icons';
 
 interface NavItem {
@@ -33,6 +34,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { href: '/', label: 'Home', icon: HomeIcon },
   { href: '/search', label: 'Search', icon: SearchIcon },
+  { href: '/library', label: 'My Library', icon: LibraryIcon },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },

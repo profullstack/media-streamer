@@ -1,6 +1,8 @@
 /**
- * UI components exports
+ * UI Components Index
+ * 
+ * Export all UI components for easy importing.
  */
 
 export * from './icons';
-export { Modal } from './modal';
+export * from './favorite-button';

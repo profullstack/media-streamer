@@ -23,7 +23,11 @@ export type Database = {
           name: string;
           total_size: number;
           file_count: number;
-          piece_length: number;
+          piece_length: number | null;
+          created_by: string | null;
+          status: 'pending' | 'indexing' | 'ready' | 'error';
+          error_message: string | null;
+          indexed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -32,9 +36,13 @@ export type Database = {
           infohash: string;
           magnet_uri: string;
           name: string;
-          total_size: number;
-          file_count: number;
-          piece_length: number;
+          total_size?: number;
+          file_count?: number;
+          piece_length?: number | null;
+          created_by?: string | null;
+          status?: 'pending' | 'indexing' | 'ready' | 'error';
+          error_message?: string | null;
+          indexed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -45,7 +53,11 @@ export type Database = {
           name?: string;
           total_size?: number;
           file_count?: number;
-          piece_length?: number;
+          piece_length?: number | null;
+          created_by?: string | null;
+          status?: 'pending' | 'indexing' | 'ready' | 'error';
+          error_message?: string | null;
+          indexed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -471,6 +483,49 @@ export type Database = {
           torrent_id: string;
           torrent_name: string;
           torrent_infohash: string;
+          rank: number;
+        }[];
+      };
+      search_torrent_files: {
+        Args: {
+          search_query: string;
+          p_media_type?: string | null;
+          p_torrent_id?: string | null;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: {
+          file_id: string;
+          file_path: string;
+          file_name: string;
+          file_size: number;
+          file_extension: string | null;
+          file_media_type: string | null;
+          file_mime_type: string | null;
+          file_index: number;
+          piece_start: number;
+          piece_end: number;
+          torrent_id: string;
+          torrent_name: string;
+          torrent_infohash: string;
+          rank: number;
+        }[];
+      };
+      search_torrents: {
+        Args: {
+          search_query: string;
+          p_status?: string | null;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: {
+          torrent_id: string;
+          torrent_name: string;
+          torrent_infohash: string;
+          torrent_size: number;
+          torrent_file_count: number;
+          torrent_status: string;
+          torrent_created_at: string;
           rank: number;
         }[];
       };

@@ -1,0 +1,62 @@
+# DigitalOcean App Platform Specification
+# BitTorrented.com - Media Streaming Platform
+
+name: bittorrented
+
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    github:
+      repo: your-org/music-torrent
+      branch: main
+      deploy_on_push: true
+    
+    # Instance configuration
+    instance_count: 1
+    instance_size_slug: professional-xs
+    
+    # HTTP configuration
+    http_port: 3000
+    
+    # Health check
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 10
+      period_seconds: 30
+      timeout_seconds: 10
+      success_threshold: 1
+      failure_threshold: 3
+    
+    # Environment variables (set in DigitalOcean dashboard)
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: COINPAY_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: COINPAY_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+
+# Domain configuration
+domains:
+  - domain: bittorrented.com
+    type: PRIMARY
+  - domain: www.bittorrented.com
+    type: ALIAS
+
+# Alerts
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
