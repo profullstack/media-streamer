@@ -7,6 +7,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the payments module
+const mockPaymentHistoryRepository = {
+  createPayment: vi.fn().mockResolvedValue({
+    id: 'payment-db-123',
+    user_id: 'user-123',
+    coinpay_payment_id: 'coinpay-payment-123',
+    plan: 'premium',
+    amount_usd: 4.99,
+    crypto_type: 'BTC',
+    status: 'pending',
+    created_at: new Date().toISOString(),
+  }),
+  getUserPayments: vi.fn().mockResolvedValue([
+    {
+      id: 'payment-db-123',
+      user_id: 'user-123',
+      coinpay_payment_id: 'coinpay-payment-123',
+      plan: 'premium',
+      amount_usd: 4.99,
+      crypto_type: 'BTC',
+      status: 'completed',
+      created_at: new Date().toISOString(),
+    },
+  ]),
+  updatePaymentStatus: vi.fn().mockResolvedValue(undefined),
+  completePayment: vi.fn().mockResolvedValue(undefined),
+};
+
 vi.mock('@/lib/payments', () => ({
   createPaymentRequest: vi.fn((options) => ({
     id: 'pay-test-123',
@@ -22,6 +49,7 @@ vi.mock('@/lib/payments', () => ({
     plan,
     usd: plan === 'premium' ? 4.99 : 9.99,
   })),
+  getPaymentHistoryRepository: vi.fn(() => mockPaymentHistoryRepository),
 }));
 
 // Mock auth

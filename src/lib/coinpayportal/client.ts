@@ -188,9 +188,15 @@ export function getCoinPayPortalClient(): CoinPayPortalClient {
     const businessId = process.env.NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID;
     const webhookSecret = process.env.COINPAYPORTAL_WEBHOOK_SECRET || '';
 
-    if (!apiKey || !businessId) {
+    if (!apiKey) {
       throw new Error(
-        'Missing CoinPayPortal configuration. Please set COINPAYPORTAL_API_KEY and NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID environment variables.'
+        'Missing CoinPayPortal configuration. Please set COINPAYPORTAL_API_KEY environment variable.'
+      );
+    }
+
+    if (!businessId) {
+      throw new Error(
+        'Missing CoinPayPortal configuration. Please set NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID environment variable.'
       );
     }
 
