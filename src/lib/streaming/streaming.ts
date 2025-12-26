@@ -16,6 +16,14 @@ import { createLogger } from '../logger';
 
 const logger = createLogger('StreamingService');
 
+// Well-known DHT bootstrap nodes for reliable peer discovery
+const DHT_BOOTSTRAP_NODES = [
+  'router.bittorrent.com:6881',
+  'router.utorrent.com:6881',
+  'dht.transmissionbt.com:6881',
+  'dht.aelitis.com:6881',
+];
+
 /**
  * Custom error for streaming failures
  */
@@ -133,7 +141,17 @@ export class StreamingService {
       streamTimeout: options.streamTimeout ?? 30000
     });
     
-    this.client = new WebTorrent();
+    // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
+    this.client = new WebTorrent({
+      dht: {
+        bootstrap: DHT_BOOTSTRAP_NODES,
+      },
+      // Enable all peer discovery methods
+      tracker: true,
+      lsd: true, // Local Service Discovery
+      webSeeds: true,
+    } as WebTorrent.Options);
+    
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
     this.streamTimeout = options.streamTimeout ?? 30000;
     this.activeStreams = new Map();
@@ -143,7 +161,9 @@ export class StreamingService {
       logger.error('WebTorrent client error', err);
     });
     
-    logger.debug('WebTorrent client created for streaming');
+    logger.debug('WebTorrent client created for streaming with DHT bootstrap nodes', {
+      bootstrapNodes: DHT_BOOTSTRAP_NODES.length,
+    });
   }
 
   /**

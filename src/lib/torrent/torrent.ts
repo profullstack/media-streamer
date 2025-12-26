@@ -84,6 +84,14 @@ export interface TorrentServiceOptions {
   metadataTimeout?: number;
 }
 
+// Well-known DHT bootstrap nodes for reliable peer discovery
+const DHT_BOOTSTRAP_NODES = [
+  'router.bittorrent.com:6881',
+  'router.utorrent.com:6881',
+  'dht.transmissionbt.com:6881',
+  'dht.aelitis.com:6881',
+];
+
 /**
  * Service for fetching torrent metadata without downloading content
  */
@@ -93,7 +101,18 @@ export class TorrentService {
 
   constructor(options: TorrentServiceOptions = {}) {
     logger.info('Initializing TorrentService', { timeout: options.metadataTimeout ?? 30000 });
-    this.client = new WebTorrent();
+    
+    // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
+    this.client = new WebTorrent({
+      dht: {
+        bootstrap: DHT_BOOTSTRAP_NODES,
+      },
+      // Enable all peer discovery methods
+      tracker: true,
+      lsd: true, // Local Service Discovery
+      webSeeds: true,
+    } as WebTorrent.Options);
+    
     this.metadataTimeout = options.metadataTimeout ?? 30000;
     
     // Log client events
@@ -101,7 +120,9 @@ export class TorrentService {
       logger.error('WebTorrent client error', err);
     });
     
-    logger.debug('WebTorrent client created');
+    logger.debug('WebTorrent client created with DHT bootstrap nodes', {
+      bootstrapNodes: DHT_BOOTSTRAP_NODES.length,
+    });
   }
 
   /**
