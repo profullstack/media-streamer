@@ -100,7 +100,10 @@ export class TorrentService {
   private metadataTimeout: number;
 
   constructor(options: TorrentServiceOptions = {}) {
-    logger.info('Initializing TorrentService', { timeout: options.metadataTimeout ?? 30000 });
+    logger.info('Initializing TorrentService', {
+      timeout: options.metadataTimeout ?? 30000,
+      dhtBootstrapNodes: DHT_BOOTSTRAP_NODES,
+    });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
     this.client = new WebTorrent({
@@ -119,6 +122,25 @@ export class TorrentService {
     this.client.on('error', (err) => {
       logger.error('WebTorrent client error', err);
     });
+    
+    // Log DHT events for debugging
+    const dht = (this.client as unknown as { dht?: { on: (event: string, cb: (...args: unknown[]) => void) => void } }).dht;
+    if (dht) {
+      dht.on('ready', () => {
+        logger.info('DHT ready - connected to bootstrap nodes');
+      });
+      dht.on('peer', (peer: unknown, infoHash: unknown) => {
+        logger.debug('DHT found peer', { peer, infoHash });
+      });
+      dht.on('node', () => {
+        logger.debug('DHT discovered new node');
+      });
+      dht.on('error', (err: unknown) => {
+        logger.error('DHT error', err instanceof Error ? err : new Error(String(err)));
+      });
+    } else {
+      logger.warn('DHT not available on WebTorrent client');
+    }
     
     logger.debug('WebTorrent client created with DHT bootstrap nodes', {
       bootstrapNodes: DHT_BOOTSTRAP_NODES.length,
