@@ -298,15 +298,15 @@ describe('getCoinPayPortalClient', () => {
 
   it('should throw error when API key is missing', () => {
     process.env.COINPAYPORTAL_API_KEY = '';
-    process.env.COINPAYPORTAL_BUSINESS_ID = 'test-business';
+    process.env.NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID = 'test-business';
     process.env.COINPAYPORTAL_WEBHOOK_SECRET = 'test-secret';
 
     expect(() => getCoinPayPortalClient()).toThrow('Missing CoinPayPortal configuration');
   });
 
-  it('should throw error when business ID is missing', () => {
+  it('should throw error when merchant ID is missing', () => {
     process.env.COINPAYPORTAL_API_KEY = 'test-key';
-    process.env.COINPAYPORTAL_BUSINESS_ID = '';
+    process.env.NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID = '';
     process.env.COINPAYPORTAL_WEBHOOK_SECRET = 'test-secret';
 
     expect(() => getCoinPayPortalClient()).toThrow('Missing CoinPayPortal configuration');
@@ -314,7 +314,7 @@ describe('getCoinPayPortalClient', () => {
 
   it('should create client with valid configuration', () => {
     process.env.COINPAYPORTAL_API_KEY = 'cp_test_key';
-    process.env.COINPAYPORTAL_BUSINESS_ID = 'test-business-id';
+    process.env.NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID = 'test-business-id';
     process.env.COINPAYPORTAL_WEBHOOK_SECRET = 'test-secret';
 
     const client = getCoinPayPortalClient();
@@ -323,7 +323,7 @@ describe('getCoinPayPortalClient', () => {
 
   it('should return same instance on subsequent calls', () => {
     process.env.COINPAYPORTAL_API_KEY = 'cp_test_key';
-    process.env.COINPAYPORTAL_BUSINESS_ID = 'test-business-id';
+    process.env.NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID = 'test-business-id';
     process.env.COINPAYPORTAL_WEBHOOK_SECRET = 'test-secret';
 
     const client1 = getCoinPayPortalClient();
