@@ -416,6 +416,20 @@ export class StreamingService {
   }
 
   /**
+   * Check if an object is a valid WebTorrent torrent
+   */
+  private isValidTorrent(obj: unknown): obj is WebTorrent.Torrent {
+    return (
+      obj !== null &&
+      obj !== undefined &&
+      typeof obj === 'object' &&
+      'infoHash' in obj &&
+      'on' in obj &&
+      typeof (obj as { on: unknown }).on === 'function'
+    );
+  }
+
+  /**
    * Get an existing torrent or add a new one
    */
   private async getOrAddTorrent(magnetUri: string, infohash: string): Promise<WebTorrent.Torrent> {
@@ -423,16 +437,35 @@ export class StreamingService {
     const startTime = Date.now();
 
     // Check if torrent already exists
-    const existing = this.client.get(infohash);
+    // Note: client.get() returns Torrent | void, so we need to handle both cases
+    const existing = this.client.get(infohash) as WebTorrent.Torrent | undefined;
     if (existing) {
-      if (existing.ready) {
-        logger.debug('Using existing ready torrent', { infohash, name: existing.name });
-        return existing;
+      // Validate that the torrent object is valid (has expected methods)
+      if (this.isValidTorrent(existing)) {
+        if (existing.ready) {
+          logger.debug('Using existing ready torrent', { infohash, name: existing.name });
+          return existing;
+        }
+        
+        // Torrent exists but not ready - wait for it to become ready
+        logger.debug('Waiting for existing non-ready torrent', { infohash });
+        return this.waitForTorrentReady(existing, infohash, startTime);
+      } else {
+        // Invalid torrent object - remove it and add fresh
+        logger.warn('Found invalid torrent object, removing and re-adding', {
+          infohash,
+          existingType: typeof existing,
+          hasOn: typeof (existing as { on?: unknown }).on
+        });
+        try {
+          // Try to remove the invalid torrent by infohash
+          (this.client.remove as (torrent: string, callback?: () => void) => void)(infohash, () => {
+            logger.debug('Invalid torrent removed', { infohash });
+          });
+        } catch (removeError) {
+          logger.warn('Failed to remove invalid torrent', { infohash, error: String(removeError) });
+        }
       }
-      
-      // Torrent exists but not ready - wait for it to become ready
-      logger.debug('Waiting for existing non-ready torrent', { infohash });
-      return this.waitForTorrentReady(existing, infohash, startTime);
     }
 
     logger.debug('Adding new torrent', { infohash });
