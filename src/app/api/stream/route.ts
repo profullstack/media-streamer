@@ -1,9 +1,11 @@
 /**
  * Streaming API Route
- * 
+ *
  * Provides HTTP streaming for audio, video, and ebook files from torrents.
  * Supports HTTP range requests for seeking.
- * 
+ *
+ * All endpoints require authentication and an active paid subscription.
+ *
  * GET /api/stream?infohash=...&fileIndex=...
  * HEAD /api/stream?infohash=...&fileIndex=...
  */
@@ -15,6 +17,8 @@ import {
   FileNotFoundError,
   RangeNotSatisfiableError,
 } from '@/lib/streaming';
+import { getCurrentUser } from '@/lib/auth';
+import { getSubscriptionRepository } from '@/lib/subscription';
 
 // Singleton streaming service instance
 let streamingService: StreamingService | null = null;
@@ -27,6 +31,30 @@ function getStreamingService(): StreamingService {
     });
   }
   return streamingService;
+}
+
+/**
+ * Check if user has an active paid subscription
+ */
+async function requireActiveSubscription(userId: string): Promise<{ allowed: boolean; error?: string }> {
+  const subscriptionRepo = getSubscriptionRepository();
+  const subscription = await subscriptionRepo.getSubscription(userId);
+  
+  if (!subscription) {
+    return { allowed: false, error: 'No subscription found. Please subscribe to access this feature.' };
+  }
+  
+  if (subscription.status !== 'active') {
+    return { allowed: false, error: 'Your subscription is not active. Please renew to continue.' };
+  }
+  
+  // Check if subscription has expired (check both trial and paid subscription expiry)
+  const expiresAt = subscription.subscription_expires_at ?? subscription.trial_expires_at;
+  if (expiresAt && new Date(expiresAt) < new Date()) {
+    return { allowed: false, error: 'Your subscription has expired. Please renew to continue.' };
+  }
+  
+  return { allowed: true };
 }
 
 /**
@@ -131,8 +159,27 @@ function nodeStreamToWebStream(nodeStream: NodeJS.ReadableStream): ReadableStrea
 /**
  * GET /api/stream
  * Stream a file from a torrent
+ * Requires authentication and active paid subscription.
  */
 export async function GET(request: NextRequest): Promise<Response> {
+  // Require authentication
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
+  // Require active subscription
+  const subscriptionCheck = await requireActiveSubscription(user.id);
+  if (!subscriptionCheck.allowed) {
+    return NextResponse.json(
+      { error: subscriptionCheck.error },
+      { status: 403 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const validation = validateParams(searchParams);
 
@@ -222,8 +269,21 @@ export async function GET(request: NextRequest): Promise<Response> {
 /**
  * HEAD /api/stream
  * Get file info without streaming
+ * Requires authentication and active paid subscription.
  */
 export async function HEAD(request: NextRequest): Promise<Response> {
+  // Require authentication
+  const user = await getCurrentUser();
+  if (!user) {
+    return new Response(null, { status: 401 });
+  }
+
+  // Require active subscription
+  const subscriptionCheck = await requireActiveSubscription(user.id);
+  if (!subscriptionCheck.allowed) {
+    return new Response(null, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const validation = validateParams(searchParams);
 

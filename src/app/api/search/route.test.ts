@@ -1,6 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
+// Mock auth
+vi.mock('@/lib/auth', () => ({
+  getCurrentUser: vi.fn(() => Promise.resolve({ id: 'user-123', email: 'test@example.com' })),
+}));
+
+// Mock subscription
+const mockSubscriptionRepository = {
+  getSubscription: vi.fn().mockResolvedValue({
+    id: 'sub-123',
+    user_id: 'user-123',
+    tier: 'premium',
+    status: 'active',
+    subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    trial_expires_at: null,
+  }),
+};
+
+vi.mock('@/lib/subscription', () => ({
+  getSubscriptionRepository: vi.fn(() => mockSubscriptionRepository),
+}));
+
 // Mock the supabase module
 vi.mock('@/lib/supabase', () => ({
   searchFiles: vi.fn(),

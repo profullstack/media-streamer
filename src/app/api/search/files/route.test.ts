@@ -1,18 +1,39 @@
 /**
  * File Search API Tests
- * 
+ *
  * Tests for the /api/search/files endpoint.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { GET } from './route';
+
+// Mock auth
+vi.mock('@/lib/auth', () => ({
+  getCurrentUser: vi.fn(() => Promise.resolve({ id: 'user-123', email: 'test@example.com' })),
+}));
+
+// Mock subscription
+const mockSubscriptionRepository = {
+  getSubscription: vi.fn().mockResolvedValue({
+    id: 'sub-123',
+    user_id: 'user-123',
+    tier: 'premium',
+    status: 'active',
+    subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    trial_expires_at: null,
+  }),
+};
+
+vi.mock('@/lib/subscription', () => ({
+  getSubscriptionRepository: vi.fn(() => mockSubscriptionRepository),
+}));
 
 // Mock the search module
 vi.mock('@/lib/torrent-index', () => ({
   searchTorrentFiles: vi.fn(),
 }));
 
+import { GET } from './route';
 import { searchTorrentFiles } from '@/lib/torrent-index';
 
 describe('File Search API', () => {

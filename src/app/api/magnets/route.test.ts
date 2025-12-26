@@ -1,6 +1,6 @@
 /**
  * Magnet Ingestion API Tests
- * 
+ *
  * Tests for the /api/magnets endpoint.
  */
 
@@ -31,13 +31,25 @@ vi.mock('@/lib/rate-limit', () => ({
   },
 }));
 
-// Mock Supabase
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    auth: {
-      getUser: vi.fn(() => Promise.resolve({ data: { user: { id: 'user-123' } }, error: null })),
-    },
-  })),
+// Mock auth
+vi.mock('@/lib/auth', () => ({
+  getCurrentUser: vi.fn(() => Promise.resolve({ id: 'user-123', email: 'test@example.com' })),
+}));
+
+// Mock subscription
+const mockSubscriptionRepository = {
+  getSubscription: vi.fn().mockResolvedValue({
+    id: 'sub-123',
+    user_id: 'user-123',
+    tier: 'premium',
+    status: 'active',
+    subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    trial_expires_at: null,
+  }),
+};
+
+vi.mock('@/lib/subscription', () => ({
+  getSubscriptionRepository: vi.fn(() => mockSubscriptionRepository),
 }));
 
 import { ingestMagnet, validateMagnetUri, getTorrentByInfohash } from '@/lib/torrent-index';
