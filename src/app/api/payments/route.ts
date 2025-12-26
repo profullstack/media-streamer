@@ -3,12 +3,14 @@
  *
  * Creates payment sessions via CoinPayPortal for premium subscriptions.
  * No free tier - users must pay after trial expires.
+ * Persists payment records to database for tracking.
  */
 
 import { NextResponse } from 'next/server';
-import { createPaymentRequest, getSubscriptionPrice } from '@/lib/payments';
+import { createPaymentRequest, getSubscriptionPrice, getPaymentHistoryRepository } from '@/lib/payments';
 import { getCurrentUser as getAuthUser } from '@/lib/auth';
 import { getCoinPayPortalClient, type CryptoBlockchain } from '@/lib/coinpayportal';
+import type { PaymentPlan } from '@/lib/supabase/types';
 
 // Valid plans (no free tier)
 const VALID_PLANS = ['premium', 'family'] as const;
@@ -133,6 +135,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
+    // Persist payment to database for tracking
+    const paymentRepo = getPaymentHistoryRepository();
+    await paymentRepo.createPayment(user.id, {
+      coinpayportalPaymentId: coinPayResponse.payment.id,
+      amountUsd: price.usd,
+      plan: plan as PaymentPlan,
+      blockchain: coinPayResponse.payment.blockchain,
+      paymentAddress: coinPayResponse.payment.payment_address,
+      metadata: {
+        orderId: payment.id,
+        userEmail: user.email,
+      },
+    });
+
     // Return payment details with redirect URL to CoinPayPortal hosted payment page
     return NextResponse.json({
       success: true,
@@ -161,7 +177,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
 /**
  * GET /api/payments
- * 
+ *
  * Get user's payment history
  */
 export async function GET(): Promise<NextResponse> {
@@ -175,12 +191,30 @@ export async function GET(): Promise<NextResponse> {
       );
     }
 
-    // In production, this would fetch from Supabase
-    // For now, return empty array
-    const payments: unknown[] = [];
+    // Fetch payment history from database
+    const paymentRepo = getPaymentHistoryRepository();
+    const payments = await paymentRepo.getUserPayments(user.id);
+
+    // Transform to response format
+    const paymentItems = payments.map((payment) => ({
+      id: payment.id,
+      coinPayId: payment.coinpayportal_payment_id,
+      plan: payment.plan,
+      amountUsd: payment.amount_usd,
+      amountCrypto: payment.amount_crypto,
+      cryptoCurrency: payment.crypto_currency,
+      blockchain: payment.blockchain,
+      txHash: payment.tx_hash,
+      status: payment.status,
+      periodStart: payment.period_start,
+      periodEnd: payment.period_end,
+      createdAt: payment.created_at,
+      completedAt: payment.completed_at,
+    }));
 
     return NextResponse.json({
-      payments,
+      payments: paymentItems,
+      total: paymentItems.length,
     });
   } catch (error) {
     console.error('Payment history error:', error);

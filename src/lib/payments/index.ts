@@ -35,3 +35,19 @@ export type {
   CreatePaymentRequestOptions,
   CreatePaymentSessionOptions,
 } from './payments';
+
+// Repository exports (server-side only)
+export {
+  // Types
+  type PaymentHistoryRepository,
+  type CreatePaymentData,
+  type UpdatePaymentStatusData,
+  type GetUserPaymentsOptions,
+  
+  // Factory function
+  createPaymentHistoryRepository,
+  
+  // Singleton accessors
+  getPaymentHistoryRepository,
+  resetPaymentHistoryRepository,
+} from './repository';

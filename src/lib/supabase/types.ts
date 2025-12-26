@@ -462,6 +462,126 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          tier: 'trial' | 'premium' | 'family';
+          status: 'active' | 'cancelled' | 'expired';
+          trial_started_at: string | null;
+          trial_expires_at: string | null;
+          subscription_started_at: string | null;
+          subscription_expires_at: string | null;
+          renewal_reminder_sent_at: string | null;
+          renewal_reminder_7d_sent: boolean;
+          renewal_reminder_3d_sent: boolean;
+          renewal_reminder_1d_sent: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          tier?: 'trial' | 'premium' | 'family';
+          status?: 'active' | 'cancelled' | 'expired';
+          trial_started_at?: string | null;
+          trial_expires_at?: string | null;
+          subscription_started_at?: string | null;
+          subscription_expires_at?: string | null;
+          renewal_reminder_sent_at?: string | null;
+          renewal_reminder_7d_sent?: boolean;
+          renewal_reminder_3d_sent?: boolean;
+          renewal_reminder_1d_sent?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          tier?: 'trial' | 'premium' | 'family';
+          status?: 'active' | 'cancelled' | 'expired';
+          trial_started_at?: string | null;
+          trial_expires_at?: string | null;
+          subscription_started_at?: string | null;
+          subscription_expires_at?: string | null;
+          renewal_reminder_sent_at?: string | null;
+          renewal_reminder_7d_sent?: boolean;
+          renewal_reminder_3d_sent?: boolean;
+          renewal_reminder_1d_sent?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      payment_history: {
+        Row: {
+          id: string;
+          user_id: string;
+          coinpayportal_payment_id: string;
+          amount_usd: number;
+          amount_crypto: string | null;
+          crypto_currency: string | null;
+          blockchain: string | null;
+          tx_hash: string | null;
+          payment_address: string | null;
+          status: string;
+          plan: 'premium' | 'family';
+          duration_months: number;
+          period_start: string | null;
+          period_end: string | null;
+          webhook_received_at: string | null;
+          webhook_event_type: string | null;
+          metadata: Record<string, unknown> | null;
+          created_at: string;
+          updated_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          coinpayportal_payment_id: string;
+          amount_usd: number;
+          amount_crypto?: string | null;
+          crypto_currency?: string | null;
+          blockchain?: string | null;
+          tx_hash?: string | null;
+          payment_address?: string | null;
+          status?: string;
+          plan: 'premium' | 'family';
+          duration_months?: number;
+          period_start?: string | null;
+          period_end?: string | null;
+          webhook_received_at?: string | null;
+          webhook_event_type?: string | null;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          coinpayportal_payment_id?: string;
+          amount_usd?: number;
+          amount_crypto?: string | null;
+          crypto_currency?: string | null;
+          blockchain?: string | null;
+          tx_hash?: string | null;
+          payment_address?: string | null;
+          status?: string;
+          plan?: 'premium' | 'family';
+          duration_months?: number;
+          period_start?: string | null;
+          period_end?: string | null;
+          webhook_received_at?: string | null;
+          webhook_event_type?: string | null;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -529,6 +649,47 @@ export type Database = {
           rank: number;
         }[];
       };
+      get_subscription_status: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: {
+          subscription_id: string;
+          tier: string;
+          status: string;
+          is_active: boolean;
+          days_remaining: number;
+          expires_at: string | null;
+          needs_renewal: boolean;
+        }[];
+      };
+      activate_subscription: {
+        Args: {
+          p_user_id: string;
+          p_tier: string;
+          p_duration_months?: number;
+        };
+        Returns: Tables<'user_subscriptions'>;
+      };
+      get_subscriptions_needing_reminders: {
+        Args: {
+          p_days_before: number;
+        };
+        Returns: {
+          user_id: string;
+          tier: string;
+          subscription_expires_at: string;
+          days_until_expiry: number;
+          user_email: string;
+        }[];
+      };
+      mark_renewal_reminder_sent: {
+        Args: {
+          p_user_id: string;
+          p_days_before: number;
+        };
+        Returns: void;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -572,6 +733,24 @@ export type CollectionItem = Tables<'collection_items'>;
 export type ReadingProgress = Tables<'reading_progress'>;
 export type WatchProgress = Tables<'watch_progress'>;
 export type RateLimit = Tables<'rate_limits'>;
+
+// Subscription and payment types
+export type UserSubscription = Tables<'user_subscriptions'>;
+export type UserSubscriptionInsert = InsertTables<'user_subscriptions'>;
+export type UserSubscriptionUpdate = UpdateTables<'user_subscriptions'>;
+
+export type PaymentHistory = Tables<'payment_history'>;
+export type PaymentHistoryInsert = InsertTables<'payment_history'>;
+export type PaymentHistoryUpdate = UpdateTables<'payment_history'>;
+
+// Subscription tier type
+export type SubscriptionTier = 'trial' | 'premium' | 'family';
+
+// Subscription status type
+export type SubscriptionStatus = 'active' | 'cancelled' | 'expired';
+
+// Payment plan type
+export type PaymentPlan = 'premium' | 'family';
 
 // Media category type
 export type MediaCategory = 'audio' | 'video' | 'ebook' | 'document' | 'other';
