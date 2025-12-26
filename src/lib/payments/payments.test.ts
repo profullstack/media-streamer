@@ -46,10 +46,7 @@ describe('Payments Module', () => {
       expect(price.plan).toBe('family');
     });
 
-    it('should return zero for free plan', () => {
-      const price = getSubscriptionPrice('free');
-      expect(price.usd).toBe(0);
-    });
+    // Note: Free plan removed - users now start with 3-day trial
   });
 
   describe('Payment Request Creation', () => {

@@ -175,7 +175,7 @@ describe('Auth Module', () => {
       expect(profile.id).toBe('user-123');
       expect(profile.email).toBe('user@example.com');
       expect(profile.name).toBe('John Doe');
-      expect(profile.subscriptionTier).toBe('free');
+      expect(profile.subscriptionTier).toBe('trial');
       expect(profile.createdAt).toBeInstanceOf(Date);
     });
 
@@ -265,18 +265,18 @@ describe('Auth Module', () => {
 
   describe('Subscription Tiers', () => {
     it('should validate subscription tiers', () => {
-      expect(isValidSubscriptionTier('free')).toBe(true);
+      expect(isValidSubscriptionTier('trial')).toBe(true);
       expect(isValidSubscriptionTier('premium')).toBe(true);
       expect(isValidSubscriptionTier('family')).toBe(true);
       expect(isValidSubscriptionTier('invalid')).toBe(false);
     });
 
-    it('should get features for free tier', () => {
-      const features = getSubscriptionFeatures('free');
+    it('should get features for trial tier (same as premium)', () => {
+      const features = getSubscriptionFeatures('trial');
 
-      expect(features.maxStreams).toBe(1);
-      expect(features.downloadEnabled).toBe(false);
-      expect(features.watchPartyEnabled).toBe(false);
+      expect(features.maxStreams).toBe(3);
+      expect(features.downloadEnabled).toBe(true);
+      expect(features.watchPartyEnabled).toBe(true);
       expect(features.maxFamilyMembers).toBe(0);
     });
 
@@ -300,26 +300,26 @@ describe('Auth Module', () => {
   });
 
   describe('Feature Access', () => {
-    it('should check download access', () => {
-      expect(canAccessFeature('free', 'download')).toBe(false);
+    it('should check download access (trial has full access)', () => {
+      expect(canAccessFeature('trial', 'download')).toBe(true);
       expect(canAccessFeature('premium', 'download')).toBe(true);
       expect(canAccessFeature('family', 'download')).toBe(true);
     });
 
-    it('should check watch party access', () => {
-      expect(canAccessFeature('free', 'watchParty')).toBe(false);
+    it('should check watch party access (trial has full access)', () => {
+      expect(canAccessFeature('trial', 'watchParty')).toBe(true);
       expect(canAccessFeature('premium', 'watchParty')).toBe(true);
       expect(canAccessFeature('family', 'watchParty')).toBe(true);
     });
 
     it('should check family members access', () => {
-      expect(canAccessFeature('free', 'familyMembers')).toBe(false);
+      expect(canAccessFeature('trial', 'familyMembers')).toBe(false);
       expect(canAccessFeature('premium', 'familyMembers')).toBe(false);
       expect(canAccessFeature('family', 'familyMembers')).toBe(true);
     });
 
     it('should allow streaming for all tiers', () => {
-      expect(canAccessFeature('free', 'streaming')).toBe(true);
+      expect(canAccessFeature('trial', 'streaming')).toBe(true);
       expect(canAccessFeature('premium', 'streaming')).toBe(true);
       expect(canAccessFeature('family', 'streaming')).toBe(true);
     });

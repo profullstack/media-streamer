@@ -4,8 +4,11 @@
  * Pricing Page
  * 
  * Subscription plans with crypto payment support.
+ * No free tier - all users start with a 3-day trial.
  */
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +18,7 @@ interface PlanFeature {
 }
 
 interface Plan {
+  id: 'trial' | 'premium' | 'family';
   name: string;
   price: string;
   period: string;
@@ -22,26 +26,32 @@ interface Plan {
   features: PlanFeature[];
   cta: string;
   popular?: boolean;
+  isTrial?: boolean;
 }
+
+type CryptoType = 'BTC' | 'ETH' | 'LTC' | 'USDT' | 'USDC';
 
 const plans: Plan[] = [
   {
-    name: 'Free',
+    id: 'trial',
+    name: '3-Day Trial',
     price: '$0',
-    period: 'forever',
-    description: 'Perfect for trying out BitTorrented',
+    period: 'for 3 days',
+    description: 'Try all premium features free for 3 days',
     features: [
       { text: 'Stream any torrent', included: true },
       { text: 'Search torrents', included: true },
-      { text: 'Basic video player', included: true },
-      { text: 'Download files', included: false },
-      { text: 'Watch parties', included: false },
-      { text: 'Live TV (IPTV)', included: false },
-      { text: 'Priority support', included: false },
+      { text: 'Advanced video player', included: true },
+      { text: 'Download files', included: true },
+      { text: 'Watch parties (host)', included: true },
+      { text: 'Live TV (IPTV)', included: true },
+      { text: 'Full access for 3 days', included: true },
     ],
-    cta: 'Get Started',
+    cta: 'Start Free Trial',
+    isTrial: true,
   },
   {
+    id: 'premium',
     name: 'Premium',
     price: '$4.99',
     period: 'per year',
@@ -59,6 +69,7 @@ const plans: Plan[] = [
     popular: true,
   },
   {
+    id: 'family',
     name: 'Family',
     price: '$9.99',
     period: 'per year',
@@ -76,7 +87,69 @@ const plans: Plan[] = [
   },
 ];
 
+const cryptoOptions: { type: CryptoType; symbol: string; name: string }[] = [
+  { type: 'BTC', symbol: '₿', name: 'Bitcoin' },
+  { type: 'ETH', symbol: 'Ξ', name: 'Ethereum' },
+  { type: 'LTC', symbol: 'Ł', name: 'Litecoin' },
+  { type: 'USDT', symbol: '₮', name: 'USDT' },
+  { type: 'USDC', symbol: '$', name: 'USDC' },
+];
+
 export default function PricingPage(): React.ReactElement {
+  const router = useRouter();
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [selectedCrypto, setSelectedCrypto] = useState<CryptoType>('BTC');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handlePlanSelect = (plan: Plan): void => {
+    if (plan.isTrial) {
+      // Start trial - redirect to signup
+      router.push('/signup?trial=true');
+      return;
+    }
+    setSelectedPlan(plan);
+    setError(null);
+  };
+
+  const handlePayment = async (): Promise<void> => {
+    if (!selectedPlan || selectedPlan.isTrial) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: selectedPlan.id,
+          cryptoType: selectedCrypto,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Payment failed');
+      }
+
+      // Redirect to CoinPayPortal payment page
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const closeModal = (): void => {
+    setSelectedPlan(null);
+    setError(null);
+  };
+
   return (
     <MainLayout>
       <div className="space-y-12">
@@ -86,8 +159,8 @@ export default function PricingPage(): React.ReactElement {
             Simple, Transparent Pricing
           </h1>
           <p className="text-text-secondary max-w-lg mx-auto">
-            Choose the plan that works for you. Pay with crypto for complete privacy.
-            All plans include a 30-day money-back guarantee.
+            Start with a free 3-day trial. Pay with crypto for complete privacy.
+            All paid plans include a 30-day money-back guarantee.
           </p>
         </div>
 
@@ -100,6 +173,8 @@ export default function PricingPage(): React.ReactElement {
                 'relative rounded-2xl border p-6',
                 plan.popular
                   ? 'border-accent-primary bg-accent-primary/5'
+                  : plan.isTrial
+                  ? 'border-status-success bg-status-success/5'
                   : 'border-border-subtle bg-bg-secondary'
               )}
             >
@@ -107,6 +182,13 @@ export default function PricingPage(): React.ReactElement {
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="rounded-full bg-accent-primary px-3 py-1 text-xs font-semibold text-white">
                     Most Popular
+                  </span>
+                </div>
+              )}
+              {plan.isTrial && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="rounded-full bg-status-success px-3 py-1 text-xs font-semibold text-white">
+                    Free Trial
                   </span>
                 </div>
               )}
@@ -146,10 +228,13 @@ export default function PricingPage(): React.ReactElement {
               </ul>
 
               <button
+                onClick={() => handlePlanSelect(plan)}
                 className={cn(
                   'w-full rounded-lg py-3 font-medium transition-colors',
                   plan.popular
                     ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
+                    : plan.isTrial
+                    ? 'bg-status-success text-white hover:bg-status-success/90'
                     : 'bg-bg-tertiary text-text-primary hover:bg-bg-hover'
                 )}
               >
@@ -165,26 +250,12 @@ export default function PricingPage(): React.ReactElement {
             Pay with Crypto
           </h3>
           <div className="flex items-center justify-center gap-6 flex-wrap">
-            <div className="flex items-center gap-2 text-text-secondary">
-              <span className="text-2xl">₿</span>
-              <span>Bitcoin</span>
-            </div>
-            <div className="flex items-center gap-2 text-text-secondary">
-              <span className="text-2xl">Ξ</span>
-              <span>Ethereum</span>
-            </div>
-            <div className="flex items-center gap-2 text-text-secondary">
-              <span className="text-2xl">Ł</span>
-              <span>Litecoin</span>
-            </div>
-            <div className="flex items-center gap-2 text-text-secondary">
-              <span className="text-2xl">₮</span>
-              <span>USDT</span>
-            </div>
-            <div className="flex items-center gap-2 text-text-secondary">
-              <span className="text-2xl">$</span>
-              <span>USDC</span>
-            </div>
+            {cryptoOptions.map((crypto) => (
+              <div key={crypto.type} className="flex items-center gap-2 text-text-secondary">
+                <span className="text-2xl">{crypto.symbol}</span>
+                <span>{crypto.name}</span>
+              </div>
+            ))}
           </div>
           <p className="text-sm text-text-muted mt-4">
             Powered by CoinPayPortal • Secure • Private • No credit card required
@@ -197,6 +268,15 @@ export default function PricingPage(): React.ReactElement {
             Frequently Asked Questions
           </h3>
           <div className="space-y-4">
+            <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4">
+              <h4 className="font-medium text-text-primary mb-2">
+                How does the free trial work?
+              </h4>
+              <p className="text-sm text-text-secondary">
+                Sign up and get full access to all premium features for 3 days. No credit card required.
+                After the trial ends, you&apos;ll need to subscribe to continue using the service.
+              </p>
+            </div>
             <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4">
               <h4 className="font-medium text-text-primary mb-2">
                 Can I cancel anytime?
@@ -224,6 +304,74 @@ export default function PricingPage(): React.ReactElement {
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {selectedPlan && !selectedPlan.isTrial && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-bg-primary rounded-2xl border border-border-subtle max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-text-primary">
+                Subscribe to {selectedPlan.name}
+              </h3>
+              <button
+                onClick={closeModal}
+                className="text-text-muted hover:text-text-primary"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-text-secondary mb-4">
+                {selectedPlan.price}/{selectedPlan.period}
+              </p>
+
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Select Payment Method
+              </label>
+              <div className="grid grid-cols-5 gap-2">
+                {cryptoOptions.map((crypto) => (
+                  <button
+                    key={crypto.type}
+                    onClick={() => setSelectedCrypto(crypto.type)}
+                    className={cn(
+                      'flex flex-col items-center p-3 rounded-lg border transition-colors',
+                      selectedCrypto === crypto.type
+                        ? 'border-accent-primary bg-accent-primary/10'
+                        : 'border-border-subtle hover:border-border-default'
+                    )}
+                  >
+                    <span className="text-xl">{crypto.symbol}</span>
+                    <span className="text-xs text-text-muted mt-1">{crypto.type}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handlePayment}
+              disabled={isLoading}
+              className={cn(
+                'w-full rounded-lg py-3 font-medium transition-colors',
+                'bg-accent-primary text-white hover:bg-accent-primary/90',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            >
+              {isLoading ? 'Processing...' : `Pay with ${selectedCrypto}`}
+            </button>
+
+            <p className="text-xs text-text-muted text-center mt-4">
+              You will be redirected to CoinPayPortal to complete your payment securely.
+            </p>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }

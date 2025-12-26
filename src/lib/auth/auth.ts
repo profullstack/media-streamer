@@ -14,9 +14,9 @@ const scryptAsync = promisify(scrypt);
 // ============================================================================
 
 /**
- * Subscription tier
+ * Subscription tier - no free tier, users start with trial
  */
-export type SubscriptionTier = 'free' | 'premium' | 'family';
+export type SubscriptionTier = 'trial' | 'premium' | 'family';
 
 /**
  * Auth error codes
@@ -141,13 +141,13 @@ const SALT_LENGTH = 16;
 const KEY_LENGTH = 64;
 
 /**
- * Subscription tier features
+ * Subscription tier features - trial has same features as premium
  */
 const TIER_FEATURES: Record<SubscriptionTier, SubscriptionFeatures> = {
-  free: {
-    maxStreams: 1,
-    downloadEnabled: false,
-    watchPartyEnabled: false,
+  trial: {
+    maxStreams: 3,
+    downloadEnabled: true,
+    watchPartyEnabled: true,
     maxFamilyMembers: 0,
   },
   premium: {
@@ -275,7 +275,7 @@ export function validateSessionToken(token: SessionToken): TokenValidationResult
 // ============================================================================
 
 /**
- * Create user profile
+ * Create user profile - new users start with trial
  */
 export function createUserProfile(options: CreateUserProfileOptions): UserProfile {
   const now = new Date();
@@ -285,7 +285,7 @@ export function createUserProfile(options: CreateUserProfileOptions): UserProfil
     email: options.email,
     name: options.name,
     avatarUrl: options.avatarUrl,
-    subscriptionTier: options.subscriptionTier ?? 'free',
+    subscriptionTier: options.subscriptionTier ?? 'trial',
     createdAt: now,
     updatedAt: now,
   };
@@ -346,7 +346,7 @@ export function formatUserResponse(profile: UserProfile): UserResponse {
  * Check if subscription tier is valid
  */
 export function isValidSubscriptionTier(tier: string): tier is SubscriptionTier {
-  return tier === 'free' || tier === 'premium' || tier === 'family';
+  return tier === 'trial' || tier === 'premium' || tier === 'family';
 }
 
 /**
@@ -374,4 +374,14 @@ export function canAccessFeature(tier: SubscriptionTier, feature: FeatureName): 
     default:
       return false;
   }
+}
+
+/**
+ * Get current user from session (mock - actual implementation uses Supabase)
+ * Returns null if not authenticated
+ */
+export async function getCurrentUser(): Promise<{ id: string; email: string } | null> {
+  // This is a mock - actual implementation would check Supabase session
+  // For now, return a mock user for development
+  return { id: 'user-123', email: 'test@example.com' };
 }

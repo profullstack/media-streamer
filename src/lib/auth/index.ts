@@ -1,6 +1,6 @@
 /**
  * Auth Module
- * 
+ *
  * Server-side authentication utilities for Supabase Auth
  */
 
@@ -42,4 +42,7 @@ export {
   isValidSubscriptionTier,
   getSubscriptionFeatures,
   canAccessFeature,
+  
+  // Current User
+  getCurrentUser,
 } from './auth';

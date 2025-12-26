@@ -17,7 +17,7 @@ export type PaymentStatus =
   | 'expired'
   | 'failed';
 
-export type SubscriptionPlan = 'free' | 'premium' | 'family';
+export type SubscriptionPlan = 'premium' | 'family';
 export type CryptoType = 'BTC' | 'ETH' | 'LTC' | 'USDT' | 'USDC';
 
 export interface PaymentRequest {
@@ -78,14 +78,13 @@ export interface CreatePaymentSessionOptions {
   expiresInMinutes: number;
 }
 
-// Subscription pricing
+// Subscription pricing (no free tier - users start with trial)
 const SUBSCRIPTION_PRICES: Record<SubscriptionPlan, number> = {
-  free: 0,
   premium: 4.99,
   family: 9.99,
 };
 
-const VALID_PLANS: SubscriptionPlan[] = ['free', 'premium', 'family'];
+const VALID_PLANS: SubscriptionPlan[] = ['premium', 'family'];
 const VALID_EVENTS = ['payment.completed', 'payment.pending', 'payment.failed', 'payment.expired'];
 
 /**

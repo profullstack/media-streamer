@@ -5,6 +5,7 @@
  * 
  * Main navigation sidebar for the application.
  * Supports mobile responsive design with collapsible menu.
+ * Hides auth-required features when user is not logged in.
  */
 
 import { useState } from 'react';
@@ -29,27 +30,29 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string; size?: number }>;
   badge?: string;
+  requiresAuth?: boolean;
 }
 
 const mainNavItems: NavItem[] = [
   { href: '/', label: 'Home', icon: HomeIcon },
   { href: '/search', label: 'Search', icon: SearchIcon },
-  { href: '/library', label: 'My Library', icon: LibraryIcon },
+  { href: '/library', label: 'My Library', icon: LibraryIcon, requiresAuth: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon },
-  { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
+  { href: '/watch-party', label: 'Watch Party', icon: PartyIcon, requiresAuth: true },
 ];
 
 const accountNavItems: NavItem[] = [
   { href: '/pricing', label: 'Pricing', icon: CreditCardIcon },
-  { href: '/settings', label: 'Settings', icon: SettingsIcon },
+  { href: '/settings', label: 'Settings', icon: SettingsIcon, requiresAuth: true },
 ];
 
 interface SidebarProps {
   className?: string;
+  isLoggedIn?: boolean;
 }
 
-export function Sidebar({ className }: SidebarProps): React.ReactElement {
+export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.ReactElement {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -60,6 +63,14 @@ export function Sidebar({ className }: SidebarProps): React.ReactElement {
   const closeMobile = (): void => {
     setIsMobileOpen(false);
   };
+
+  // Filter nav items based on auth state
+  const filteredMainNavItems = mainNavItems.filter(
+    (item) => !item.requiresAuth || isLoggedIn
+  );
+  const filteredAccountNavItems = accountNavItems.filter(
+    (item) => !item.requiresAuth || isLoggedIn
+  );
 
   return (
     <>
@@ -106,16 +117,18 @@ export function Sidebar({ className }: SidebarProps): React.ReactElement {
           <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
             {/* Main Navigation */}
             <div>
-              <NavSection items={mainNavItems} pathname={pathname} onItemClick={closeMobile} />
+              <NavSection items={filteredMainNavItems} pathname={pathname} onItemClick={closeMobile} />
             </div>
 
             {/* Account */}
-            <div>
-              <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-                Account
-              </h3>
-              <NavSection items={accountNavItems} pathname={pathname} onItemClick={closeMobile} />
-            </div>
+            {filteredAccountNavItems.length > 0 && (
+              <div>
+                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                  Account
+                </h3>
+                <NavSection items={filteredAccountNavItems} pathname={pathname} onItemClick={closeMobile} />
+              </div>
+            )}
           </nav>
         </div>
       </aside>
