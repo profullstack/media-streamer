@@ -29,19 +29,26 @@ const DHT_BOOTSTRAP_NODES = [
 
 // HTTP/HTTPS trackers - PRIORITIZED for cloud environments where UDP is blocked
 // These work on all platforms including DigitalOcean, Railway, etc.
+// Ordered by reliability and response time
 const HTTP_TRACKERS = [
-  // Port 80 (HTTP) - most likely to work through firewalls
+  // Most reliable HTTP trackers (tested and working)
+  'http://tracker.opentrackr.org:1337/announce',
   'http://tracker.openbittorrent.com:80/announce',
+  'http://open.tracker.cl:1337/announce',
+  'http://tracker.torrent.eu.org:451/announce',
+  'http://tracker.dler.org:6969/announce',
+  'http://bt.endpot.com:80/announce',
+  'http://tracker.mywaifu.best:6969/announce',
   'http://tracker.gbitt.info:80/announce',
   'http://open.acgnxtracker.com:80/announce',
   'http://tracker1.bt.moack.co.kr:80/announce',
-  // Port 443 (HTTPS) - also very likely to work
+  'http://tracker.files.fm:6969/announce',
+  'http://tracker.zerobytes.xyz:1337/announce',
+  // HTTPS trackers (may have SSL issues on some platforms)
   'https://tracker.tamersunion.org:443/announce',
   'https://tracker.loligirl.cn:443/announce',
   'https://tracker.lilithraws.org:443/announce',
-  // Non-standard ports (may be blocked on some platforms)
-  'http://tracker.opentrackr.org:1337/announce',
-  'http://tracker.bt4g.com:2095/announce',
+  'https://opentracker.i2p.rocks:443/announce',
 ];
 
 // WebSocket trackers - work in browsers and some cloud environments
@@ -242,20 +249,43 @@ export class StreamingService {
     if (dht) {
       dht.on('ready', () => {
         this.dhtReady = true;
-        logger.info('DHT ready - connected to bootstrap nodes');
+        // Note: "ready" just means DHT is initialized, NOT that it has connected to nodes
+        // Check dhtNodeCount to see if UDP is actually working
+        logger.info('DHT initialized (waiting for nodes via UDP)', {
+          note: 'If dhtNodeCount stays at 0, UDP is likely blocked on this platform',
+        });
       });
       dht.on('peer', (peer: unknown, infoHash: unknown) => {
-        logger.debug('DHT found peer', { peer, infoHash });
+        logger.info('DHT found peer via UDP!', { peer, infoHash });
       });
       dht.on('node', () => {
         this.dhtNodeCount++;
-        if (this.dhtNodeCount % 10 === 0) {
+        // Log first node connection - this confirms UDP is working
+        if (this.dhtNodeCount === 1) {
+          logger.info('DHT connected to first node - UDP is working!', { nodes: this.dhtNodeCount });
+        } else if (this.dhtNodeCount % 50 === 0) {
           logger.info('DHT node count', { nodes: this.dhtNodeCount });
         }
       });
       dht.on('error', (err: unknown) => {
-        logger.warn('DHT error (UDP may be blocked on this platform)', { error: String(err) });
+        logger.warn('DHT error - UDP may be blocked on this platform', {
+          error: String(err),
+          hint: 'Check firewall settings for outbound UDP on ports 6881, 6969',
+        });
       });
+      
+      // Check DHT status after 10 seconds
+      setTimeout(() => {
+        if (this.dhtNodeCount === 0) {
+          logger.warn('DHT has 0 nodes after 10 seconds - UDP is likely blocked', {
+            dhtReady: this.dhtReady,
+            dhtNodeCount: this.dhtNodeCount,
+            hint: 'Enable outbound UDP in firewall settings, or use HTTP trackers only',
+          });
+        } else {
+          logger.info('DHT is working', { dhtNodeCount: this.dhtNodeCount });
+        }
+      }, 10000);
     } else {
       logger.warn('DHT not available on WebTorrent client');
     }
@@ -810,18 +840,37 @@ export class StreamingService {
 
       // Log peer connections
       torrent.on('wire', (wire) => {
-        logger.debug('Peer connected', {
+        logger.info('Peer connected', {
           infohash,
           peerAddress: wire.remoteAddress,
-          numPeers: torrent?.numPeers
+          numPeers: torrent?.numPeers,
+          elapsed: `${Date.now() - startTime}ms`,
+        });
+      });
+
+      // Log tracker announcements (event exists at runtime but not in types)
+      (torrent as unknown as NodeJS.EventEmitter).on('trackerAnnounce', () => {
+        logger.info('Tracker announce successful', {
+          infohash,
+          numPeers: torrent?.numPeers,
+          elapsed: `${Date.now() - startTime}ms`,
         });
       });
 
       torrent.on('warning', (warn) => {
-        logger.warn('Torrent warning', {
-          infohash,
-          warning: String(warn)
-        });
+        // Only log non-fetch warnings at warn level, fetch failures are common
+        const warnStr = String(warn);
+        if (warnStr.includes('fetch failed')) {
+          logger.debug('Tracker fetch failed (common on cloud platforms)', {
+            infohash,
+            warning: warnStr.substring(0, 100),
+          });
+        } else {
+          logger.warn('Torrent warning', {
+            infohash,
+            warning: warnStr,
+          });
+        }
       });
 
       // Use type assertion for error event since WebTorrent types are incomplete

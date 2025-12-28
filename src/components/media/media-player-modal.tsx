@@ -266,10 +266,10 @@ export function MediaPlayerModal({
       isOpen={isOpen}
       onClose={handleClose}
       title={title}
-      size="xl"
-      className="max-w-4xl"
+      size="3xl"
+      className="max-w-[90vw] lg:max-w-3xl"
     >
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {/* Subtitle and Swarm Stats Row */}
         <div className="flex items-center justify-between gap-4">
           {/* Subtitle */}
@@ -389,8 +389,8 @@ export function MediaPlayerModal({
             {isLoading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
-                  <span className="text-sm text-white">
+                  <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
+                  <span className="text-xs sm:text-sm text-white">
                     {isTranscoding ? 'Starting transcoding...' : 'Loading stream...'}
                   </span>
                 </div>
@@ -448,51 +448,36 @@ export function MediaPlayerModal({
 
         {/* Connection Status Footer - shown during loading */}
         {isLoading && connectionStatus && (
-          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-3">
-            <div className="flex items-center justify-between gap-4">
+          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-2 sm:p-3">
+            <div className="flex items-center justify-between gap-2 sm:gap-4">
               {/* Status message with spinner */}
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
-                <span className="text-sm text-text-secondary">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
+                <span className="text-xs sm:text-sm text-text-secondary truncate">
                   {connectionStatus.message}
                 </span>
               </div>
               
-              {/* Stats */}
-              <div className="flex items-center gap-4 text-xs text-text-muted">
+              {/* Stats - compact on small screens */}
+              <div className="flex items-center gap-2 sm:gap-4 text-xs text-text-muted flex-shrink-0">
                 {/* Peers */}
-                <div className="flex items-center gap-1">
-                  <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                  </svg>
-                  <span>{connectionStatus.numPeers} peers</span>
-                </div>
+                <span>{connectionStatus.numPeers}p</span>
                 
                 {/* Progress */}
                 {connectionStatus.progress > 0 && (
-                  <div className="flex items-center gap-1">
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>{(connectionStatus.progress * 100).toFixed(1)}%</span>
-                  </div>
+                  <span>{(connectionStatus.progress * 100).toFixed(0)}%</span>
                 )}
                 
-                {/* Download speed */}
+                {/* Download speed - hidden on very small screens */}
                 {connectionStatus.downloadSpeed > 0 && (
-                  <div className="flex items-center gap-1">
-                    <svg className="h-3.5 w-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-green-500">{formatSpeed(connectionStatus.downloadSpeed)}</span>
-                  </div>
+                  <span className="hidden sm:inline text-green-500">{formatSpeed(connectionStatus.downloadSpeed)}</span>
                 )}
               </div>
             </div>
             
             {/* Progress bar */}
             {connectionStatus.progress > 0 && (
-              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
+              <div className="mt-1.5 sm:mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
                 <div
                   className="h-full bg-accent-primary transition-all duration-300"
                   style={{ width: `${connectionStatus.progress * 100}%` }}
@@ -502,37 +487,34 @@ export function MediaPlayerModal({
           </div>
         )}
 
-        {/* Debug Info */}
-        <div className="rounded-lg bg-bg-tertiary p-3 text-xs font-mono text-text-muted">
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            <span>Type: {mediaCategory}</span>
-            <span>Index: {file.fileIndex}</span>
-            <span>Size: {formatBytes(file.size)}</span>
-            <span className="break-all">Infohash: {infohash}</span>
-            {isTranscoding && (
-              <span className="text-accent-primary">Transcoding: enabled</span>
-            )}
-            <span className={isPlayerReady ? 'text-green-500' : 'text-yellow-500'}>
-              Status: {isPlayerReady ? 'Ready' : 'Loading'}
-            </span>
-            {swarmStats && (
-              <span className="text-text-secondary">
-                Trackers: {swarmStats.trackersResponded}/{swarmStats.trackersQueried}
+        {/* Debug Info - hidden on small screens, compact on larger */}
+        <details className="hidden sm:block">
+          <summary className="cursor-pointer text-xs text-text-muted hover:text-text-secondary">
+            Debug Info
+          </summary>
+          <div className="mt-2 rounded-lg bg-bg-tertiary p-2 sm:p-3 text-xs font-mono text-text-muted">
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              <span>Type: {mediaCategory}</span>
+              <span>Index: {file.fileIndex}</span>
+              <span>Size: {formatBytes(file.size)}</span>
+              {isTranscoding && (
+                <span className="text-accent-primary">Transcoding</span>
+              )}
+              <span className={isPlayerReady ? 'text-green-500' : 'text-yellow-500'}>
+                {isPlayerReady ? 'Ready' : 'Loading'}
               </span>
-            )}
-            {connectionStatus && (
-              <span className="text-text-secondary">
-                Stage: {connectionStatus.stage}
-              </span>
-            )}
-          </div>
-          {streamUrl && (
-            <div className="mt-2 break-all">
-              <span className="text-text-secondary">URL: </span>
-              <span>{streamUrl}</span>
+              {swarmStats && (
+                <span className="text-text-secondary">
+                  Trackers: {swarmStats.trackersResponded}/{swarmStats.trackersQueried}
+                </span>
+              )}
             </div>
-          )}
-        </div>
+            <div className="mt-1 break-all text-[10px]">
+              <span className="text-text-secondary">Hash: </span>
+              <span>{infohash}</span>
+            </div>
+          </div>
+        </details>
       </div>
     </Modal>
   );
