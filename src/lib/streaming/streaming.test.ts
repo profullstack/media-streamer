@@ -9,6 +9,9 @@ const mockDestroy = vi.fn((callback?: () => void) => {
 });
 const mockGet = vi.fn();
 
+// Mutable torrents array that tests can populate
+let mockTorrents: unknown[] = [];
+
 // Mock WebTorrent before importing the module
 vi.mock('webtorrent', () => ({
   default: vi.fn(() => ({
@@ -16,7 +19,7 @@ vi.mock('webtorrent', () => ({
     remove: mockRemove,
     destroy: mockDestroy,
     get: mockGet,
-    torrents: [],
+    get torrents() { return mockTorrents; },
     on: vi.fn(),
   })),
 }));
@@ -34,6 +37,7 @@ import {
 describe('StreamingService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTorrents = []; // Clear torrents array before each test
   });
 
   describe('constructor', () => {
@@ -263,7 +267,9 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
-      // Return existing torrent
+      // Add torrent to the torrents array (simulating existing torrent)
+      mockTorrents = [mockTorrent];
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -300,6 +306,8 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -344,6 +352,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -392,6 +401,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -435,6 +445,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -530,6 +541,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -564,6 +576,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -598,6 +611,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -640,6 +654,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -682,6 +697,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService({ maxConcurrentStreams: 2 });
@@ -749,6 +765,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -829,6 +846,9 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      // Populate mockTorrents with both torrents for client.torrents.find() lookup
+      mockTorrents = [mockTorrent1, mockTorrent2];
+      
       // Return different torrents based on infohash
       mockGet.mockImplementation((infohash: string) => {
         if (infohash === '1234567890abcdef1234567890abcdef12345678') {
@@ -906,6 +926,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -961,6 +982,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService({ maxConcurrentStreams: 100 });
@@ -1030,6 +1052,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -1127,6 +1150,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -1175,6 +1199,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService({ maxConcurrentStreams: 10 });
@@ -1236,6 +1261,7 @@ describe('StreamingService', () => {
         select: vi.fn(),
       };
 
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService();
@@ -1326,6 +1352,7 @@ describe('StreamingService', () => {
       };
 
       // Return existing non-ready torrent
+      mockTorrents = [mockTorrent];
       mockGet.mockReturnValue(mockTorrent);
 
       const service = new StreamingService({ streamTimeout: 5000 });

@@ -430,41 +430,70 @@ export class StreamingService {
   }
 
   /**
+   * Safely remove a torrent from the client
+   * Returns true if removal was successful or torrent didn't exist
+   */
+  private async safeRemoveTorrent(infohash: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      try {
+        // Check if torrent exists in the client's torrent list
+        const torrentInList = this.client.torrents.find(t => t.infoHash === infohash);
+        if (!torrentInList) {
+          logger.debug('Torrent not in client list, nothing to remove', { infohash });
+          resolve(true);
+          return;
+        }
+
+        logger.debug('Removing torrent from client', { infohash });
+        // Use type assertion since WebTorrent types don't match runtime behavior
+        // At runtime, remove() accepts (torrentId, callback) but types say (torrentId, opts)
+        (this.client.remove as (torrentId: string, callback: (err: Error | null) => void) => void)(
+          infohash,
+          (err: Error | null) => {
+            if (err) {
+              logger.warn('Error removing torrent', { infohash, error: String(err) });
+              resolve(false);
+            } else {
+              logger.debug('Torrent removed successfully', { infohash });
+              resolve(true);
+            }
+          }
+        );
+      } catch (err) {
+        logger.warn('Exception while removing torrent', { infohash, error: String(err) });
+        resolve(false);
+      }
+    });
+  }
+
+  /**
    * Get an existing torrent or add a new one
    */
   private async getOrAddTorrent(magnetUri: string, infohash: string): Promise<WebTorrent.Torrent> {
     logger.debug('Getting or adding torrent', { infohash });
     const startTime = Date.now();
 
-    // Check if torrent already exists
-    // Note: client.get() returns Torrent | void, so we need to handle both cases
-    const existing = this.client.get(infohash) as WebTorrent.Torrent | undefined;
-    if (existing) {
+    // Check if torrent already exists in the client's torrent list
+    const existingInList = this.client.torrents.find(t => t.infoHash === infohash);
+    if (existingInList) {
       // Validate that the torrent object is valid (has expected methods)
-      if (this.isValidTorrent(existing)) {
-        if (existing.ready) {
-          logger.debug('Using existing ready torrent', { infohash, name: existing.name });
-          return existing;
+      if (this.isValidTorrent(existingInList)) {
+        if (existingInList.ready) {
+          logger.debug('Using existing ready torrent', { infohash, name: existingInList.name });
+          return existingInList;
         }
         
         // Torrent exists but not ready - wait for it to become ready
         logger.debug('Waiting for existing non-ready torrent', { infohash });
-        return this.waitForTorrentReady(existing, infohash, startTime);
+        return this.waitForTorrentReady(existingInList, infohash, startTime);
       } else {
-        // Invalid torrent object - remove it and add fresh
-        logger.warn('Found invalid torrent object, removing and re-adding', {
+        // Invalid torrent object - remove it first before adding fresh
+        logger.warn('Found invalid torrent object in list, removing before re-adding', {
           infohash,
-          existingType: typeof existing,
-          hasOn: typeof (existing as { on?: unknown }).on
+          existingType: typeof existingInList,
+          hasOn: typeof (existingInList as { on?: unknown }).on
         });
-        try {
-          // Try to remove the invalid torrent by infohash
-          (this.client.remove as (torrent: string, callback?: () => void) => void)(infohash, () => {
-            logger.debug('Invalid torrent removed', { infohash });
-          });
-        } catch (removeError) {
-          logger.warn('Failed to remove invalid torrent', { infohash, error: String(removeError) });
-        }
+        await this.safeRemoveTorrent(infohash);
       }
     }
 
