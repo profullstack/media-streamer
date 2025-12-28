@@ -2,9 +2,10 @@
 
 /**
  * Audio Player Component
- * 
+ *
  * A custom audio player with streaming support, progress tracking,
- * and format detection.
+ * format detection, and Media Session API integration for iOS lock screen,
+ * CarPlay, and other media control surfaces.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -13,6 +14,13 @@ import {
   formatDuration,
   type AudioSource,
 } from '@/lib/audio';
+import {
+  setMediaSessionMetadata,
+  updateMediaSessionPlaybackState,
+  updateMediaSessionPositionState,
+  setMediaSessionActionHandlers,
+  clearMediaSession,
+} from '@/lib/media-session';
 import { cn } from '@/lib/utils';
 
 /**
@@ -218,6 +226,83 @@ export function AudioPlayer({
     audio.currentTime = newTime;
     setCurrentTime(newTime);
   }, [duration]);
+
+  // Media Session API: Set metadata for iOS lock screen, CarPlay, etc.
+  useEffect(() => {
+    const displayTitle = title ?? filename;
+    setMediaSessionMetadata({
+      title: displayTitle,
+      artist: artist,
+      album: album,
+      artwork: coverArt,
+    });
+
+    // Cleanup on unmount
+    return () => {
+      clearMediaSession();
+    };
+  }, [title, filename, artist, album, coverArt]);
+
+  // Media Session API: Update playback state
+  useEffect(() => {
+    updateMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
+  }, [isPlaying]);
+
+  // Media Session API: Update position state for progress bar on lock screen
+  useEffect(() => {
+    if (duration > 0) {
+      updateMediaSessionPositionState({
+        duration,
+        position: currentTime,
+        playbackRate: 1,
+      });
+    }
+  }, [currentTime, duration]);
+
+  // Media Session API: Set action handlers for lock screen controls
+  useEffect(() => {
+    const audio = audioRef.current;
+    
+    setMediaSessionActionHandlers({
+      play: () => {
+        audio?.play().catch(() => {});
+      },
+      pause: () => {
+        audio?.pause();
+      },
+      seekbackward: () => {
+        skip(-10);
+      },
+      seekforward: () => {
+        skip(10);
+      },
+      seekto: (details) => {
+        if (audio && details.seekTime !== undefined) {
+          audio.currentTime = details.seekTime;
+          setCurrentTime(details.seekTime);
+        }
+      },
+      stop: () => {
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+          setCurrentTime(0);
+        }
+      },
+    });
+
+    return () => {
+      // Clear handlers on unmount
+      setMediaSessionActionHandlers({
+        play: undefined,
+        pause: undefined,
+        seekbackward: undefined,
+        seekforward: undefined,
+        seekto: undefined,
+        stop: undefined,
+      });
+    };
+  }, [skip]);
 
   // Calculate progress percentage
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
