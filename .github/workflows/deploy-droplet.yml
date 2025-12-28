@@ -34,6 +34,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Write .env file
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE }}
+        run: |
+          printf '%s\n' "$ENV_FILE_CONTENT" > .env
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -45,12 +51,6 @@ jobs:
             ssh-keyscan -p ${{ secrets.DROPLET_PORT || 22 }} -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null && break
             sleep 2
           done
-
-      - name: Write .env file
-        env:
-          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE }}
-        run: |
-          printf '%s\n' "$ENV_FILE_CONTENT" > .env
 
       - name: Sync files to Droplet (with retry)
         uses: nick-fields/retry@v3
@@ -74,35 +74,32 @@ jobs:
               -e "ssh $SSH_OPTS" \
               ./ ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.DEPLOY_PATH }}/
 
-      - name: Build and restart on Droplet (with retry)
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 25
-          max_attempts: 5
-          retry_wait_seconds: 5
-          command: |
-            ssh -i ~/.ssh/deploy_key \
-                -p ${{ secrets.DROPLET_PORT || 22 }} \
-                -o StrictHostKeyChecking=no \
-                -o ConnectTimeout=60 \
-                -o ServerAliveInterval=30 \
-                -o ServerAliveCountMax=5 \
-                ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} << 'DEPLOY_SCRIPT'
-            set -e
-            
+      - name: Start build on Droplet (background)
+        run: |
+          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.DROPLET_PORT || 22 }} -o StrictHostKeyChecking=no -o ConnectTimeout=60"
+          
+          # Create the build script on the server
+          ssh $SSH_OPTS ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} << 'SETUP_SCRIPT'
+          cat > /tmp/deploy-build.sh << 'BUILD_SCRIPT'
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/tmp/deploy-build.log"
+          STATUS_FILE="/tmp/deploy-build.status"
+          
+          # Clear previous status
+          echo "running" > "$STATUS_FILE"
+          
+          {
             cd /home/ubuntu/www/bittorrented.com/media-streamer
             
-            # Run idempotent setup script (installs Node, pnpm, ffmpeg, configures firewall, etc.)
-            # This uses sudo which requires NOPASSWD for the ubuntu user
+            # Run idempotent setup script
             echo "=== Running setup script ==="
             bash scripts/setup-server.sh
             
             # Source profile to get pnpm in PATH
-            # Try multiple locations where pnpm might be installed
             export PNPM_HOME="$HOME/.local/share/pnpm"
             export PATH="$PNPM_HOME:$HOME/.pnpm:$HOME/.npm-global/bin:/usr/local/bin:$PATH"
-            
-            # Source bashrc/profile if they exist
             [ -f ~/.bashrc ] && source ~/.bashrc 2>/dev/null || true
             [ -f ~/.profile ] && source ~/.profile 2>/dev/null || true
             
@@ -113,33 +110,92 @@ jobs:
             echo "pnpm: $(which pnpm 2>/dev/null || echo 'not found')"
             
             echo ""
+            echo "=== System resources ==="
+            free -h
+            df -h /
+            
+            echo ""
+            echo "=== Cleaning build cache ==="
+            rm -rf .next 2>/dev/null || true
+            echo "✓ Build cache cleaned"
+            
+            echo ""
             echo "=== Installing dependencies ==="
             pnpm install --frozen-lockfile
             echo "✓ Dependencies installed"
             
             echo ""
             echo "=== Building application ==="
-            pnpm build
+            nice -n 10 pnpm build
             echo "✓ Build complete"
             
             echo ""
             echo "=== Restarting service ==="
-            # Use sudo with NOPASSWD (must be configured on server)
-            sudo systemctl restart bittorrented || echo "Warning: Could not restart service (sudo may require password)"
+            sudo systemctl restart bittorrented || echo "Warning: Could not restart service"
             echo "✓ Service restart attempted"
             
-            # Wait for service to start
             sleep 3
             
-            # Verify deployment (don't use sudo for status check)
             echo ""
             echo "=== Verifying deployment ==="
             systemctl is-active bittorrented || echo "Service status unknown"
-            ss -tlnp 2>/dev/null | grep 3000 || echo "Note: Port 3000 status unknown"
             
             echo ""
             echo "=== Deployment complete! ==="
-            DEPLOY_SCRIPT
+            echo "success" > "$STATUS_FILE"
+          } >> "$LOG_FILE" 2>&1 || {
+            echo "failed" > "$STATUS_FILE"
+            exit 1
+          }
+          BUILD_SCRIPT
+          chmod +x /tmp/deploy-build.sh
+          SETUP_SCRIPT
+          
+          # Start the build in background using nohup
+          ssh $SSH_OPTS ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+            "nohup /tmp/deploy-build.sh > /dev/null 2>&1 &"
+          
+          echo "Build started in background on droplet"
+
+      - name: Wait for build to complete
+        run: |
+          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.DROPLET_PORT || 22 }} -o StrictHostKeyChecking=no -o ConnectTimeout=30"
+          
+          echo "Waiting for build to complete..."
+          MAX_WAIT=600  # 10 minutes
+          ELAPSED=0
+          POLL_INTERVAL=10
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            # Check build status
+            STATUS=$(ssh $SSH_OPTS ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+              "cat /tmp/deploy-build.status 2>/dev/null || echo 'unknown'" || echo "ssh_error")
+            
+            if [ "$STATUS" = "success" ]; then
+              echo "✓ Build completed successfully!"
+              # Show the log
+              ssh $SSH_OPTS ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+                "tail -50 /tmp/deploy-build.log" || true
+              exit 0
+            elif [ "$STATUS" = "failed" ]; then
+              echo "✗ Build failed!"
+              ssh $SSH_OPTS ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+                "cat /tmp/deploy-build.log" || true
+              exit 1
+            elif [ "$STATUS" = "ssh_error" ]; then
+              echo "SSH connection failed, retrying in ${POLL_INTERVAL}s..."
+            else
+              echo "Build still running... (${ELAPSED}s elapsed)"
+            fi
+            
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+          
+          echo "✗ Build timed out after ${MAX_WAIT}s"
+          ssh $SSH_OPTS ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+            "cat /tmp/deploy-build.log" || true
+          exit 1
 
       - name: Cleanup SSH key
         if: always()

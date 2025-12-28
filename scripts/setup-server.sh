@@ -1,4 +1,4 @@
-#!/bin/bash
+sh#!/bin/bash
 # Idempotent setup script for Ubuntu/Debian VPS
 # Safe to run multiple times - only installs/configures what's missing
 # Works on any VPS provider: DigitalOcean, Linode, Vultr, AWS EC2, Hetzner, etc.
@@ -58,6 +58,27 @@ echo ""
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
+
+# Configure swap if not already present (needed for memory-intensive builds)
+SWAP_FILE="/swapfile"
+if [ ! -f "$SWAP_FILE" ]; then
+    echo "=== Configuring swap (2GB) for builds ==="
+    sudo fallocate -l 2G "$SWAP_FILE"
+    sudo chmod 600 "$SWAP_FILE"
+    sudo mkswap "$SWAP_FILE"
+    sudo swapon "$SWAP_FILE"
+    # Make swap permanent
+    if ! grep -q "$SWAP_FILE" /etc/fstab; then
+        echo "$SWAP_FILE none swap sw 0 0" | sudo tee -a /etc/fstab
+    fi
+    echo "✓ Swap configured"
+else
+    # Ensure swap is active
+    if ! swapon --show | grep -q "$SWAP_FILE"; then
+        sudo swapon "$SWAP_FILE" 2>/dev/null || true
+    fi
+    echo "=== Swap already configured ==="
+fi
 
 # Update system (only if not updated recently - within 1 hour)
 LAST_UPDATE_FILE="/tmp/apt-last-update"
