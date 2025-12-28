@@ -590,6 +590,77 @@ export class StreamingService {
   }
 
   /**
+   * Add a torrent by magnet URI if not already added
+   * This is used by the status endpoint to ensure the torrent is being downloaded
+   *
+   * @param magnetUri - The magnet URI to add
+   * @returns Promise that resolves when torrent is added (not necessarily ready)
+   */
+  async addTorrentIfNeeded(magnetUri: string): Promise<void> {
+    const infohash = extractInfohash(magnetUri);
+    if (!infohash) {
+      throw new StreamingError('Could not extract infohash from magnet URI');
+    }
+
+    // Check if torrent already exists
+    const existing = this.client.torrents.find(t => t.infoHash === infohash);
+    if (existing) {
+      logger.debug('Torrent already exists in client', { infohash });
+      return;
+    }
+
+    logger.info('Adding torrent for status tracking', { infohash });
+
+    // Enhance magnet URI with additional trackers
+    const enhancedMagnetUri = this.enhanceMagnetUri(magnetUri);
+
+    // Add the torrent (don't wait for ready - status endpoint will poll)
+    return new Promise((resolve, reject) => {
+      try {
+        const torrent = this.client.add(enhancedMagnetUri);
+        
+        // Log peer connections
+        torrent.on('wire', (wire) => {
+          logger.info('Peer connected (status tracking)', {
+            infohash,
+            peerAddress: wire.remoteAddress,
+            numPeers: torrent.numPeers,
+          });
+        });
+
+        // Log when ready
+        torrent.on('ready', () => {
+          logger.info('Torrent ready (status tracking)', {
+            infohash,
+            name: torrent.name,
+            fileCount: torrent.files.length,
+          });
+          // Deselect all files initially - status endpoint will select specific files
+          torrent.deselect(0, torrent.pieces.length - 1, 0);
+        });
+
+        torrent.on('warning', (warn) => {
+          const warnStr = String(warn);
+          if (!warnStr.includes('fetch failed')) {
+            logger.warn('Torrent warning (status tracking)', { infohash, warning: warnStr });
+          }
+        });
+
+        // Use type assertion for error event
+        (torrent as unknown as NodeJS.EventEmitter).on('error', (err: Error) => {
+          logger.error('Torrent error (status tracking)', err, { infohash });
+        });
+
+        // Resolve immediately - we don't wait for ready
+        resolve();
+      } catch (err) {
+        logger.error('Failed to add torrent for status tracking', err as Error, { infohash });
+        reject(new StreamingError(`Failed to add torrent: ${(err as Error).message}`));
+      }
+    });
+  }
+
+  /**
    * Get live statistics for a torrent from DHT/connected peers
    * This provides real-time peer counts that are more accurate than tracker scraping
    *

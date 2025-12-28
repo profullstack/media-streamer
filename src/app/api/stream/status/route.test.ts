@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server';
 vi.mock('@/lib/streaming', () => {
   const mockService = {
     getTorrentStats: vi.fn(),
+    addTorrentIfNeeded: vi.fn().mockResolvedValue(undefined),
     destroy: vi.fn(),
   };
   return {

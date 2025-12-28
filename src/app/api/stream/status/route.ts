@@ -185,11 +185,31 @@ export async function GET(request: NextRequest): Promise<Response> {
   let intervalId: ReturnType<typeof setInterval> | null = null;
   let isStreamClosed = false;
   let hasReachedReady = false;
+  let torrentAddInitiated = false;
 
   const stream = new ReadableStream({
     start(controller) {
       // Use singleton to share WebTorrent client with stream endpoint
       const streamingService = getStreamingService();
+
+      // Add torrent to WebTorrent client if not already added
+      // This ensures the torrent starts downloading when the status endpoint is called
+      const ensureTorrentAdded = async (): Promise<void> => {
+        if (torrentAddInitiated) return;
+        torrentAddInitiated = true;
+        
+        try {
+          // torrent.magnet_uri contains the magnet link from the database
+          if (torrent.magnet_uri) {
+            await streamingService.addTorrentIfNeeded(torrent.magnet_uri);
+          }
+        } catch (err) {
+          console.error('Failed to add torrent for status tracking:', err);
+        }
+      };
+
+      // Start adding torrent immediately (don't await - let polling continue)
+      void ensureTorrentAdded();
 
       // Send status update
       const sendStatus = (): void => {
