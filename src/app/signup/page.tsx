@@ -20,6 +20,8 @@ export default function SignupPage(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [success, setSuccess] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     setError(null);
@@ -37,10 +39,21 @@ export default function SignupPage(): React.ReactElement {
     setIsLoading(true);
 
     try {
-      // TODO: Implement actual signup via server action
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Redirect to home on success
-      window.location.href = '/';
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json() as { error?: string; message?: string };
+
+      if (!response.ok) {
+        setError(data.error ?? 'Failed to create account');
+        return;
+      }
+
+      // Show success message - user needs to confirm email
+      setSuccess(true);
     } catch {
       setError('Failed to create account. Please try again.');
     } finally {
@@ -69,6 +82,36 @@ export default function SignupPage(): React.ReactElement {
             <p className="text-text-secondary mt-1">Start streaming in seconds</p>
           </div>
 
+          {/* Success Message */}
+          {success ? (
+            <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-6 text-center">
+              <svg
+                className="mx-auto h-12 w-12 text-green-500 mb-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <h2 className="text-lg font-semibold text-text-primary mb-2">Check your email</h2>
+              <p className="text-text-secondary mb-4">
+                We&apos;ve sent a confirmation link to <strong>{email}</strong>.
+                Please click the link to activate your account.
+              </p>
+              <Link
+                href="/login"
+                className="text-accent-primary hover:text-accent-primary/80 font-medium"
+              >
+                Go to login
+              </Link>
+            </div>
+          ) : (
+          <>
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {error ? <div className="rounded-lg bg-status-error/10 border border-status-error/20 p-3 text-sm text-status-error">
@@ -183,6 +226,8 @@ export default function SignupPage(): React.ReactElement {
               Sign in
             </Link>
           </p>
+          </>
+          )}
         </div>
       </div>
     </MainLayout>

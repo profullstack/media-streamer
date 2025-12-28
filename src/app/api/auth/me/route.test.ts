@@ -1,33 +1,26 @@
 /**
  * Auth Me API Route Tests
- * 
- * Tests for /api/auth/me endpoint
+ *
+ * Tests for /api/auth/me endpoint with cookie-based sessions
+ *
+ * @vitest-environment node
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET } from './route';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-// Mock cookies
-const mockCookies = {
-  get: vi.fn(),
-};
-
-vi.mock('next/headers', () => ({
-  cookies: () => mockCookies,
-}));
-
-// Mock Supabase
-const mockSupabaseAuth = {
-  getUser: vi.fn(),
-};
-
-const mockSupabaseFrom = vi.fn();
+// Mock Supabase client - MUST be at top level for hoisting
+const mockSetSession = vi.fn();
+const mockGetUser = vi.fn();
+const mockFrom = vi.fn();
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: () => ({
-    auth: mockSupabaseAuth,
-    from: mockSupabaseFrom,
+    auth: {
+      setSession: mockSetSession,
+      getUser: mockGetUser,
+    },
+    from: mockFrom,
   }),
 }));
 
@@ -36,13 +29,13 @@ describe('GET /api/auth/me', () => {
     vi.clearAllMocks();
   });
 
-  describe('unauthenticated', () => {
-    it('should return null user when no session', async () => {
-      mockSupabaseAuth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: null,
-      });
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
 
+  describe('unauthenticated', () => {
+    it('should return null user when no cookie', async () => {
+      const { GET } = await import('./route');
       const request = new NextRequest('http://localhost:3000/api/auth/me');
       const response = await GET(request);
       const data = await response.json();
@@ -51,47 +44,86 @@ describe('GET /api/auth/me', () => {
       expect(data.user).toBeNull();
     });
 
-    it('should return null user on auth error', async () => {
-      mockSupabaseAuth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: { message: 'Invalid token' },
+    it('should return null user when cookie is invalid JSON', async () => {
+      const { GET } = await import('./route');
+      // Don't encode - NextRequest will decode automatically
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: {
+          cookie: 'sb-auth-token=invalid-json',
+        },
       });
-
-      const request = new NextRequest('http://localhost:3000/api/auth/me');
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data.user).toBeNull();
+    });
+
+    it('should return null user when session is invalid', async () => {
+      mockSetSession.mockResolvedValueOnce({
+        error: { message: 'Invalid session' },
+      });
+
+      const { GET } = await import('./route');
+      // Use JSON string directly - NextRequest decodes automatically
+      const cookieValue = JSON.stringify({
+        access_token: 'invalid-token',
+        refresh_token: 'invalid-refresh',
+      });
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: {
+          cookie: `sb-auth-token=${encodeURIComponent(cookieValue)}`,
+        },
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.user).toBeNull();
+      // Should clear invalid cookie
+      expect(response.headers.get('Set-Cookie')).toContain('Max-Age=0');
     });
   });
 
   describe('authenticated', () => {
-    it('should return user data when authenticated', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-      };
-
-      mockSupabaseAuth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
+    it('should return user data when authenticated with valid session', async () => {
+      // Set up mocks BEFORE importing the route
+      mockSetSession.mockResolvedValueOnce({ error: null });
+      mockGetUser.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: 'user-123',
+            email: 'test@example.com',
+            user_metadata: {
+              display_name: 'Test User',
+              avatar_url: 'https://example.com/avatar.jpg',
+            },
+          },
+        },
         error: null,
       });
 
-      mockSupabaseFrom.mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValueOnce({
-          data: {
-            subscription_tier: 'premium',
-            display_name: 'Test User',
-            avatar_url: 'https://example.com/avatar.jpg',
-          },
-          error: null,
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({
+            single: vi.fn().mockResolvedValueOnce({
+              data: { tier: 'premium', status: 'active' },
+              error: null,
+            }),
+          }),
         }),
       });
 
-      const request = new NextRequest('http://localhost:3000/api/auth/me');
+      const { GET } = await import('./route');
+      const cookieValue = JSON.stringify({
+        access_token: 'valid-token',
+        refresh_token: 'valid-refresh',
+      });
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: {
+          cookie: `sb-auth-token=${encodeURIComponent(cookieValue)}`,
+        },
+      });
       const response = await GET(request);
       const data = await response.json();
 
@@ -100,55 +132,64 @@ describe('GET /api/auth/me', () => {
         id: 'user-123',
         email: 'test@example.com',
         subscription_tier: 'premium',
+        subscription_status: 'active',
         display_name: 'Test User',
         avatar_url: 'https://example.com/avatar.jpg',
       });
     });
 
-    it('should return free tier when no profile found', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-      };
-
-      mockSupabaseAuth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
+    it('should return trial tier when no subscription found', async () => {
+      mockSetSession.mockResolvedValueOnce({ error: null });
+      mockGetUser.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: 'user-123',
+            email: 'test@example.com',
+            user_metadata: {},
+          },
+        },
         error: null,
       });
 
-      mockSupabaseFrom.mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValueOnce({
-          data: null,
-          error: { code: 'PGRST116' },
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({
+            single: vi.fn().mockResolvedValueOnce({
+              data: null,
+              error: { code: 'PGRST116' },
+            }),
+          }),
         }),
       });
 
-      const request = new NextRequest('http://localhost:3000/api/auth/me');
+      const { GET } = await import('./route');
+      const cookieValue = JSON.stringify({
+        access_token: 'valid-token',
+        refresh_token: 'valid-refresh',
+      });
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: {
+          cookie: `sb-auth-token=${encodeURIComponent(cookieValue)}`,
+        },
+      });
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.user).toEqual({
-        id: 'user-123',
-        email: 'test@example.com',
-        subscription_tier: 'free',
-      });
+      expect(data.user.subscription_tier).toBe('trial');
+      expect(data.user.subscription_status).toBe('active');
     });
   });
 
   describe('caching', () => {
     it('should set cache-control headers', async () => {
-      mockSupabaseAuth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: null,
-      });
-
+      const { GET } = await import('./route');
       const request = new NextRequest('http://localhost:3000/api/auth/me');
       const response = await GET(request);
 
-      expect(response.headers.get('Cache-Control')).toBe('private, no-cache, no-store, must-revalidate');
+      expect(response.headers.get('Cache-Control')).toBe(
+        'private, no-cache, no-store, must-revalidate'
+      );
     });
   });
 });

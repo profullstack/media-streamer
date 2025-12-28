@@ -25,8 +25,19 @@ export default function LoginPage(): React.ReactElement {
     setIsLoading(true);
 
     try {
-      // TODO: Implement actual login via server action
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json() as { error?: string };
+
+      if (!response.ok) {
+        setError(data.error ?? 'Invalid email or password');
+        return;
+      }
+
       // Redirect to home on success
       window.location.href = '/';
     } catch {
