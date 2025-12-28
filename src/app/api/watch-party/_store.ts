@@ -57,13 +57,17 @@ export function getPartyCount(): number {
 
 /**
  * Clean up old parties (older than TTL)
+ * Parties are deleted if they are strictly older than 24 hours (not at exactly 24 hours)
  */
 export function cleanupOldParties(): number {
   const now = Date.now();
+  const cutoffTime = now - PARTY_TTL_MS;
   let cleaned = 0;
 
   for (const [code, party] of parties.entries()) {
-    if (now - party.createdAt.getTime() > PARTY_TTL_MS) {
+    // Use < to ensure parties exactly at 24 hours are NOT deleted
+    // Only delete if createdAt is strictly before the cutoff
+    if (party.createdAt.getTime() < cutoffTime) {
       parties.delete(code);
       cleaned++;
     }
