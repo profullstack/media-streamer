@@ -1,4 +1,4 @@
-'use client';
+ 'use client';
 
 /**
  * Media Player Modal Component
@@ -7,7 +7,7 @@
  * Shows the file title and provides playback controls.
  * Supports automatic transcoding for non-browser-supported formats.
  * Displays realtime swarm statistics (seeders/leechers).
- * Shows real-time connection status during loading via SSE.
+ * Shows real-time connection status and health stats via persistent SSE.
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -214,20 +214,22 @@ export function MediaPlayerModal({
     onClose();
   }, [onClose]);
 
-  // Subscribe to connection status SSE during loading
+  // Subscribe to connection status SSE - persistent mode keeps streaming after ready
   useEffect(() => {
-    if (!isOpen || !infohash || !file || isPlayerReady) {
-      // Close existing connection when not needed
+    if (!isOpen || !infohash || !file) {
+      // Close existing connection when modal closes
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
+      setConnectionStatus(null);
       return;
     }
 
-    // Create SSE connection for connection status
-    const url = `/api/stream/status?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-    console.log('[MediaPlayerModal] Connecting to SSE:', url);
+    // Create SSE connection for connection status with persistent=true
+    // This keeps the stream open after ready to show ongoing health stats
+    const url = `/api/stream/status?infohash=${infohash}&fileIndex=${file.fileIndex}&persistent=true`;
+    console.log('[MediaPlayerModal] Connecting to persistent SSE:', url);
     
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
@@ -252,7 +254,7 @@ export function MediaPlayerModal({
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [isOpen, infohash, file, isPlayerReady]);
+  }, [isOpen, infohash, file]);
 
   if (!file) return null;
 
@@ -428,36 +430,64 @@ export function MediaPlayerModal({
             </a>
           </div> : null}
 
-        {/* Connection Status Footer - shown during loading */}
-        {isLoading && connectionStatus ? <div className="rounded-lg border border-border-subtle bg-bg-secondary p-2 sm:p-3">
+        {/* Connection Status Footer - shown during loading and as health stats after ready */}
+        {connectionStatus ? <div className={`rounded-lg border p-2 sm:p-3 ${
+          isLoading
+            ? 'border-border-subtle bg-bg-secondary'
+            : 'border-green-500/30 bg-green-500/5'
+        }`}>
             <div className="flex items-center justify-between gap-2 sm:gap-4">
-              {/* Status message with spinner */}
+              {/* Status message with spinner or health indicator */}
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
+                {isLoading ? (
+                  <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
+                ) : (
+                  <div className="h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-green-500 flex-shrink-0" title="Stream active" />
+                )}
                 <span className="text-xs sm:text-sm text-text-secondary truncate">
-                  {connectionStatus.message}
+                  {isLoading ? connectionStatus.message : `Streaming (${connectionStatus.numPeers} peer${connectionStatus.numPeers !== 1 ? 's' : ''})`}
                 </span>
               </div>
               
               {/* Stats - compact on small screens */}
               <div className="flex items-center gap-2 sm:gap-4 text-xs text-text-muted flex-shrink-0">
                 {/* Peers */}
-                <span>{connectionStatus.numPeers}p</span>
+                <span title="Connected peers" className="flex items-center gap-1">
+                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                  </svg>
+                  {connectionStatus.numPeers}
+                </span>
                 
-                {/* Progress */}
-                {connectionStatus.progress > 0 && (
-                  <span>{(connectionStatus.progress * 100).toFixed(0)}%</span>
+                {/* Progress - show during loading or if not complete */}
+                {connectionStatus.progress > 0 && connectionStatus.progress < 1 && (
+                  <span title="Download progress">{(connectionStatus.progress * 100).toFixed(0)}%</span>
                 )}
                 
-                {/* Download speed - hidden on very small screens */}
+                {/* Download speed */}
                 {connectionStatus.downloadSpeed > 0 && (
-                  <span className="hidden sm:inline text-green-500">{formatSpeed(connectionStatus.downloadSpeed)}</span>
+                  <span className="hidden sm:flex items-center gap-1 text-green-500" title="Download speed">
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    {formatSpeed(connectionStatus.downloadSpeed)}
+                  </span>
+                )}
+                
+                {/* Upload speed - only show after ready */}
+                {!isLoading && connectionStatus.uploadSpeed > 0 && (
+                  <span className="hidden sm:flex items-center gap-1 text-blue-500" title="Upload speed">
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                    {formatSpeed(connectionStatus.uploadSpeed)}
+                  </span>
                 )}
               </div>
             </div>
             
-            {/* Progress bar */}
-            {connectionStatus.progress > 0 && (
+            {/* Progress bar - only during loading */}
+            {isLoading && connectionStatus.progress > 0 && (
               <div className="mt-1.5 sm:mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
                 <div
                   className="h-full bg-accent-primary transition-all duration-300"

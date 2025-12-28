@@ -1,10 +1,14 @@
 /**
  * Stream Status API - SSE Endpoint
  *
- * GET /api/stream/status?infohash=<infohash>&fileIndex=<optional>
+ * GET /api/stream/status?infohash=<infohash>&fileIndex=<optional>&persistent=<optional>
  *
  * Provides real-time connection status updates via Server-Sent Events (SSE).
  * Used by the media player modal to show download progress during connection.
+ *
+ * When persistent=true, the stream continues after the torrent is ready,
+ * allowing the client to monitor ongoing health stats (peers, speeds, progress).
+ * In persistent mode, the poll interval slows down to 2 seconds after ready.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -111,14 +115,30 @@ function _formatSpeed(bytesPerSecond: number): string {
 }
 
 /**
+ * Poll interval in milliseconds during initial connection (500ms)
+ */
+const INITIAL_POLL_INTERVAL = 500;
+
+/**
+ * Poll interval in milliseconds after ready state in persistent mode (2000ms)
+ */
+const PERSISTENT_POLL_INTERVAL = 2000;
+
+/**
  * GET /api/stream/status
  *
  * Returns an SSE stream with real-time connection status updates.
+ *
+ * Query parameters:
+ * - infohash: (required) The torrent infohash
+ * - fileIndex: (optional) The file index to track
+ * - persistent: (optional) If "true", keep streaming after ready state
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const infohash = searchParams.get('infohash');
   const fileIndexParam = searchParams.get('fileIndex');
+  const persistentParam = searchParams.get('persistent');
 
   // Validate infohash
   if (!infohash) {
@@ -145,6 +165,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     fileIndex = parsed;
   }
 
+  // Parse persistent flag (defaults to false)
+  const persistent = persistentParam === 'true';
+
   // Check if torrent exists in database
   const torrent = await getTorrentByInfohash(infohash);
   if (!torrent) {
@@ -155,12 +178,13 @@ export async function GET(request: NextRequest): Promise<Response> {
   const encoder = new TextEncoder();
   let intervalId: ReturnType<typeof setInterval> | null = null;
   let isStreamClosed = false;
+  let hasReachedReady = false;
 
   const stream = new ReadableStream({
     start(controller) {
       const streamingService = new StreamingService();
 
-      // Send initial status
+      // Send status update
       const sendStatus = (): void => {
         if (isStreamClosed) {
           return;
@@ -186,16 +210,25 @@ export async function GET(request: NextRequest): Promise<Response> {
           const data = `data: ${JSON.stringify(event)}\n\n`;
           controller.enqueue(encoder.encode(data));
 
-          // Stop polling once ready
+          // Handle ready state
           if (stage === 'ready' && intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-            // Send one final event and close
-            setTimeout(() => {
-              if (!isStreamClosed) {
-                controller.close();
+            if (persistent) {
+              // In persistent mode, switch to slower polling after ready
+              if (!hasReachedReady) {
+                hasReachedReady = true;
+                clearInterval(intervalId);
+                intervalId = setInterval(sendStatus, PERSISTENT_POLL_INTERVAL);
               }
-            }, 100);
+            } else {
+              // Default behavior: close stream after ready
+              clearInterval(intervalId);
+              intervalId = null;
+              setTimeout(() => {
+                if (!isStreamClosed) {
+                  controller.close();
+                }
+              }, 100);
+            }
           }
         } catch (error) {
           console.error('Error sending status:', error);
@@ -218,8 +251,8 @@ export async function GET(request: NextRequest): Promise<Response> {
       // Send initial status immediately
       sendStatus();
 
-      // Poll every 500ms for updates
-      intervalId = setInterval(sendStatus, 500);
+      // Poll every 500ms for updates initially
+      intervalId = setInterval(sendStatus, INITIAL_POLL_INTERVAL);
     },
 
     cancel() {

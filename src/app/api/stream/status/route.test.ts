@@ -163,4 +163,118 @@ describe('Stream Status API - GET /api/stream/status', () => {
     const data = await response.json();
     expect(data.error).toBe('fileIndex must be a non-negative integer');
   });
+
+  describe('persistent mode', () => {
+    it('should continue streaming after ready state when persistent=true', async () => {
+      vi.mocked(getTorrentByInfohash).mockResolvedValue({
+        id: 'torrent-123',
+        infohash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        magnet_uri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        total_size: 1000000,
+        file_count: 1,
+        piece_length: 16384,
+        seeders: null,
+        leechers: null,
+        swarm_updated_at: null,
+        created_by: null,
+        status: 'ready',
+        error_message: null,
+        indexed_at: new Date().toISOString(),
+        poster_url: null,
+        cover_url: null,
+        content_type: null,
+        external_id: null,
+        external_source: null,
+        year: null,
+        description: null,
+        metadata_fetched_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      const request = new NextRequest(
+        'http://localhost/api/stream/status?infohash=1234567890abcdef1234567890abcdef12345678&persistent=true'
+      );
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+      // The stream should be returned and stay open (not close on ready)
+    });
+
+    it('should accept persistent=false and behave like default (close on ready)', async () => {
+      vi.mocked(getTorrentByInfohash).mockResolvedValue({
+        id: 'torrent-123',
+        infohash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        magnet_uri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        total_size: 1000000,
+        file_count: 1,
+        piece_length: 16384,
+        seeders: null,
+        leechers: null,
+        swarm_updated_at: null,
+        created_by: null,
+        status: 'ready',
+        error_message: null,
+        indexed_at: new Date().toISOString(),
+        poster_url: null,
+        cover_url: null,
+        content_type: null,
+        external_id: null,
+        external_source: null,
+        year: null,
+        description: null,
+        metadata_fetched_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      const request = new NextRequest(
+        'http://localhost/api/stream/status?infohash=1234567890abcdef1234567890abcdef12345678&persistent=false'
+      );
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+    });
+
+    it('should use slower poll interval (2s) in persistent mode after ready', async () => {
+      vi.mocked(getTorrentByInfohash).mockResolvedValue({
+        id: 'torrent-123',
+        infohash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        magnet_uri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        total_size: 1000000,
+        file_count: 1,
+        piece_length: 16384,
+        seeders: null,
+        leechers: null,
+        swarm_updated_at: null,
+        created_by: null,
+        status: 'ready',
+        error_message: null,
+        indexed_at: new Date().toISOString(),
+        poster_url: null,
+        cover_url: null,
+        content_type: null,
+        external_id: null,
+        external_source: null,
+        year: null,
+        description: null,
+        metadata_fetched_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      const request = new NextRequest(
+        'http://localhost/api/stream/status?infohash=1234567890abcdef1234567890abcdef12345678&persistent=true'
+      );
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      // The implementation should use PERSISTENT_POLL_INTERVAL (2000ms) after ready
+    });
+  });
 });

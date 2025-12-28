@@ -223,12 +223,12 @@ export function AudioPlayer({
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={cn('audio-player rounded-lg border bg-card p-4', className)}>
+    <div className={cn('audio-player rounded-lg border border-border-subtle bg-bg-secondary p-4', className)}>
       {/* Transcoding Notice */}
-      {showTranscodingNotice && audioSource?.requiresTranscoding ? <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
+      {showTranscodingNotice && audioSource?.requiresTranscoding ? <div className="mb-4 rounded-lg border border-accent-secondary/50 bg-accent-secondary/10 p-3">
           <div className="flex items-start gap-2">
             <svg
-              className="h-4 w-4 flex-shrink-0 text-blue-500"
+              className="h-4 w-4 flex-shrink-0 text-accent-secondary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -241,7 +241,7 @@ export function AudioPlayer({
               />
             </svg>
             <div className="text-sm">
-              <span className="font-medium text-blue-500">
+              <span className="font-medium text-accent-secondary">
                 Auto-transcoding: {audioSource.format.toUpperCase()} → MP3
               </span>
             </div>
@@ -249,10 +249,10 @@ export function AudioPlayer({
         </div> : null}
 
       {/* Error State */}
-      {error ? <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+      {error ? <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 p-3">
           <div className="flex items-start gap-2">
             <svg
-              className="h-4 w-4 flex-shrink-0 text-destructive"
+              className="h-4 w-4 flex-shrink-0 text-red-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -264,7 +264,7 @@ export function AudioPlayer({
                 d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <span className="text-sm text-destructive">{error}</span>
+            <span className="text-sm text-red-500">{error}</span>
           </div>
         </div> : null}
 
@@ -281,9 +281,9 @@ export function AudioPlayer({
             />
           </div>
         ) : (
-          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
+          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-bg-tertiary">
             <svg
-              className="h-8 w-8 text-muted-foreground"
+              className="h-8 w-8 text-text-muted"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -302,10 +302,10 @@ export function AudioPlayer({
         <div className="flex-1 min-w-0">
           {/* Track Info */}
           <div className="mb-2">
-            <h4 className="truncate font-medium">
+            <h4 className="truncate font-medium text-text-primary">
               {title ?? filename}
             </h4>
-            {(artist || album) ? <p className="truncate text-sm text-muted-foreground">
+            {(artist || album) ? <p className="truncate text-sm text-text-secondary">
                 {artist}
                 {artist && album ? ' • ' : null}
                 {album}
@@ -315,21 +315,21 @@ export function AudioPlayer({
           {/* Progress Bar */}
           <div
             ref={progressRef}
-            className="group relative h-2 cursor-pointer rounded-full bg-muted"
+            className="group relative h-2 cursor-pointer rounded-full bg-bg-tertiary"
             onClick={handleSeek}
           >
             <div
-              className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all"
+              className="absolute left-0 top-0 h-full rounded-full bg-accent-primary transition-all"
               style={{ width: `${progressPercent}%` }}
             />
             <div
-              className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-primary opacity-0 transition-opacity group-hover:opacity-100"
+              className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-accent-primary opacity-0 transition-opacity group-hover:opacity-100"
               style={{ left: `calc(${progressPercent}% - 6px)` }}
             />
           </div>
 
           {/* Time Display */}
-          <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+          <div className="mt-1 flex justify-between text-xs text-text-muted">
             <span>{formatDuration(currentTime)}</span>
             <span>{formatDuration(duration)}</span>
           </div>
@@ -342,7 +342,7 @@ export function AudioPlayer({
         <button
           type="button"
           onClick={() => skip(-10)}
-          className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="rounded-full p-2 text-text-muted hover:bg-bg-hover hover:text-text-primary"
           aria-label="Skip back 10 seconds"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -355,11 +355,11 @@ export function AudioPlayer({
           type="button"
           onClick={togglePlay}
           disabled={isLoading || !!error}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-primary text-white hover:bg-accent-primary/90 disabled:opacity-50"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isLoading ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
           ) : isPlaying ? (
             <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
@@ -375,7 +375,7 @@ export function AudioPlayer({
         <button
           type="button"
           onClick={() => skip(10)}
-          className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="rounded-full p-2 text-text-muted hover:bg-bg-hover hover:text-text-primary"
           aria-label="Skip forward 10 seconds"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -389,7 +389,7 @@ export function AudioPlayer({
         <button
           type="button"
           onClick={toggleMute}
-          className="rounded-full p-1 text-muted-foreground hover:text-foreground"
+          className="rounded-full p-1 text-text-muted hover:text-text-primary"
           aria-label={isMuted ? 'Unmute' : 'Mute'}
         >
           {isMuted || volume === 0 ? (
@@ -414,7 +414,7 @@ export function AudioPlayer({
           step="0.01"
           value={isMuted ? 0 : volume}
           onChange={handleVolumeChange}
-          className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-muted [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+          className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-bg-tertiary [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-primary"
           aria-label="Volume"
         />
       </div>
@@ -439,14 +439,14 @@ export function AudioPlayer({
       />
 
       {/* Format Info */}
-      {audioSource ? <div className="mt-3 flex items-center justify-center text-xs text-muted-foreground">
+      {audioSource ? <div className="mt-3 flex items-center justify-center text-xs text-text-muted">
           <span>Format: {audioSource.format.toUpperCase()}</span>
           <span className="mx-2">•</span>
           <span>
             {audioSource.requiresTranscoding ? (
-              <span className="text-blue-500">Auto-transcoding → MP3</span>
+              <span className="text-accent-secondary">Auto-transcoding → MP3</span>
             ) : (
-              <span className="text-green-500">Native playback</span>
+              <span className="text-accent-audio">Native playback</span>
             )}
           </span>
         </div> : null}
@@ -522,11 +522,11 @@ export function AudioPlayerCompact({
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={cn('flex items-center gap-3 rounded-lg border bg-card p-2', className)}>
+    <div className={cn('flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-secondary p-2', className)}>
       <button
         type="button"
         onClick={togglePlay}
-        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent-primary text-white hover:bg-accent-primary/90"
         aria-label={isPlaying ? 'Pause' : 'Play'}
       >
         {isPlaying ? (
@@ -541,17 +541,17 @@ export function AudioPlayerCompact({
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className="truncate text-sm font-medium">{title ?? filename}</p>
-        {artist ? <p className="truncate text-xs text-muted-foreground">{artist}</p> : null}
-        <div className="mt-1 h-1 rounded-full bg-muted">
+        <p className="truncate text-sm font-medium text-text-primary">{title ?? filename}</p>
+        {artist ? <p className="truncate text-xs text-text-secondary">{artist}</p> : null}
+        <div className="mt-1 h-1 rounded-full bg-bg-tertiary">
           <div
-            className="h-full rounded-full bg-primary"
+            className="h-full rounded-full bg-accent-primary"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
       </div>
 
-      <span className="flex-shrink-0 text-xs text-muted-foreground">
+      <span className="flex-shrink-0 text-xs text-text-muted">
         {formatDuration(currentTime)} / {formatDuration(duration)}
       </span>
 
