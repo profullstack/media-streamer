@@ -1,4 +1,4 @@
-sh#!/bin/bash
+#!/bin/bash
 # Idempotent setup script for Ubuntu/Debian VPS
 # Safe to run multiple times - only installs/configures what's missing
 # Works on any VPS provider: DigitalOcean, Linode, Vultr, AWS EC2, Hetzner, etc.
@@ -9,6 +9,7 @@ sh#!/bin/bash
 # Environment variables (set in .env file or export):
 #   VPS_USER       - System user for the service (default: ubuntu)
 #   CERTBOT_EMAIL  - Email for Let's Encrypt (default: admin@bittorrented.com)
+#   SSH_PORT       - SSH port for firewall/fail2ban (default: 22)
 #   FORCE_SSL      - Set to 1 to force SSL setup even if DNS check fails
 
 set -e
@@ -49,6 +50,7 @@ SERVICE_NAME="bittorrented"
 NODE_VERSION="22"  # LTS version
 PNPM_HOME="${HOME}/.local/share/pnpm"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-admin@bittorrented.com}"  # Override with env var if needed
+SSH_PORT="${SSH_PORT:-22}"  # Override with env var for custom SSH port (e.g., 2048)
 
 echo "=== BitTorrented Server Setup (Idempotent) ==="
 echo "Deploy path: ${DEPLOY_PATH}"
@@ -147,7 +149,8 @@ fi
 echo "=== Configuring firewall ==="
 sudo ufw default deny incoming 2>/dev/null || true
 sudo ufw default allow outgoing 2>/dev/null || true
-sudo ufw allow ssh 2>/dev/null || true
+# Allow SSH on configured port (default 22, can be overridden with SSH_PORT env var)
+sudo ufw allow ${SSH_PORT}/tcp 2>/dev/null || true
 sudo ufw allow 80/tcp 2>/dev/null || true
 sudo ufw allow 443/tcp 2>/dev/null || true
 sudo ufw allow 3000/tcp 2>/dev/null || true
@@ -160,10 +163,11 @@ if ! sudo ufw status | grep -q "Status: active"; then
     sudo ufw --force enable
 fi
 
-# Configure fail2ban (only if config doesn't exist)
-if [ ! -f /etc/fail2ban/jail.local ]; then
-    echo "=== Configuring fail2ban ==="
-    sudo tee /etc/fail2ban/jail.local > /dev/null << 'EOF'
+# Configure fail2ban (only if config doesn't exist or SSH port changed)
+FAIL2BAN_CONFIG="/etc/fail2ban/jail.local"
+if [ ! -f "$FAIL2BAN_CONFIG" ] || ! grep -q "port = ${SSH_PORT}" "$FAIL2BAN_CONFIG" 2>/dev/null; then
+    echo "=== Configuring fail2ban (SSH port: ${SSH_PORT}) ==="
+    sudo tee "$FAIL2BAN_CONFIG" > /dev/null << EOF
 [DEFAULT]
 bantime = 600
 findtime = 600
@@ -171,7 +175,7 @@ maxretry = 10
 
 [sshd]
 enabled = true
-port = ssh
+port = ${SSH_PORT}
 filter = sshd
 logpath = /var/log/auth.log
 maxretry = 10
@@ -179,7 +183,7 @@ bantime = 600
 EOF
     sudo systemctl restart fail2ban
 else
-    echo "=== fail2ban already configured ==="
+    echo "=== fail2ban already configured for port ${SSH_PORT} ==="
 fi
 
 # Configure nginx reverse proxy
@@ -566,3 +570,4 @@ echo "  Restart: sudo systemctl restart ${SERVICE_NAME}"
 echo "  Status:  sudo systemctl status ${SERVICE_NAME}"
 echo "  Logs:    tail -f ${LOG_FILE}"
 echo "  Errors:  tail -f ${ERROR_LOG_FILE}"
+

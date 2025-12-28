@@ -120,12 +120,14 @@ Go to **Networking → Firewalls** and create a firewall with these rules:
 
 | Type | Protocol | Port Range | Sources |
 |------|----------|------------|---------|
-| SSH | TCP | 22 | Your IP or All |
+| SSH | TCP | 22 (or custom port) | Your IP or All |
 | HTTP | TCP | 80 | All IPv4, All IPv6 |
 | HTTPS | TCP | 443 | All IPv4, All IPv6 |
 | Custom | TCP | 3000 | All IPv4, All IPv6 |
 | **Custom** | **UDP** | **6881-6889** | **All IPv4, All IPv6** |
 | **Custom** | **TCP** | **6881-6889** | **All IPv4, All IPv6** |
+
+> **Security Tip:** Consider changing the SSH port from 22 to a non-standard port (e.g., 2048) to reduce automated attacks. If you do, update the `DROPLET_PORT` GitHub secret accordingly.
 
 ### Outbound Rules
 

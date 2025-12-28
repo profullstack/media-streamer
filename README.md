@@ -174,7 +174,13 @@ certbot --nginx -d yourdomain.com -d www.yourdomain.com
 
 **GitHub Actions auto-deploy:**
 - Push to `main` branch triggers automatic deployment
-- Requires GitHub Secrets: `DROPLET_HOST`, `DROPLET_USER`, `DROPLET_SSH_KEY`, `ENV_FILE`
+- Required GitHub Secrets:
+  - `DROPLET_HOST` - Droplet IP address or hostname
+  - `DROPLET_USER` - SSH username (e.g., `ubuntu`)
+  - `DROPLET_SSH_KEY` - Private SSH key for authentication
+  - `ENV_FILE` - Contents of `.env` file for production
+- Optional GitHub Secrets:
+  - `DROPLET_PORT` - SSH port (defaults to `22` if not set)
 
 See [docs/deployment-droplet.md](docs/deployment-droplet.md) for detailed instructions.
 
