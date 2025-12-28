@@ -81,6 +81,8 @@ export function AudioPlayer({
 }: AudioPlayerProps): React.ReactElement {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  // Track whether we've attempted autoplay for the current source
+  const hasAttemptedAutoplayRef = useRef(false);
   
   const [audioSource, setAudioSource] = useState<AudioSource | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -97,6 +99,8 @@ export function AudioPlayer({
     setAudioSource(source);
     setError(null);
     setIsLoading(true);
+    // Reset autoplay tracking when source changes
+    hasAttemptedAutoplayRef.current = false;
   }, [src, filename]);
 
   // Handle audio events
@@ -155,6 +159,18 @@ export function AudioPlayer({
     const handleCanPlay = () => {
       setIsLoading(false);
       if (onReady) onReady();
+      
+      // Programmatically trigger play when autoplay is requested
+      // This is more reliable than the autoPlay attribute on iOS Safari
+      // because it happens after the audio is ready to play
+      // Use ref to prevent multiple autoplay attempts for the same source
+      if (autoplay && !hasAttemptedAutoplayRef.current) {
+        hasAttemptedAutoplayRef.current = true;
+        audio.play().catch((err: Error) => {
+          // Autoplay was blocked - this is expected on iOS without user gesture
+          console.warn('[AudioPlayer] Autoplay blocked:', err.message);
+        });
+      }
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -176,7 +192,7 @@ export function AudioPlayer({
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('canplay', handleCanPlay);
     };
-  }, [onReady, onPlay, onPause, onEnded, onTimeUpdate, onError]);
+  }, [onReady, onPlay, onPause, onEnded, onTimeUpdate, onError, autoplay]);
 
   // Toggle play/pause
   const togglePlay = useCallback(() => {

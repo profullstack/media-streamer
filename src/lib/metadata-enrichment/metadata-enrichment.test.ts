@@ -72,11 +72,11 @@ describe('detectContentType', () => {
   });
 
   describe('music detection', () => {
-    it('should detect music with FLAC format', () => {
+    it('should detect music with FLAC format in brackets', () => {
       expect(detectContentType('Pink Floyd - The Dark Side of the Moon [FLAC]')).toBe('music');
     });
 
-    it('should detect music with MP3 format', () => {
+    it('should detect music with MP3 format in brackets', () => {
       expect(detectContentType('Beatles - Abbey Road [MP3 320]')).toBe('music');
     });
 
@@ -88,8 +88,53 @@ describe('detectContentType', () => {
       expect(detectContentType('Various Artists - Best of 2023')).toBe('music');
     });
 
-    it('should detect discography', () => {
+    it('should detect discography with FLAC', () => {
       expect(detectContentType('Led Zeppelin Discography 1969-1982 FLAC')).toBe('music');
+    });
+
+    // Additional discography patterns that should be detected
+    it('should detect discography with parentheses format', () => {
+      expect(detectContentType('Artist Name - Discography (1970-2020) FLAC')).toBe('music');
+    });
+
+    it('should detect discography without format tag', () => {
+      expect(detectContentType('Pink Floyd - Complete Discography')).toBe('music');
+    });
+
+    it('should detect discography with year range', () => {
+      expect(detectContentType('The Beatles - Discography 1963-1970')).toBe('music');
+    });
+
+    it('should detect FLAC without brackets (common torrent format)', () => {
+      expect(detectContentType('Artist - Album Name 2020 FLAC 24bit')).toBe('music');
+    });
+
+    it('should detect FLAC with parentheses', () => {
+      expect(detectContentType('Artist - Album Name (2020) (FLAC)')).toBe('music');
+    });
+
+    it('should detect lossless indicator', () => {
+      expect(detectContentType('Artist - Album Name [Lossless]')).toBe('music');
+    });
+
+    it('should detect 24bit/hi-res indicator', () => {
+      expect(detectContentType('Artist - Album 24-96 Hi-Res')).toBe('music');
+    });
+
+    it('should detect CD/vinyl rip indicator', () => {
+      expect(detectContentType('Artist - Album [CD Rip]')).toBe('music');
+    });
+
+    it('should detect WEB release indicator', () => {
+      expect(detectContentType('Artist - Album (2023) [WEB]')).toBe('music');
+    });
+
+    it('should detect complete works/collection', () => {
+      expect(detectContentType('Mozart - Complete Works Collection')).toBe('music');
+    });
+
+    it('should detect studio albums collection', () => {
+      expect(detectContentType('Artist - Studio Albums 1990-2020')).toBe('music');
     });
   });
 

@@ -80,14 +80,23 @@ const CONTENT_PATTERNS = {
     /\b(hdtv|webrip|web-dl)\b.*\b(720p|1080p)\b/i,
   ],
   music: [
-    // Artist - Album pattern
+    // Artist - Album pattern with format in brackets
     /^[^-]+-[^-]+\s*\[(flac|mp3|aac|wav|alac|ogg)\]/i,
-    // Album format indicators
-    /\[(flac|mp3\s*\d*|aac|wav|alac|ogg|v0|320)\]/i,
+    // Album format indicators in brackets
+    /\[(flac|mp3\s*\d*|aac|wav|alac|ogg|v0|320|lossless|cd\s*rip|web)\]/i,
+    // FLAC without brackets (common torrent format)
+    /\bflac\b/i,
     // Various Artists
     /\bvarious\s*artists\b/i,
     // Discography
     /\bdiscography\b/i,
+    // Complete works / collection (music-specific)
+    /\bcomplete\s*works\b/i,
+    /\bcollection\b.*\b(flac|mp3|lossless)\b/i,
+    // Studio albums collection
+    /\bstudio\s*albums\b/i,
+    // Hi-res / lossless indicators
+    /\b(24-?bit|hi-?res|lossless)\b/i,
   ],
   book: [
     // Ebook formats

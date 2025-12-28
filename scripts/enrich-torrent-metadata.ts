@@ -51,6 +51,30 @@ interface Torrent {
   metadata_fetched_at: string | null;
 }
 
+interface TorrentFile {
+  id: string;
+  torrent_id: string;
+  name: string;
+  extension: string | null;
+  media_category: 'audio' | 'video' | 'ebook' | 'document' | 'other' | null;
+  size: number;
+}
+
+// Audio file extensions
+const AUDIO_EXTENSIONS = new Set([
+  'flac', 'mp3', 'wav', 'aac', 'm4a', 'ogg', 'wma', 'aiff', 'ape', 'alac', 'opus'
+]);
+
+// Video file extensions
+const VIDEO_EXTENSIONS = new Set([
+  'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'ts', 'mpg', 'mpeg'
+]);
+
+// Ebook file extensions
+const EBOOK_EXTENSIONS = new Set([
+  'epub', 'mobi', 'pdf', 'azw', 'azw3', 'djvu', 'fb2', 'cbr', 'cbz'
+]);
+
 interface ScriptOptions {
   dryRun: boolean;
   force: boolean;
@@ -156,6 +180,110 @@ function getRateLimitDelay(contentType: ContentType): number {
   }
 }
 
+/**
+ * Detect content type from torrent files
+ * This is more reliable than parsing the torrent name
+ */
+function detectContentTypeFromFiles(files: TorrentFile[], torrentName: string): ContentType {
+  if (files.length === 0) {
+    // Fall back to name-based detection if no files
+    return detectContentType(torrentName);
+  }
+
+  // Count files by media category and extension
+  let audioCount = 0;
+  let videoCount = 0;
+  let ebookCount = 0;
+  let audioSize = 0;
+  let videoSize = 0;
+  let ebookSize = 0;
+
+  for (const file of files) {
+    const ext = file.extension?.toLowerCase() ?? '';
+    const category = file.media_category;
+
+    // Check by extension first (more reliable)
+    if (AUDIO_EXTENSIONS.has(ext)) {
+      audioCount++;
+      audioSize += file.size;
+    } else if (VIDEO_EXTENSIONS.has(ext)) {
+      videoCount++;
+      videoSize += file.size;
+    } else if (EBOOK_EXTENSIONS.has(ext)) {
+      ebookCount++;
+      ebookSize += file.size;
+    } else if (category === 'audio') {
+      audioCount++;
+      audioSize += file.size;
+    } else if (category === 'video') {
+      videoCount++;
+      videoSize += file.size;
+    } else if (category === 'ebook') {
+      ebookCount++;
+      ebookSize += file.size;
+    }
+  }
+
+  // Determine content type based on file composition
+  // Use both count and size to make better decisions
+
+  // If mostly audio files (by count), it's music
+  if (audioCount > 0 && audioCount >= videoCount && audioCount >= ebookCount) {
+    return 'music';
+  }
+
+  // If has video files, determine if movie or TV show
+  if (videoCount > 0) {
+    // Check torrent name for TV show patterns
+    const lowerName = torrentName.toLowerCase();
+    const hasTVPatterns =
+      /\bs\d{1,2}e\d{1,2}\b/i.test(torrentName) ||
+      /\bs\d{1,2}\b/i.test(torrentName) ||
+      /\bseason\s*\d+\b/i.test(torrentName) ||
+      /\bepisode\s*\d+\b/i.test(torrentName) ||
+      /\bcomplete\s*series\b/i.test(torrentName) ||
+      lowerName.includes('complete series') ||
+      lowerName.includes('season');
+
+    // Multiple video files often indicate TV show
+    if (hasTVPatterns || videoCount > 3) {
+      return 'tvshow';
+    }
+
+    return 'movie';
+  }
+
+  // If mostly ebook files, it's a book
+  if (ebookCount > 0) {
+    return 'book';
+  }
+
+  // Fall back to name-based detection
+  return detectContentType(torrentName);
+}
+
+/**
+ * Fetch files for a torrent from the database
+ */
+async function fetchTorrentFiles(
+  supabase: SupabaseClient<Database>,
+  torrentId: string
+): Promise<TorrentFile[]> {
+  const { data, error } = await supabase
+    .from('torrent_files')
+    .select('id, torrent_id, name, extension, media_category, size')
+    .eq('torrent_id', torrentId)
+    .order('size', { ascending: false }) // Largest files first
+    .limit(100); // Limit to avoid huge queries
+
+  if (error) {
+    console.warn(`  ⚠️  Failed to fetch files: ${error.message}`);
+    return [];
+  }
+
+  return (data ?? []) as TorrentFile[];
+}
+
 // ============================================================================
 // Main Logic
 // ============================================================================
@@ -256,9 +384,28 @@ async function processTorrent(
 ): Promise<void> {
   console.log(`\n📦 Processing: ${torrent.name}`);
 
-  // Detect content type if not already set
-  const contentType = torrent.content_type ?? detectContentType(torrent.name);
-  console.log(`  Type: ${contentType}`);
+  // Fetch files for this torrent to detect content type more reliably
+  const files = await fetchTorrentFiles(supabase, torrent.id);
+  console.log(`  Files: ${files.length} found`);
+
+  // Detect content type - prefer file-based detection over name-based
+  let contentType: ContentType;
+  if (torrent.content_type) {
+    contentType = torrent.content_type;
+    console.log(`  Type: ${contentType} (from database)`);
+  } else if (files.length > 0) {
+    contentType = detectContentTypeFromFiles(files, torrent.name);
+    console.log(`  Type: ${contentType} (detected from ${files.length} files)`);
+    
+    // Log file breakdown for debugging
+    const audioFiles = files.filter(f => AUDIO_EXTENSIONS.has(f.extension?.toLowerCase() ?? '') || f.media_category === 'audio');
+    const videoFiles = files.filter(f => VIDEO_EXTENSIONS.has(f.extension?.toLowerCase() ?? '') || f.media_category === 'video');
+    const ebookFiles = files.filter(f => EBOOK_EXTENSIONS.has(f.extension?.toLowerCase() ?? '') || f.media_category === 'ebook');
+    console.log(`    Audio: ${audioFiles.length}, Video: ${videoFiles.length}, Ebook: ${ebookFiles.length}`);
+  } else {
+    contentType = detectContentType(torrent.name);
+    console.log(`  Type: ${contentType} (detected from name, no files found)`);
+  }
 
   if (contentType === 'other') {
     console.log(`  ⏭️  Skipping: Unknown content type`);

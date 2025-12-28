@@ -322,6 +322,20 @@ function FileTreeNodeComponent({
 
         {/* File size */}
         {node.file ? <span className="text-xs text-text-muted flex-shrink-0 ml-2">{formatBytes(node.file.size)}</span> : null}
+
+        {/* Play All button for directories with audio files */}
+        {node.isDirectory && audioFileCount > 0 && onPlayAll ? (
+          <button
+            type="button"
+            onClick={handlePlayAll}
+            className="flex items-center gap-1 rounded-full bg-accent-audio/10 px-2 py-0.5 text-xs font-medium text-accent-audio hover:bg-accent-audio/20 active:bg-accent-audio/30 transition-colors flex-shrink-0 ml-2"
+            title={`Play all ${audioFileCount} audio files`}
+            aria-label={`Play all ${audioFileCount} audio files in ${node.name}`}
+          >
+            <PlayIcon size={12} />
+            <span>Play All ({audioFileCount})</span>
+          </button>
+        ) : null}
       </div>
 
       {/* Children */}
@@ -334,6 +348,7 @@ function FileTreeNodeComponent({
               onFileSelect={onFileSelect}
               onFilePlay={onFilePlay}
               onFileDownload={onFileDownload}
+              onPlayAll={onPlayAll}
             />
           ))}
         </div> : null}

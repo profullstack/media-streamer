@@ -15,7 +15,11 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "precommit": "pnpm build && pnpm test",
     "supabase:update-emails": "tsx --env-file=.env scripts/supabase-update-emails.ts",
-    "supabase:delete-torrent": "tsx --env-file=.env scripts/supabase-delete-infohash.ts"
+    "supabase:delete-torrent": "tsx --env-file=.env scripts/supabase-delete-infohash.ts",
+    "enrich-metadata": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts",
+    "enrich-metadata:all": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status",
+    "enrich-metadata:dry-run": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status --dry-run",
+    "enrich-metadata:force": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status --force"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
