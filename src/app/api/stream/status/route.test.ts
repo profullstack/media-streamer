@@ -8,12 +8,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 // Mock the streaming service
-vi.mock('@/lib/streaming', () => ({
-  StreamingService: vi.fn().mockImplementation(() => ({
+vi.mock('@/lib/streaming', () => {
+  const mockStreamingService = {
     getTorrentStats: vi.fn(),
     destroy: vi.fn(),
-  })),
-}));
+  };
+  return {
+    StreamingService: vi.fn().mockImplementation(() => mockStreamingService),
+    getStreamingService: vi.fn().mockReturnValue(mockStreamingService),
+  };
+});
 
 // Mock the supabase queries
 vi.mock('@/lib/supabase', () => ({

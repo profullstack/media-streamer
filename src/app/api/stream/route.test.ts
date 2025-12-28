@@ -71,6 +71,13 @@ const mockGetStreamInfo = vi.fn();
 const mockCloseStream = vi.fn();
 const mockGetActiveStreamCount = vi.fn();
 
+const mockStreamingServiceInstance = {
+  createStream: mockCreateStream,
+  getStreamInfo: mockGetStreamInfo,
+  closeStream: mockCloseStream,
+  getActiveStreamCount: mockGetActiveStreamCount,
+};
+
 vi.mock('@/lib/streaming', () => {
   // Define error classes inside the factory function
   class StreamingError extends Error {
@@ -95,12 +102,8 @@ vi.mock('@/lib/streaming', () => {
   }
 
   return {
-    StreamingService: vi.fn(() => ({
-      createStream: mockCreateStream,
-      getStreamInfo: mockGetStreamInfo,
-      closeStream: mockCloseStream,
-      getActiveStreamCount: mockGetActiveStreamCount,
-    })),
+    StreamingService: vi.fn(() => mockStreamingServiceInstance),
+    getStreamingService: vi.fn(() => mockStreamingServiceInstance),
     StreamingError,
     FileNotFoundError,
     RangeNotSatisfiableError,
