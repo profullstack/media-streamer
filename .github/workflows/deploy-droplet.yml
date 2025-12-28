@@ -1,5 +1,5 @@
 # Deploy to DigitalOcean Droplet
-# Deploys the application to a DigitalOcean Droplet via SSH
+# Deploys the application to a DigitalOcean Droplet via rsync + SSH
 # Requires UDP ports open for BitTorrent DHT to work
 #
 # This workflow runs AFTER the CI workflow completes successfully
@@ -15,6 +15,10 @@ on:
     branches: [main, master]
   workflow_dispatch: # Allow manual trigger
 
+env:
+  DEPLOY_PATH: /var/www/bittorrented
+  DEPLOY_USER: bittorrented
+
 jobs:
   # Deploy to Droplet (only if CI passed)
   deploy:
@@ -29,97 +33,84 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to Droplet via SSH (with retry)
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Add host to known_hosts
+          ssh-keyscan -p ${{ secrets.DROPLET_PORT || 22 }} -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Write .env file
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Sync files to Droplet (with retry)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            rsync -azv --partial --progress --delete \
+              --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='.next' \
+              --exclude='.env.local' \
+              --exclude='*.log' \
+              -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.DROPLET_PORT || 22 }} -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3" \
+              ./ ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Build and restart on Droplet (with retry)
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
           max_attempts: 3
-          retry_wait_seconds: 10
+          retry_wait_seconds: 15
           command: |
-            # Install SSH client
-            which ssh || sudo apt-get update && sudo apt-get install -y openssh-client
-            
-            # Setup SSH key
-            mkdir -p ~/.ssh
-            echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
-            chmod 600 ~/.ssh/deploy_key
-            
-            # Add host to known_hosts to avoid prompt
-            ssh-keyscan -p ${{ secrets.DROPLET_PORT || 22 }} -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
-            
-            # Create the deployment script
-            cat > /tmp/deploy.sh << 'DEPLOY_SCRIPT'
+            ssh -i ~/.ssh/deploy_key \
+                -p ${{ secrets.DROPLET_PORT || 22 }} \
+                -o StrictHostKeyChecking=no \
+                -o ConnectTimeout=30 \
+                -o ServerAliveInterval=15 \
+                -o ServerAliveCountMax=3 \
+                ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} << 'DEPLOY_SCRIPT'
             set -e
             
-            echo "=== Starting deployment ==="
+            echo "=== Starting build and restart ==="
+            cd ${{ env.DEPLOY_PATH }}
             
-            # Write the entire .env file from secret
-            cat > /var/www/bittorrented/.env << 'ENV_EOF'
-            $ENV_FILE
-            ENV_EOF
-            echo "✓ .env file written"
-            
-            # Navigate to app directory
-            cd /var/www/bittorrented
-            
-            # Determine branch name (main or master)
-            BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
-            echo "✓ Deploying branch: $BRANCH"
-            
-            # Pull latest code
-            git fetch origin $BRANCH
-            git reset --hard origin/$BRANCH
-            echo "✓ Code updated"
-            
-            # Fix ownership (in case git reset changed it)
-            chown -R bittorrented:bittorrented /var/www/bittorrented
+            # Fix ownership
+            sudo chown -R ${{ env.DEPLOY_USER }}:${{ env.DEPLOY_USER }} ${{ env.DEPLOY_PATH }}
             echo "✓ Ownership fixed"
             
-            # Install dependencies as bittorrented user
-            sudo -u bittorrented pnpm install --frozen-lockfile
+            # Install dependencies
+            pnpm install --frozen-lockfile
             echo "✓ Dependencies installed"
             
-            # Build the application as bittorrented user
-            sudo -u bittorrented pnpm build
+            # Build the application
+            pnpm build
             echo "✓ Build complete"
             
             # Restart the application using systemd
-            systemctl restart bittorrented
+            sudo systemctl restart bittorrented
             echo "✓ Service restarted"
             
-            # Wait a moment for the service to start
+            # Wait for service to start
             sleep 3
             
             # Verify deployment
             echo ""
             echo "=== Verifying deployment ==="
-            
-            # Check if app is running via systemd
-            systemctl status bittorrented --no-pager || true
-            
-            # Check if port 3000 is listening
+            sudo systemctl status bittorrented --no-pager || true
             ss -tlnp | grep 3000 || echo "Warning: Port 3000 not listening yet"
-            
-            # Check DHT UDP ports
-            ss -ulnp | grep 6881 || echo "Note: DHT port 6881 not bound yet (will bind on first torrent)"
+            ss -ulnp | grep 6881 || echo "Note: DHT port 6881 not bound yet"
             
             echo ""
             echo "=== Deployment complete! ==="
             DEPLOY_SCRIPT
-            
-            # Replace ENV_FILE placeholder with actual content
-            # Using a temp file to handle multiline properly
-            echo '${{ secrets.ENV_FILE }}' > /tmp/env_content.txt
-            
-            # Execute deployment via SSH
-            ssh -i ~/.ssh/deploy_key \
-                -o StrictHostKeyChecking=no \
-                -o ConnectTimeout=30 \
-                -o ServerAliveInterval=15 \
-                -o ServerAliveCountMax=3 \
-                -p ${{ secrets.DROPLET_PORT || 22 }} \
-                ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
-                "ENV_FILE='$(cat /tmp/env_content.txt)' bash -s" < /tmp/deploy.sh
-            
-            # Cleanup
-            rm -f ~/.ssh/deploy_key /tmp/deploy.sh /tmp/env_content.txt
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
