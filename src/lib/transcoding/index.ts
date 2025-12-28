@@ -17,6 +17,9 @@ export {
   getTranscodedMimeType,
   detectMediaType,
   needsTranscoding,
+  // Pre-buffer configuration
+  TRANSCODE_PRE_BUFFER_BYTES,
+  TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
 } from './transcoding';
 
 export type {

@@ -1,6 +1,6 @@
 /**
  * Transcoding Service
- * 
+ *
  * FFmpeg transcoding configuration and command generation for
  * converting unsupported media formats to web-compatible formats.
  */
@@ -9,6 +9,18 @@
  * Media type for transcoding
  */
 export type MediaType = 'video' | 'audio';
+
+/**
+ * Pre-buffer configuration for transcoding
+ * Collects this much data before sending to client to prevent buffering
+ */
+export const TRANSCODE_PRE_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB pre-buffer
+
+/**
+ * Pre-buffer timeout in milliseconds
+ * Maximum time to wait for pre-buffer before starting playback anyway
+ */
+export const TRANSCODE_PRE_BUFFER_TIMEOUT_MS = 30_000; // 30 seconds
 
 /**
  * Transcoding profile configuration

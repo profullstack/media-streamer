@@ -13,6 +13,8 @@ import {
   buildStreamingFFmpegArgs,
   getStreamingTranscodeProfile,
   getTranscodedMimeType,
+  TRANSCODE_PRE_BUFFER_BYTES,
+  TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
   type TranscodeProfile,
   type MediaType,
 } from './transcoding';
@@ -388,6 +390,24 @@ describe('Transcoding Service', () => {
     it('should return null for formats that do not need transcoding', () => {
       expect(getTranscodedMimeType('video', 'mp4')).toBeNull();
       expect(getTranscodedMimeType('audio', 'mp3')).toBeNull();
+    });
+  });
+
+  describe('Pre-buffer configuration', () => {
+    it('should have a reasonable pre-buffer size (2MB)', () => {
+      expect(TRANSCODE_PRE_BUFFER_BYTES).toBe(2 * 1024 * 1024);
+    });
+
+    it('should have a reasonable pre-buffer timeout (30 seconds)', () => {
+      expect(TRANSCODE_PRE_BUFFER_TIMEOUT_MS).toBe(30_000);
+    });
+
+    it('should have pre-buffer size greater than 0', () => {
+      expect(TRANSCODE_PRE_BUFFER_BYTES).toBeGreaterThan(0);
+    });
+
+    it('should have pre-buffer timeout greater than 0', () => {
+      expect(TRANSCODE_PRE_BUFFER_TIMEOUT_MS).toBeGreaterThan(0);
     });
   });
 });

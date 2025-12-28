@@ -28,6 +28,8 @@ import {
   getStreamingTranscodeProfile,
   buildStreamingFFmpegArgs,
   getTranscodedMimeType,
+  TRANSCODE_PRE_BUFFER_BYTES,
+  TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
 } from '@/lib/transcoding';
 
 const logger = createLogger('API:stream');
@@ -172,6 +174,148 @@ function nodeStreamToWebStream(nodeStream: NodeJS.ReadableStream): ReadableStrea
     },
     cancel() {
       controllerClosed = true;
+      if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
+        nodeStream.destroy();
+      }
+    },
+  });
+}
+
+/**
+ * Convert Node.js Readable stream to Web ReadableStream with pre-buffering
+ * Collects data until buffer threshold is reached before sending to client
+ * This prevents buffering during playback by giving the player a head start
+ */
+function nodeStreamToWebStreamWithPreBuffer(
+  nodeStream: NodeJS.ReadableStream,
+  preBufferBytes: number,
+  preBufferTimeoutMs: number,
+  reqLogger: ReturnType<typeof logger.child>
+): ReadableStream<Uint8Array> {
+  let controllerClosed = false;
+  let preBufferComplete = false;
+  const preBuffer: Buffer[] = [];
+  let preBufferSize = 0;
+  let preBufferResolver: (() => void) | null = null;
+  let preBufferTimeout: ReturnType<typeof setTimeout> | null = null;
+  
+  // Create a promise that resolves when pre-buffer is ready
+  const preBufferReady = new Promise<void>((resolve) => {
+    preBufferResolver = resolve;
+  });
+  
+  return new ReadableStream({
+    async start(controller) {
+      // Set up timeout for pre-buffer
+      preBufferTimeout = setTimeout(() => {
+        if (!preBufferComplete) {
+          reqLogger.info('Pre-buffer timeout reached, starting playback', {
+            bufferedBytes: preBufferSize,
+            targetBytes: preBufferBytes,
+            timeoutMs: preBufferTimeoutMs,
+          });
+          preBufferComplete = true;
+          preBufferResolver?.();
+        }
+      }, preBufferTimeoutMs);
+      
+      nodeStream.on('data', (chunk: Buffer) => {
+        if (controllerClosed) return;
+        
+        if (!preBufferComplete) {
+          // Still collecting pre-buffer
+          preBuffer.push(chunk);
+          preBufferSize += chunk.length;
+          
+          if (preBufferSize >= preBufferBytes) {
+            reqLogger.info('Pre-buffer complete, starting playback', {
+              bufferedBytes: preBufferSize,
+              targetBytes: preBufferBytes,
+            });
+            preBufferComplete = true;
+            if (preBufferTimeout) {
+              clearTimeout(preBufferTimeout);
+              preBufferTimeout = null;
+            }
+            preBufferResolver?.();
+          }
+        } else {
+          // Pre-buffer complete, send directly
+          try {
+            controller.enqueue(new Uint8Array(chunk));
+          } catch {
+            controllerClosed = true;
+          }
+        }
+      });
+      
+      nodeStream.on('end', () => {
+        // If stream ends before pre-buffer is complete, flush what we have
+        if (!preBufferComplete) {
+          reqLogger.info('Stream ended before pre-buffer complete, flushing', {
+            bufferedBytes: preBufferSize,
+            targetBytes: preBufferBytes,
+          });
+          preBufferComplete = true;
+          if (preBufferTimeout) {
+            clearTimeout(preBufferTimeout);
+            preBufferTimeout = null;
+          }
+          preBufferResolver?.();
+        }
+        
+        if (!controllerClosed) {
+          controllerClosed = true;
+          try {
+            controller.close();
+          } catch {
+            // Controller may already be closed
+          }
+        }
+      });
+      
+      nodeStream.on('error', (err: Error) => {
+        if (preBufferTimeout) {
+          clearTimeout(preBufferTimeout);
+          preBufferTimeout = null;
+        }
+        if (!controllerClosed) {
+          controllerClosed = true;
+          try {
+            controller.error(err);
+          } catch {
+            // Controller may already be closed
+          }
+        }
+      });
+      
+      // Wait for pre-buffer to be ready
+      await preBufferReady;
+      
+      // Flush pre-buffer to client
+      if (!controllerClosed && preBuffer.length > 0) {
+        reqLogger.debug('Flushing pre-buffer to client', {
+          chunks: preBuffer.length,
+          totalBytes: preBufferSize,
+        });
+        for (const chunk of preBuffer) {
+          try {
+            controller.enqueue(new Uint8Array(chunk));
+          } catch {
+            controllerClosed = true;
+            break;
+          }
+        }
+        // Clear the buffer to free memory
+        preBuffer.length = 0;
+      }
+    },
+    cancel() {
+      controllerClosed = true;
+      if (preBufferTimeout) {
+        clearTimeout(preBufferTimeout);
+        preBufferTimeout = null;
+      }
       if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
         nodeStream.destroy();
       }
@@ -484,10 +628,12 @@ export async function GET(request: NextRequest): Promise<Response> {
         );
       }
 
-      reqLogger.info('Returning transcoded stream', {
+      reqLogger.info('Returning transcoded stream with pre-buffer', {
         streamId: result.streamId,
         originalMimeType: info.mimeType,
         transcodedMimeType: transcoded.mimeType,
+        preBufferBytes: TRANSCODE_PRE_BUFFER_BYTES,
+        preBufferTimeoutMs: TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
       });
 
       // Transcoded streams don't have a known Content-Length
@@ -498,17 +644,28 @@ export async function GET(request: NextRequest): Promise<Response> {
         'X-Stream-Id': result.streamId,
         'X-Transcoded': 'true',
         'X-Original-Mime-Type': info.mimeType,
+        'X-Pre-Buffer-Bytes': TRANSCODE_PRE_BUFFER_BYTES.toString(),
         'Transfer-Encoding': 'chunked',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
         'Access-Control-Allow-Headers': 'Range, Content-Type',
-        'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, X-Transcoded',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, X-Transcoded, X-Pre-Buffer-Bytes',
       };
 
-      return new Response(nodeStreamToWebStream(transcoded.stream), {
-        status: 200,
-        headers,
-      });
+      // Use pre-buffered stream to prevent buffering during playback
+      // This collects 2MB of transcoded data before sending to the client
+      return new Response(
+        nodeStreamToWebStreamWithPreBuffer(
+          transcoded.stream,
+          TRANSCODE_PRE_BUFFER_BYTES,
+          TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
+          reqLogger
+        ),
+        {
+          status: 200,
+          headers,
+        }
+      );
     }
 
     // Non-transcoded path: support range requests
