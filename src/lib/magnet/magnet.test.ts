@@ -124,12 +124,9 @@ describe('Magnet URI Parser', () => {
     });
 
     it('should return false for non-string input', () => {
-      // @ts-expect-error Testing invalid input
-      expect(validateMagnetUri(null)).toBe(false);
-      // @ts-expect-error Testing invalid input
-      expect(validateMagnetUri(undefined)).toBe(false);
-      // @ts-expect-error Testing invalid input
-      expect(validateMagnetUri(123)).toBe(false);
+      expect(validateMagnetUri(null as unknown as string)).toBe(false);
+      expect(validateMagnetUri(undefined as unknown as string)).toBe(false);
+      expect(validateMagnetUri(123 as unknown as string)).toBe(false);
     });
   });
 

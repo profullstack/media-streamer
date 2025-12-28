@@ -31,6 +31,45 @@ const mockGetTorrentByInfohash = vi.mocked(getTorrentByInfohash);
 const mockCreateTorrent = vi.mocked(createTorrent);
 const mockCreateTorrentFiles = vi.mocked(createTorrentFiles);
 
+// Helper to create a complete mock torrent object
+function createMockTorrent(overrides: Partial<{
+  id: string;
+  infohash: string;
+  magnet_uri: string;
+  name: string;
+  total_size: number;
+  file_count: number;
+  piece_length: number | null;
+}> = {}) {
+  return {
+    id: 'torrent-uuid-123',
+    infohash: '1234567890abcdef1234567890abcdef12345678',
+    magnet_uri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+    name: 'Test Torrent',
+    total_size: 1000000,
+    file_count: 2,
+    piece_length: 16384,
+    seeders: null,
+    leechers: null,
+    swarm_updated_at: null,
+    created_by: null,
+    status: 'ready' as const,
+    error_message: null,
+    indexed_at: '2024-01-01T00:00:00Z',
+    poster_url: null,
+    cover_url: null,
+    content_type: null,
+    external_id: null,
+    external_source: null,
+    year: null,
+    description: null,
+    metadata_fetched_at: null,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
 describe('IndexerService', () => {
   let mockFetchMetadata: ReturnType<typeof vi.fn>;
 
@@ -59,6 +98,8 @@ describe('IndexerService', () => {
       totalSize: 1000000,
       pieceLength: 16384,
       magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+      seeders: null,
+      leechers: null,
       files: [
         {
           index: 0,
@@ -90,17 +131,14 @@ describe('IndexerService', () => {
     it('should index a new torrent successfully', async () => {
       mockFetchMetadata.mockResolvedValue(mockMetadata);
       mockGetTorrentByInfohash.mockResolvedValue(null);
-      mockCreateTorrent.mockResolvedValue({
-        id: 'torrent-uuid-123',
+      mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
         piece_length: mockMetadata.pieceLength,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      });
+      }));
       mockCreateTorrentFiles.mockResolvedValue([]);
 
       const service = new IndexerService();
@@ -116,7 +154,7 @@ describe('IndexerService', () => {
 
     it('should return existing torrent if already indexed', async () => {
       mockFetchMetadata.mockResolvedValue(mockMetadata);
-      mockGetTorrentByInfohash.mockResolvedValue({
+      mockGetTorrentByInfohash.mockResolvedValue(createMockTorrent({
         id: 'existing-torrent-uuid',
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
@@ -124,9 +162,7 @@ describe('IndexerService', () => {
         total_size: mockMetadata.totalSize,
         file_count: 2,
         piece_length: mockMetadata.pieceLength,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      });
+      }));
 
       const service = new IndexerService();
       const result = await service.indexMagnet(mockMetadata.magnetUri);
@@ -139,7 +175,7 @@ describe('IndexerService', () => {
 
     it('should throw DuplicateTorrentError when skipDuplicates is false', async () => {
       mockFetchMetadata.mockResolvedValue(mockMetadata);
-      mockGetTorrentByInfohash.mockResolvedValue({
+      mockGetTorrentByInfohash.mockResolvedValue(createMockTorrent({
         id: 'existing-torrent-uuid',
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
@@ -147,9 +183,7 @@ describe('IndexerService', () => {
         total_size: mockMetadata.totalSize,
         file_count: 2,
         piece_length: mockMetadata.pieceLength,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      });
+      }));
 
       const service = new IndexerService();
       
@@ -169,17 +203,14 @@ describe('IndexerService', () => {
     it('should create torrent with correct data', async () => {
       mockFetchMetadata.mockResolvedValue(mockMetadata);
       mockGetTorrentByInfohash.mockResolvedValue(null);
-      mockCreateTorrent.mockResolvedValue({
-        id: 'torrent-uuid-123',
+      mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
         piece_length: mockMetadata.pieceLength,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      });
+      }));
       mockCreateTorrentFiles.mockResolvedValue([]);
 
       const service = new IndexerService();
@@ -198,17 +229,14 @@ describe('IndexerService', () => {
     it('should create files with correct data', async () => {
       mockFetchMetadata.mockResolvedValue(mockMetadata);
       mockGetTorrentByInfohash.mockResolvedValue(null);
-      mockCreateTorrent.mockResolvedValue({
-        id: 'torrent-uuid-123',
+      mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
         piece_length: mockMetadata.pieceLength,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      });
+      }));
       mockCreateTorrentFiles.mockResolvedValue([]);
 
       const service = new IndexerService();
@@ -271,22 +299,21 @@ describe('IndexerService', () => {
         totalSize: 0,
         pieceLength: 16384,
         magnetUri: 'magnet:?xt=urn:btih:abcdef1234567890abcdef1234567890abcdef12',
+        seeders: null,
+        leechers: null,
         files: [],
       };
 
       mockFetchMetadata.mockResolvedValue(emptyMetadata);
       mockGetTorrentByInfohash.mockResolvedValue(null);
-      mockCreateTorrent.mockResolvedValue({
-        id: 'torrent-uuid-123',
+      mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: emptyMetadata.infohash,
         magnet_uri: emptyMetadata.magnetUri,
         name: emptyMetadata.name,
         total_size: 0,
         file_count: 0,
         piece_length: emptyMetadata.pieceLength,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      });
+      }));
       mockCreateTorrentFiles.mockResolvedValue([]);
 
       const service = new IndexerService();
@@ -303,6 +330,8 @@ describe('IndexerService', () => {
         totalSize: 1000,
         pieceLength: 16384,
         magnetUri: 'magnet:?xt=urn:btih:abcdef1234567890abcdef1234567890abcdef12',
+        seeders: null,
+        leechers: null,
         files: [
           {
             index: 0,
@@ -321,17 +350,14 @@ describe('IndexerService', () => {
 
       mockFetchMetadata.mockResolvedValue(metadataWithNullExt);
       mockGetTorrentByInfohash.mockResolvedValue(null);
-      mockCreateTorrent.mockResolvedValue({
-        id: 'torrent-uuid-123',
+      mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: metadataWithNullExt.infohash,
         magnet_uri: metadataWithNullExt.magnetUri,
         name: metadataWithNullExt.name,
         total_size: 1000,
         file_count: 1,
         piece_length: metadataWithNullExt.pieceLength,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      });
+      }));
       mockCreateTorrentFiles.mockResolvedValue([]);
 
       const service = new IndexerService();
@@ -352,6 +378,8 @@ describe('IndexerService', () => {
         totalSize: 1000,
         pieceLength: 16384,
         magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        seeders: null,
+        leechers: null,
         files: [],
       });
       mockGetTorrentByInfohash.mockResolvedValue(null);

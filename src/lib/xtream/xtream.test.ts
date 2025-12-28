@@ -231,7 +231,7 @@ describe('Xtream Codes', () => {
       const parsed = parseXtreamResponse(JSON.stringify(response));
 
       expect(parsed.success).toBe(true);
-      expect(parsed.data?.user_info?.auth).toBe(0);
+      expect((parsed.data?.user_info as { auth?: number })?.auth).toBe(0);
     });
   });
 
