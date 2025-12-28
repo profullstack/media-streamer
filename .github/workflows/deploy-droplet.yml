@@ -6,7 +6,7 @@ name: Deploy to Droplet
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch: # Allow manual trigger
 
 env:
@@ -42,7 +42,7 @@ jobs:
     name: Deploy to Droplet
     runs-on: ubuntu-latest
     needs: [test]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,9 +73,12 @@ jobs:
             # Navigate to app directory
             cd /var/www/bittorrented
             
+            # Determine branch name (main or master)
+            BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+            
             # Pull latest code
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch origin $BRANCH
+            git reset --hard origin/$BRANCH
             
             # Fix ownership (in case git reset changed it)
             chown -R bittorrented:bittorrented /var/www/bittorrented

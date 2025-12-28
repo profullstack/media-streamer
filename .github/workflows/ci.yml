@@ -6,9 +6,9 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [main, master, develop]
 
 env:
   NODE_VERSION: '22'
