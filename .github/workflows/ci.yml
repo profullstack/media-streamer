@@ -1,4 +1,4 @@
-# BitTorrented.com CI Pipeline
+t # BitTorrented.com CI Pipeline
 # Enforces TDD with mandatory test passing
 # Deployment is handled by DigitalOcean App Platform (auto-deploy on push)
 
@@ -102,10 +102,12 @@ jobs:
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: build-output
           path: .next
           retention-days: 7
+          if-no-files-found: ignore
 
   # Job 4: Security Audit
   security:

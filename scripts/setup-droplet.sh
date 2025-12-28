@@ -14,6 +14,7 @@ DEPLOY_PATH="/home/ubuntu/www/${DOMAIN}/${REPO}"
 SERVICE_NAME="bittorrented"
 NODE_VERSION="22"  # LTS version
 PNPM_HOME="${HOME}/.local/share/pnpm"
+CERTBOT_EMAIL="${CERTBOT_EMAIL:-admin@bittorrented.com}"  # Override with env var if needed
 
 echo "=== BitTorrented Droplet Setup (Idempotent) ==="
 echo "Deploy path: ${DEPLOY_PATH}"
@@ -37,7 +38,7 @@ fi
 # Install essential packages (only if missing)
 echo "=== Checking essential packages ==="
 PACKAGES_TO_INSTALL=""
-for pkg in curl git build-essential ffmpeg rsync ufw fail2ban; do
+for pkg in curl git build-essential ffmpeg rsync ufw fail2ban nginx certbot python3-certbot-nginx; do
     if ! dpkg -l | grep -q "^ii  $pkg "; then
         PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $pkg"
     fi
@@ -126,6 +127,288 @@ else
     echo "=== fail2ban already configured ==="
 fi
 
+# Configure nginx reverse proxy
+NGINX_SITE="/etc/nginx/sites-available/${DOMAIN}"
+SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+
+# Phase 1: Create initial HTTP-only config for certbot (if no SSL cert exists yet)
+if [ ! -f "${SSL_CERT}" ]; then
+    echo "=== Configuring nginx (HTTP-only for initial certbot setup) ==="
+    sudo tee "${NGINX_SITE}" > /dev/null << 'EOF'
+# Initial HTTP-only config for certbot validation
+# This will be replaced with full HTTPS config after certbot runs
+server {
+    listen 80;
+    listen [::]:80;
+    server_name bittorrented.com www.bittorrented.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+    }
+
+    location /api/health {
+        proxy_pass http://127.0.0.1:3000/api/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    client_max_body_size 100M;
+}
+EOF
+else
+    echo "=== SSL certificate exists, configuring full HTTPS nginx ==="
+fi
+
+# Enable the site by creating symlink
+if [ ! -L "/etc/nginx/sites-enabled/${DOMAIN}" ]; then
+    sudo ln -s "${NGINX_SITE}" "/etc/nginx/sites-enabled/${DOMAIN}"
+fi
+
+# Remove default site if it exists and is enabled
+if [ -L "/etc/nginx/sites-enabled/default" ]; then
+    sudo rm /etc/nginx/sites-enabled/default
+fi
+
+# Test and reload nginx
+echo "=== Testing nginx configuration ==="
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl enable nginx
+
+# Configure SSL with Let's Encrypt (only if certificate doesn't exist)
+if [ ! -f "${SSL_CERT}" ]; then
+    echo "=== Obtaining SSL certificate from Let's Encrypt ==="
+    
+    # Check if domain resolves to this server (basic check)
+    SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "unknown")
+    DOMAIN_IP=$(dig +short ${DOMAIN} 2>/dev/null | head -1 || echo "")
+    
+    if [ "${SERVER_IP}" = "${DOMAIN_IP}" ] || [ -n "${FORCE_SSL:-}" ]; then
+        echo "Domain ${DOMAIN} resolves to this server (${SERVER_IP})"
+        echo "Requesting SSL certificate..."
+        
+        # Run certbot in non-interactive mode
+        sudo certbot --nginx \
+            -d ${DOMAIN} \
+            -d www.${DOMAIN} \
+            --non-interactive \
+            --agree-tos \
+            --email ${CERTBOT_EMAIL} \
+            --redirect \
+            --staple-ocsp
+        
+        echo "=== SSL certificate obtained! ==="
+        
+        # Set up automatic renewal
+        if ! systemctl is-enabled certbot.timer >/dev/null 2>&1; then
+            sudo systemctl enable certbot.timer
+            sudo systemctl start certbot.timer
+        fi
+        echo "Automatic certificate renewal is enabled"
+        
+        # Phase 2: Now update nginx with full HTTPS config including www redirect
+        echo "=== Updating nginx with full HTTPS configuration ==="
+        sudo tee "${NGINX_SITE}" > /dev/null << 'EOF'
+# Redirect www to non-www on HTTP (port 80)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.bittorrented.com;
+    return 301 https://bittorrented.com$request_uri;
+}
+
+# Redirect HTTP to HTTPS for main domain (port 80)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name bittorrented.com;
+    return 301 https://bittorrented.com$request_uri;
+}
+
+# Redirect www to non-www on HTTPS (port 443)
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.bittorrented.com;
+
+    ssl_certificate /etc/letsencrypt/live/bittorrented.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bittorrented.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://bittorrented.com$request_uri;
+}
+
+# Main HTTPS server (port 443)
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name bittorrented.com;
+
+    ssl_certificate /etc/letsencrypt/live/bittorrented.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bittorrented.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # OCSP Stapling
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+    }
+
+    location /api/health {
+        proxy_pass http://127.0.0.1:3000/api/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    client_max_body_size 100M;
+}
+EOF
+        
+        # Test and reload nginx with new config
+        echo "=== Testing updated nginx configuration ==="
+        sudo nginx -t
+        sudo systemctl reload nginx
+        echo "=== Full HTTPS nginx configuration applied! ==="
+    else
+        echo "WARNING: Domain ${DOMAIN} does not resolve to this server"
+        echo "  Server IP: ${SERVER_IP}"
+        echo "  Domain IP: ${DOMAIN_IP}"
+        echo "  Skipping SSL certificate request"
+        echo "  To force SSL setup, run: FORCE_SSL=1 bash scripts/setup-droplet.sh"
+        echo ""
+    fi
+else
+    echo "=== SSL certificate already exists ==="
+    # Check certificate expiry
+    EXPIRY=$(sudo openssl x509 -enddate -noout -in "${SSL_CERT}" 2>/dev/null | cut -d= -f2)
+    echo "  Certificate expires: ${EXPIRY}"
+    
+    # Ensure full HTTPS config is in place (in case script was interrupted before)
+    if ! grep -q "listen 443 ssl" "${NGINX_SITE}" 2>/dev/null; then
+        echo "=== Updating nginx with full HTTPS configuration ==="
+        sudo tee "${NGINX_SITE}" > /dev/null << 'EOF'
+# Redirect www to non-www on HTTP (port 80)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.bittorrented.com;
+    return 301 https://bittorrented.com$request_uri;
+}
+
+# Redirect HTTP to HTTPS for main domain (port 80)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name bittorrented.com;
+    return 301 https://bittorrented.com$request_uri;
+}
+
+# Redirect www to non-www on HTTPS (port 443)
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.bittorrented.com;
+
+    ssl_certificate /etc/letsencrypt/live/bittorrented.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bittorrented.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://bittorrented.com$request_uri;
+}
+
+# Main HTTPS server (port 443)
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name bittorrented.com;
+
+    ssl_certificate /etc/letsencrypt/live/bittorrented.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bittorrented.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # OCSP Stapling
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+    }
+
+    location /api/health {
+        proxy_pass http://127.0.0.1:3000/api/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    client_max_body_size 100M;
+}
+EOF
+        sudo nginx -t
+        sudo systemctl reload nginx
+        echo "=== Full HTTPS nginx configuration applied! ==="
+    fi
+fi
+
 # Create/update systemd service
 echo "=== Updating systemd service ==="
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << EOF
@@ -164,6 +447,22 @@ echo "Installed versions:"
 echo "  Node.js: $(node --version 2>/dev/null || echo 'not found')"
 echo "  pnpm: $(pnpm --version 2>/dev/null || echo 'not found')"
 echo "  ffmpeg: $(ffmpeg -version 2>/dev/null | head -1 || echo 'not found')"
+echo "  nginx: $(nginx -v 2>&1 | head -1 || echo 'not found')"
 echo ""
-echo "Service: ${SERVICE_NAME}"
-echo "Deploy path: ${DEPLOY_PATH}"
+echo "Configuration:"
+echo "  Service: ${SERVICE_NAME}"
+echo "  Deploy path: ${DEPLOY_PATH}"
+echo "  Nginx site: /etc/nginx/sites-available/${DOMAIN}"
+echo "  Domain: https://${DOMAIN} and https://www.${DOMAIN}"
+if [ -f "${SSL_CERT}" ]; then
+    echo "  SSL: Enabled (auto-renewal configured)"
+else
+    echo "  SSL: Not configured (domain DNS may not be pointing to this server)"
+fi
+echo ""
+echo "Service commands:"
+echo "  Start:   sudo systemctl start ${SERVICE_NAME}"
+echo "  Stop:    sudo systemctl stop ${SERVICE_NAME}"
+echo "  Restart: sudo systemctl restart ${SERVICE_NAME}"
+echo "  Status:  sudo systemctl status ${SERVICE_NAME}"
+echo "  Logs:    sudo journalctl -u ${SERVICE_NAME} -f"
