@@ -64,7 +64,7 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -72,11 +72,11 @@ export function Modal({
         aria-hidden="true"
       />
 
-      {/* Modal content - constrained to viewport with scrolling */}
+      {/* Modal content - constrained to viewport with margin */}
       <div
         className={cn(
           'relative w-full animate-scale-in rounded-xl bg-bg-secondary shadow-2xl',
-          'max-h-[95vh] flex flex-col',
+          'max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] md:max-h-[calc(100vh-4rem)] flex flex-col',
           sizeClasses[size],
           className
         )}

@@ -6,13 +6,13 @@
  * Shows torrent information and file browser.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
 import { SearchBar, type SearchFilters } from '@/components/search';
-import { MediaPlayerModal } from '@/components/media';
+import { MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
 import {
   MagnetIcon,
   ChevronRightIcon,
@@ -21,6 +21,7 @@ import {
   VideoIcon,
   BookIcon,
   FileIcon,
+  PlayIcon,
 } from '@/components/ui/icons';
 import { formatBytes } from '@/lib/utils';
 import type { Torrent, TorrentFile } from '@/types';
@@ -43,6 +44,10 @@ export default function TorrentDetailPage(): React.ReactElement {
   // Modal state
   const [selectedFile, setSelectedFile] = useState<TorrentFile | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Playlist modal state
+  const [playlistFiles, setPlaylistFiles] = useState<TorrentFile[]>([]);
+  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
 
   // Fetch torrent details
   useEffect(() => {
@@ -114,6 +119,27 @@ export default function TorrentDetailPage(): React.ReactElement {
     setIsModalOpen(false);
     setSelectedFile(null);
   }, []);
+
+  // Handle play all - opens playlist modal
+  const handlePlayAll = useCallback((audioFiles: TorrentFile[]) => {
+    if (audioFiles.length > 0) {
+      setPlaylistFiles(audioFiles);
+      setIsPlaylistModalOpen(true);
+    }
+  }, []);
+
+  // Handle playlist modal close
+  const handlePlaylistModalClose = useCallback(() => {
+    setIsPlaylistModalOpen(false);
+    setPlaylistFiles([]);
+  }, []);
+
+  // Get all audio files from the torrent (sorted by path)
+  const allAudioFiles = useMemo(() => {
+    return files
+      .filter((file) => file.mediaCategory === 'audio')
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [files]);
 
   // Handle file download
   const handleFileDownload = useCallback((file: TorrentFile) => {
@@ -233,7 +259,18 @@ export default function TorrentDetailPage(): React.ReactElement {
           </div>
 
           {/* Media type breakdown */}
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {/* Play All button for audio collections */}
+            {allAudioFiles.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => handlePlayAll(allAudioFiles)}
+                className="flex items-center gap-2 rounded-full bg-accent-audio px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-audio/90 transition-colors"
+              >
+                <PlayIcon size={14} />
+                <span>Play All ({allAudioFiles.length})</span>
+              </button>
+            ) : null}
             {mediaCounts.audio && mediaCounts.audio > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
                 <MusicIcon className="text-accent-audio" size={14} />
                 <span className="text-text-primary">{mediaCounts.audio} audio</span>
@@ -281,6 +318,7 @@ export default function TorrentDetailPage(): React.ReactElement {
                 files={filteredFiles}
                 onFilePlay={handleFilePlay}
                 onFileDownload={handleFileDownload}
+                onPlayAll={handlePlayAll}
               />
             ) : (
               <div className="py-8 text-center text-text-muted">
@@ -296,6 +334,15 @@ export default function TorrentDetailPage(): React.ReactElement {
           isOpen={isModalOpen}
           onClose={handleModalClose}
           file={selectedFile}
+          infohash={torrent.infohash}
+          torrentName={torrent.name}
+        /> : null}
+
+      {/* Playlist Player Modal */}
+      {torrent ? <PlaylistPlayerModal
+          isOpen={isPlaylistModalOpen}
+          onClose={handlePlaylistModalClose}
+          files={playlistFiles}
           infohash={torrent.infohash}
           torrentName={torrent.name}
         /> : null}

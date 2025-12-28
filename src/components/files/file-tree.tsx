@@ -37,6 +37,8 @@ interface FileTreeProps {
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
+  /** Callback when "Play All" is clicked for a folder or the entire collection */
+  onPlayAll?: (files: TorrentFile[]) => void;
   className?: string;
 }
 
@@ -78,6 +80,41 @@ function buildFileTree(files: TorrentFile[]): FileTreeNode {
 }
 
 /**
+ * Collect all audio files from a tree node (recursively)
+ */
+function collectAudioFiles(node: FileTreeNode): TorrentFile[] {
+  const audioFiles: TorrentFile[] = [];
+  
+  if (node.file && node.file.mediaCategory === 'audio') {
+    audioFiles.push(node.file);
+  }
+  
+  for (const child of node.children.values()) {
+    audioFiles.push(...collectAudioFiles(child));
+  }
+  
+  // Sort by path for consistent ordering
+  return audioFiles.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * Count audio files in a tree node (recursively)
+ */
+function countAudioFiles(node: FileTreeNode): number {
+  let count = 0;
+  
+  if (node.file && node.file.mediaCategory === 'audio') {
+    count++;
+  }
+  
+  for (const child of node.children.values()) {
+    count += countAudioFiles(child);
+  }
+  
+  return count;
+}
+
+/**
  * Get icon for media category
  */
 function getMediaIcon(category: MediaCategory): React.ComponentType<{ className?: string; size?: number }> {
@@ -114,6 +151,7 @@ export function FileTree({
   onFileSelect,
   onFilePlay,
   onFileDownload,
+  onPlayAll,
   className,
 }: FileTreeProps): React.ReactElement {
   const tree = useMemo(() => buildFileTree(files), [files]);
@@ -128,6 +166,7 @@ export function FileTree({
           onFileSelect={onFileSelect}
           onFilePlay={onFilePlay}
           onFileDownload={onFileDownload}
+          onPlayAll={onPlayAll}
         />
       ))}
     </div>
@@ -140,6 +179,7 @@ interface FileTreeNodeComponentProps {
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
+  onPlayAll?: (files: TorrentFile[]) => void;
 }
 
 function FileTreeNodeComponent({
@@ -148,6 +188,7 @@ function FileTreeNodeComponent({
   onFileSelect,
   onFilePlay,
   onFileDownload,
+  onPlayAll,
 }: FileTreeNodeComponentProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(depth < 2);
 
