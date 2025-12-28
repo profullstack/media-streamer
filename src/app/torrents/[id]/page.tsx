@@ -68,6 +68,13 @@ export default function TorrentDetailPage(): React.ReactElement {
         }
 
         const data = await response.json() as TorrentDetailResponse;
+        // Debug: Log cover art URLs
+        console.log('[TorrentDetailPage] Torrent metadata:', {
+          name: data.torrent.name,
+          coverUrl: data.torrent.coverUrl,
+          posterUrl: data.torrent.posterUrl,
+          contentType: data.torrent.contentType,
+        });
         setTorrent(data.torrent);
         setFiles(data.files);
         setFilteredFiles(data.files);
