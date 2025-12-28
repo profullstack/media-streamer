@@ -29,66 +29,97 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Write .env file to Droplet
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          ENV_FILE: ${{ secrets.ENV_FILE }}
+      - name: Deploy to Droplet via SSH (with retry)
+        uses: nick-fields/retry@v3
         with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          port: ${{ secrets.DROPLET_PORT || 22 }}
-          envs: ENV_FILE
-          script: |
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 10
+          command: |
+            # Install SSH client
+            which ssh || sudo apt-get update && sudo apt-get install -y openssh-client
+            
+            # Setup SSH key
+            mkdir -p ~/.ssh
+            echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            
+            # Add host to known_hosts to avoid prompt
+            ssh-keyscan -p ${{ secrets.DROPLET_PORT || 22 }} -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+            
+            # Create the deployment script
+            cat > /tmp/deploy.sh << 'DEPLOY_SCRIPT'
+            set -e
+            
+            echo "=== Starting deployment ==="
+            
             # Write the entire .env file from secret
-            echo "$ENV_FILE" > /var/www/bittorrented/.env
-            echo ".env file written to Droplet"
-
-      - name: Deploy to Droplet via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          port: ${{ secrets.DROPLET_PORT || 22 }}
-          script: |
+            cat > /var/www/bittorrented/.env << 'ENV_EOF'
+            $ENV_FILE
+            ENV_EOF
+            echo "✓ .env file written"
+            
             # Navigate to app directory
             cd /var/www/bittorrented
             
             # Determine branch name (main or master)
             BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+            echo "✓ Deploying branch: $BRANCH"
             
             # Pull latest code
             git fetch origin $BRANCH
             git reset --hard origin/$BRANCH
+            echo "✓ Code updated"
             
             # Fix ownership (in case git reset changed it)
             chown -R bittorrented:bittorrented /var/www/bittorrented
+            echo "✓ Ownership fixed"
             
             # Install dependencies as bittorrented user
             sudo -u bittorrented pnpm install --frozen-lockfile
+            echo "✓ Dependencies installed"
             
             # Build the application as bittorrented user
             sudo -u bittorrented pnpm build
+            echo "✓ Build complete"
             
             # Restart the application using systemd
             systemctl restart bittorrented
+            echo "✓ Service restarted"
             
-            echo "Deployment complete!"
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          port: ${{ secrets.DROPLET_PORT || 22 }}
-          script: |
+            # Wait a moment for the service to start
+            sleep 3
+            
+            # Verify deployment
+            echo ""
+            echo "=== Verifying deployment ==="
+            
             # Check if app is running via systemd
-            systemctl status bittorrented --no-pager
+            systemctl status bittorrented --no-pager || true
             
             # Check if port 3000 is listening
-            ss -tlnp | grep 3000 || echo "Warning: Port 3000 not listening"
+            ss -tlnp | grep 3000 || echo "Warning: Port 3000 not listening yet"
             
             # Check DHT UDP ports
             ss -ulnp | grep 6881 || echo "Note: DHT port 6881 not bound yet (will bind on first torrent)"
+            
+            echo ""
+            echo "=== Deployment complete! ==="
+            DEPLOY_SCRIPT
+            
+            # Replace ENV_FILE placeholder with actual content
+            # Using a temp file to handle multiline properly
+            echo '${{ secrets.ENV_FILE }}' > /tmp/env_content.txt
+            
+            # Execute deployment via SSH
+            ssh -i ~/.ssh/deploy_key \
+                -o StrictHostKeyChecking=no \
+                -o ConnectTimeout=30 \
+                -o ServerAliveInterval=15 \
+                -o ServerAliveCountMax=3 \
+                -p ${{ secrets.DROPLET_PORT || 22 }} \
+                ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+                "ENV_FILE='$(cat /tmp/env_content.txt)' bash -s" < /tmp/deploy.sh
+            
+            # Cleanup
+            rm -f ~/.ssh/deploy_key /tmp/deploy.sh /tmp/env_content.txt
