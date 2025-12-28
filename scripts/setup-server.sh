@@ -454,6 +454,14 @@ EOF
     fi
 fi
 
+# Create log files with proper permissions
+LOG_FILE="/var/log/${DOMAIN}.log"
+ERROR_LOG_FILE="/var/log/${DOMAIN}.error.log"
+echo "=== Setting up log files ==="
+sudo touch "${LOG_FILE}" "${ERROR_LOG_FILE}"
+sudo chown ${VPS_USER}:${VPS_USER} "${LOG_FILE}" "${ERROR_LOG_FILE}"
+sudo chmod 644 "${LOG_FILE}" "${ERROR_LOG_FILE}"
+
 # Create/update systemd service
 echo "=== Updating systemd service ==="
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << EOF
@@ -471,6 +479,10 @@ RestartSec=10
 Environment=NODE_ENV=production
 Environment=PATH=${PNPM_HOME}:/usr/local/bin:/usr/bin:/bin
 
+# Log to files instead of journald
+StandardOutput=append:${LOG_FILE}
+StandardError=append:${ERROR_LOG_FILE}
+
 # Increase file descriptor limits for torrents
 LimitNOFILE=65535
 
@@ -479,6 +491,23 @@ AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target
+EOF
+
+# Set up log rotation for the domain logs
+echo "=== Setting up log rotation ==="
+sudo tee /etc/logrotate.d/${DOMAIN} > /dev/null << EOF
+${LOG_FILE} ${ERROR_LOG_FILE} {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 ${VPS_USER} ${VPS_USER}
+    postrotate
+        systemctl reload ${SERVICE_NAME} > /dev/null 2>&1 || true
+    endscript
+}
 EOF
 
 # Reload systemd and enable service
@@ -505,9 +534,14 @@ else
     echo "  SSL: Not configured (domain DNS may not be pointing to this server)"
 fi
 echo ""
+echo "Log files:"
+echo "  Stdout:  ${LOG_FILE}"
+echo "  Stderr:  ${ERROR_LOG_FILE}"
+echo ""
 echo "Service commands:"
 echo "  Start:   sudo systemctl start ${SERVICE_NAME}"
 echo "  Stop:    sudo systemctl stop ${SERVICE_NAME}"
 echo "  Restart: sudo systemctl restart ${SERVICE_NAME}"
 echo "  Status:  sudo systemctl status ${SERVICE_NAME}"
-echo "  Logs:    sudo journalctl -u ${SERVICE_NAME} -f"
+echo "  Logs:    tail -f ${LOG_FILE}"
+echo "  Errors:  tail -f ${ERROR_LOG_FILE}"
