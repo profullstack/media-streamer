@@ -5,7 +5,7 @@
  */
 
 import type { Torrent as DbTorrent, TorrentFile as DbTorrentFile } from '@/lib/supabase/types';
-import type { Torrent, TorrentFile, MediaCategory } from '@/types';
+import type { Torrent, TorrentFile, MediaCategory, ContentType } from '@/types';
 
 /**
  * Transform a database torrent record to frontend format
@@ -24,6 +24,12 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     seeders: dbTorrent.seeders,
     leechers: dbTorrent.leechers,
     swarmUpdatedAt: dbTorrent.swarm_updated_at,
+    // External metadata fields
+    posterUrl: dbTorrent.poster_url,
+    coverUrl: dbTorrent.cover_url,
+    contentType: dbTorrent.content_type as ContentType | null,
+    year: dbTorrent.year,
+    description: dbTorrent.description,
     createdAt: dbTorrent.created_at,
     updatedAt: dbTorrent.updated_at,
   };

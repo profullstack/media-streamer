@@ -75,15 +75,11 @@ export function VideoPlayer({
   const [videoSource, setVideoSource] = useState<VideoSource | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Track if we've done the initial seek for transcoded videos
-  const hasInitialSeekRef = useRef(false);
 
   // Create video source configuration
   useEffect(() => {
     const source = createVideoSource(src, filename);
     setVideoSource(source);
-    // Reset initial seek flag when source changes
-    hasInitialSeekRef.current = false;
   }, [src, filename]);
 
   // Initialize player
@@ -160,30 +156,8 @@ export function VideoPlayer({
       }
     });
 
-    // For transcoded videos, seek to beginning once video can play
-    // This fixes the buffering issue where FFmpeg needs time to start outputting data
-    // The browser receives the stream but there's a delay before actual video data arrives
-    // Seeking to 0 forces the browser to re-request from the beginning with now-available data
-    if (videoSource.requiresTranscoding) {
-      player.on('canplay', () => {
-        if (!hasInitialSeekRef.current) {
-          hasInitialSeekRef.current = true;
-          // Small delay to ensure the stream is stable
-          setTimeout(() => {
-            const currentTime = player.currentTime() ?? 0;
-            // Only seek if we're near the beginning (within first 2 seconds)
-            // This avoids disrupting playback if user has already seeked
-            if (currentTime < 2) {
-              player.currentTime(0);
-              // If autoplay is enabled, ensure playback starts
-              if (autoplay) {
-                void player.play();
-              }
-            }
-          }, 100);
-        }
-      });
-    }
+    // Note: Transcoded videos now wait for initial data on the server side
+    // before starting FFmpeg, so no client-side reload is needed
 
     playerRef.current = player;
   }, [videoSource, options, poster, autoplay, onReady, onPlay, onPause, onEnded, onTimeUpdate, onError]);

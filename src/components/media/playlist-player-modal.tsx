@@ -108,6 +108,10 @@ export interface PlaylistPlayerModalProps {
   torrentName?: string;
   /** Optional starting index */
   startIndex?: number;
+  /** Optional cover art URL for the album/collection */
+  coverArt?: string;
+  /** Optional artist name for the album/collection */
+  artist?: string;
 }
 
 /**
@@ -122,6 +126,8 @@ export function PlaylistPlayerModal({
   infohash,
   torrentName,
   startIndex = 0,
+  coverArt,
+  artist,
 }: PlaylistPlayerModalProps): React.ReactElement | null {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
@@ -361,7 +367,9 @@ export function PlaylistPlayerModal({
               src={streamUrl}
               filename={currentFile.name}
               title={trackInfo?.title}
+              artist={artist}
               album={albumName ?? torrentName}
+              coverArt={coverArt}
               onReady={handlePlayerReady}
               onError={handlePlayerError}
               onEnded={handleTrackEnded}

@@ -56,6 +56,11 @@ describe('transforms', () => {
         seeders: 42,
         leechers: 15,
         swarmUpdatedAt: '2025-12-26T22:30:00.000Z',
+        posterUrl: null,
+        coverUrl: null,
+        contentType: null,
+        year: null,
+        description: null,
         createdAt: '2025-12-26T22:24:00.000Z',
         updatedAt: '2025-12-26T22:25:00.000Z',
       });
@@ -96,6 +101,44 @@ describe('transforms', () => {
       expect(result.seeders).toBeNull();
       expect(result.leechers).toBeNull();
       expect(result.swarmUpdatedAt).toBeNull();
+    });
+
+    it('should transform metadata fields when present', () => {
+      const dbTorrent: DbTorrent = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        infohash: 'dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c',
+        magnet_uri: 'magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c',
+        name: 'Pink Floyd - Discography [FLAC]',
+        total_size: 5000000000,
+        file_count: 150,
+        piece_length: 262144,
+        seeders: 100,
+        leechers: 20,
+        swarm_updated_at: '2025-12-26T22:30:00.000Z',
+        created_by: null,
+        status: 'ready',
+        error_message: null,
+        indexed_at: '2025-12-26T22:25:00.000Z',
+        // External metadata fields - populated
+        poster_url: 'https://example.com/poster.jpg',
+        cover_url: 'https://coverartarchive.org/release-group/abc123/front-500.jpg',
+        content_type: 'music',
+        external_id: 'abc123',
+        external_source: 'musicbrainz',
+        year: 1973,
+        description: 'Complete discography of Pink Floyd',
+        metadata_fetched_at: '2025-12-26T23:00:00.000Z',
+        created_at: '2025-12-26T22:24:00.000Z',
+        updated_at: '2025-12-26T22:25:00.000Z',
+      };
+
+      const result = transformTorrent(dbTorrent);
+
+      expect(result.posterUrl).toBe('https://example.com/poster.jpg');
+      expect(result.coverUrl).toBe('https://coverartarchive.org/release-group/abc123/front-500.jpg');
+      expect(result.contentType).toBe('music');
+      expect(result.year).toBe(1973);
+      expect(result.description).toBe('Complete discography of Pink Floyd');
     });
   });
 

@@ -24,6 +24,7 @@ import {
   PlayIcon,
 } from '@/components/ui/icons';
 import { formatBytes } from '@/lib/utils';
+import { extractArtistFromTorrentName } from '@/lib/torrent-name';
 import type { Torrent, TorrentFile } from '@/types';
 
 interface TorrentDetailResponse {
@@ -345,6 +346,8 @@ export default function TorrentDetailPage(): React.ReactElement {
           files={playlistFiles}
           infohash={torrent.infohash}
           torrentName={torrent.name}
+          coverArt={torrent.coverUrl ?? torrent.posterUrl ?? undefined}
+          artist={extractArtistFromTorrentName(torrent.name)}
         /> : null}
     </MainLayout>
   );

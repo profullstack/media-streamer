@@ -5,6 +5,9 @@
 // Media Categories
 export type MediaCategory = 'audio' | 'video' | 'ebook' | 'document' | 'other';
 
+// Content Types for metadata enrichment
+export type ContentType = 'movie' | 'tvshow' | 'music' | 'book' | 'other';
+
 // Torrent Types
 export interface Torrent {
   id: string;
@@ -20,6 +23,16 @@ export interface Torrent {
   leechers: number | null;
   /** When swarm stats were last updated */
   swarmUpdatedAt: string | null;
+  /** Poster URL for movies/TV shows */
+  posterUrl: string | null;
+  /** Cover art URL for music/books */
+  coverUrl: string | null;
+  /** Content type (movie, tvshow, music, book, other) */
+  contentType: ContentType | null;
+  /** Release year */
+  year: number | null;
+  /** Description from external metadata source */
+  description: string | null;
   createdAt: string;
   updatedAt: string;
 }

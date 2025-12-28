@@ -592,13 +592,14 @@ export async function GET(request: NextRequest): Promise<Response> {
       });
 
       // For transcoding, we don't support range requests (transcoded output has unknown size)
-      // Create full stream without range, and skip waitForData since FFmpeg handles buffering
-      reqLogger.debug('Creating stream for transcoding (skipWaitForData=true)');
+      // We need to wait for initial data because FFmpeg needs the file headers to start transcoding
+      // Without waiting, FFmpeg may receive empty data and fail to detect the input format
+      reqLogger.debug('Creating stream for transcoding (waiting for initial data)');
       const result = await service.createStream({
         magnetUri,
         fileIndex,
         range: undefined,
-      }, true); // skipWaitForData = true for transcoding
+      }, false); // skipWaitForData = false - FFmpeg needs the beginning of the file
 
       const transcoded = createTranscodedStream(
         result.stream as NodeJS.ReadableStream,
