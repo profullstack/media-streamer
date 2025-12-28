@@ -24,6 +24,27 @@ const DHT_BOOTSTRAP_NODES = [
   'dht.aelitis.com:6881',
 ];
 
+// WebSocket trackers that work in cloud environments (no UDP required)
+// These are added to every magnet URI to improve peer discovery
+const WEBSOCKET_TRACKERS = [
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
+
+// Additional UDP/HTTP trackers for better peer discovery
+const ADDITIONAL_TRACKERS = [
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://open.stealth.si:80/announce',
+  'udp://tracker.torrent.eu.org:451/announce',
+  'udp://tracker.bittor.pw:1337/announce',
+  'udp://public.popcorn-tracker.org:6969/announce',
+  'udp://tracker.dler.org:6969/announce',
+  'udp://exodus.desync.com:6969/announce',
+  'http://tracker.opentrackr.org:1337/announce',
+];
+
 /**
  * Custom error for streaming failures
  */
@@ -467,6 +488,32 @@ export class StreamingService {
   }
 
   /**
+   * Enhance a magnet URI with additional trackers for better peer discovery
+   * This is especially important in cloud environments where UDP is blocked
+   */
+  private enhanceMagnetUri(magnetUri: string): string {
+    // Combine WebSocket and additional trackers
+    const allTrackers = [...WEBSOCKET_TRACKERS, ...ADDITIONAL_TRACKERS];
+    
+    // Add trackers that aren't already in the magnet URI
+    let enhanced = magnetUri;
+    for (const tracker of allTrackers) {
+      const encodedTracker = encodeURIComponent(tracker);
+      if (!magnetUri.includes(encodedTracker) && !magnetUri.includes(tracker)) {
+        enhanced += `&tr=${encodedTracker}`;
+      }
+    }
+    
+    logger.debug('Enhanced magnet URI with additional trackers', {
+      originalLength: magnetUri.length,
+      enhancedLength: enhanced.length,
+      addedTrackers: allTrackers.length,
+    });
+    
+    return enhanced;
+  }
+
+  /**
    * Get an existing torrent or add a new one
    */
   private async getOrAddTorrent(magnetUri: string, infohash: string): Promise<WebTorrent.Torrent> {
@@ -498,6 +545,9 @@ export class StreamingService {
     }
 
     logger.debug('Adding new torrent', { infohash });
+
+    // Enhance magnet URI with additional trackers for better peer discovery
+    const enhancedMagnetUri = this.enhanceMagnetUri(magnetUri);
 
     // Add new torrent and wait for it to be ready
     return new Promise((resolve, reject) => {
@@ -533,7 +583,7 @@ export class StreamingService {
         removeTorrentAndReject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
       }, this.streamTimeout);
 
-      torrent = this.client.add(magnetUri, (t) => {
+      torrent = this.client.add(enhancedMagnetUri, (t) => {
         logger.debug('Torrent add callback fired', {
           infohash: t.infoHash,
           ready: t.ready,
