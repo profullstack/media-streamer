@@ -1,22 +1,39 @@
 #!/bin/bash
-# Idempotent setup script for DigitalOcean Droplet
+# Idempotent setup script for Ubuntu/Debian VPS
 # Safe to run multiple times - only installs/configures what's missing
+# Works on any VPS provider: DigitalOcean, Linode, Vultr, AWS EC2, Hetzner, etc.
 #
-# Run manually: bash scripts/setup-droplet.sh
+# Run manually: bash scripts/setup-server.sh
 # Or via GitHub Actions (runs automatically on deploy)
+#
+# Environment variables (set in .env file or export):
+#   VPS_USER       - System user for the service (default: ubuntu)
+#   CERTBOT_EMAIL  - Email for Let's Encrypt (default: admin@bittorrented.com)
+#   FORCE_SSL      - Set to 1 to force SSL setup even if DNS check fails
 
 set -e
+
+# Load environment variables from .env file if it exists
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+if [ -f "${PROJECT_ROOT}/.env" ]; then
+    echo "=== Loading environment from .env ==="
+    set -a  # automatically export all variables
+    source "${PROJECT_ROOT}/.env"
+    set +a
+fi
 
 # Configuration
 DOMAIN="bittorrented.com"
 REPO="media-streamer"
-DEPLOY_PATH="/home/ubuntu/www/${DOMAIN}/${REPO}"
+VPS_USER="${VPS_USER:-ubuntu}"  # Override with env var for different providers
+DEPLOY_PATH="/home/${VPS_USER}/www/${DOMAIN}/${REPO}"
 SERVICE_NAME="bittorrented"
 NODE_VERSION="22"  # LTS version
 PNPM_HOME="${HOME}/.local/share/pnpm"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-admin@bittorrented.com}"  # Override with env var if needed
 
-echo "=== BitTorrented Droplet Setup (Idempotent) ==="
+echo "=== BitTorrented Server Setup (Idempotent) ==="
 echo "Deploy path: ${DEPLOY_PATH}"
 echo ""
 
@@ -311,7 +328,7 @@ EOF
         echo "  Server IP: ${SERVER_IP}"
         echo "  Domain IP: ${DOMAIN_IP}"
         echo "  Skipping SSL certificate request"
-        echo "  To force SSL setup, run: FORCE_SSL=1 bash scripts/setup-droplet.sh"
+        echo "  To force SSL setup, run: FORCE_SSL=1 bash scripts/setup-server.sh"
         echo ""
     fi
 else
@@ -418,7 +435,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
+User=${VPS_USER}
 WorkingDirectory=${DEPLOY_PATH}
 ExecStart=${PNPM_HOME}/pnpm start
 Restart=on-failure
