@@ -222,10 +222,10 @@ export function AudioPlayer({
     <div className={cn('audio-player rounded-lg border bg-card p-4', className)}>
       {/* Transcoding Notice */}
       {showTranscodingNotice && audioSource?.requiresTranscoding && (
-        <div className="mb-4 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-3">
+        <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
           <div className="flex items-start gap-2">
             <svg
-              className="h-4 w-4 flex-shrink-0 text-yellow-500"
+              className="h-4 w-4 flex-shrink-0 text-blue-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -234,12 +234,12 @@ export function AudioPlayer({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
               />
             </svg>
             <div className="text-sm">
-              <span className="font-medium text-yellow-500">
-                {audioSource.format.toUpperCase()} format requires transcoding
+              <span className="font-medium text-blue-500">
+                Auto-transcoding: {audioSource.format.toUpperCase()} → MP3
               </span>
             </div>
           </div>
@@ -435,7 +435,7 @@ export function AudioPlayer({
           <span className="mx-2">•</span>
           <span>
             {audioSource.requiresTranscoding ? (
-              <span className="text-yellow-500">Requires transcoding</span>
+              <span className="text-blue-500">Auto-transcoding → MP3</span>
             ) : (
               <span className="text-green-500">Native playback</span>
             )}

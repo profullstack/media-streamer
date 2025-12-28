@@ -24,17 +24,37 @@ const DHT_BOOTSTRAP_NODES = [
   'dht.aelitis.com:6881',
 ];
 
-// WebSocket trackers that work in cloud environments (no UDP required)
-// These are added to every magnet URI to improve peer discovery
-const WEBSOCKET_TRACKERS = [
+// Comprehensive tracker list prioritizing HTTP trackers for cloud environments
+// HTTP trackers work on Railway and other cloud platforms that block UDP
+// Order: HTTP first (most reliable on cloud), then WebSocket, then UDP (fallback)
+const OPEN_TRACKERS = [
+  // HTTP trackers - work on Railway and cloud platforms
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.openbittorrent.com:80/announce',
+  'http://tracker.publicbt.com:80/announce',
+  'http://tracker.bt4g.com:2095/announce',
+  'http://open.acgnxtracker.com:80/announce',
+  'http://tracker.files.fm:6969/announce',
+  'http://tracker.gbitt.info:80/announce',
+  'http://tracker.mywaifu.best:6969/announce',
+  'http://www.torrentsnipe.info:2701/announce',
+  'http://tracker.ipv6tracker.ru:80/announce',
+  'http://retracker.lanta-net.ru:2710/announce',
+  'http://bt.endpot.com:80/announce',
+  'http://tracker.birkenwald.de:6969/announce',
+  'http://tracker.lelux.fi:80/announce',
+  'http://tracker.dler.org:6969/announce',
+  'http://open.tracker.ink:6969/announce',
+  'http://tracker.army:6969/announce',
+  'http://tracker.skyts.net:6969/announce',
+  'http://tracker.qu.ax:6969/announce',
+  'http://tracker.srv00.com:6969/announce',
+  // WebSocket trackers - work in cloud environments
   'wss://tracker.openwebtorrent.com',
   'wss://tracker.webtorrent.dev',
   'wss://tracker.btorrent.xyz',
   'wss://tracker.files.fm:7073/announce',
-];
-
-// Additional UDP/HTTP trackers for better peer discovery
-const ADDITIONAL_TRACKERS = [
+  // UDP trackers - fallback for non-cloud environments
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
   'udp://tracker.torrent.eu.org:451/announce',
@@ -42,7 +62,14 @@ const ADDITIONAL_TRACKERS = [
   'udp://public.popcorn-tracker.org:6969/announce',
   'udp://tracker.dler.org:6969/announce',
   'udp://exodus.desync.com:6969/announce',
-  'http://tracker.opentrackr.org:1337/announce',
+  'udp://open.demonii.com:1337/announce',
+  'udp://tracker.coppersurfer.tk:6969',
+  'udp://tracker.internetwarriors.net:1337',
+  'udp://p4p.arenabg.com:1337',
+  'udp://glotorrents.pw:6969/announce',
+  'udp://tracker.leechers-paradise.org:6969',
+  'udp://9.rarbg.to:2710/announce',
+  'udp://9.rarbg.me:2710/announce',
 ];
 
 /**
@@ -490,24 +517,26 @@ export class StreamingService {
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
    * This is especially important in cloud environments where UDP is blocked
+   * HTTP trackers are prioritized as they work on Railway and other cloud platforms
    */
   private enhanceMagnetUri(magnetUri: string): string {
-    // Combine WebSocket and additional trackers
-    const allTrackers = [...WEBSOCKET_TRACKERS, ...ADDITIONAL_TRACKERS];
-    
     // Add trackers that aren't already in the magnet URI
     let enhanced = magnetUri;
-    for (const tracker of allTrackers) {
+    let addedCount = 0;
+    
+    for (const tracker of OPEN_TRACKERS) {
       const encodedTracker = encodeURIComponent(tracker);
       if (!magnetUri.includes(encodedTracker) && !magnetUri.includes(tracker)) {
         enhanced += `&tr=${encodedTracker}`;
+        addedCount++;
       }
     }
     
     logger.debug('Enhanced magnet URI with additional trackers', {
       originalLength: magnetUri.length,
       enhancedLength: enhanced.length,
-      addedTrackers: allTrackers.length,
+      totalTrackers: OPEN_TRACKERS.length,
+      addedTrackers: addedCount,
     });
     
     return enhanced;

@@ -173,12 +173,12 @@ export function VideoPlayer({
 
   return (
     <div className={cn('video-player-container', className)}>
-      {/* Transcoding Notice */}
+      {/* Auto-Transcoding Notice - informational only */}
       {showTranscodingNotice && videoSource?.requiresTranscoding && (
-        <div className="mb-4 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
-          <div className="flex items-start gap-3">
+        <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+          <div className="flex items-center gap-2">
             <svg
-              className="h-5 w-5 flex-shrink-0 text-yellow-500"
+              className="h-4 w-4 flex-shrink-0 text-blue-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -187,18 +187,12 @@ export function VideoPlayer({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
               />
             </svg>
-            <div>
-              <h4 className="font-medium text-yellow-500">
-                Format Requires Transcoding
-              </h4>
-              <p className="mt-1 text-sm text-muted-foreground">
-                The video format ({videoSource.format.toUpperCase()}) is not natively supported by browsers.
-                Enable server-side transcoding in settings for playback, or download the file to play locally.
-              </p>
-            </div>
+            <span className="text-sm text-blue-500">
+              Auto-transcoding {videoSource.format.toUpperCase()} → MP4 for browser playback
+            </span>
           </div>
         </div>
       )}
@@ -254,7 +248,7 @@ export function VideoPlayer({
           <span>Format: {videoSource.format.toUpperCase()}</span>
           <span>
             {videoSource.requiresTranscoding ? (
-              <span className="text-yellow-500">Requires transcoding</span>
+              <span className="text-blue-500">Auto-transcoding → MP4</span>
             ) : (
               <span className="text-green-500">Native playback</span>
             )}
