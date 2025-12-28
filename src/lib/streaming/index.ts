@@ -11,4 +11,5 @@ export {
   type StreamResult,
   type StreamInfo,
   type StreamingServiceOptions,
+  type TorrentStats,
 } from './streaming';

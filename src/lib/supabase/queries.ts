@@ -346,6 +346,49 @@ export async function createEbookMetadata(metadata: EbookMetadataInsert): Promis
 }
 
 // ============================================================================
+// Torrent Update Operations
+// ============================================================================
+
+/**
+ * Swarm stats update data
+ */
+export interface SwarmStatsUpdate {
+  seeders: number | null;
+  leechers: number | null;
+}
+
+/**
+ * Update swarm statistics for a torrent
+ * Only updates if the new values are provided (non-null)
+ * @param torrentId - The torrent ID
+ * @param stats - The swarm stats to update
+ * @returns The updated torrent
+ */
+export async function updateTorrentSwarmStats(
+  torrentId: string,
+  stats: SwarmStatsUpdate
+): Promise<Torrent> {
+  const client = getServerClient();
+  
+  const { data, error } = await client
+    .from('torrents')
+    .update({
+      seeders: stats.seeders,
+      leechers: stats.leechers,
+      swarm_updated_at: new Date().toISOString(),
+    })
+    .eq('id', torrentId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// ============================================================================
 // Search Operations
 // ============================================================================
 

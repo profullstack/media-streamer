@@ -38,7 +38,7 @@ A comprehensive multi-media streaming platform that allows users to stream music
 - **Video**: Video.js with HLS.js for M3U8 streaming
 - **Payments**: CoinPayPortal (cryptocurrency)
 - **Testing**: Vitest with TDD approach
-- **Deployment**: Railway
+- **Deployment**: DigitalOcean App Platform
 
 ## Prerequisites
 
@@ -149,13 +149,13 @@ pnpm test:coverage
 
 ## Deployment
 
-### Railway
+### DigitalOcean App Platform
 
-1. Connect your GitHub repository to Railway
-2. Set environment variables in Railway dashboard
+1. Connect your GitHub repository to DigitalOcean App Platform
+2. Set environment variables in the App Platform dashboard
 3. Deploy automatically on push to main
 
-The `railway.json` configuration is included in the repository.
+See [docs/deployment-digitalocean.md](docs/deployment-digitalocean.md) for detailed instructions.
 
 ## Security
 

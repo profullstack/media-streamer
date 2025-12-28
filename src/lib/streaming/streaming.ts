@@ -166,6 +166,24 @@ export interface StreamingServiceOptions {
 }
 
 /**
+ * Live torrent statistics from DHT/peers
+ */
+export interface TorrentStats {
+  /** Torrent infohash */
+  infohash: string;
+  /** Number of peers currently connected (from DHT) */
+  numPeers: number;
+  /** Download progress (0-1) */
+  progress: number;
+  /** Download speed in bytes/second */
+  downloadSpeed: number;
+  /** Upload speed in bytes/second */
+  uploadSpeed: number;
+  /** Whether the torrent is ready */
+  ready: boolean;
+}
+
+/**
  * Internal representation of an active stream
  */
 interface ActiveStream {
@@ -447,6 +465,44 @@ export class StreamingService {
   }
 
   /**
+   * Get live statistics for a torrent from DHT/connected peers
+   * This provides real-time peer counts that are more accurate than tracker scraping
+   *
+   * @param infohash - The torrent infohash
+   * @returns TorrentStats or null if torrent is not loaded
+   */
+  getTorrentStats(infohash: string): TorrentStats | null {
+    const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+    if (!torrent) {
+      return null;
+    }
+
+    return {
+      infohash: torrent.infoHash,
+      numPeers: torrent.numPeers,
+      progress: torrent.progress,
+      downloadSpeed: torrent.downloadSpeed,
+      uploadSpeed: torrent.uploadSpeed,
+      ready: torrent.ready,
+    };
+  }
+
+  /**
+   * Get live statistics for all active torrents
+   * @returns Array of TorrentStats for all loaded torrents
+   */
+  getAllTorrentStats(): TorrentStats[] {
+    return this.client.torrents.map(torrent => ({
+      infohash: torrent.infoHash,
+      numPeers: torrent.numPeers,
+      progress: torrent.progress,
+      downloadSpeed: torrent.downloadSpeed,
+      uploadSpeed: torrent.uploadSpeed,
+      ready: torrent.ready,
+    }));
+  }
+
+  /**
    * Destroy the service and clean up all resources
    */
   async destroy(): Promise<void> {
@@ -523,7 +579,7 @@ export class StreamingService {
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
    * This is especially important in cloud environments where UDP is blocked
-   * HTTP trackers are prioritized as they work on Railway and other cloud platforms
+   * HTTP trackers are prioritized as they work on cloud platforms
    */
   private enhanceMagnetUri(magnetUri: string): string {
     // Add trackers that aren't already in the magnet URI
@@ -788,7 +844,7 @@ export class StreamingService {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        if (downloadHandler) {
+        if (downloadHandler && typeof torrent.removeListener === 'function') {
           torrent.removeListener('download', downloadHandler);
           downloadHandler = null;
         }

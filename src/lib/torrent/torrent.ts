@@ -129,7 +129,7 @@ const DEFAULT_METADATA_TIMEOUT = parseInt(
 );
 
 // Well-known DHT bootstrap nodes for reliable peer discovery
-// Note: DHT requires UDP which is blocked on most cloud platforms (Railway, Heroku, etc.)
+// Note: DHT requires UDP which is blocked on most cloud platforms
 // We still configure these for environments where UDP is available
 const DHT_BOOTSTRAP_NODES = [
   'router.bittorrent.com:6881',
@@ -139,7 +139,7 @@ const DHT_BOOTSTRAP_NODES = [
 ];
 
 // WebSocket trackers that work in cloud environments (no UDP required)
-// These are prioritized for Railway/cloud deployments
+// These are prioritized for cloud deployments
 const WEBSOCKET_TRACKERS = [
   'wss://tracker.openwebtorrent.com',
   'wss://tracker.webtorrent.dev',

@@ -56,6 +56,7 @@ export {
   getEbookMetadata,
   createEbookMetadata,
   searchFiles,
+  updateTorrentSwarmStats,
 } from './queries';
 
-export type { SearchResult, SearchOptions } from './queries';
+export type { SearchResult, SearchOptions, SwarmStatsUpdate } from './queries';

@@ -52,7 +52,3 @@ yarn-error.log*
 # Supabase local
 supabase/.branches
 supabase/.temp
-
-# Railway
-railway.json
-nixpacks.toml

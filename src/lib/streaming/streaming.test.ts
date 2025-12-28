@@ -79,6 +79,9 @@ describe('StreamingService', () => {
         files: [mockFile],
         pieceLength: 16384,
         pieces: { length: 100 },
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn((event: string, callback: () => void) => {
           if (event === 'ready') {
             setTimeout(callback, 10);
@@ -132,6 +135,9 @@ describe('StreamingService', () => {
         files: [mockFile],
         pieceLength: 16384,
         pieces: { length: 1000 },
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn((event: string, callback: () => void) => {
           if (event === 'ready') {
             setTimeout(callback, 10);
@@ -263,6 +269,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -348,6 +357,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -397,6 +409,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -441,6 +456,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -650,6 +668,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -693,6 +714,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -761,6 +785,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 700 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -830,6 +857,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 350 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -842,6 +872,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 350 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -922,6 +955,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 700 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -978,6 +1014,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 350 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -1048,6 +1087,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 1100 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -1092,6 +1134,9 @@ describe('StreamingService', () => {
         files: [mockFile],
         pieceLength: 16384,
         pieces: { length: 350 },
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn((event: string, callback: () => void) => {
           if (event === 'ready') {
             setTimeout(callback, 10);
@@ -1146,6 +1191,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 6104 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -1195,6 +1243,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 6104 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -1257,6 +1308,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 350 },
         ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
@@ -1343,6 +1397,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: false,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn((event: string, callback: () => void) => {
           if (event === 'ready') {
             readyCallback = callback;
@@ -1414,6 +1471,9 @@ describe('StreamingService', () => {
         pieceLength: 16384,
         pieces: { length: 100 },
         ready: false,
+        progress: 1,
+        numPeers: 5,
+        bitfield: { get: vi.fn(() => true) },
         on: vi.fn((event: string, callback: () => void) => {
           if (event === 'ready') {
             setTimeout(callback, 10);
@@ -1598,6 +1658,7 @@ describe('StreamingService', () => {
             downloadHandler = handler;
           }
         }),
+        removeListener: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
       };
@@ -1653,6 +1714,7 @@ describe('StreamingService', () => {
         numPeers: 0, // No peers
         bitfield: mockBitfield,
         on: vi.fn(),
+        removeListener: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
       };
@@ -1821,6 +1883,7 @@ describe('StreamingService', () => {
             downloadHandler = handler;
           }
         }),
+        removeListener: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
       };
@@ -1931,6 +1994,7 @@ describe('StreamingService', () => {
         numPeers: 3, // 3 peers
         bitfield: mockBitfield,
         on: vi.fn(),
+        removeListener: vi.fn(),
         deselect: vi.fn(),
         select: vi.fn(),
       };
@@ -1952,6 +2016,92 @@ describe('StreamingService', () => {
         expect(message).toContain('Progress:');
         expect(message).toContain('Peers:');
       }
+    });
+  });
+
+  describe('getTorrentStats', () => {
+    it('should return stats for an active torrent', () => {
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [],
+        numPeers: 15,
+        progress: 0.75,
+        downloadSpeed: 1000000,
+        uploadSpeed: 500000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678');
+
+      expect(stats).not.toBeNull();
+      expect(stats?.infohash).toBe('1234567890abcdef1234567890abcdef12345678');
+      expect(stats?.numPeers).toBe(15);
+      expect(stats?.progress).toBe(0.75);
+      expect(stats?.downloadSpeed).toBe(1000000);
+      expect(stats?.uploadSpeed).toBe(500000);
+      expect(stats?.ready).toBe(true);
+    });
+
+    it('should return null for non-existent torrent', () => {
+      mockTorrents = [];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('nonexistent');
+
+      expect(stats).toBeNull();
+    });
+  });
+
+  describe('getAllTorrentStats', () => {
+    it('should return stats for all active torrents', () => {
+      const mockTorrent1 = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album1',
+        files: [],
+        numPeers: 10,
+        progress: 0.5,
+        downloadSpeed: 500000,
+        uploadSpeed: 250000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      const mockTorrent2 = {
+        infoHash: 'abcdef1234567890abcdef1234567890abcdef12',
+        name: 'Album2',
+        files: [],
+        numPeers: 20,
+        progress: 1.0,
+        downloadSpeed: 0,
+        uploadSpeed: 1000000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent1, mockTorrent2];
+
+      const service = new StreamingService();
+      const allStats = service.getAllTorrentStats();
+
+      expect(allStats).toHaveLength(2);
+      expect(allStats[0].infohash).toBe('1234567890abcdef1234567890abcdef12345678');
+      expect(allStats[0].numPeers).toBe(10);
+      expect(allStats[1].infohash).toBe('abcdef1234567890abcdef1234567890abcdef12');
+      expect(allStats[1].numPeers).toBe(20);
+    });
+
+    it('should return empty array when no torrents are active', () => {
+      mockTorrents = [];
+
+      const service = new StreamingService();
+      const allStats = service.getAllTorrentStats();
+
+      expect(allStats).toHaveLength(0);
     });
   });
 });

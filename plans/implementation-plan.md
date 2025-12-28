@@ -15,7 +15,7 @@ A **multi-media torrent-indexing and streaming platform** that allows users to s
 - **Database**: Supabase (PostgreSQL with Full-Text Search)
 - **Torrent**: WebTorrent (metadata-only fetching)
 - **Testing**: Vitest with TDD approach
-- **Deployment**: Railway
+- **Deployment**: DigitalOcean App Platform
 - **Auth**: Optional (Supabase Auth for saving favorites)
 - **PWA**: next-pwa with offline support
 - **UI Library**: Shadcn/ui + Radix primitives
@@ -37,7 +37,7 @@ flowchart TB
         EbookReader[Ebook Reader]
     end
 
-    subgraph Server [Railway - Next.js Server]
+    subgraph Server [DigitalOcean - Next.js Server]
         API[API Routes]
         MagnetService[Magnet Parser Service]
         MetadataService[Metadata Fetcher - WebTorrent]
@@ -769,7 +769,6 @@ media-torrent/
 ├── vitest.config.ts
 ├── tailwind.config.ts
 ├── next.config.js
-├── railway.json
 └── package.json
 ```
 
@@ -881,22 +880,9 @@ describe('Stream API', () => {
 
 ---
 
-## Railway Deployment
+## DigitalOcean Deployment
 
-### railway.json
-```json
-{
-  "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "startCommand": "npm run start",
-    "healthcheckPath": "/api/health",
-    "restartPolicyType": "ON_FAILURE"
-  }
-}
-```
+See [docs/deployment-digitalocean.md](../docs/deployment-digitalocean.md) for detailed deployment instructions.
 
 ### Environment Variables
 ```
@@ -942,7 +928,7 @@ The phases are ordered to build foundational services first, then layer features
 10. **Audio Player** - Playback UI
 11. **Auth** - Optional user features
 12. **Rate Limiting** - Protection
-13. **Railway Config** - Deployment
+13. **DigitalOcean Config** - Deployment
 14. **CI/CD** - Automation
 
 Each phase builds on the previous, with TDD ensuring correctness at every step.

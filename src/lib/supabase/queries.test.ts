@@ -32,6 +32,7 @@ import {
   createEbookMetadata,
   searchFiles,
   deleteTorrent,
+  updateTorrentSwarmStats,
 } from './queries';
 
 describe('Supabase Queries', () => {
@@ -488,12 +489,75 @@ describe('Supabase Queries', () => {
     });
 
     it('should throw error on delete failure', async () => {
-      mockEq.mockResolvedValue({ 
-        data: null, 
-        error: { message: 'Delete failed' } 
+      mockEq.mockResolvedValue({
+        data: null,
+        error: { message: 'Delete failed' }
       });
 
       await expect(deleteTorrent('torrent-123')).rejects.toThrow('Delete failed');
+    });
+  });
+
+  describe('updateTorrentSwarmStats', () => {
+    it('should update swarm stats for a torrent', async () => {
+      const mockUpdatedTorrent = {
+        id: 'torrent-123',
+        infohash: 'abc123',
+        seeders: 100,
+        leechers: 50,
+        swarm_updated_at: '2024-01-01T12:00:00Z',
+      };
+
+      mockSingle.mockResolvedValue({ data: mockUpdatedTorrent, error: null });
+
+      const result = await updateTorrentSwarmStats('torrent-123', {
+        seeders: 100,
+        leechers: 50,
+      });
+
+      expect(mockFrom).toHaveBeenCalledWith('torrents');
+      expect(mockUpdate).toHaveBeenCalledWith({
+        seeders: 100,
+        leechers: 50,
+        swarm_updated_at: expect.any(String),
+      });
+      expect(mockEq).toHaveBeenCalledWith('id', 'torrent-123');
+      expect(result).toEqual(mockUpdatedTorrent);
+    });
+
+    it('should update only seeders when leechers is null', async () => {
+      const mockUpdatedTorrent = {
+        id: 'torrent-123',
+        seeders: 100,
+        leechers: null,
+        swarm_updated_at: '2024-01-01T12:00:00Z',
+      };
+
+      mockSingle.mockResolvedValue({ data: mockUpdatedTorrent, error: null });
+
+      const result = await updateTorrentSwarmStats('torrent-123', {
+        seeders: 100,
+        leechers: null,
+      });
+
+      expect(mockUpdate).toHaveBeenCalledWith({
+        seeders: 100,
+        leechers: null,
+        swarm_updated_at: expect.any(String),
+      });
+      expect(result).toEqual(mockUpdatedTorrent);
+    });
+
+    it('should throw error on update failure', async () => {
+      mockSingle.mockResolvedValue({
+        data: null,
+        error: { message: 'Update failed' }
+      });
+
+      await expect(updateTorrentSwarmStats('torrent-123', {
+        seeders: 100,
+        leechers: 50,
+      })).rejects.toThrow('Update failed');
     });
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Health Check API Route
- * 
- * Used by Railway for health checks and monitoring
+ *
+ * Used for health checks and monitoring
  */
 
 import { NextResponse } from 'next/server';

@@ -22,7 +22,7 @@ flowchart TB
         ChatWidget[SSE Chat Widget]
     end
 
-    subgraph Server [Railway - Next.js Server]
+    subgraph Server [DigitalOcean - Next.js Server]
         API[API Routes]
         
         subgraph TorrentServices [Torrent Services]
@@ -687,7 +687,7 @@ Collapsed state (bottom-right):
 - Concurrent stream limits
 - Abuse detection
 
-### Phase 26: Railway Deployment
+### Phase 26: DigitalOcean Deployment
 - Environment variables
 - Health checks
 - Auto-scaling configuration
