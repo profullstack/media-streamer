@@ -207,7 +207,7 @@ function FileTreeNodeComponent({
     <div>
       <div
         className={cn(
-          'group flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors',
+          'group flex items-center gap-2 rounded-md px-2 py-2 transition-colors',
           'hover:bg-bg-hover cursor-pointer',
           !node.isDirectory && 'hover:bg-bg-tertiary'
         )}
@@ -224,48 +224,48 @@ function FileTreeNodeComponent({
       >
         {/* Expand/collapse arrow for directories */}
         {node.isDirectory ? (
-          <span className="flex h-4 w-4 items-center justify-center text-text-muted">
-            {isExpanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+          <span className="flex h-5 w-5 items-center justify-center text-text-muted">
+            {isExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
           </span>
         ) : (
-          <span className="h-4 w-4" />
-        )}
-
-        {/* Icon */}
-        <Icon className={iconColor} size={16} />
-
-        {/* Name */}
-        <span className="flex-1 truncate text-text-primary">{node.name}</span>
-
-        {/* File size */}
-        {node.file && (
-          <span className="text-xs text-text-muted">{formatBytes(node.file.size)}</span>
-        )}
-
-        {/* Action buttons for files */}
-        {!node.isDirectory && node.file && (
-          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          /* Action buttons for files - LEFT of filename, always visible */
+          <div className="flex items-center gap-1 flex-shrink-0">
             {isPlayable && onFilePlay && (
               <button
                 type="button"
                 onClick={handlePlay}
-                className="rounded p-1 text-text-secondary hover:bg-accent-primary/20 hover:text-accent-primary"
+                className="rounded-lg p-2 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/30 active:bg-accent-primary/40 transition-colors"
                 title="Play"
+                aria-label={`Play ${node.name}`}
               >
-                <PlayIcon size={14} />
+                <PlayIcon size={20} />
               </button>
             )}
             {onFileDownload && (
               <button
                 type="button"
                 onClick={handleDownload}
-                className="rounded p-1 text-text-secondary hover:bg-accent-secondary/20 hover:text-accent-secondary"
+                className="rounded-lg p-2 bg-accent-secondary/10 text-accent-secondary hover:bg-accent-secondary/30 active:bg-accent-secondary/40 transition-colors"
                 title="Download"
+                aria-label={`Download ${node.name}`}
               >
-                <DownloadIcon size={14} />
+                <DownloadIcon size={20} />
               </button>
             )}
+            {/* Spacer if no buttons */}
+            {!isPlayable && !onFilePlay && !onFileDownload && <span className="w-5" />}
           </div>
+        )}
+
+        {/* Icon */}
+        <Icon className={iconColor} size={18} />
+
+        {/* Name */}
+        <span className="flex-1 truncate text-text-primary">{node.name}</span>
+
+        {/* File size */}
+        {node.file && (
+          <span className="text-xs text-text-muted flex-shrink-0">{formatBytes(node.file.size)}</span>
         )}
       </div>
 
