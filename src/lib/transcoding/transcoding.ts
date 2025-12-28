@@ -303,101 +303,50 @@ export function getStreamingTranscodeProfile(mediaType: MediaType, format: strin
 
 /**
  * Build FFmpeg arguments for streaming transcoding (pipe input/output)
- * Handles non-seekable input streams like torrent downloads
+ *
+ * Uses a simplified, proven command for MKV → MP4 transcoding:
+ * ffmpeg -i pipe:0 -threads 4 -acodec aac -vcodec libx264 -movflags frag_keyframe+empty_moov -maxrate 2M -bufsize 1M -f mp4 pipe:1
+ *
  * @param profile - Transcoding profile
- * @param inputFormat - Optional input format hint (e.g., 'mkv', 'avi')
+ * @param _inputFormat - Optional input format hint (currently unused, FFmpeg auto-detects)
  * @returns Array of FFmpeg arguments for streaming
  */
-export function buildStreamingFFmpegArgs(profile: TranscodeProfile, inputFormat?: string): string[] {
+export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat?: string): string[] {
   const args: string[] = [];
 
-  // CRITICAL: These flags must come BEFORE -i for non-seekable input
-  // -fflags +genpts: Generate presentation timestamps if missing
-  // -analyzeduration: Increase analysis duration for better stream detection
-  // -probesize: Increase probe size for better format detection
-  args.push('-fflags', '+genpts+discardcorrupt');
-  args.push('-analyzeduration', '10M');
-  args.push('-probesize', '10M');
-
-  // For MKV specifically, we need to handle the container format
-  // MKV stores metadata at the end, but with these flags FFmpeg can handle streaming
-  if (inputFormat === 'mkv') {
-    args.push('-f', 'matroska');
-  } else if (inputFormat === 'avi') {
-    args.push('-f', 'avi');
-  } else if (inputFormat === 'flv') {
-    args.push('-f', 'flv');
-  } else if (inputFormat === 'wmv') {
-    args.push('-f', 'asf');
-  } else if (inputFormat === 'mov') {
-    args.push('-f', 'mov');
-  } else if (inputFormat === 'ts') {
-    args.push('-f', 'mpegts');
-  }
-
-  // Input from stdin (pipe)
+  // Input from stdin (pipe) - FFmpeg auto-detects format
   args.push('-i', 'pipe:0');
 
-  // Video codec with Safari/iOS compatibility
-  if (profile.videoCodec) {
-    args.push('-c:v', profile.videoCodec);
-    
-    // Safari/iOS requires specific H.264 settings
-    if (profile.videoCodec === 'libx264') {
-      // Use Main profile for broad compatibility (Safari, iOS, Android)
-      args.push('-profile:v', 'main');
-      // Level 4.0 supports up to 1080p30 or 720p60
-      args.push('-level', '4.0');
-      // yuv420p is required for Safari/iOS compatibility
-      args.push('-pix_fmt', 'yuv420p');
-    }
-  }
+  // Use multiple threads for faster transcoding
+  args.push('-threads', '4');
 
-  // Audio codec with Safari/iOS compatibility
+  // Audio codec
   if (profile.audioCodec) {
-    args.push('-c:a', profile.audioCodec);
-    
-    // Safari/iOS prefers stereo audio
-    if (profile.audioCodec === 'aac') {
-      args.push('-ac', '2'); // Stereo
-    }
+    args.push('-acodec', profile.audioCodec);
   }
 
-  // Video bitrate
-  if (profile.videoBitrate) {
-    args.push('-b:v', profile.videoBitrate);
-  }
-
-  // Audio bitrate
-  if (profile.audioBitrate) {
-    args.push('-b:a', profile.audioBitrate);
-  }
-
-  // Preset (for x264/x265) - use ultrafast for streaming
-  if (profile.preset) {
-    args.push('-preset', profile.preset);
-  }
-
-  // CRF (Constant Rate Factor for quality)
-  if (profile.crf !== undefined) {
-    args.push('-crf', String(profile.crf));
-  }
-
-  // Sample rate (for audio)
-  if (profile.sampleRate) {
-    args.push('-ar', String(profile.sampleRate));
+  // Video codec
+  if (profile.videoCodec) {
+    args.push('-vcodec', profile.videoCodec);
   }
 
   // MP4 specific: use fragmented MP4 for streaming (allows playback before complete)
-  // Safari requires frag_keyframe+empty_moov for streaming playback
+  // frag_keyframe+empty_moov is critical for streaming - puts moov atom at start
   if (profile.outputFormat === 'mp4') {
-    args.push('-movflags', 'frag_keyframe+empty_moov+default_base_moof');
+    args.push('-movflags', 'frag_keyframe+empty_moov');
+    // Rate control for consistent streaming
+    args.push('-maxrate', '2M');
+    args.push('-bufsize', '1M');
     args.push('-f', 'mp4');
   }
 
   // MP3 specific
   if (profile.outputFormat === 'mp3') {
     args.push('-f', 'mp3');
+    // Audio bitrate for MP3
+    if (profile.audioBitrate) {
+      args.push('-b:a', profile.audioBitrate);
+    }
   }
 
   // Output to stdout (pipe)

@@ -282,15 +282,21 @@ describe('Transcoding Service', () => {
       expect(args).toContain('pipe:0');
       // Should output to pipe
       expect(args).toContain('pipe:1');
-      // Should use fragmented MP4 for streaming (Safari compatible)
+      // Should use fragmented MP4 for streaming
       expect(args).toContain('-movflags');
-      expect(args).toContain('frag_keyframe+empty_moov+default_base_moof');
-      // Should use ultrafast preset for real-time streaming
-      expect(args).toContain('-preset');
-      expect(args).toContain('ultrafast');
+      expect(args).toContain('frag_keyframe+empty_moov');
+      // Should use threads for performance
+      expect(args).toContain('-threads');
+      expect(args).toContain('4');
+      // Should use video codec
+      expect(args).toContain('-vcodec');
+      expect(args).toContain('libx264');
+      // Should use audio codec
+      expect(args).toContain('-acodec');
+      expect(args).toContain('aac');
     });
 
-    it('should include Safari/iOS compatible H.264 settings', () => {
+    it('should include bitrate limiting for streaming', () => {
       const profile: TranscodeProfile = {
         outputFormat: 'mp4',
         videoCodec: 'libx264',
@@ -303,18 +309,14 @@ describe('Transcoding Service', () => {
 
       const args = buildStreamingFFmpegArgs(profile);
 
-      // Safari requires Main profile
-      expect(args).toContain('-profile:v');
-      expect(args).toContain('main');
-      // Safari requires level 4.0 for 1080p
-      expect(args).toContain('-level');
-      expect(args).toContain('4.0');
-      // Safari requires yuv420p pixel format
-      expect(args).toContain('-pix_fmt');
-      expect(args).toContain('yuv420p');
-      // Safari prefers stereo audio
-      expect(args).toContain('-ac');
-      expect(args).toContain('2');
+      // Should limit bitrate for streaming
+      expect(args).toContain('-maxrate');
+      expect(args).toContain('2M');
+      expect(args).toContain('-bufsize');
+      expect(args).toContain('1M');
+      // Should output as MP4 format
+      expect(args).toContain('-f');
+      expect(args).toContain('mp4');
     });
 
     it('should build audio streaming arguments for pipe input/output', () => {
@@ -330,7 +332,7 @@ describe('Transcoding Service', () => {
       expect(args).toContain('-i');
       expect(args).toContain('pipe:0');
       expect(args).toContain('pipe:1');
-      expect(args).toContain('-c:a');
+      expect(args).toContain('-acodec');
       expect(args).toContain('libmp3lame');
     });
   });
