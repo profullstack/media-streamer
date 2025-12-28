@@ -110,7 +110,7 @@ export function buildScrapeUrl(announceUrl: string, infohash: string): string | 
  * @param infohash - The infohash we're looking for
  * @returns Parsed scrape result, or null if parsing failed
  */
-export function parseHttpScrapeResponse(data: Buffer, infohash: string): ScrapeResult | null {
+export function parseHttpScrapeResponse(data: Buffer, _infohash: string): ScrapeResult | null {
   try {
     const str = data.toString('binary');
     

@@ -238,11 +238,9 @@ export function PdfReader({
 
       {/* Document viewer */}
       <div className="flex-1 overflow-auto bg-gray-950 flex justify-center p-4">
-        {isLoading && (
-          <div className="flex items-center justify-center">
+        {isLoading ? <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-          </div>
-        )}
+          </div> : null}
         
         <Document
           file={file}

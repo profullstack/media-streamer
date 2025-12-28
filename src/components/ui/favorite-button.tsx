@@ -132,11 +132,9 @@ export function FavoriteButton({
           className="transition-transform duration-200"
         />
       )}
-      {showLabel && (
-        <span className="text-sm font-medium">
+      {showLabel ? <span className="text-sm font-medium">
           {isFavorited ? 'Favorited' : 'Favorite'}
-        </span>
-      )}
+        </span> : null}
     </button>
   );
 }

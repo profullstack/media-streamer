@@ -283,8 +283,7 @@ export function AddMagnetModal({
         </div>
 
         {/* Progress bar */}
-        {progress && (
-          <div className="space-y-2">
+        {progress ? <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-text-secondary">{progress.message}</span>
               <span className="text-text-muted">
@@ -305,20 +304,15 @@ export function AddMagnetModal({
               <span className="capitalize">{progress.stage}</span>
               <span>{progress.progress}%</span>
             </div>
-          </div>
-        )}
+          </div> : null}
 
         {/* Error message */}
-        {error && (
-          <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>
-        )}
+        {error ? <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div> : null}
 
         {/* Success message */}
-        {success && (
-          <div className="rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">
+        {success ? <div className="rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">
             {success}
-          </div>
-        )}
+          </div> : null}
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">

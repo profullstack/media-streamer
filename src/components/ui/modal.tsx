@@ -85,8 +85,7 @@ export function Modal({
         aria-labelledby={title ? 'modal-title' : undefined}
       >
         {/* Header - fixed at top */}
-        {title && (
-          <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0">
+        {title ? <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0">
             <h2 id="modal-title" className="text-base sm:text-lg font-semibold text-text-primary truncate pr-2">
               {title}
             </h2>
@@ -98,8 +97,7 @@ export function Modal({
             >
               <CloseIcon size={24} className="sm:w-5 sm:h-5" />
             </button>
-          </div>
-        )}
+          </div> : null}
 
         {/* Body - scrollable */}
         <div className={cn('p-4 sm:p-6 overflow-y-auto flex-1', !title && 'pt-4')}>{children}</div>

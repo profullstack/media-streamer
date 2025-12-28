@@ -178,20 +178,16 @@ export default function PricingPage(): React.ReactElement {
                   : 'border-border-subtle bg-bg-secondary'
               )}
             >
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              {plan.popular ? <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="rounded-full bg-accent-primary px-3 py-1 text-xs font-semibold text-white">
                     Most Popular
                   </span>
-                </div>
-              )}
-              {plan.isTrial && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                </div> : null}
+              {plan.isTrial ? <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="rounded-full bg-status-success px-3 py-1 text-xs font-semibold text-white">
                     Free Trial
                   </span>
-                </div>
-              )}
+                </div> : null}
 
               <div className="text-center mb-6">
                 <h2 className="text-xl font-semibold text-text-primary mb-2">{plan.name}</h2>
@@ -306,8 +302,7 @@ export default function PricingPage(): React.ReactElement {
       </div>
 
       {/* Payment Modal */}
-      {selectedPlan && !selectedPlan.isTrial && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {selectedPlan && !selectedPlan.isTrial ? <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-bg-primary rounded-2xl border border-border-subtle max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-semibold text-text-primary">
@@ -348,11 +343,9 @@ export default function PricingPage(): React.ReactElement {
               </div>
             </div>
 
-            {error && (
-              <div className="mb-4 p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm">
+            {error ? <div className="mb-4 p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm">
                 {error}
-              </div>
-            )}
+              </div> : null}
 
             <button
               onClick={handlePayment}
@@ -370,8 +363,7 @@ export default function PricingPage(): React.ReactElement {
               You will be redirected to CoinPayPortal to complete your payment securely.
             </p>
           </div>
-        </div>
-      )}
+        </div> : null}
     </MainLayout>
   );
 }

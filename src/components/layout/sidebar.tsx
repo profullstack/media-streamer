@@ -86,13 +86,11 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
       </button>
 
       {/* Mobile overlay */}
-      {isMobileOpen && (
-        <div
+      {isMobileOpen ? <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={closeMobile}
           aria-hidden="true"
-        />
-      )}
+        /> : null}
 
       {/* Sidebar */}
       <aside
@@ -169,11 +167,9 @@ function NavSection({ items, pathname, onItemClick }: NavSectionProps): React.Re
             >
               <Icon size={20} className={isActive ? 'text-accent-primary' : ''} />
               <span>{item.label}</span>
-              {item.badge && (
-                <span className="ml-auto rounded-full bg-accent-primary px-2 py-0.5 text-xs font-medium text-white">
+              {item.badge ? <span className="ml-auto rounded-full bg-accent-primary px-2 py-0.5 text-xs font-medium text-white">
                   {item.badge}
-                </span>
-              )}
+                </span> : null}
             </Link>
           </li>
         );

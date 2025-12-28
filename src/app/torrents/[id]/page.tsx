@@ -234,36 +234,26 @@ export default function TorrentDetailPage(): React.ReactElement {
 
           {/* Media type breakdown */}
           <div className="mt-6 flex flex-wrap gap-3">
-            {mediaCounts.audio && mediaCounts.audio > 0 && (
-              <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
+            {mediaCounts.audio && mediaCounts.audio > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
                 <MusicIcon className="text-accent-audio" size={14} />
                 <span className="text-text-primary">{mediaCounts.audio} audio</span>
-              </div>
-            )}
-            {mediaCounts.video && mediaCounts.video > 0 && (
-              <div className="flex items-center gap-2 rounded-full bg-accent-video/10 px-3 py-1 text-sm">
+              </div> : null}
+            {mediaCounts.video && mediaCounts.video > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-video/10 px-3 py-1 text-sm">
                 <VideoIcon className="text-accent-video" size={14} />
                 <span className="text-text-primary">{mediaCounts.video} video</span>
-              </div>
-            )}
-            {mediaCounts.ebook && mediaCounts.ebook > 0 && (
-              <div className="flex items-center gap-2 rounded-full bg-accent-ebook/10 px-3 py-1 text-sm">
+              </div> : null}
+            {mediaCounts.ebook && mediaCounts.ebook > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-ebook/10 px-3 py-1 text-sm">
                 <BookIcon className="text-accent-ebook" size={14} />
                 <span className="text-text-primary">{mediaCounts.ebook} ebook</span>
-              </div>
-            )}
-            {mediaCounts.document && mediaCounts.document > 0 && (
-              <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
+              </div> : null}
+            {mediaCounts.document && mediaCounts.document > 0 ? <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
                 <FileIcon className="text-text-secondary" size={14} />
                 <span className="text-text-primary">{mediaCounts.document} document</span>
-              </div>
-            )}
-            {mediaCounts.other && mediaCounts.other > 0 && (
-              <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
+              </div> : null}
+            {mediaCounts.other && mediaCounts.other > 0 ? <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
                 <FileIcon className="text-text-secondary" size={14} />
                 <span className="text-text-primary">{mediaCounts.other} other</span>
-              </div>
-            )}
+              </div> : null}
           </div>
         </div>
 
@@ -302,15 +292,13 @@ export default function TorrentDetailPage(): React.ReactElement {
       </div>
 
       {/* Media Player Modal */}
-      {torrent && (
-        <MediaPlayerModal
+      {torrent ? <MediaPlayerModal
           isOpen={isModalOpen}
           onClose={handleModalClose}
           file={selectedFile}
           infohash={torrent.infohash}
           torrentName={torrent.name}
-        />
-      )}
+        /> : null}
     </MainLayout>
   );
 }

@@ -215,7 +215,7 @@ export default function LibraryPage(): React.ReactElement {
                     </h3>
                     <p className="text-sm text-text-secondary truncate">
                       {item.artist || item.type.charAt(0).toUpperCase() + item.type.slice(1)}
-                      {item.duration && ` • ${item.duration}`}
+                      {item.duration ? ` • ${item.duration}` : null}
                     </p>
                   </div>
 
@@ -307,7 +307,7 @@ export default function LibraryPage(): React.ReactElement {
                       </h3>
                       <p className="text-sm text-text-secondary truncate">
                         {item.artist || item.type.charAt(0).toUpperCase() + item.type.slice(1)}
-                        {item.duration && ` • ${item.duration}`}
+                        {item.duration ? ` • ${item.duration}` : null}
                       </p>
                     </div>
 

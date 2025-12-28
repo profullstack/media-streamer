@@ -147,8 +147,7 @@ function TreeNodeComponent({ node, depth, onFileSelect, onStream }: TreeNodeComp
           </svg>
           <span className="text-sm text-gray-700 dark:text-gray-300">{node.name}</span>
         </div>
-        {isExpanded && (
-          <div>
+        {isExpanded ? <div>
             {sortedChildren.map((child) => (
               <TreeNodeComponent
                 key={child.path}
@@ -158,8 +157,7 @@ function TreeNodeComponent({ node, depth, onFileSelect, onStream }: TreeNodeComp
                 onStream={onStream}
               />
             ))}
-          </div>
-        )}
+          </div> : null}
       </div>
     );
   }
@@ -177,8 +175,7 @@ function TreeNodeComponent({ node, depth, onFileSelect, onStream }: TreeNodeComp
         {node.name}
       </span>
       <span className="text-xs text-gray-400">{formatBytes(file.size)}</span>
-      {isStreamable(file.media_type) && onStream && (
-        <button
+      {isStreamable(file.media_type) && onStream ? <button
           onClick={(e) => {
             e.stopPropagation();
             onStream(file);
@@ -187,8 +184,7 @@ function TreeNodeComponent({ node, depth, onFileSelect, onStream }: TreeNodeComp
           className="hidden rounded bg-blue-500 px-2 py-0.5 text-xs text-white hover:bg-blue-600 group-hover:block"
         >
           Stream
-        </button>
-      )}
+        </button> : null}
     </div>
   );
 }

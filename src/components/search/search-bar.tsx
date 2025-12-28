@@ -140,20 +140,17 @@ export function SearchBar({
         />
 
         {/* Clear button */}
-        {query && (
-          <button
+        {query ? <button
             type="button"
             onClick={handleClear}
             className="absolute right-12 p-1 text-text-muted hover:text-text-primary"
             aria-label="Clear search"
           >
             <CloseIcon size={16} />
-          </button>
-        )}
+          </button> : null}
 
         {/* Filter button */}
-        {showFilters && (
-          <div className="absolute right-3" ref={filterMenuRef}>
+        {showFilters ? <div className="absolute right-3" ref={filterMenuRef}>
             <button
               type="button"
               onClick={() => setShowFilterMenu(!showFilterMenu)}
@@ -174,8 +171,7 @@ export function SearchBar({
             </button>
 
             {/* Filter dropdown */}
-            {showFilterMenu && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-border-subtle bg-bg-secondary p-2 shadow-lg">
+            {showFilterMenu ? <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-border-subtle bg-bg-secondary p-2 shadow-lg">
                 <p className="mb-2 px-2 text-xs font-medium uppercase text-text-muted">
                   Media Type
                 </p>
@@ -193,10 +189,8 @@ export function SearchBar({
                     <span className="text-sm text-text-primary">{option.label}</span>
                   </label>
                 ))}
-              </div>
-            )}
-          </div>
-        )}
+              </div> : null}
+          </div> : null}
       </div>
     </form>
   );

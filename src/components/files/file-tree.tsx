@@ -218,7 +218,11 @@ function FileTreeNodeComponent({
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            node.isDirectory ? handleToggle() : handleClick();
+            if (node.isDirectory) {
+              handleToggle();
+            } else {
+              handleClick();
+            }
           }
         }}
       >
@@ -230,8 +234,7 @@ function FileTreeNodeComponent({
         ) : (
           /* Action buttons for files - LEFT of filename, always visible */
           <div className="flex items-center gap-1 flex-shrink-0">
-            {isPlayable && onFilePlay && (
-              <button
+            {isPlayable && onFilePlay ? <button
                 type="button"
                 onClick={handlePlay}
                 className="rounded-lg p-2 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/30 active:bg-accent-primary/40 transition-colors"
@@ -239,10 +242,8 @@ function FileTreeNodeComponent({
                 aria-label={`Play ${node.name}`}
               >
                 <PlayIcon size={20} />
-              </button>
-            )}
-            {onFileDownload && (
-              <button
+              </button> : null}
+            {onFileDownload ? <button
                 type="button"
                 onClick={handleDownload}
                 className="rounded-lg p-2 bg-accent-secondary/10 text-accent-secondary hover:bg-accent-secondary/30 active:bg-accent-secondary/40 transition-colors"
@@ -250,8 +251,7 @@ function FileTreeNodeComponent({
                 aria-label={`Download ${node.name}`}
               >
                 <DownloadIcon size={20} />
-              </button>
-            )}
+              </button> : null}
             {/* Spacer if no buttons */}
             {!isPlayable && !onFilePlay && !onFileDownload && <span className="w-5" />}
           </div>
@@ -264,14 +264,11 @@ function FileTreeNodeComponent({
         <span className="flex-1 truncate text-text-primary">{node.name}</span>
 
         {/* File size */}
-        {node.file && (
-          <span className="text-xs text-text-muted flex-shrink-0">{formatBytes(node.file.size)}</span>
-        )}
+        {node.file ? <span className="text-xs text-text-muted flex-shrink-0">{formatBytes(node.file.size)}</span> : null}
       </div>
 
       {/* Children */}
-      {node.isDirectory && isExpanded && (
-        <div>
+      {node.isDirectory && isExpanded ? <div>
           {sortedChildren.map((child) => (
             <FileTreeNodeComponent
               key={child.path}
@@ -282,8 +279,7 @@ function FileTreeNodeComponent({
               onFileDownload={onFileDownload}
             />
           ))}
-        </div>
-      )}
+        </div> : null}
     </div>
   );
 }

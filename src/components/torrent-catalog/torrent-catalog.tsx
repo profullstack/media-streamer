@@ -28,7 +28,7 @@ export function TorrentCatalog(): React.ReactElement {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [, setSearchQuery] = useState('');
 
   // Fetch torrents
   const fetchTorrents = useCallback(async () => {

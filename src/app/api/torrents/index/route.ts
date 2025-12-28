@@ -7,7 +7,6 @@
  */
 
 import { NextRequest } from 'next/server';
-import { IndexerService, IndexerError } from '@/lib/indexer';
 import { TorrentService, type MetadataProgressEvent } from '@/lib/torrent';
 import { scrapeMultipleTrackers, SCRAPE_TRACKERS } from '@/lib/tracker-scrape';
 import { createLogger, generateRequestId } from '@/lib/logger';
@@ -18,7 +17,6 @@ import {
   type TorrentFileInsert,
 } from '@/lib/supabase';
 import { parseMagnetUri, validateMagnetUri } from '@/lib/magnet';
-import { getMediaCategory, getMimeType } from '@/lib/utils';
 
 const logger = createLogger('API:torrents/index');
 

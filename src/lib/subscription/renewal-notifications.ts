@@ -6,7 +6,7 @@
  * billing, users need to be reminded to manually renew.
  */
 
-import type { SubscriptionRepository, SubscriptionNeedingReminder } from './repository';
+import type { SubscriptionRepository } from './repository';
 
 // ============================================================================
 // Types

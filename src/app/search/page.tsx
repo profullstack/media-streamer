@@ -106,8 +106,7 @@ export default function SearchPage(): React.ReactElement {
         />
 
         {/* Results */}
-        {hasSearched && query && (
-          <div className="space-y-4">
+        {hasSearched && query ? <div className="space-y-4">
             <SearchResultsHeader total={total} query={query} />
             <SearchResults
               results={results}
@@ -117,8 +116,7 @@ export default function SearchPage(): React.ReactElement {
               onFileDownload={handleFileDownload}
               emptyMessage={`No results found for "${query}"`}
             />
-          </div>
-        )}
+          </div> : null}
 
         {/* Initial state */}
         {!hasSearched && (

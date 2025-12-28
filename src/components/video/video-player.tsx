@@ -176,8 +176,7 @@ export function VideoPlayer({
   return (
     <div className={cn('video-player-container', className)}>
       {/* Auto-Transcoding Notice - informational only */}
-      {showTranscodingNotice && videoSource?.requiresTranscoding && (
-        <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+      {showTranscodingNotice && videoSource?.requiresTranscoding ? <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
           <div className="flex items-center gap-2">
             <svg
               className="h-4 w-4 flex-shrink-0 text-blue-500"
@@ -196,22 +195,18 @@ export function VideoPlayer({
               Auto-transcoding {videoSource.format.toUpperCase()} → MP4 for browser playback
             </span>
           </div>
-        </div>
-      )}
+        </div> : null}
 
       {/* Loading State */}
-      {isLoading && (
-        <div className="flex h-64 items-center justify-center rounded-lg bg-muted">
+      {isLoading ? <div className="flex h-64 items-center justify-center rounded-lg bg-muted">
           <div className="flex flex-col items-center gap-2">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             <span className="text-sm text-muted-foreground">Loading player...</span>
           </div>
-        </div>
-      )}
+        </div> : null}
 
       {/* Error State */}
-      {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+      {error ? <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <div className="flex items-start gap-3">
             <svg
               className="h-5 w-5 flex-shrink-0 text-destructive"
@@ -231,8 +226,7 @@ export function VideoPlayer({
               <p className="mt-1 text-sm text-muted-foreground">{error}</p>
             </div>
           </div>
-        </div>
-      )}
+        </div> : null}
 
       {/* Video Player Container */}
       <div
@@ -245,8 +239,7 @@ export function VideoPlayer({
       />
 
       {/* Video Info */}
-      {videoSource && !isLoading && (
-        <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+      {videoSource && !isLoading ? <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
           <span>Format: {videoSource.format.toUpperCase()}</span>
           <span>
             {videoSource.requiresTranscoding ? (
@@ -255,8 +248,7 @@ export function VideoPlayer({
               <span className="text-green-500">Native playback</span>
             )}
           </span>
-        </div>
-      )}
+        </div> : null}
     </div>
   );
 }

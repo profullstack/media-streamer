@@ -179,11 +179,9 @@ function ResetPasswordForm(): React.ReactElement {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="rounded-lg bg-status-error/10 border border-status-error/20 p-3 text-sm text-status-error">
+          {error ? <div className="rounded-lg bg-status-error/10 border border-status-error/20 p-3 text-sm text-status-error">
               {error}
-            </div>
-          )}
+            </div> : null}
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-text-primary mb-1">

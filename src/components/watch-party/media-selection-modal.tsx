@@ -186,11 +186,9 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
               Select a Torrent
             </h3>
             
-            {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm mb-3">
+            {error ? <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm mb-3">
                 {error}
-              </div>
-            )}
+              </div> : null}
 
             {isLoadingTorrents ? (
               <div className="flex items-center justify-center py-8">

@@ -98,8 +98,9 @@ function getStageMessage(stage: ConnectionStage, numPeers: number): string {
 
 /**
  * Format bytes per second to human readable
+ * @internal Reserved for future use in status messages
  */
-function formatSpeed(bytesPerSecond: number): string {
+function _formatSpeed(bytesPerSecond: number): string {
   if (bytesPerSecond < 1024) {
     return `${bytesPerSecond.toFixed(0)} B/s`;
   }

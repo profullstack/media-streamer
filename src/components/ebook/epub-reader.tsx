@@ -77,7 +77,7 @@ export function EpubReader({
   const [error, setError] = useState<Error | null>(null);
   const [toc, setToc] = useState<NavItem[]>([]);
   const [showToc, setShowToc] = useState<boolean>(false);
-  const [currentLocation, setCurrentLocation] = useState<string>('');
+  const [, setCurrentLocation] = useState<string>('');
   const [percentage, setPercentage] = useState<number>(0);
   const [currentFontSize, setCurrentFontSize] = useState<number>(fontSize);
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark' | 'sepia'>(theme);
@@ -320,8 +320,7 @@ export function EpubReader({
       {/* Main content area */}
       <div className="flex-1 flex relative overflow-hidden">
         {/* Table of Contents sidebar */}
-        {showToc && (
-          <div className="w-64 bg-gray-900 border-r border-gray-700 overflow-y-auto">
+        {showToc ? <div className="w-64 bg-gray-900 border-r border-gray-700 overflow-y-auto">
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-4">Contents</h3>
               <nav>
@@ -334,8 +333,7 @@ export function EpubReader({
                       >
                         {item.label}
                       </button>
-                      {item.subitems && item.subitems.length > 0 && (
-                        <ul className="ml-4 mt-1 space-y-1">
+                      {item.subitems && item.subitems.length > 0 ? <ul className="ml-4 mt-1 space-y-1">
                           {item.subitems.map((subitem, subindex) => (
                             <li key={subindex}>
                               <button
@@ -346,23 +344,19 @@ export function EpubReader({
                               </button>
                             </li>
                           ))}
-                        </ul>
-                      )}
+                        </ul> : null}
                     </li>
                   ))}
                 </ul>
               </nav>
             </div>
-          </div>
-        )}
+          </div> : null}
 
         {/* EPUB content */}
         <div className="flex-1 relative">
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-950">
+          {isLoading ? <div className="absolute inset-0 flex items-center justify-center bg-gray-950">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-            </div>
-          )}
+            </div> : null}
           
           <div
             ref={containerRef}

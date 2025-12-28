@@ -1,10 +1,10 @@
 /**
  * Auth Module Tests
- * 
+ *
  * TDD tests for Supabase Auth integration (server-side only)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   validateEmail,
   validatePassword,
@@ -20,12 +20,9 @@ import {
   isValidSubscriptionTier,
   getSubscriptionFeatures,
   canAccessFeature,
-  AuthUser,
-  UserProfile,
-  SubscriptionTier,
-  SessionToken,
-  AuthError,
-  AuthErrorCode,
+  type SessionToken,
+  type AuthError,
+  type AuthErrorCode,
 } from './auth';
 
 describe('Auth Module', () => {

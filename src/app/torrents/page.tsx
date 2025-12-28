@@ -53,7 +53,7 @@ export default function TorrentsPage(): React.ReactElement {
 
       const data: TorrentsResponse = await response.json();
       setTorrents(data.torrents);
-    } catch (err) {
+    } catch {
       // Show empty state on error
       setTorrents([]);
     } finally {
@@ -100,11 +100,9 @@ export default function TorrentsPage(): React.ReactElement {
         </div>
 
         {/* Error message */}
-        {error && (
-          <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        {error ? <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">
             {error}
-          </div>
-        )}
+          </div> : null}
 
         {/* Torrent list */}
         <TorrentList

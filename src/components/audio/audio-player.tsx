@@ -225,8 +225,7 @@ export function AudioPlayer({
   return (
     <div className={cn('audio-player rounded-lg border bg-card p-4', className)}>
       {/* Transcoding Notice */}
-      {showTranscodingNotice && audioSource?.requiresTranscoding && (
-        <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
+      {showTranscodingNotice && audioSource?.requiresTranscoding ? <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
           <div className="flex items-start gap-2">
             <svg
               className="h-4 w-4 flex-shrink-0 text-blue-500"
@@ -247,12 +246,10 @@ export function AudioPlayer({
               </span>
             </div>
           </div>
-        </div>
-      )}
+        </div> : null}
 
       {/* Error State */}
-      {error && (
-        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+      {error ? <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3">
           <div className="flex items-start gap-2">
             <svg
               className="h-4 w-4 flex-shrink-0 text-destructive"
@@ -269,14 +266,14 @@ export function AudioPlayer({
             </svg>
             <span className="text-sm text-destructive">{error}</span>
           </div>
-        </div>
-      )}
+        </div> : null}
 
       {/* Player Content */}
       <div className="flex items-center gap-4">
-        {/* Cover Art */}
+        {/* Cover Art - using img because coverArt URL is dynamic/external */}
         {coverArt ? (
           <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={coverArt}
               alt={album ?? title ?? 'Cover art'}
@@ -308,13 +305,11 @@ export function AudioPlayer({
             <h4 className="truncate font-medium">
               {title ?? filename}
             </h4>
-            {(artist || album) && (
-              <p className="truncate text-sm text-muted-foreground">
+            {(artist || album) ? <p className="truncate text-sm text-muted-foreground">
                 {artist}
-                {artist && album && ' • '}
+                {artist && album ? ' • ' : null}
                 {album}
-              </p>
-            )}
+              </p> : null}
           </div>
 
           {/* Progress Bar */}
@@ -444,8 +439,7 @@ export function AudioPlayer({
       />
 
       {/* Format Info */}
-      {audioSource && (
-        <div className="mt-3 flex items-center justify-center text-xs text-muted-foreground">
+      {audioSource ? <div className="mt-3 flex items-center justify-center text-xs text-muted-foreground">
           <span>Format: {audioSource.format.toUpperCase()}</span>
           <span className="mx-2">•</span>
           <span>
@@ -455,8 +449,7 @@ export function AudioPlayer({
               <span className="text-green-500">Native playback</span>
             )}
           </span>
-        </div>
-      )}
+        </div> : null}
     </div>
   );
 }
@@ -549,7 +542,7 @@ export function AudioPlayerCompact({
 
       <div className="flex-1 min-w-0">
         <p className="truncate text-sm font-medium">{title ?? filename}</p>
-        {artist && <p className="truncate text-xs text-muted-foreground">{artist}</p>}
+        {artist ? <p className="truncate text-xs text-muted-foreground">{artist}</p> : null}
         <div className="mt-1 h-1 rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-primary"

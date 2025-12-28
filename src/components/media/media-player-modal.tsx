@@ -273,9 +273,7 @@ export function MediaPlayerModal({
         {/* Subtitle and Swarm Stats Row */}
         <div className="flex items-center justify-between gap-4">
           {/* Subtitle */}
-          {subtitle && (
-            <p className="text-sm text-text-muted truncate flex-1">{subtitle}</p>
-          )}
+          {subtitle ? <p className="text-sm text-text-muted truncate flex-1">{subtitle}</p> : null}
 
           {/* Swarm Stats Badge */}
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -323,17 +321,14 @@ export function MediaPlayerModal({
                 </div>
 
                 {/* Refresh indicator */}
-                {isLoadingSwarm && (
-                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-text-muted border-t-transparent" />
-                )}
+                {isLoadingSwarm ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-text-muted border-t-transparent" /> : null}
               </>
             ) : null}
           </div>
         </div>
 
         {/* Transcoding Notice - show when transcoding is active */}
-        {isTranscoding && !error && (
-          <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-3">
+        {isTranscoding && !error ? <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-3">
             <div className="flex items-center gap-2">
               <svg
                 className="h-4 w-4 text-accent-primary"
@@ -354,12 +349,10 @@ export function MediaPlayerModal({
                   : 'Live transcoding enabled - converting to browser-compatible format'}
               </span>
             </div>
-          </div>
-        )}
+          </div> : null}
 
         {/* Error State */}
-        {error && (
-          <div className="rounded-lg border border-error/50 bg-error/10 p-4">
+        {error ? <div className="rounded-lg border border-error/50 bg-error/10 p-4">
             <div className="flex items-start gap-3">
               <svg
                 className="h-5 w-5 flex-shrink-0 text-error"
@@ -379,23 +372,19 @@ export function MediaPlayerModal({
                 <p className="mt-1 text-sm text-text-muted">{error}</p>
               </div>
             </div>
-          </div>
-        )}
+          </div> : null}
 
         {/* Video Player - always render when we have a URL and it's video */}
-        {streamUrl && mediaCategory === 'video' && !error && (
-          <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+        {streamUrl && mediaCategory === 'video' && !error ? <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
             {/* Loading overlay */}
-            {isLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
+            {isLoading ? <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
                   <span className="text-xs sm:text-sm text-white">
                     {isTranscoding ? 'Starting transcoding...' : 'Loading stream...'}
                   </span>
                 </div>
-              </div>
-            )}
+              </div> : null}
             <VideoPlayer
               src={streamUrl}
               filename={file.name}
@@ -403,23 +392,19 @@ export function MediaPlayerModal({
               onError={handlePlayerError}
               showTranscodingNotice={false}
             />
-          </div>
-        )}
+          </div> : null}
 
         {/* Audio Player - always render when we have a URL and it's audio */}
-        {streamUrl && mediaCategory === 'audio' && !error && (
-          <div className="relative w-full">
+        {streamUrl && mediaCategory === 'audio' && !error ? <div className="relative w-full">
             {/* Loading overlay for audio */}
-            {isLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
+            {isLoading ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
                   <span className="text-sm text-text-muted">
                     {isTranscoding ? 'Starting transcoding...' : 'Loading stream...'}
                   </span>
                 </div>
-              </div>
-            )}
+              </div> : null}
             <AudioPlayer
               src={streamUrl}
               filename={file.name}
@@ -427,12 +412,10 @@ export function MediaPlayerModal({
               onError={handlePlayerError}
               showTranscodingNotice={false}
             />
-          </div>
-        )}
+          </div> : null}
 
         {/* Unsupported Media Type */}
-        {streamUrl && mediaCategory !== 'video' && mediaCategory !== 'audio' && (
-          <div className="rounded-lg border border-border-subtle bg-bg-tertiary p-6 text-center">
+        {streamUrl && mediaCategory !== 'video' && mediaCategory !== 'audio' ? <div className="rounded-lg border border-border-subtle bg-bg-tertiary p-6 text-center">
             <p className="text-text-secondary">
               This file type ({mediaCategory}) cannot be played in the browser.
             </p>
@@ -443,12 +426,10 @@ export function MediaPlayerModal({
             >
               Download File
             </a>
-          </div>
-        )}
+          </div> : null}
 
         {/* Connection Status Footer - shown during loading */}
-        {isLoading && connectionStatus && (
-          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-2 sm:p-3">
+        {isLoading && connectionStatus ? <div className="rounded-lg border border-border-subtle bg-bg-secondary p-2 sm:p-3">
             <div className="flex items-center justify-between gap-2 sm:gap-4">
               {/* Status message with spinner */}
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -484,8 +465,7 @@ export function MediaPlayerModal({
                 />
               </div>
             )}
-          </div>
-        )}
+          </div> : null}
 
         {/* Debug Info - hidden on small screens, compact on larger */}
         <details className="hidden sm:block">
@@ -497,17 +477,13 @@ export function MediaPlayerModal({
               <span>Type: {mediaCategory}</span>
               <span>Index: {file.fileIndex}</span>
               <span>Size: {formatBytes(file.size)}</span>
-              {isTranscoding && (
-                <span className="text-accent-primary">Transcoding</span>
-              )}
+              {isTranscoding ? <span className="text-accent-primary">Transcoding</span> : null}
               <span className={isPlayerReady ? 'text-green-500' : 'text-yellow-500'}>
                 {isPlayerReady ? 'Ready' : 'Loading'}
               </span>
-              {swarmStats && (
-                <span className="text-text-secondary">
+              {swarmStats ? <span className="text-text-secondary">
                   Trackers: {swarmStats.trackersResponded}/{swarmStats.trackersQueried}
-                </span>
-              )}
+                </span> : null}
             </div>
             <div className="mt-1 break-all text-[10px]">
               <span className="text-text-secondary">Hash: </span>

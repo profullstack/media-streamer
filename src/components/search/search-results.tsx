@@ -187,61 +187,45 @@ function SearchResultItem({
         )}
 
         {/* Metadata */}
-        {result.metadata && (
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-secondary">
-            {result.metadata.artist && (
-              <span>{result.metadata.artist}</span>
-            )}
-            {result.metadata.album && (
-              <span>• {result.metadata.album}</span>
-            )}
-            {result.metadata.author && (
-              <span>by {result.metadata.author}</span>
-            )}
-          </div>
-        )}
+        {result.metadata ? <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-secondary">
+            {result.metadata.artist ? <span>{result.metadata.artist}</span> : null}
+            {result.metadata.album ? <span>• {result.metadata.album}</span> : null}
+            {result.metadata.author ? <span>by {result.metadata.author}</span> : null}
+          </div> : null}
 
         {/* Torrent link for file results */}
-        {isFile && (
-          <Link
+        {isFile ? <Link
             href={`/torrents/${result.torrent.id}`}
             className="mt-1 inline-flex items-center gap-1 text-xs text-accent-primary hover:underline"
           >
             <MagnetIcon size={12} />
             {result.torrent.name}
-          </Link>
-        )}
+          </Link> : null}
       </div>
 
       {/* Size */}
-      {isFile && (
-        <div className="shrink-0 text-sm text-text-muted">
+      {isFile ? <div className="shrink-0 text-sm text-text-muted">
           {formatBytes(result.file!.size)}
-        </div>
-      )}
+        </div> : null}
 
       {/* Actions */}
       <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        {isPlayable && onPlay && (
-          <button
+        {isPlayable && onPlay ? <button
             type="button"
             onClick={handlePlay}
             className="rounded-lg bg-accent-primary p-2 text-white transition-colors hover:bg-accent-primary/80"
             title="Play"
           >
             <PlayIcon size={16} />
-          </button>
-        )}
-        {isFile && onDownload && (
-          <button
+          </button> : null}
+        {isFile && onDownload ? <button
             type="button"
             onClick={handleDownload}
             className="rounded-lg bg-bg-tertiary p-2 text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             title="Download"
           >
             <DownloadIcon size={16} />
-          </button>
-        )}
+          </button> : null}
       </div>
     </div>
   );

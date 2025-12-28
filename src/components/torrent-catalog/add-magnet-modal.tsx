@@ -107,11 +107,9 @@ export function AddMagnetModal({ isOpen, onClose, onSuccess }: AddMagnetModalPro
               className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               disabled={isLoading}
             />
-            {error && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+            {error ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">
                 {error}
-              </p>
-            )}
+              </p> : null}
           </div>
 
           <div className="flex justify-end gap-3">

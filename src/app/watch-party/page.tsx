@@ -11,7 +11,6 @@ import { useState, useCallback } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { PartyIcon, PlusIcon, UsersIcon } from '@/components/ui/icons';
-import { MediaSelectionModal } from '@/components/watch-party';
 
 interface PartyMember {
   id: string;
@@ -65,7 +64,7 @@ export default function WatchPartyPage(): React.ReactElement {
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+  const [, setIsMediaModalOpen] = useState(false);
 
   const handleCreateParty = useCallback(async () => {
     if (!hostName.trim()) {
@@ -152,7 +151,7 @@ export default function WatchPartyPage(): React.ReactElement {
     setError(null);
   }, []);
 
-  const handleMediaSelect = useCallback(async (file: FileItem, torrent: TorrentItem) => {
+  const _handleMediaSelect = useCallback(async (file: FileItem, _torrent: TorrentItem) => {
     if (!party || !userId) return;
 
     try {
@@ -233,18 +232,15 @@ export default function WatchPartyPage(): React.ReactElement {
                   <div className="text-center p-8">
                     <div className="text-4xl mb-4">🎬</div>
                     <p className="text-text-secondary mb-2">No media selected</p>
-                    {isHost && (
-                      <p className="text-sm text-text-muted">
+                    {isHost ? <p className="text-sm text-text-muted">
                         Select a torrent from the catalog to start watching
-                      </p>
-                    )}
+                      </p> : null}
                   </div>
                 )}
               </div>
 
               {/* Playback Controls (Host Only) */}
-              {isHost && (
-                <div className="mt-4 p-4 rounded-lg bg-bg-secondary border border-border-subtle">
+              {isHost ? <div className="mt-4 p-4 rounded-lg bg-bg-secondary border border-border-subtle">
                   <p className="text-sm text-text-muted mb-2">Host Controls</p>
                   <div className="flex gap-2">
                     <button
@@ -257,8 +253,7 @@ export default function WatchPartyPage(): React.ReactElement {
                       Sync All
                     </button>
                   </div>
-                </div>
-              )}
+                </div> : null}
             </div>
 
             {/* Chat & Members Sidebar */}
@@ -279,19 +274,16 @@ export default function WatchPartyPage(): React.ReactElement {
                         'bg-green-500'
                       )} />
                       <span className="text-text-primary">{member.name}</span>
-                      {member.isHost && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-accent-primary/20 text-accent-primary">
+                      {member.isHost ? <span className="text-xs px-1.5 py-0.5 rounded bg-accent-primary/20 text-accent-primary">
                           Host
-                        </span>
-                      )}
+                        </span> : null}
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Chat */}
-              {party.settings.allowChat && (
-                <div className="rounded-xl bg-bg-secondary border border-border-subtle p-4 flex flex-col h-80">
+              {party.settings.allowChat ? <div className="rounded-xl bg-bg-secondary border border-border-subtle p-4 flex flex-col h-80">
                   <h3 className="font-semibold text-text-primary mb-3">Chat</h3>
                   <div className="flex-1 overflow-y-auto mb-3">
                     <p className="text-sm text-text-muted text-center py-8">
@@ -313,8 +305,7 @@ export default function WatchPartyPage(): React.ReactElement {
                       Send
                     </button>
                   </div>
-                </div>
-              )}
+                </div> : null}
             </div>
           </div>
 
@@ -349,11 +340,9 @@ export default function WatchPartyPage(): React.ReactElement {
             </p>
           </div>
 
-          {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+          {error ? <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
               {error}
-            </div>
-          )}
+            </div> : null}
 
           <div className="space-y-4">
             <div>
@@ -416,11 +405,9 @@ export default function WatchPartyPage(): React.ReactElement {
           </p>
         </div>
 
-        {error && (
-          <div className="max-w-2xl mx-auto p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm text-center">
+        {error ? <div className="max-w-2xl mx-auto p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm text-center">
             {error}
-          </div>
-        )}
+          </div> : null}
 
         {/* Actions */}
         <div className="grid gap-6 sm:grid-cols-2 max-w-2xl mx-auto">
