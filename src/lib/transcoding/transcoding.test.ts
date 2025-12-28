@@ -35,23 +35,27 @@ describe('Transcoding Service', () => {
 
       it('should return web-optimized profile for AVI', () => {
         const profile = getTranscodeProfile('video', 'avi');
-        expect(profile.outputFormat).toBe('mp4');
-        expect(profile.videoCodec).toBe('libx264');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp4');
+        expect(profile!.videoCodec).toBe('libx264');
       });
 
       it('should return web-optimized profile for WMV', () => {
         const profile = getTranscodeProfile('video', 'wmv');
-        expect(profile.outputFormat).toBe('mp4');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp4');
       });
 
       it('should return web-optimized profile for FLV', () => {
         const profile = getTranscodeProfile('video', 'flv');
-        expect(profile.outputFormat).toBe('mp4');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp4');
       });
 
       it('should return web-optimized profile for MOV', () => {
         const profile = getTranscodeProfile('video', 'mov');
-        expect(profile.outputFormat).toBe('mp4');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp4');
       });
 
       it('should return null for already supported formats', () => {
@@ -62,33 +66,28 @@ describe('Transcoding Service', () => {
     });
 
     describe('audio profiles', () => {
-      it('should return web-optimized profile for FLAC', () => {
-        const profile = getTranscodeProfile('audio', 'flac');
-        expect(profile).toEqual({
-          outputFormat: 'mp3',
-          audioCodec: 'libmp3lame',
-          audioBitrate: '320k',
-          sampleRate: 44100,
-        });
-      });
-
       it('should return web-optimized profile for WMA', () => {
         const profile = getTranscodeProfile('audio', 'wma');
-        expect(profile.outputFormat).toBe('mp3');
-        expect(profile.audioCodec).toBe('libmp3lame');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp3');
+        expect(profile!.audioCodec).toBe('libmp3lame');
       });
 
       it('should return web-optimized profile for AIFF', () => {
         const profile = getTranscodeProfile('audio', 'aiff');
-        expect(profile.outputFormat).toBe('mp3');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp3');
       });
 
       it('should return web-optimized profile for APE', () => {
         const profile = getTranscodeProfile('audio', 'ape');
-        expect(profile.outputFormat).toBe('mp3');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp3');
       });
 
       it('should return null for already supported formats', () => {
+        // FLAC is natively supported in modern browsers (Chrome 56+, Firefox 51+, Edge 16+, Safari 11+)
+        expect(getTranscodeProfile('audio', 'flac')).toBeNull();
         expect(getTranscodeProfile('audio', 'mp3')).toBeNull();
         expect(getTranscodeProfile('audio', 'wav')).toBeNull();
         expect(getTranscodeProfile('audio', 'ogg')).toBeNull();
@@ -183,7 +182,7 @@ describe('Transcoding Service', () => {
     });
 
     it('should return mp3 for audio formats requiring transcoding', () => {
-      expect(getOutputFormat('audio', 'flac')).toBe('mp3');
+      // FLAC is natively supported, so it should return null
       expect(getOutputFormat('audio', 'wma')).toBe('mp3');
       expect(getOutputFormat('audio', 'aiff')).toBe('mp3');
       expect(getOutputFormat('audio', 'ape')).toBe('mp3');
@@ -194,6 +193,8 @@ describe('Transcoding Service', () => {
       expect(getOutputFormat('video', 'webm')).toBeNull();
       expect(getOutputFormat('audio', 'mp3')).toBeNull();
       expect(getOutputFormat('audio', 'ogg')).toBeNull();
+      // FLAC is natively supported in modern browsers
+      expect(getOutputFormat('audio', 'flac')).toBeNull();
     });
   });
 
@@ -207,7 +208,7 @@ describe('Transcoding Service', () => {
     });
 
     it('should return true for audio formats that need transcoding', () => {
-      expect(isTranscodingSupported('audio', 'flac')).toBe(true);
+      // FLAC is natively supported, so it should return false
       expect(isTranscodingSupported('audio', 'wma')).toBe(true);
       expect(isTranscodingSupported('audio', 'aiff')).toBe(true);
       expect(isTranscodingSupported('audio', 'ape')).toBe(true);
@@ -218,6 +219,8 @@ describe('Transcoding Service', () => {
       expect(isTranscodingSupported('video', 'webm')).toBe(false);
       expect(isTranscodingSupported('audio', 'mp3')).toBe(false);
       expect(isTranscodingSupported('audio', 'ogg')).toBe(false);
+      // FLAC is natively supported in modern browsers
+      expect(isTranscodingSupported('audio', 'flac')).toBe(false);
     });
 
     it('should return false for unknown formats', () => {
@@ -341,8 +344,8 @@ describe('Transcoding Service', () => {
       expect(profile!.preset).toBe('ultrafast'); // Optimized for real-time
     });
 
-    it('should return streaming-optimized profile for FLAC', () => {
-      const profile = getStreamingTranscodeProfile('audio', 'flac');
+    it('should return streaming-optimized profile for WMA', () => {
+      const profile = getStreamingTranscodeProfile('audio', 'wma');
       
       expect(profile).not.toBeNull();
       expect(profile!.outputFormat).toBe('mp3');
@@ -351,6 +354,8 @@ describe('Transcoding Service', () => {
     it('should return null for already supported formats', () => {
       expect(getStreamingTranscodeProfile('video', 'mp4')).toBeNull();
       expect(getStreamingTranscodeProfile('audio', 'mp3')).toBeNull();
+      // FLAC is natively supported in modern browsers
+      expect(getStreamingTranscodeProfile('audio', 'flac')).toBeNull();
     });
   });
 
@@ -361,13 +366,16 @@ describe('Transcoding Service', () => {
     });
 
     it('should return audio/mpeg for transcoded audio', () => {
-      expect(getTranscodedMimeType('audio', 'flac')).toBe('audio/mpeg');
+      // FLAC is natively supported, so it should return null
       expect(getTranscodedMimeType('audio', 'wma')).toBe('audio/mpeg');
+      expect(getTranscodedMimeType('audio', 'aiff')).toBe('audio/mpeg');
     });
 
     it('should return null for formats that do not need transcoding', () => {
       expect(getTranscodedMimeType('video', 'mp4')).toBeNull();
       expect(getTranscodedMimeType('audio', 'mp3')).toBeNull();
+      // FLAC is natively supported in modern browsers
+      expect(getTranscodedMimeType('audio', 'flac')).toBeNull();
     });
   });
 });

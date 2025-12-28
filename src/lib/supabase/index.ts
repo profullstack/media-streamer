@@ -6,7 +6,7 @@
  */
 
 // Client
-export { createServerClient, getServerClient } from './client';
+export { createServerClient, getServerClient, resetServerClient } from './client';
 export type { ServerClient } from './client';
 
 // Types

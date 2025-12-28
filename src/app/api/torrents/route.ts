@@ -8,13 +8,32 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/supabase/client';
+import { getServerClient, resetServerClient } from '@/lib/supabase/client';
 import { IndexerService, IndexerError } from '@/lib/indexer';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import { transformTorrents } from '@/lib/transforms';
 import type { Torrent as DbTorrent } from '@/lib/supabase/types';
 
 const logger = createLogger('API:torrents');
+
+/**
+ * Check if an error is a network/connection error that warrants client reset
+ */
+function isConnectionError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes('fetch failed') ||
+      message.includes('network') ||
+      message.includes('econnreset') ||
+      message.includes('econnrefused') ||
+      message.includes('etimedout') ||
+      message.includes('socket hang up') ||
+      message.includes('aborted')
+    );
+  }
+  return false;
+}
 
 /**
  * GET /api/torrents
@@ -65,8 +84,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (error) {
       reqLogger.error('Failed to fetch torrents from database', error);
+      // Reset client on connection errors to get a fresh connection next time
+      if (isConnectionError(error)) {
+        reqLogger.warn('Connection error detected, resetting Supabase client');
+        resetServerClient();
+      }
       return NextResponse.json(
-        { error: 'Failed to fetch torrents' },
+        { error: 'Failed to fetch torrents', details: error.message },
         { status: 500 }
       );
     }

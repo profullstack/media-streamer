@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 /**
@@ -52,12 +52,36 @@ function getSupabaseServiceRoleKey(): string {
 /**
  * Create a Supabase client with service role privileges
  * This client bypasses RLS and should only be used server-side
+ *
+ * Configured with:
+ * - Global fetch timeout of 30 seconds
+ * - Connection keep-alive disabled to prevent stale connections
  */
-export function createServerClient() {
+export function createServerClient(): SupabaseClient<Database> {
   return createClient<Database>(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    global: {
+      // Add fetch options for better reliability
+      fetch: (url, options = {}) => {
+        // Create an AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        return fetch(url, {
+          ...options,
+          signal: controller.signal,
+          // Disable keep-alive to prevent stale connections on serverless
+          headers: {
+            ...options.headers as Record<string, string>,
+            'Connection': 'close',
+          },
+        }).finally(() => {
+          clearTimeout(timeoutId);
+        });
+      },
     },
   });
 }
@@ -65,15 +89,37 @@ export function createServerClient() {
 /**
  * Singleton instance for server-side operations
  * Use this for most server-side database operations
+ *
+ * Note: On serverless platforms, the singleton may be recreated
+ * on each cold start, which is expected behavior.
  */
-let serverClient: ReturnType<typeof createServerClient> | null = null;
+let serverClient: SupabaseClient<Database> | null = null;
+let clientCreatedAt: number = 0;
+const CLIENT_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes - recreate client periodically
 
-export function getServerClient() {
+export function getServerClient(): SupabaseClient<Database> {
+  const now = Date.now();
+  
+  // Recreate client if it's too old (prevents stale connections)
+  if (serverClient && (now - clientCreatedAt) > CLIENT_MAX_AGE_MS) {
+    serverClient = null;
+  }
+  
   if (!serverClient) {
     serverClient = createServerClient();
+    clientCreatedAt = now;
   }
   return serverClient;
 }
 
+/**
+ * Force recreation of the Supabase client
+ * Call this if you encounter connection errors
+ */
+export function resetServerClient(): void {
+  serverClient = null;
+  clientCreatedAt = 0;
+}
+
 // Export the client type for use in other modules
-export type ServerClient = ReturnType<typeof createServerClient>;
+export type ServerClient = SupabaseClient<Database>;
