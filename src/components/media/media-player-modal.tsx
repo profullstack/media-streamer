@@ -7,6 +7,7 @@
  * Shows the file title and provides playback controls.
  * Supports automatic transcoding for non-browser-supported formats.
  * Displays realtime swarm statistics (seeders/leechers).
+ * Shows real-time connection status during loading via SSE.
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -25,6 +26,21 @@ interface SwarmStats {
   fetchedAt: string;
   trackersResponded: number;
   trackersQueried: number;
+}
+
+/**
+ * Connection status event from SSE endpoint
+ */
+interface ConnectionStatus {
+  stage: 'initializing' | 'connecting' | 'searching_peers' | 'downloading_metadata' | 'buffering' | 'ready' | 'error';
+  message: string;
+  numPeers: number;
+  progress: number;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  ready: boolean;
+  fileIndex?: number;
+  timestamp: number;
 }
 
 /**
@@ -87,7 +103,9 @@ export function MediaPlayerModal({
   const [isTranscoding, setIsTranscoding] = useState(false);
   const [swarmStats, setSwarmStats] = useState<SwarmStats | null>(null);
   const [isLoadingSwarm, setIsLoadingSwarm] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   // Fetch swarm stats from the API
   const fetchSwarmStats = useCallback(async () => {
@@ -186,8 +204,54 @@ export function MediaPlayerModal({
     setError(null);
     setIsPlayerReady(false);
     setSwarmStats(null);
+    setConnectionStatus(null);
+    // Close SSE connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
     onClose();
   }, [onClose]);
+
+  // Subscribe to connection status SSE during loading
+  useEffect(() => {
+    if (!isOpen || !infohash || !file || isPlayerReady) {
+      // Close existing connection when not needed
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      return;
+    }
+
+    // Create SSE connection for connection status
+    const url = `/api/stream/status?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+    console.log('[MediaPlayerModal] Connecting to SSE:', url);
+    
+    const eventSource = new EventSource(url);
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      try {
+        const status = JSON.parse(event.data as string) as ConnectionStatus;
+        setConnectionStatus(status);
+        console.log('[MediaPlayerModal] Connection status:', status);
+      } catch (err) {
+        console.error('[MediaPlayerModal] Failed to parse SSE data:', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('[MediaPlayerModal] SSE error:', err);
+      // Don't close on error - let it reconnect automatically
+    };
+
+    return () => {
+      console.log('[MediaPlayerModal] Closing SSE connection');
+      eventSource.close();
+      eventSourceRef.current = null;
+    };
+  }, [isOpen, infohash, file, isPlayerReady]);
 
   if (!file) return null;
 
@@ -381,6 +445,62 @@ export function MediaPlayerModal({
           </div>
         )}
 
+        {/* Connection Status Footer - shown during loading */}
+        {isLoading && connectionStatus && (
+          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-3">
+            <div className="flex items-center justify-between gap-4">
+              {/* Status message with spinner */}
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                <span className="text-sm text-text-secondary">
+                  {connectionStatus.message}
+                </span>
+              </div>
+              
+              {/* Stats */}
+              <div className="flex items-center gap-4 text-xs text-text-muted">
+                {/* Peers */}
+                <div className="flex items-center gap-1">
+                  <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                  </svg>
+                  <span>{connectionStatus.numPeers} peers</span>
+                </div>
+                
+                {/* Progress */}
+                {connectionStatus.progress > 0 && (
+                  <div className="flex items-center gap-1">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>{(connectionStatus.progress * 100).toFixed(1)}%</span>
+                  </div>
+                )}
+                
+                {/* Download speed */}
+                {connectionStatus.downloadSpeed > 0 && (
+                  <div className="flex items-center gap-1">
+                    <svg className="h-3.5 w-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-green-500">{formatSpeed(connectionStatus.downloadSpeed)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Progress bar */}
+            {connectionStatus.progress > 0 && (
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
+                <div
+                  className="h-full bg-accent-primary transition-all duration-300"
+                  style={{ width: `${connectionStatus.progress * 100}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Debug Info */}
         <div className="rounded-lg bg-bg-tertiary p-3 text-xs font-mono text-text-muted">
           <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -397,6 +517,11 @@ export function MediaPlayerModal({
             {swarmStats && (
               <span className="text-text-secondary">
                 Trackers: {swarmStats.trackersResponded}/{swarmStats.trackersQueried}
+              </span>
+            )}
+            {connectionStatus && (
+              <span className="text-text-secondary">
+                Stage: {connectionStatus.stage}
               </span>
             )}
           </div>
@@ -421,4 +546,17 @@ function formatBytes(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+/**
+ * Format bytes per second to human readable speed
+ */
+function formatSpeed(bytesPerSecond: number): string {
+  if (bytesPerSecond < 1024) {
+    return `${bytesPerSecond.toFixed(0)} B/s`;
+  }
+  if (bytesPerSecond < 1024 * 1024) {
+    return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
+  }
+  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
 }

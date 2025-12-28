@@ -236,14 +236,15 @@ export class StreamingService {
 
   /**
    * Create a stream for a file in a torrent
-   * 
+   *
    * @param options - Stream options including magnet URI and file index
+   * @param skipWaitForData - If true, skip waiting for data (used for transcoding)
    * @returns Promise resolving to stream result
    * @throws StreamingError if magnet URI is invalid
    * @throws FileNotFoundError if file index is out of bounds
    * @throws RangeNotSatisfiableError if range is invalid
    */
-  async createStream(options: StreamOptions): Promise<StreamResult> {
+  async createStream(options: StreamOptions, skipWaitForData = false): Promise<StreamResult> {
     const { magnetUri, fileIndex, range } = options;
     const startTime = Date.now();
 
@@ -320,7 +321,15 @@ export class StreamingService {
 
     // Wait for at least some data to be available before streaming
     // This prevents MEDIA_ELEMENT_ERROR when the browser receives empty data
-    await this.waitForData(torrent, file, range?.start ?? 0);
+    // Skip this for transcoding - FFmpeg handles buffering and can wait for data
+    if (!skipWaitForData) {
+      await this.waitForData(torrent, file, range?.start ?? 0);
+    } else {
+      logger.info('Skipping waitForData (transcoding mode)', {
+        fileName: file.name,
+        fileSize: file.length,
+      });
+    }
 
     // Create the stream
     const streamId = randomUUID();

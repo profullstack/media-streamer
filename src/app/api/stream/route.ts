@@ -326,19 +326,28 @@ export async function GET(request: NextRequest): Promise<Response> {
     // Check if transcoding is requested and needed
     const shouldTranscode = transcode === 'auto' && needsTranscoding(info.fileName);
     
+    reqLogger.info('Transcoding decision', {
+      transcode,
+      fileName: info.fileName,
+      needsTranscoding: needsTranscoding(info.fileName),
+      shouldTranscode,
+    });
+    
     if (shouldTranscode) {
-      reqLogger.info('Transcoding requested and needed', {
+      reqLogger.info('=== STARTING TRANSCODING PATH ===', {
         fileName: info.fileName,
         originalMimeType: info.mimeType,
+        fileSize: info.size,
       });
 
       // For transcoding, we don't support range requests (transcoded output has unknown size)
-      // Create full stream without range
+      // Create full stream without range, and skip waitForData since FFmpeg handles buffering
+      reqLogger.debug('Creating stream for transcoding (skipWaitForData=true)');
       const result = await service.createStream({
         magnetUri,
         fileIndex,
         range: undefined,
-      });
+      }, true); // skipWaitForData = true for transcoding
 
       const transcoded = createTranscodedStream(
         result.stream as NodeJS.ReadableStream,
@@ -361,6 +370,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       });
 
       // Transcoded streams don't have a known Content-Length
+      // CORS headers for cross-origin audio/video playback (required for iOS Safari)
       const headers: HeadersInit = {
         'Content-Type': transcoded.mimeType,
         'Cache-Control': 'no-cache',
@@ -368,6 +378,10 @@ export async function GET(request: NextRequest): Promise<Response> {
         'X-Transcoded': 'true',
         'X-Original-Mime-Type': info.mimeType,
         'Transfer-Encoding': 'chunked',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Range, Content-Type',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, X-Transcoded',
       };
 
       return new Response(nodeStreamToWebStream(transcoded.stream), {
@@ -407,11 +421,16 @@ export async function GET(request: NextRequest): Promise<Response> {
       contentRange: result.contentRange
     });
 
+    // CORS headers for cross-origin audio/video playback (required for iOS Safari)
     const headers: HeadersInit = {
       'Content-Type': result.mimeType,
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'no-cache',
       'X-Stream-Id': result.streamId,
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Range, Content-Type',
+      'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
     };
 
     if (result.isPartial && result.contentRange && result.contentLength) {
@@ -504,6 +523,7 @@ export async function HEAD(request: NextRequest): Promise<Response> {
       mediaCategory: info.mediaCategory
     });
 
+    // CORS headers for cross-origin audio/video playback (required for iOS Safari)
     return new Response(null, {
       status: 200,
       headers: {
@@ -512,6 +532,10 @@ export async function HEAD(request: NextRequest): Promise<Response> {
         'Accept-Ranges': 'bytes',
         'X-Media-Category': info.mediaCategory,
         'X-File-Name': encodeURIComponent(info.fileName),
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Range, Content-Type',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
       },
     });
   } catch (error) {
@@ -528,4 +552,22 @@ export async function HEAD(request: NextRequest): Promise<Response> {
     reqLogger.error('Unexpected error in HEAD', error, { infohash, fileIndex });
     return new Response(null, { status: 500 });
   }
+}
+
+/**
+ * OPTIONS /api/stream
+ * Handle CORS preflight requests
+ * Required for iOS Safari cross-origin audio/video playback
+ */
+export async function OPTIONS(): Promise<Response> {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Range, Content-Type',
+      'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
+      'Access-Control-Max-Age': '86400', // Cache preflight for 24 hours
+    },
+  });
 }

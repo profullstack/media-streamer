@@ -425,11 +425,19 @@ export function AudioPlayer({
       </div>
 
       {/* Hidden Audio Element */}
+      {/*
+        iOS Safari requirements:
+        - playsInline: Required for inline playback on iOS
+        - crossOrigin: Required for CORS when streaming from API
+        - preload: 'metadata' to load duration without full download
+      */}
       <audio
         ref={audioRef}
         src={audioSource?.src}
         autoPlay={autoplay}
         preload="metadata"
+        playsInline
+        crossOrigin="anonymous"
       />
 
       {/* Format Info */}
@@ -551,7 +559,14 @@ export function AudioPlayerCompact({
         {formatDuration(currentTime)} / {formatDuration(duration)}
       </span>
 
-      <audio ref={audioRef} src={audioSource.src} preload="metadata" />
+      {/* iOS Safari requirements: playsInline and crossOrigin */}
+      <audio
+        ref={audioRef}
+        src={audioSource.src}
+        preload="metadata"
+        playsInline
+        crossOrigin="anonymous"
+      />
     </div>
   );
 }

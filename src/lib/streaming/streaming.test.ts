@@ -2017,6 +2017,110 @@ describe('StreamingService', () => {
         expect(message).toContain('Peers:');
       }
     });
+
+    it('should skip waitForData when skipWaitForData is true (for transcoding)', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      const mockFile = {
+        name: 'movie.mkv',
+        path: 'Movies/movie.mkv',
+        length: 2000000000,
+        offset: 0,
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // Mock bitfield that has NO pieces downloaded
+      const mockBitfield = {
+        get: vi.fn(() => false), // No pieces downloaded
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Movies',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 122070 },
+        ready: true,
+        progress: 0,
+        numPeers: 5,
+        bitfield: mockBitfield,
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 200 }); // Short timeout
+      
+      // With skipWaitForData=true, should NOT wait for data and return immediately
+      const startTime = Date.now();
+      const result = await service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+      }, true); // skipWaitForData = true
+      const elapsed = Date.now() - startTime;
+
+      expect(result.size).toBe(2000000000);
+      // Should complete quickly without waiting for data
+      expect(elapsed).toBeLessThan(100);
+      // Bitfield should NOT have been checked (we skipped waitForData)
+      expect(mockBitfield.get).not.toHaveBeenCalled();
+    });
+
+    it('should timeout when skipWaitForData is false and no data available', async () => {
+      const mockFile = {
+        name: 'movie.mkv',
+        path: 'Movies/movie.mkv',
+        length: 2000000000,
+        offset: 0,
+        createReadStream: vi.fn(),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // Mock bitfield that has NO pieces downloaded
+      const mockBitfield = {
+        get: vi.fn(() => false),
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Movies',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 122070 },
+        ready: true,
+        progress: 0,
+        numPeers: 0,
+        bitfield: mockBitfield,
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 200 }); // Short timeout
+      
+      // With skipWaitForData=false (default), should timeout waiting for data
+      await expect(
+        service.createStream({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+          fileIndex: 0,
+        }, false) // skipWaitForData = false (default)
+      ).rejects.toThrow(/Timeout waiting for data/);
+    });
   });
 
   describe('getTorrentStats', () => {
