@@ -2,7 +2,8 @@
 # BitTorrented.com - Torrent streaming platform
 
 [phases.setup]
-nixPkgs = ["nodejs_22", "pnpm"]
+# Include FFmpeg for video/audio transcoding
+nixPkgs = ["nodejs_22", "pnpm", "ffmpeg"]
 
 [phases.install]
 cmds = ["pnpm install --frozen-lockfile"]

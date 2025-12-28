@@ -21,6 +21,9 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     totalSize: dbTorrent.total_size,
     fileCount: dbTorrent.file_count,
     pieceLength: dbTorrent.piece_length ?? 0,
+    seeders: dbTorrent.seeders,
+    leechers: dbTorrent.leechers,
+    swarmUpdatedAt: dbTorrent.swarm_updated_at,
     createdAt: dbTorrent.created_at,
     updatedAt: dbTorrent.updated_at,
   };

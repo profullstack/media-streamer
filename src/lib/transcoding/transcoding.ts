@@ -249,6 +249,7 @@ export function estimateTranscodeTime(fileSizeBytes: number, mediaType: MediaTyp
 /**
  * Streaming-optimized video transcoding profile
  * Uses ultrafast preset for real-time streaming
+ * Safari/iOS compatible settings (H.264 Main profile, yuv420p)
  */
 const STREAMING_VIDEO_PROFILE: TranscodeProfile = {
   outputFormat: 'mp4',
@@ -308,14 +309,29 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile): string[] {
   // Input from stdin (pipe)
   args.push('-i', 'pipe:0');
 
-  // Video codec
+  // Video codec with Safari/iOS compatibility
   if (profile.videoCodec) {
     args.push('-c:v', profile.videoCodec);
+    
+    // Safari/iOS requires specific H.264 settings
+    if (profile.videoCodec === 'libx264') {
+      // Use Main profile for broad compatibility (Safari, iOS, Android)
+      args.push('-profile:v', 'main');
+      // Level 4.0 supports up to 1080p30 or 720p60
+      args.push('-level', '4.0');
+      // yuv420p is required for Safari/iOS compatibility
+      args.push('-pix_fmt', 'yuv420p');
+    }
   }
 
-  // Audio codec
+  // Audio codec with Safari/iOS compatibility
   if (profile.audioCodec) {
     args.push('-c:a', profile.audioCodec);
+    
+    // Safari/iOS prefers stereo audio
+    if (profile.audioCodec === 'aac') {
+      args.push('-ac', '2'); // Stereo
+    }
   }
 
   // Video bitrate
@@ -344,8 +360,9 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile): string[] {
   }
 
   // MP4 specific: use fragmented MP4 for streaming (allows playback before complete)
+  // Safari requires frag_keyframe+empty_moov for streaming playback
   if (profile.outputFormat === 'mp4') {
-    args.push('-movflags', 'frag_keyframe+empty_moov+faststart');
+    args.push('-movflags', 'frag_keyframe+empty_moov+default_base_moof');
     args.push('-f', 'mp4');
   }
 

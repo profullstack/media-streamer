@@ -24,6 +24,9 @@ export type Database = {
           total_size: number;
           file_count: number;
           piece_length: number | null;
+          seeders: number | null;
+          leechers: number | null;
+          swarm_updated_at: string | null;
           created_by: string | null;
           status: 'pending' | 'indexing' | 'ready' | 'error';
           error_message: string | null;
@@ -39,6 +42,9 @@ export type Database = {
           total_size?: number;
           file_count?: number;
           piece_length?: number | null;
+          seeders?: number | null;
+          leechers?: number | null;
+          swarm_updated_at?: string | null;
           created_by?: string | null;
           status?: 'pending' | 'indexing' | 'ready' | 'error';
           error_message?: string | null;
@@ -54,6 +60,9 @@ export type Database = {
           total_size?: number;
           file_count?: number;
           piece_length?: number | null;
+          seeders?: number | null;
+          leechers?: number | null;
+          swarm_updated_at?: string | null;
           created_by?: string | null;
           status?: 'pending' | 'indexing' | 'ready' | 'error';
           error_message?: string | null;

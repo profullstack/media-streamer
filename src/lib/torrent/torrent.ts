@@ -74,6 +74,10 @@ export interface TorrentMetadata {
   files: TorrentFileInfo[];
   /** Original magnet URI */
   magnetUri: string;
+  /** Number of seeders (peers with complete copies), null if unknown */
+  seeders: number | null;
+  /** Number of leechers (peers downloading), null if unknown */
+  leechers: number | null;
 }
 
 /**
@@ -144,24 +148,28 @@ const WEBSOCKET_TRACKERS = [
 ];
 
 // HTTP/HTTPS trackers - CRITICAL for cloud environments where UDP is blocked
-// These use TCP and work reliably on Railway, Heroku, and other cloud platforms
+// Prioritizing port 80 and 443 which are most likely to work on cloud platforms
+// Many cloud platforms block non-standard ports
 const HTTP_TRACKERS = [
-  // Most reliable HTTP trackers (actively maintained)
-  'http://tracker.opentrackr.org:1337/announce',
+  // Port 80 (HTTP) - most likely to work on cloud platforms
   'http://tracker.openbittorrent.com:80/announce',
-  'https://tracker.tamersunion.org:443/announce',
-  'https://tracker.loligirl.cn:443/announce',
-  'http://tracker.bt4g.com:2095/announce',
-  'http://tracker.files.fm:6969/announce',
   'http://tracker.gbitt.info:80/announce',
-  'http://tracker.mywaifu.best:6969/announce',
-  'https://tracker.lilithraws.org:443/announce',
   'http://open.acgnxtracker.com:80/announce',
-  'http://tracker.renfei.net:8080/announce',
   'http://tracker1.bt.moack.co.kr:80/announce',
   'http://tracker.ipv6tracker.ru:80/announce',
-  'https://tracker.kuroy.me:443/announce',
   'http://tracker.electro-torrent.pl:80/announce',
+  // Port 443 (HTTPS) - most likely to work on cloud platforms
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.loligirl.cn:443/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  'https://tracker.kuroy.me:443/announce',
+  'https://tracker.imgoingto.icu:443/announce',
+  // Non-standard ports (may be blocked on some cloud platforms)
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.bt4g.com:2095/announce',
+  'http://tracker.files.fm:6969/announce',
+  'http://tracker.mywaifu.best:6969/announce',
+  'http://tracker.renfei.net:8080/announce',
   'http://t.overflow.biz:6969/announce',
   'http://tracker.dler.org:6969/announce',
   'http://tracker.birkenwald.de:6969/announce',
@@ -419,6 +427,10 @@ export class TorrentService {
           pieceLength: t.pieceLength,
           files,
           magnetUri: parsed.originalUri,
+          // Seeders/leechers are populated separately via tracker scraping
+          // WebTorrent's numPeers only shows currently connected peers, not total swarm
+          seeders: null,
+          leechers: null,
         };
 
         logger.info('Metadata extraction complete', {

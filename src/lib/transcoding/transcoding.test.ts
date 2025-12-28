@@ -279,12 +279,39 @@ describe('Transcoding Service', () => {
       expect(args).toContain('pipe:0');
       // Should output to pipe
       expect(args).toContain('pipe:1');
-      // Should use fragmented MP4 for streaming
+      // Should use fragmented MP4 for streaming (Safari compatible)
       expect(args).toContain('-movflags');
-      expect(args).toContain('frag_keyframe+empty_moov+faststart');
+      expect(args).toContain('frag_keyframe+empty_moov+default_base_moof');
       // Should use ultrafast preset for real-time streaming
       expect(args).toContain('-preset');
       expect(args).toContain('ultrafast');
+    });
+
+    it('should include Safari/iOS compatible H.264 settings', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        videoBitrate: '2000k',
+        audioBitrate: '128k',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      const args = buildStreamingFFmpegArgs(profile);
+
+      // Safari requires Main profile
+      expect(args).toContain('-profile:v');
+      expect(args).toContain('main');
+      // Safari requires level 4.0 for 1080p
+      expect(args).toContain('-level');
+      expect(args).toContain('4.0');
+      // Safari requires yuv420p pixel format
+      expect(args).toContain('-pix_fmt');
+      expect(args).toContain('yuv420p');
+      // Safari prefers stereo audio
+      expect(args).toContain('-ac');
+      expect(args).toContain('2');
     });
 
     it('should build audio streaming arguments for pipe input/output', () => {

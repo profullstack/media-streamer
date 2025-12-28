@@ -25,30 +25,32 @@ const DHT_BOOTSTRAP_NODES = [
 ];
 
 // Comprehensive tracker list prioritizing HTTP trackers for cloud environments
-// HTTP trackers work on Railway and other cloud platforms that block UDP
-// Order: HTTP first (most reliable on cloud), then WebSocket, then UDP (fallback)
+// HTTP trackers work on DigitalOcean and other cloud platforms that block UDP
+// Order: Port 80/443 first (most likely to work), then other HTTP, then WebSocket, then UDP
+// Note: Many cloud platforms block non-standard ports
 const OPEN_TRACKERS = [
-  // HTTP trackers - work on Railway and cloud platforms
-  'http://tracker.opentrackr.org:1337/announce',
+  // Port 80 (HTTP) - most likely to work on cloud platforms
   'http://tracker.openbittorrent.com:80/announce',
-  'http://tracker.publicbt.com:80/announce',
-  'http://tracker.bt4g.com:2095/announce',
-  'http://open.acgnxtracker.com:80/announce',
-  'http://tracker.files.fm:6969/announce',
   'http://tracker.gbitt.info:80/announce',
-  'http://tracker.mywaifu.best:6969/announce',
-  'http://www.torrentsnipe.info:2701/announce',
+  'http://open.acgnxtracker.com:80/announce',
+  'http://tracker1.bt.moack.co.kr:80/announce',
   'http://tracker.ipv6tracker.ru:80/announce',
-  'http://retracker.lanta-net.ru:2710/announce',
+  'http://tracker.electro-torrent.pl:80/announce',
   'http://bt.endpot.com:80/announce',
-  'http://tracker.birkenwald.de:6969/announce',
-  'http://tracker.lelux.fi:80/announce',
-  'http://tracker.dler.org:6969/announce',
+  // Port 443 (HTTPS) - most likely to work on cloud platforms
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.loligirl.cn:443/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  'https://tracker.kuroy.me:443/announce',
+  'https://tracker.imgoingto.icu:443/announce',
+  // Non-standard ports (may be blocked on some cloud platforms)
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.bt4g.com:2095/announce',
+  'http://tracker.files.fm:6969/announce',
   'http://open.tracker.ink:6969/announce',
-  'http://tracker.army:6969/announce',
   'http://tracker.skyts.net:6969/announce',
-  'http://tracker.qu.ax:6969/announce',
   'http://tracker.srv00.com:6969/announce',
+  'http://tracker.birkenwald.de:6969/announce',
   // WebSocket trackers - work in cloud environments
   'wss://tracker.openwebtorrent.com',
   'wss://tracker.webtorrent.dev',

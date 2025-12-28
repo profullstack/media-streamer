@@ -14,6 +14,12 @@ export interface Torrent {
   totalSize: number;
   fileCount: number;
   pieceLength: number;
+  /** Number of seeders (peers with complete copies), null if unknown */
+  seeders: number | null;
+  /** Number of leechers (peers downloading), null if unknown */
+  leechers: number | null;
+  /** When swarm stats were last updated */
+  swarmUpdatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

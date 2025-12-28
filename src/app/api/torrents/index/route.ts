@@ -9,6 +9,7 @@
 import { NextRequest } from 'next/server';
 import { IndexerService, IndexerError } from '@/lib/indexer';
 import { TorrentService, type MetadataProgressEvent } from '@/lib/torrent';
+import { scrapeMultipleTrackers, SCRAPE_TRACKERS } from '@/lib/tracker-scrape';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import {
   getTorrentByInfohash,
@@ -37,6 +38,8 @@ interface SSEEvent {
     name?: string;
     fileCount?: number;
     totalSize?: number;
+    seeders?: number | null;
+    leechers?: number | null;
     isNew?: boolean;
     error?: string;
   };
@@ -157,7 +160,43 @@ export async function POST(request: NextRequest): Promise<Response> {
           })));
         });
 
-        // Create torrent record
+        // Scrape trackers for seeders/leechers (non-blocking, best effort)
+        // Combine trackers from magnet URI with our default scrape trackers
+        const allTrackers = [...new Set([...parsed.trackers, ...SCRAPE_TRACKERS])];
+        let seeders: number | null = null;
+        let leechers: number | null = null;
+        let swarmUpdatedAt: string | null = null;
+
+        try {
+          reqLogger.debug('Scraping trackers for swarm stats', {
+            infohash: metadata.infohash,
+            trackerCount: allTrackers.length,
+          });
+          
+          const swarmStats = await scrapeMultipleTrackers(allTrackers, metadata.infohash, {
+            timeout: 5000,
+            maxConcurrent: 5,
+          });
+          
+          seeders = swarmStats.seeders;
+          leechers = swarmStats.leechers;
+          swarmUpdatedAt = swarmStats.fetchedAt.toISOString();
+          
+          reqLogger.info('Swarm stats fetched', {
+            infohash: metadata.infohash,
+            seeders,
+            leechers,
+            trackersResponded: swarmStats.trackersResponded,
+          });
+        } catch (scrapeError) {
+          // Log but don't fail - swarm stats are optional
+          reqLogger.warn('Failed to scrape swarm stats', {
+            infohash: metadata.infohash,
+            error: String(scrapeError),
+          });
+        }
+
+        // Create torrent record with swarm stats
         const torrent = await createTorrent({
           infohash: metadata.infohash,
           magnet_uri: metadata.magnetUri,
@@ -165,6 +204,9 @@ export async function POST(request: NextRequest): Promise<Response> {
           total_size: metadata.totalSize,
           file_count: metadata.files.length,
           piece_length: metadata.pieceLength,
+          seeders,
+          leechers,
+          swarm_updated_at: swarmUpdatedAt,
         });
 
         // Create file records
@@ -190,7 +232,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           name: metadata.name,
         });
 
-        // Send complete event
+        // Send complete event with swarm stats
         controller.enqueue(encoder.encode(formatSSE({
           type: 'complete',
           data: {
@@ -199,6 +241,8 @@ export async function POST(request: NextRequest): Promise<Response> {
             name: metadata.name,
             fileCount: metadata.files.length,
             totalSize: metadata.totalSize,
+            seeders,
+            leechers,
             isNew: true,
           },
         })));

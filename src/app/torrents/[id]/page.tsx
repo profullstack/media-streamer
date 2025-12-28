@@ -193,7 +193,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           </div>
 
           {/* Stats */}
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <div>
               <p className="text-sm text-text-muted">Total Size</p>
               <p className="text-lg font-medium text-text-primary">
@@ -204,6 +204,18 @@ export default function TorrentDetailPage(): React.ReactElement {
               <p className="text-sm text-text-muted">Files</p>
               <p className="text-lg font-medium text-text-primary">
                 {torrent.fileCount}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Seeders</p>
+              <p className="text-lg font-medium text-green-500">
+                {torrent.seeders !== null ? torrent.seeders : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Leechers</p>
+              <p className="text-lg font-medium text-orange-500">
+                {torrent.leechers !== null ? torrent.leechers : '—'}
               </p>
             </div>
             <div>

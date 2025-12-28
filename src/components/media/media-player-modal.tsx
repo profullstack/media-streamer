@@ -193,8 +193,8 @@ export function MediaPlayerModal({
           </div>
         )}
 
-        {/* Video Player */}
-        {streamUrl && mediaCategory === 'video' && (
+        {/* Video Player - only show when not loading */}
+        {streamUrl && !isLoading && mediaCategory === 'video' && (
           <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
             <VideoPlayer
               src={streamUrl}
@@ -206,8 +206,8 @@ export function MediaPlayerModal({
           </div>
         )}
 
-        {/* Audio Player */}
-        {streamUrl && mediaCategory === 'audio' && (
+        {/* Audio Player - only show when not loading */}
+        {streamUrl && !isLoading && mediaCategory === 'audio' && (
           <div className="w-full">
             <AudioPlayer
               src={streamUrl}
@@ -218,8 +218,8 @@ export function MediaPlayerModal({
           </div>
         )}
 
-        {/* Unsupported Media Type */}
-        {streamUrl && mediaCategory !== 'video' && mediaCategory !== 'audio' && (
+        {/* Unsupported Media Type - only show when not loading */}
+        {streamUrl && !isLoading && mediaCategory !== 'video' && mediaCategory !== 'audio' && (
           <div className="rounded-lg border border-border-subtle bg-bg-tertiary p-6 text-center">
             <p className="text-text-secondary">
               This file type ({mediaCategory}) cannot be played in the browser.

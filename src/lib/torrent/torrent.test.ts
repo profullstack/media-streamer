@@ -302,6 +302,8 @@ describe('TorrentService', () => {
         pieceLength: 16384,
         files: [],
         magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        seeders: null,
+        leechers: null,
       };
 
       expect(metadata).toHaveProperty('infohash');
@@ -310,6 +312,24 @@ describe('TorrentService', () => {
       expect(metadata).toHaveProperty('pieceLength');
       expect(metadata).toHaveProperty('files');
       expect(metadata).toHaveProperty('magnetUri');
+      expect(metadata).toHaveProperty('seeders');
+      expect(metadata).toHaveProperty('leechers');
+    });
+
+    it('should support seeders and leechers with numeric values', () => {
+      const metadata: TorrentMetadata = {
+        infohash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        totalSize: 1000000,
+        pieceLength: 16384,
+        files: [],
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        seeders: 42,
+        leechers: 15,
+      };
+
+      expect(metadata.seeders).toBe(42);
+      expect(metadata.leechers).toBe(15);
     });
   });
 

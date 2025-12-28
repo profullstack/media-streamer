@@ -23,6 +23,9 @@ describe('transforms', () => {
         total_size: 276445467,
         file_count: 1,
         piece_length: 262144,
+        seeders: 42,
+        leechers: 15,
+        swarm_updated_at: '2025-12-26T22:30:00.000Z',
         created_by: null,
         status: 'ready',
         error_message: null,
@@ -41,12 +44,15 @@ describe('transforms', () => {
         totalSize: 276445467,
         fileCount: 1,
         pieceLength: 262144,
+        seeders: 42,
+        leechers: 15,
+        swarmUpdatedAt: '2025-12-26T22:30:00.000Z',
         createdAt: '2025-12-26T22:24:00.000Z',
         updatedAt: '2025-12-26T22:25:00.000Z',
       });
     });
 
-    it('should handle null piece_length', () => {
+    it('should handle null piece_length and swarm stats', () => {
       const dbTorrent: DbTorrent = {
         id: '123e4567-e89b-12d3-a456-426614174000',
         infohash: 'dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c',
@@ -55,6 +61,9 @@ describe('transforms', () => {
         total_size: 1000,
         file_count: 1,
         piece_length: null,
+        seeders: null,
+        leechers: null,
+        swarm_updated_at: null,
         created_by: null,
         status: 'ready',
         error_message: null,
@@ -66,6 +75,9 @@ describe('transforms', () => {
       const result = transformTorrent(dbTorrent);
 
       expect(result.pieceLength).toBe(0);
+      expect(result.seeders).toBeNull();
+      expect(result.leechers).toBeNull();
+      expect(result.swarmUpdatedAt).toBeNull();
     });
   });
 
