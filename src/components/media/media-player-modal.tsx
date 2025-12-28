@@ -51,7 +51,7 @@ export interface MediaPlayerModalProps {
 
 /**
  * Media Player Modal Component
- * 
+ *
  * Displays a modal with the appropriate player based on media type.
  */
 export function MediaPlayerModal({
@@ -63,7 +63,7 @@ export function MediaPlayerModal({
 }: MediaPlayerModalProps): React.ReactElement | null {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isTranscoding, setIsTranscoding] = useState(false);
 
   // Build stream URL when file changes
@@ -72,38 +72,48 @@ export function MediaPlayerModal({
     if (file && infohash) {
       const requiresTranscoding = needsTranscoding(file.name);
       setIsTranscoding(requiresTranscoding);
-      
+
       let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
       if (requiresTranscoding) {
         url += '&transcode=auto';
       }
-      
+
+      console.log('[MediaPlayerModal] Building stream URL:', {
+        infohash,
+        fileIndex: file.fileIndex,
+        fileName: file.name,
+        requiresTranscoding,
+        url,
+      });
+
       setStreamUrl(url);
       setError(null);
-      setIsLoading(true);
+      setIsPlayerReady(false);
     } else {
       setStreamUrl(null);
       setIsTranscoding(false);
+      setIsPlayerReady(false);
     }
   }, [file, infohash]);
 
   // Handle player ready
   const handlePlayerReady = useCallback(() => {
-    setIsLoading(false);
+    console.log('[MediaPlayerModal] Player ready');
+    setIsPlayerReady(true);
   }, []);
 
   // Handle player error
   const handlePlayerError = useCallback((err: Error) => {
-    setError(err.message);
-    setIsLoading(false);
     console.error('[MediaPlayerModal] Player error:', err);
+    setError(err.message);
+    setIsPlayerReady(true); // Stop showing loading on error
   }, []);
 
   // Handle close and cleanup
   const handleClose = useCallback(() => {
     setStreamUrl(null);
     setError(null);
-    setIsLoading(false);
+    setIsPlayerReady(false);
     onClose();
   }, [onClose]);
 
@@ -112,6 +122,7 @@ export function MediaPlayerModal({
   const mediaCategory = getMediaCategory(file.name);
   const title = file.name;
   const subtitle = torrentName ? `From: ${torrentName}` : undefined;
+  const isLoading = !isPlayerReady && !error;
 
   return (
     <Modal
@@ -127,25 +138,8 @@ export function MediaPlayerModal({
           <p className="text-sm text-text-muted truncate">{subtitle}</p>
         )}
 
-        {/* Loading State */}
-        {isLoading && (
-          <div className="flex h-64 items-center justify-center rounded-lg bg-bg-tertiary">
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
-              <span className="text-sm text-text-muted">
-                {isTranscoding ? 'Transcoding and loading stream...' : 'Loading stream...'}
-              </span>
-              {isTranscoding && (
-                <span className="text-xs text-text-muted">
-                  Converting to browser-compatible format
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Transcoding Notice */}
-        {isTranscoding && !isLoading && !error && (
+        {/* Transcoding Notice - show when transcoding is active */}
+        {isTranscoding && !error && (
           <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-3">
             <div className="flex items-center gap-2">
               <svg
@@ -162,7 +156,9 @@ export function MediaPlayerModal({
                 />
               </svg>
               <span className="text-sm text-accent-primary">
-                Live transcoding enabled - converting to browser-compatible format
+                {isLoading
+                  ? 'Transcoding and loading stream...'
+                  : 'Live transcoding enabled - converting to browser-compatible format'}
               </span>
             </div>
           </div>
@@ -193,33 +189,55 @@ export function MediaPlayerModal({
           </div>
         )}
 
-        {/* Video Player - only show when not loading */}
-        {streamUrl && !isLoading && mediaCategory === 'video' && (
-          <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
+        {/* Video Player - always render when we have a URL and it's video */}
+        {streamUrl && mediaCategory === 'video' && !error && (
+          <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+            {/* Loading overlay */}
+            {isLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
+                  <span className="text-sm text-white">
+                    {isTranscoding ? 'Starting transcoding...' : 'Loading stream...'}
+                  </span>
+                </div>
+              </div>
+            )}
             <VideoPlayer
               src={streamUrl}
               filename={file.name}
               onReady={handlePlayerReady}
               onError={handlePlayerError}
-              showTranscodingNotice={true}
+              showTranscodingNotice={false}
             />
           </div>
         )}
 
-        {/* Audio Player - only show when not loading */}
-        {streamUrl && !isLoading && mediaCategory === 'audio' && (
-          <div className="w-full">
+        {/* Audio Player - always render when we have a URL and it's audio */}
+        {streamUrl && mediaCategory === 'audio' && !error && (
+          <div className="relative w-full">
+            {/* Loading overlay for audio */}
+            {isLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
+                  <span className="text-sm text-text-muted">
+                    {isTranscoding ? 'Starting transcoding...' : 'Loading stream...'}
+                  </span>
+                </div>
+              </div>
+            )}
             <AudioPlayer
               src={streamUrl}
               filename={file.name}
               onPlay={handlePlayerReady}
-              showTranscodingNotice={true}
+              showTranscodingNotice={false}
             />
           </div>
         )}
 
-        {/* Unsupported Media Type - only show when not loading */}
-        {streamUrl && !isLoading && mediaCategory !== 'video' && mediaCategory !== 'audio' && (
+        {/* Unsupported Media Type */}
+        {streamUrl && mediaCategory !== 'video' && mediaCategory !== 'audio' && (
           <div className="rounded-lg border border-border-subtle bg-bg-tertiary p-6 text-center">
             <p className="text-text-secondary">
               This file type ({mediaCategory}) cannot be played in the browser.
@@ -244,6 +262,9 @@ export function MediaPlayerModal({
             {isTranscoding && (
               <span className="text-accent-primary">Transcoding: enabled</span>
             )}
+            <span className={isPlayerReady ? 'text-green-500' : 'text-yellow-500'}>
+              Status: {isPlayerReady ? 'Ready' : 'Loading'}
+            </span>
           </div>
           {streamUrl && (
             <div className="mt-2 break-all">

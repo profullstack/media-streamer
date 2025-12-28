@@ -269,6 +269,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   const requestId = generateRequestId();
   const reqLogger = logger.child({ requestId });
   
+  reqLogger.info('=== STREAM REQUEST RECEIVED ===');
+  
   const { searchParams } = new URL(request.url);
   const validation = validateParams(searchParams);
 
@@ -281,6 +283,13 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const { infohash, fileIndex, transcode } = validation;
+  
+  reqLogger.info('Stream request validated', {
+    infohash,
+    fileIndex,
+    transcode,
+  });
+  
   const magnetUri = await getMagnetUri(infohash);
   const rangeHeader = request.headers.get('Range');
 
@@ -290,6 +299,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     hasRange: !!rangeHeader,
     rangeHeader,
     transcode,
+    magnetUri: magnetUri.substring(0, 100) + '...',
   });
 
   try {
