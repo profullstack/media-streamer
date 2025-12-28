@@ -24,39 +24,10 @@ const DHT_BOOTSTRAP_NODES = [
   'dht.aelitis.com:6881',
 ];
 
-// Comprehensive tracker list prioritizing HTTP trackers for cloud environments
-// HTTP trackers work on DigitalOcean and other cloud platforms that block UDP
-// Order: Port 80/443 first (most likely to work), then other HTTP, then WebSocket, then UDP
-// Note: Many cloud platforms block non-standard ports
-const OPEN_TRACKERS = [
-  // Port 80 (HTTP) - most likely to work on cloud platforms
-  'http://tracker.openbittorrent.com:80/announce',
-  'http://tracker.gbitt.info:80/announce',
-  'http://open.acgnxtracker.com:80/announce',
-  'http://tracker1.bt.moack.co.kr:80/announce',
-  'http://tracker.ipv6tracker.ru:80/announce',
-  'http://tracker.electro-torrent.pl:80/announce',
-  'http://bt.endpot.com:80/announce',
-  // Port 443 (HTTPS) - most likely to work on cloud platforms
-  'https://tracker.tamersunion.org:443/announce',
-  'https://tracker.loligirl.cn:443/announce',
-  'https://tracker.lilithraws.org:443/announce',
-  'https://tracker.kuroy.me:443/announce',
-  'https://tracker.imgoingto.icu:443/announce',
-  // Non-standard ports (may be blocked on some cloud platforms)
-  'http://tracker.opentrackr.org:1337/announce',
-  'http://tracker.bt4g.com:2095/announce',
-  'http://tracker.files.fm:6969/announce',
-  'http://open.tracker.ink:6969/announce',
-  'http://tracker.skyts.net:6969/announce',
-  'http://tracker.srv00.com:6969/announce',
-  'http://tracker.birkenwald.de:6969/announce',
-  // WebSocket trackers - work in cloud environments
-  'wss://tracker.openwebtorrent.com',
-  'wss://tracker.webtorrent.dev',
-  'wss://tracker.btorrent.xyz',
-  'wss://tracker.files.fm:7073/announce',
-  // UDP trackers - fallback for non-cloud environments
+// UDP trackers - FASTEST for peer discovery when UDP is available
+// These are prioritized because they work with DHT and are faster than HTTP
+// Will timeout on cloud platforms that block UDP
+const UDP_TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
   'udp://tracker.torrent.eu.org:451/announce',
@@ -65,14 +36,41 @@ const OPEN_TRACKERS = [
   'udp://tracker.dler.org:6969/announce',
   'udp://exodus.desync.com:6969/announce',
   'udp://open.demonii.com:1337/announce',
-  'udp://tracker.coppersurfer.tk:6969',
-  'udp://tracker.internetwarriors.net:1337',
-  'udp://p4p.arenabg.com:1337',
-  'udp://glotorrents.pw:6969/announce',
-  'udp://tracker.leechers-paradise.org:6969',
-  'udp://9.rarbg.to:2710/announce',
-  'udp://9.rarbg.me:2710/announce',
+  'udp://tracker.openbittorrent.com:6969/announce',
+  'udp://tracker.moeking.me:6969/announce',
+  'udp://explodie.org:6969/announce',
+  'udp://tracker1.bt.moack.co.kr:80/announce',
+  'udp://tracker.theoks.net:6969/announce',
+  'udp://tracker-udp.gbitt.info:80/announce',
 ];
+
+// WebSocket trackers - work in browsers and cloud environments
+const WEBSOCKET_TRACKERS = [
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
+
+// HTTP/HTTPS trackers - fallback for cloud environments where UDP is blocked
+// These are slower but work on all platforms
+const HTTP_TRACKERS = [
+  // Port 80 (HTTP)
+  'http://tracker.openbittorrent.com:80/announce',
+  'http://tracker.gbitt.info:80/announce',
+  'http://open.acgnxtracker.com:80/announce',
+  'http://tracker1.bt.moack.co.kr:80/announce',
+  // Port 443 (HTTPS)
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.loligirl.cn:443/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  // Non-standard ports
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.bt4g.com:2095/announce',
+];
+
+// Combined tracker list: UDP first (fastest), then WebSocket, then HTTP (slowest)
+const OPEN_TRACKERS = [...UDP_TRACKERS, ...WEBSOCKET_TRACKERS, ...HTTP_TRACKERS];
 
 /**
  * Custom error for streaming failures

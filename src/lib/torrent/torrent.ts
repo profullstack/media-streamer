@@ -129,8 +129,8 @@ const DEFAULT_METADATA_TIMEOUT = parseInt(
 );
 
 // Well-known DHT bootstrap nodes for reliable peer discovery
-// Note: DHT requires UDP which is blocked on most cloud platforms
-// We still configure these for environments where UDP is available
+// DHT is the PRIMARY peer discovery method - it's decentralized and fast
+// Note: DHT requires UDP which may be blocked on some cloud platforms
 const DHT_BOOTSTRAP_NODES = [
   'router.bittorrent.com:6881',
   'router.utorrent.com:6881',
@@ -138,47 +138,9 @@ const DHT_BOOTSTRAP_NODES = [
   'dht.aelitis.com:6881',
 ];
 
-// WebSocket trackers that work in cloud environments (no UDP required)
-// These are prioritized for cloud deployments
-const WEBSOCKET_TRACKERS = [
-  'wss://tracker.openwebtorrent.com',
-  'wss://tracker.webtorrent.dev',
-  'wss://tracker.btorrent.xyz',
-  'wss://tracker.files.fm:7073/announce',
-];
-
-// HTTP/HTTPS trackers - CRITICAL for cloud environments where UDP is blocked
-// Prioritizing port 80 and 443 which are most likely to work on cloud platforms
-// Many cloud platforms block non-standard ports
-const HTTP_TRACKERS = [
-  // Port 80 (HTTP) - most likely to work on cloud platforms
-  'http://tracker.openbittorrent.com:80/announce',
-  'http://tracker.gbitt.info:80/announce',
-  'http://open.acgnxtracker.com:80/announce',
-  'http://tracker1.bt.moack.co.kr:80/announce',
-  'http://tracker.ipv6tracker.ru:80/announce',
-  'http://tracker.electro-torrent.pl:80/announce',
-  // Port 443 (HTTPS) - most likely to work on cloud platforms
-  'https://tracker.tamersunion.org:443/announce',
-  'https://tracker.loligirl.cn:443/announce',
-  'https://tracker.lilithraws.org:443/announce',
-  'https://tracker.kuroy.me:443/announce',
-  'https://tracker.imgoingto.icu:443/announce',
-  // Non-standard ports (may be blocked on some cloud platforms)
-  'http://tracker.opentrackr.org:1337/announce',
-  'http://tracker.bt4g.com:2095/announce',
-  'http://tracker.files.fm:6969/announce',
-  'http://tracker.mywaifu.best:6969/announce',
-  'http://tracker.renfei.net:8080/announce',
-  'http://t.overflow.biz:6969/announce',
-  'http://tracker.dler.org:6969/announce',
-  'http://tracker.birkenwald.de:6969/announce',
-  'http://tracker.qu.ax:6969/announce',
-  'http://tracker.srv00.com:6969/announce',
-];
-
-// UDP trackers - included for completeness but will timeout on cloud platforms
-// These work when running locally or on servers with UDP enabled
+// UDP trackers - FASTEST for peer discovery when UDP is available
+// These are prioritized because they're faster than HTTP trackers
+// Will timeout on cloud platforms that block UDP
 const UDP_TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
@@ -195,6 +157,32 @@ const UDP_TRACKERS = [
   'udp://tracker.theoks.net:6969/announce',
   'udp://tracker-udp.gbitt.info:80/announce',
   'udp://retracker01-msk-virt.corbina.net:80/announce',
+];
+
+// WebSocket trackers - work in browsers and some cloud platforms
+const WEBSOCKET_TRACKERS = [
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
+
+// HTTP/HTTPS trackers - fallback for cloud environments where UDP is blocked
+// These are slower but work on all platforms
+// Prioritizing port 80 and 443 which are most likely to work
+const HTTP_TRACKERS = [
+  // Port 80 (HTTP)
+  'http://tracker.openbittorrent.com:80/announce',
+  'http://tracker.gbitt.info:80/announce',
+  'http://open.acgnxtracker.com:80/announce',
+  'http://tracker1.bt.moack.co.kr:80/announce',
+  // Port 443 (HTTPS)
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.loligirl.cn:443/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  // Non-standard ports (may be blocked on some cloud platforms)
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.bt4g.com:2095/announce',
 ];
 
 /**
@@ -579,25 +567,36 @@ export class TorrentService {
 
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
-   * This is especially important in cloud environments where UDP is blocked
    *
-   * Tracker priority order:
-   * 1. HTTP/HTTPS trackers (work on all cloud platforms)
-   * 2. WebSocket trackers (work in browsers and some cloud platforms)
-   * 3. UDP trackers (only work locally or on servers with UDP enabled)
+   * Tracker priority order (fastest first):
+   * 1. UDP trackers (fastest, work with DHT, but blocked on some cloud platforms)
+   * 2. WebSocket trackers (fast, work in browsers and cloud)
+   * 3. HTTP/HTTPS trackers (slowest, but work everywhere)
+   *
+   * DHT is the primary peer discovery method and is always enabled.
+   * Trackers are used as a supplement to DHT.
    */
   private enhanceMagnetUri(magnetUri: string): string {
-    // Prioritize HTTP trackers first (most reliable on cloud), then WSS, then UDP
-    const allTrackers = [...HTTP_TRACKERS, ...WEBSOCKET_TRACKERS, ...UDP_TRACKERS];
+    // Prioritize UDP trackers first (fastest), then WSS, then HTTP (slowest)
+    const allTrackers = [...UDP_TRACKERS, ...WEBSOCKET_TRACKERS, ...HTTP_TRACKERS];
     
     // Add trackers that aren't already in the magnet URI
     let enhanced = magnetUri;
+    let addedCount = 0;
     for (const tracker of allTrackers) {
       const encodedTracker = encodeURIComponent(tracker);
       if (!magnetUri.includes(encodedTracker) && !magnetUri.includes(tracker)) {
         enhanced += `&tr=${encodedTracker}`;
+        addedCount++;
       }
     }
+    
+    logger.debug('Enhanced magnet URI with trackers', {
+      addedTrackers: addedCount,
+      udpTrackers: UDP_TRACKERS.length,
+      wssTrackers: WEBSOCKET_TRACKERS.length,
+      httpTrackers: HTTP_TRACKERS.length,
+    });
     
     return enhanced;
   }

@@ -269,9 +269,24 @@ export async function GET(request: NextRequest): Promise<Response> {
   const requestId = generateRequestId();
   const reqLogger = logger.child({ requestId });
   
-  reqLogger.info('=== STREAM REQUEST RECEIVED ===');
+  // Log immediately at the start of the request
+  const url = request.url;
+  reqLogger.info('=== STREAM REQUEST RECEIVED ===', {
+    url,
+    method: request.method,
+    headers: Object.fromEntries(request.headers.entries()),
+  });
   
-  const { searchParams } = new URL(request.url);
+  const { searchParams } = new URL(url);
+  
+  // Log all search params for debugging
+  reqLogger.info('Request parameters', {
+    infohash: searchParams.get('infohash'),
+    fileIndex: searchParams.get('fileIndex'),
+    transcode: searchParams.get('transcode'),
+    allParams: Object.fromEntries(searchParams.entries()),
+  });
+  
   const validation = validateParams(searchParams);
 
   if ('error' in validation) {
@@ -306,21 +321,28 @@ export async function GET(request: NextRequest): Promise<Response> {
     const service = getStreamingService();
 
     // Get file info first to check if transcoding is needed
-    reqLogger.debug('Getting stream info');
+    reqLogger.info('Getting stream info - this may take up to 60 seconds if torrent is not cached');
+    const streamInfoStartTime = Date.now();
     let info;
     try {
       info = await service.getStreamInfo({ magnetUri, fileIndex });
     } catch (infoError) {
-      reqLogger.error('Failed to get stream info', infoError);
+      const elapsed = Date.now() - streamInfoStartTime;
+      reqLogger.error('Failed to get stream info', infoError, {
+        elapsed: `${elapsed}ms`,
+        magnetUri: magnetUri.substring(0, 100) + '...',
+      });
       return NextResponse.json(
         { error: 'Failed to connect to torrent. Please try again in a few seconds.' },
         { status: 503 }
       );
     }
-    reqLogger.debug('Stream info retrieved', {
+    const streamInfoElapsed = Date.now() - streamInfoStartTime;
+    reqLogger.info('Stream info retrieved successfully', {
       fileName: info.fileName,
       size: info.size,
-      mimeType: info.mimeType
+      mimeType: info.mimeType,
+      elapsed: `${streamInfoElapsed}ms`,
     });
 
     // Check if transcoding is requested and needed
