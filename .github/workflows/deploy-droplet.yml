@@ -93,7 +93,7 @@ jobs:
             # Run idempotent setup script (installs Node, pnpm, ffmpeg, configures firewall, etc.)
             # This uses sudo which requires NOPASSWD for the ubuntu user
             echo "=== Running setup script ==="
-            bash scripts/setup-droplet.sh
+            bash scripts/setup-server.sh
             
             # Source profile to get pnpm in PATH
             # Try multiple locations where pnpm might be installed
