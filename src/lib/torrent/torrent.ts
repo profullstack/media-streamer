@@ -125,6 +125,8 @@ const DEFAULT_METADATA_TIMEOUT = parseInt(
 );
 
 // Well-known DHT bootstrap nodes for reliable peer discovery
+// Note: DHT requires UDP which is blocked on most cloud platforms (Railway, Heroku, etc.)
+// We still configure these for environments where UDP is available
 const DHT_BOOTSTRAP_NODES = [
   'router.bittorrent.com:6881',
   'router.utorrent.com:6881',
@@ -133,7 +135,7 @@ const DHT_BOOTSTRAP_NODES = [
 ];
 
 // WebSocket trackers that work in cloud environments (no UDP required)
-// These are added to every magnet URI to improve peer discovery
+// These are prioritized for Railway/cloud deployments
 const WEBSOCKET_TRACKERS = [
   'wss://tracker.openwebtorrent.com',
   'wss://tracker.webtorrent.dev',
@@ -141,8 +143,35 @@ const WEBSOCKET_TRACKERS = [
   'wss://tracker.files.fm:7073/announce',
 ];
 
-// Additional UDP/HTTP trackers for better peer discovery
-const ADDITIONAL_TRACKERS = [
+// HTTP/HTTPS trackers - CRITICAL for cloud environments where UDP is blocked
+// These use TCP and work reliably on Railway, Heroku, and other cloud platforms
+const HTTP_TRACKERS = [
+  // Most reliable HTTP trackers (actively maintained)
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.openbittorrent.com:80/announce',
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.loligirl.cn:443/announce',
+  'http://tracker.bt4g.com:2095/announce',
+  'http://tracker.files.fm:6969/announce',
+  'http://tracker.gbitt.info:80/announce',
+  'http://tracker.mywaifu.best:6969/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  'http://open.acgnxtracker.com:80/announce',
+  'http://tracker.renfei.net:8080/announce',
+  'http://tracker1.bt.moack.co.kr:80/announce',
+  'http://tracker.ipv6tracker.ru:80/announce',
+  'https://tracker.kuroy.me:443/announce',
+  'http://tracker.electro-torrent.pl:80/announce',
+  'http://t.overflow.biz:6969/announce',
+  'http://tracker.dler.org:6969/announce',
+  'http://tracker.birkenwald.de:6969/announce',
+  'http://tracker.qu.ax:6969/announce',
+  'http://tracker.srv00.com:6969/announce',
+];
+
+// UDP trackers - included for completeness but will timeout on cloud platforms
+// These work when running locally or on servers with UDP enabled
+const UDP_TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
   'udp://tracker.torrent.eu.org:451/announce',
@@ -150,7 +179,14 @@ const ADDITIONAL_TRACKERS = [
   'udp://public.popcorn-tracker.org:6969/announce',
   'udp://tracker.dler.org:6969/announce',
   'udp://exodus.desync.com:6969/announce',
-  'http://tracker.opentrackr.org:1337/announce',
+  'udp://open.demonii.com:1337/announce',
+  'udp://tracker.openbittorrent.com:6969/announce',
+  'udp://tracker.moeking.me:6969/announce',
+  'udp://explodie.org:6969/announce',
+  'udp://tracker1.bt.moack.co.kr:80/announce',
+  'udp://tracker.theoks.net:6969/announce',
+  'udp://tracker-udp.gbitt.info:80/announce',
+  'udp://retracker01-msk-virt.corbina.net:80/announce',
 ];
 
 /**
@@ -250,7 +286,7 @@ export class TorrentService {
     const enhancedMagnetUri = this.enhanceMagnetUri(magnetUri);
     logger.debug('Enhanced magnet URI with additional trackers', {
       originalTrackers: parsed.trackers.length,
-      addedTrackers: WEBSOCKET_TRACKERS.length + ADDITIONAL_TRACKERS.length,
+      addedTrackers: WEBSOCKET_TRACKERS.length + HTTP_TRACKERS.length + UDP_TRACKERS.length,
     });
 
     // Helper to emit progress events
@@ -532,10 +568,15 @@ export class TorrentService {
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
    * This is especially important in cloud environments where UDP is blocked
+   *
+   * Tracker priority order:
+   * 1. HTTP/HTTPS trackers (work on all cloud platforms)
+   * 2. WebSocket trackers (work in browsers and some cloud platforms)
+   * 3. UDP trackers (only work locally or on servers with UDP enabled)
    */
   private enhanceMagnetUri(magnetUri: string): string {
-    // Combine WebSocket and additional trackers
-    const allTrackers = [...WEBSOCKET_TRACKERS, ...ADDITIONAL_TRACKERS];
+    // Prioritize HTTP trackers first (most reliable on cloud), then WSS, then UDP
+    const allTrackers = [...HTTP_TRACKERS, ...WEBSOCKET_TRACKERS, ...UDP_TRACKERS];
     
     // Add trackers that aren't already in the magnet URI
     let enhanced = magnetUri;

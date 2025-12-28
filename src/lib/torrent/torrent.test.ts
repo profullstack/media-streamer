@@ -995,4 +995,148 @@ describe('TorrentService', () => {
       expect(metadata.infohash).toBe('1234567890abcdef1234567890abcdef12345678');
     });
   });
+
+  describe('Tracker enhancement', () => {
+    it('should add additional trackers to magnet URI', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      let capturedMagnetUri = '';
+      
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        length: 1000000,
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
+        files: [
+          { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
+        ],
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
+          }
+          eventHandlers[event].push(callback);
+        }),
+        deselect: vi.fn(),
+      };
+
+      mockAdd.mockImplementation((magnetUri: string) => {
+        capturedMagnetUri = magnetUri;
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
+        return mockTorrent;
+      });
+
+      const service = new TorrentService();
+      // Magnet URI with only one tracker
+      const magnetUri = 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Test+Torrent&tr=udp://tracker.example.com:6969';
+      await service.fetchMetadata(magnetUri);
+
+      // Should have added additional trackers
+      expect(capturedMagnetUri).toContain('tracker.opentrackr.org');
+      expect(capturedMagnetUri).toContain('tracker.openbittorrent.com');
+      // Should include HTTP trackers for cloud environments
+      expect(capturedMagnetUri).toContain('http');
+      // Should include WebSocket trackers
+      expect(capturedMagnetUri).toContain('wss');
+    });
+
+    it('should not duplicate trackers already in magnet URI', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      let capturedMagnetUri = '';
+      
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        length: 1000000,
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
+        files: [
+          { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
+        ],
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
+          }
+          eventHandlers[event].push(callback);
+        }),
+        deselect: vi.fn(),
+      };
+
+      mockAdd.mockImplementation((magnetUri: string) => {
+        capturedMagnetUri = magnetUri;
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
+        return mockTorrent;
+      });
+
+      const service = new TorrentService();
+      // Magnet URI that already has the exact HTTP opentrackr tracker (URL-encoded)
+      const existingTracker = 'http://tracker.opentrackr.org:1337/announce';
+      const magnetUri = `magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Test+Torrent&tr=${encodeURIComponent(existingTracker)}`;
+      await service.fetchMetadata(magnetUri);
+
+      // The tracker should not be duplicated - count all occurrences of the HTTP tracker
+      // It should appear exactly once (the original from the magnet URI)
+      // The deduplication checks for both encoded and unencoded versions
+      const allHttpOpentrackrMatches = capturedMagnetUri.match(/http.*tracker\.opentrackr\.org.*1337.*announce/gi);
+      expect(allHttpOpentrackrMatches?.length).toBe(1);
+    });
+
+    it('should prioritize HTTP and WSS trackers for cloud environments', async () => {
+      const eventHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+      let capturedMagnetUri = '';
+      
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Test Torrent',
+        length: 1000000,
+        pieceLength: 16384,
+        pieces: { length: 100 },
+        numPeers: 0,
+        ready: false,
+        files: [
+          { name: 'file1.mp3', path: 'Test Torrent/file1.mp3', length: 500000 },
+        ],
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          if (!eventHandlers[event]) {
+            eventHandlers[event] = [];
+          }
+          eventHandlers[event].push(callback);
+        }),
+        deselect: vi.fn(),
+      };
+
+      mockAdd.mockImplementation((magnetUri: string) => {
+        capturedMagnetUri = magnetUri;
+        setTimeout(() => {
+          if (eventHandlers['metadata']) {
+            eventHandlers['metadata'].forEach(cb => cb());
+          }
+        }, 10);
+        return mockTorrent;
+      });
+
+      const service = new TorrentService();
+      const magnetUri = 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Test+Torrent';
+      await service.fetchMetadata(magnetUri);
+
+      // Should have multiple HTTP trackers
+      const httpMatches = capturedMagnetUri.match(/http%3A%2F%2F/g) || [];
+      expect(httpMatches.length).toBeGreaterThanOrEqual(3);
+
+      // Should have multiple WSS trackers
+      const wssMatches = capturedMagnetUri.match(/wss%3A%2F%2F/g) || [];
+      expect(wssMatches.length).toBeGreaterThanOrEqual(2);
+    });
+  });
 });
