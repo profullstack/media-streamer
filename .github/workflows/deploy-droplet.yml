@@ -43,7 +43,7 @@ jobs:
           # Add host to known_hosts (with retry for transient failures)
           for i in 1 2 3; do
             ssh-keyscan -p ${{ secrets.DROPLET_PORT || 22 }} -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null && break
-            sleep 10
+            sleep 2
           done
 
       - name: Write .env file
@@ -57,7 +57,7 @@ jobs:
         with:
           timeout_minutes: 15
           max_attempts: 5
-          retry_wait_seconds: 60
+          retry_wait_seconds: 5
           command: |
             SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.DROPLET_PORT || 22 }} -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=30 -o ServerAliveCountMax=5"
             
@@ -79,7 +79,7 @@ jobs:
         with:
           timeout_minutes: 25
           max_attempts: 5
-          retry_wait_seconds: 90
+          retry_wait_seconds: 5
           command: |
             ssh -i ~/.ssh/deploy_key \
                 -p ${{ secrets.DROPLET_PORT || 22 }} \
