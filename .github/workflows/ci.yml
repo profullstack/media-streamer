@@ -1,4 +1,4 @@
-t # BitTorrented.com CI Pipeline
+# BitTorrented.com CI Pipeline
 # Enforces TDD with mandatory test passing
 # Deployment is handled by DigitalOcean App Platform (auto-deploy on push)
 
