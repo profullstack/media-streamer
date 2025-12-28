@@ -105,6 +105,7 @@ export function MediaPlayerModal({
   const [swarmStats, setSwarmStats] = useState<SwarmStats | null>(null);
   const [isLoadingSwarm, setIsLoadingSwarm] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
+  const [userClickedPlay, setUserClickedPlay] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -206,6 +207,7 @@ export function MediaPlayerModal({
     setIsPlayerReady(false);
     setSwarmStats(null);
     setConnectionStatus(null);
+    setUserClickedPlay(false);
     // Close SSE connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -213,6 +215,15 @@ export function MediaPlayerModal({
     }
     onClose();
   }, [onClose]);
+
+  // Handle manual play button click (for browsers that block autoplay)
+  // This hides the overlay and lets the user interact with the player's native controls
+  const handleManualPlay = useCallback(() => {
+    console.log('[MediaPlayerModal] User clicked play button');
+    setUserClickedPlay(true);
+    // The underlying player has autoplay enabled, so it should start playing
+    // If autoplay is still blocked, the user can use the player's native controls
+  }, []);
 
   // Subscribe to connection status SSE - persistent mode keeps streaming after ready
   useEffect(() => {
@@ -262,6 +273,13 @@ export function MediaPlayerModal({
   const title = file.name;
   const subtitle = torrentName ? `From: ${torrentName}` : undefined;
   const isLoading = !isPlayerReady && !error;
+  
+  // Stream is ready when SSE reports ready state
+  const isStreamReady = connectionStatus?.ready ?? false;
+  // Show play button when stream is ready but user hasn't clicked play yet
+  const showPlayButton = isStreamReady && !userClickedPlay && !isPlayerReady;
+  // Show loading spinner when stream is not ready yet
+  const showLoadingSpinner = !isStreamReady && !error;
 
   return (
     <Modal
@@ -378,8 +396,8 @@ export function MediaPlayerModal({
 
         {/* Video Player - always render when we have a URL and it's video */}
         {streamUrl && mediaCategory === 'video' && !error ? <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
-            {/* Loading overlay */}
-            {isLoading ? <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
+            {/* Loading spinner overlay - shown while stream is initializing */}
+            {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
                   <span className="text-xs sm:text-sm text-white">
@@ -387,19 +405,36 @@ export function MediaPlayerModal({
                   </span>
                 </div>
               </div> : null}
+            {/* Play button overlay - shown when stream is ready but autoplay blocked */}
+            {showPlayButton ? <button
+                type="button"
+                onClick={handleManualPlay}
+                className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 transition-colors hover:bg-black/50"
+                aria-label="Play video"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-accent-primary text-white shadow-lg transition-transform hover:scale-110">
+                    <svg className="h-8 w-8 sm:h-10 sm:w-10 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm sm:text-base text-white font-medium">Click to Play</span>
+                </div>
+              </button> : null}
             <VideoPlayer
               src={streamUrl}
               filename={file.name}
               onReady={handlePlayerReady}
               onError={handlePlayerError}
               showTranscodingNotice={false}
+              autoplay
             />
           </div> : null}
 
         {/* Audio Player - always render when we have a URL and it's audio */}
         {streamUrl && mediaCategory === 'audio' && !error ? <div className="relative w-full">
-            {/* Loading overlay for audio */}
-            {isLoading ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
+            {/* Loading spinner overlay - shown while stream is initializing */}
+            {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
                   <span className="text-sm text-text-muted">
@@ -407,12 +442,29 @@ export function MediaPlayerModal({
                   </span>
                 </div>
               </div> : null}
+            {/* Play button overlay - shown when stream is ready but autoplay blocked */}
+            {showPlayButton ? <button
+                type="button"
+                onClick={handleManualPlay}
+                className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary/90 transition-colors hover:bg-bg-tertiary/80"
+                aria-label="Play audio"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-accent-primary text-white shadow-lg transition-transform hover:scale-110">
+                    <svg className="h-7 w-7 sm:h-8 sm:w-8 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-text-primary font-medium">Click to Play</span>
+                </div>
+              </button> : null}
             <AudioPlayer
               src={streamUrl}
               filename={file.name}
               onReady={handlePlayerReady}
               onError={handlePlayerError}
               showTranscodingNotice={false}
+              autoplay
             />
           </div> : null}
 

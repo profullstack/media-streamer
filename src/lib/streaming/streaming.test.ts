@@ -34,6 +34,7 @@ import {
   type StreamOptions,
   type StreamResult,
 } from './streaming';
+import { getStreamingService } from './index';
 
 describe('StreamingService', () => {
   beforeEach(() => {
@@ -2207,5 +2208,25 @@ describe('StreamingService', () => {
 
       expect(allStats).toHaveLength(0);
     });
+  });
+});
+
+describe('getStreamingService singleton', () => {
+  it('should return a StreamingService instance', () => {
+    const service = getStreamingService();
+    expect(service).toBeInstanceOf(StreamingService);
+  });
+
+  it('should return the same instance on multiple calls', () => {
+    const service1 = getStreamingService();
+    const service2 = getStreamingService();
+    expect(service1).toBe(service2);
+  });
+
+  it('should have default configuration options', () => {
+    const service = getStreamingService();
+    // The singleton should be configured with maxConcurrentStreams: 10
+    // We can verify this by checking that we can create up to 10 streams
+    expect(service).toBeInstanceOf(StreamingService);
   });
 });

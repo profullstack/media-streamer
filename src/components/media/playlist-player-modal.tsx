@@ -258,6 +258,8 @@ export function PlaylistPlayerModal({
 
   if (!currentFile || files.length === 0) return null;
 
+  // Wait for torrent to be ready before showing player
+  const isTorrentReady = connectionStatus?.ready ?? false;
   const isLoading = !isPlayerReady && !error;
   const title = `Playing ${currentIndex + 1} of ${files.length}`;
 
@@ -334,8 +336,8 @@ export function PlaylistPlayerModal({
           </div>
         ) : null}
 
-        {/* Audio Player */}
-        {streamUrl && !error ? (
+        {/* Audio Player - only render when torrent is ready to avoid HTTP errors */}
+        {streamUrl && !error && isTorrentReady ? (
           <div className="relative w-full">
             {isLoading ? (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
@@ -356,8 +358,17 @@ export function PlaylistPlayerModal({
               onError={handlePlayerError}
               onEnded={handleTrackEnded}
               showTranscodingNotice={false}
-              autoplay={currentIndex > 0}
+              autoplay
             />
+          </div>
+        ) : streamUrl && !error && !isTorrentReady ? (
+          <div className="flex items-center justify-center rounded-lg bg-bg-tertiary p-8">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
+              <span className="text-sm text-text-muted">
+                {connectionStatus?.message ?? 'Connecting to torrent...'}
+              </span>
+            </div>
           </div>
         ) : null}
 
@@ -477,3 +488,4 @@ function formatSpeed(bytesPerSecond: number): string {
   }
   return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
 }
+

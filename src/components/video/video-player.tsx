@@ -48,6 +48,8 @@ export interface VideoPlayerProps {
   onError?: (error: Error) => void;
   /** Whether to show transcoding notice for unsupported formats */
   showTranscodingNotice?: boolean;
+  /** Whether to autoplay when ready */
+  autoplay?: boolean;
 }
 
 /**
@@ -66,6 +68,7 @@ export function VideoPlayer({
   onTimeUpdate,
   onError,
   showTranscodingNotice = true,
+  autoplay = false,
 }: VideoPlayerProps): React.ReactElement {
   const videoRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
@@ -99,10 +102,11 @@ export function VideoPlayer({
     videoElement.classList.add('vjs-big-play-centered');
     videoRef.current.appendChild(videoElement);
 
-    // Merge options
+    // Merge options - autoplay prop takes precedence over options.autoplay
     const playerOptions = getDefaultPlayerOptions({
       ...options,
       poster,
+      autoplay: autoplay || options?.autoplay,
     });
 
     // Initialize Video.js player
@@ -153,7 +157,7 @@ export function VideoPlayer({
     });
 
     playerRef.current = player;
-  }, [videoSource, options, poster, onReady, onPlay, onPause, onEnded, onTimeUpdate, onError]);
+  }, [videoSource, options, poster, autoplay, onReady, onPlay, onPause, onEnded, onTimeUpdate, onError]);
 
   // Initialize player when source is ready
   useEffect(() => {

@@ -157,7 +157,7 @@ export function FileTree({
   const tree = useMemo(() => buildFileTree(files), [files]);
 
   return (
-    <div className={cn('text-sm', className)}>
+    <div className={cn('text-sm overflow-hidden', className)}>
       {Array.from(tree.children.values()).map((node) => (
         <FileTreeNodeComponent
           key={node.path}
@@ -192,6 +192,12 @@ function FileTreeNodeComponent({
 }: FileTreeNodeComponentProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(depth < 2);
 
+  // Count audio files in this directory for "Play All" button
+  const audioFileCount = useMemo(() => {
+    if (!node.isDirectory) return 0;
+    return countAudioFiles(node);
+  }, [node]);
+
   const handleToggle = (): void => {
     if (node.isDirectory) {
       setIsExpanded(!isExpanded);
@@ -215,6 +221,16 @@ function FileTreeNodeComponent({
     e.stopPropagation();
     if (node.file && onFileDownload) {
       onFileDownload(node.file);
+    }
+  };
+
+  const handlePlayAll = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    if (onPlayAll && node.isDirectory) {
+      const audioFiles = collectAudioFiles(node);
+      if (audioFiles.length > 0) {
+        onPlayAll(audioFiles);
+      }
     }
   };
 
@@ -245,7 +261,7 @@ function FileTreeNodeComponent({
   const isPlayable = node.file && (node.file.mediaCategory === 'audio' || node.file.mediaCategory === 'video');
 
   return (
-    <div>
+    <div className="overflow-hidden">
       <div
         className={cn(
           'group flex items-center gap-2 rounded-md px-2 py-2 transition-colors',
@@ -269,7 +285,7 @@ function FileTreeNodeComponent({
       >
         {/* Expand/collapse arrow for directories */}
         {node.isDirectory ? (
-          <span className="flex h-5 w-5 items-center justify-center text-text-muted">
+          <span className="flex h-5 w-5 items-center justify-center text-text-muted flex-shrink-0">
             {isExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
           </span>
         ) : (
@@ -299,13 +315,13 @@ function FileTreeNodeComponent({
         )}
 
         {/* Icon */}
-        <Icon className={iconColor} size={18} />
+        <Icon className={cn(iconColor, 'flex-shrink-0')} size={18} />
 
-        {/* Name */}
-        <span className="flex-1 truncate text-text-primary">{node.name}</span>
+        {/* Name - min-w-0 is required for truncate to work in flex container */}
+        <span className="flex-1 min-w-0 truncate text-text-primary">{node.name}</span>
 
         {/* File size */}
-        {node.file ? <span className="text-xs text-text-muted flex-shrink-0">{formatBytes(node.file.size)}</span> : null}
+        {node.file ? <span className="text-xs text-text-muted flex-shrink-0 ml-2">{formatBytes(node.file.size)}</span> : null}
       </div>
 
       {/* Children */}

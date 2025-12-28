@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'node:child_process';
 import { PassThrough } from 'node:stream';
 import {
-  StreamingService,
+  getStreamingService,
   StreamingError,
   FileNotFoundError,
   RangeNotSatisfiableError,
@@ -33,20 +33,6 @@ import {
 } from '@/lib/transcoding';
 
 const logger = createLogger('API:stream');
-
-// Singleton streaming service instance
-let streamingService: StreamingService | null = null;
-
-function getStreamingService(): StreamingService {
-  if (!streamingService) {
-    logger.info('Creating new StreamingService instance');
-    streamingService = new StreamingService({
-      maxConcurrentStreams: 10,
-      streamTimeout: 90000, // 90 seconds for audio/video to connect to peers
-    });
-  }
-  return streamingService;
-}
 
 /**
  * Parse Range header

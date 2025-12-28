@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { StreamingService } from '@/lib/streaming';
+import { getStreamingService } from '@/lib/streaming';
 import { getTorrentByInfohash } from '@/lib/supabase';
 
 /**
@@ -182,7 +182,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const stream = new ReadableStream({
     start(controller) {
-      const streamingService = new StreamingService();
+      // Use singleton to share WebTorrent client with stream endpoint
+      const streamingService = getStreamingService();
 
       // Send status update
       const sendStatus = (): void => {
