@@ -131,16 +131,43 @@ const DEFAULT_METADATA_TIMEOUT = parseInt(
 // Well-known DHT bootstrap nodes for reliable peer discovery
 // DHT is the PRIMARY peer discovery method - it's decentralized and fast
 // Note: DHT requires UDP which may be blocked on some cloud platforms
+// More nodes = faster DHT bootstrapping
 const DHT_BOOTSTRAP_NODES = [
   'router.bittorrent.com:6881',
   'router.utorrent.com:6881',
   'dht.transmissionbt.com:6881',
   'dht.aelitis.com:6881',
+  'router.bitcomet.com:6881',
+  'dht.libtorrent.org:25401',
 ];
 
-// UDP trackers - FASTEST for peer discovery when UDP is available
-// These are prioritized because they're faster than HTTP trackers
-// Will timeout on cloud platforms that block UDP
+// HTTP/HTTPS trackers - PRIORITIZED for cloud environments where UDP is blocked
+// These work on all platforms including DigitalOcean, Railway, etc.
+const HTTP_TRACKERS = [
+  // Port 80 (HTTP) - most likely to work through firewalls
+  'http://tracker.openbittorrent.com:80/announce',
+  'http://tracker.gbitt.info:80/announce',
+  'http://open.acgnxtracker.com:80/announce',
+  'http://tracker1.bt.moack.co.kr:80/announce',
+  // Port 443 (HTTPS) - also very likely to work
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.loligirl.cn:443/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  // Non-standard ports (may be blocked on some platforms)
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.bt4g.com:2095/announce',
+];
+
+// WebSocket trackers - work in browsers and some cloud environments
+const WEBSOCKET_TRACKERS = [
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
+
+// UDP trackers - FASTEST when available but often blocked on cloud platforms
+// These are deprioritized because they timeout on DigitalOcean, Railway, etc.
 const UDP_TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
@@ -157,32 +184,6 @@ const UDP_TRACKERS = [
   'udp://tracker.theoks.net:6969/announce',
   'udp://tracker-udp.gbitt.info:80/announce',
   'udp://retracker01-msk-virt.corbina.net:80/announce',
-];
-
-// WebSocket trackers - work in browsers and some cloud platforms
-const WEBSOCKET_TRACKERS = [
-  'wss://tracker.openwebtorrent.com',
-  'wss://tracker.webtorrent.dev',
-  'wss://tracker.btorrent.xyz',
-  'wss://tracker.files.fm:7073/announce',
-];
-
-// HTTP/HTTPS trackers - fallback for cloud environments where UDP is blocked
-// These are slower but work on all platforms
-// Prioritizing port 80 and 443 which are most likely to work
-const HTTP_TRACKERS = [
-  // Port 80 (HTTP)
-  'http://tracker.openbittorrent.com:80/announce',
-  'http://tracker.gbitt.info:80/announce',
-  'http://open.acgnxtracker.com:80/announce',
-  'http://tracker1.bt.moack.co.kr:80/announce',
-  // Port 443 (HTTPS)
-  'https://tracker.tamersunion.org:443/announce',
-  'https://tracker.loligirl.cn:443/announce',
-  'https://tracker.lilithraws.org:443/announce',
-  // Non-standard ports (may be blocked on some cloud platforms)
-  'http://tracker.opentrackr.org:1337/announce',
-  'http://tracker.bt4g.com:2095/announce',
 ];
 
 /**
@@ -568,22 +569,22 @@ export class TorrentService {
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
    *
-   * Priority order (fastest first):
-   * 1. DHT (always enabled via WebTorrent config - decentralized, no trackers needed)
-   * 2. Our open source UDP trackers (fastest tracker protocol)
-   * 3. Our open source WebSocket trackers (fast, work in browsers)
-   * 4. Our open source HTTP trackers (slowest but most reliable)
+   * Priority order (optimized for cloud platforms where UDP is blocked):
+   * 1. DHT (always enabled via WebTorrent config - but may not work on cloud)
+   * 2. Our HTTP/HTTPS trackers (most reliable on cloud platforms)
+   * 3. Our WebSocket trackers (work in browsers and some cloud)
+   * 4. Our UDP trackers (fastest but often blocked on cloud)
    * 5. Original magnet URL trackers (last priority)
    *
    * This function rebuilds the magnet URI to put our trackers FIRST,
-   * ensuring faster peer discovery.
+   * ensuring faster peer discovery on cloud platforms.
    */
   private enhanceMagnetUri(magnetUri: string): string {
     // Parse the magnet URI to extract components
     const parsed = parseMagnetUri(magnetUri);
     
-    // Our open source trackers in priority order (UDP first, then WSS, then HTTP)
-    const ourTrackers = [...UDP_TRACKERS, ...WEBSOCKET_TRACKERS, ...HTTP_TRACKERS];
+    // Our open source trackers in priority order (HTTP first for cloud, then WSS, then UDP)
+    const ourTrackers = [...HTTP_TRACKERS, ...WEBSOCKET_TRACKERS, ...UDP_TRACKERS];
     
     // Build a new magnet URI with our trackers FIRST, then original trackers
     // Start with the base magnet (xt=urn:btih:infohash)
@@ -622,7 +623,7 @@ export class TorrentService {
       ourTrackersAdded: addedCount,
       originalTrackersAdded: originalCount,
       totalTrackers: addedTrackers.size,
-      priority: 'DHT → UDP → WSS → HTTP → Original',
+      priority: 'HTTP → WSS → UDP → Original (optimized for cloud)',
     });
     
     return enhanced;

@@ -17,16 +17,43 @@ import { createLogger } from '../logger';
 const logger = createLogger('StreamingService');
 
 // Well-known DHT bootstrap nodes for reliable peer discovery
+// More nodes = faster DHT bootstrapping
 const DHT_BOOTSTRAP_NODES = [
   'router.bittorrent.com:6881',
   'router.utorrent.com:6881',
   'dht.transmissionbt.com:6881',
   'dht.aelitis.com:6881',
+  'router.bitcomet.com:6881',
+  'dht.libtorrent.org:25401',
 ];
 
-// UDP trackers - FASTEST for peer discovery when UDP is available
-// These are prioritized because they work with DHT and are faster than HTTP
-// Will timeout on cloud platforms that block UDP
+// HTTP/HTTPS trackers - PRIORITIZED for cloud environments where UDP is blocked
+// These work on all platforms including DigitalOcean, Railway, etc.
+const HTTP_TRACKERS = [
+  // Port 80 (HTTP) - most likely to work through firewalls
+  'http://tracker.openbittorrent.com:80/announce',
+  'http://tracker.gbitt.info:80/announce',
+  'http://open.acgnxtracker.com:80/announce',
+  'http://tracker1.bt.moack.co.kr:80/announce',
+  // Port 443 (HTTPS) - also very likely to work
+  'https://tracker.tamersunion.org:443/announce',
+  'https://tracker.loligirl.cn:443/announce',
+  'https://tracker.lilithraws.org:443/announce',
+  // Non-standard ports (may be blocked on some platforms)
+  'http://tracker.opentrackr.org:1337/announce',
+  'http://tracker.bt4g.com:2095/announce',
+];
+
+// WebSocket trackers - work in browsers and some cloud environments
+const WEBSOCKET_TRACKERS = [
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
+
+// UDP trackers - FASTEST when available but often blocked on cloud platforms
+// These are deprioritized because they timeout on DigitalOcean, Railway, etc.
 const UDP_TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
   'udp://open.stealth.si:80/announce',
@@ -44,33 +71,9 @@ const UDP_TRACKERS = [
   'udp://tracker-udp.gbitt.info:80/announce',
 ];
 
-// WebSocket trackers - work in browsers and cloud environments
-const WEBSOCKET_TRACKERS = [
-  'wss://tracker.openwebtorrent.com',
-  'wss://tracker.webtorrent.dev',
-  'wss://tracker.btorrent.xyz',
-  'wss://tracker.files.fm:7073/announce',
-];
-
-// HTTP/HTTPS trackers - fallback for cloud environments where UDP is blocked
-// These are slower but work on all platforms
-const HTTP_TRACKERS = [
-  // Port 80 (HTTP)
-  'http://tracker.openbittorrent.com:80/announce',
-  'http://tracker.gbitt.info:80/announce',
-  'http://open.acgnxtracker.com:80/announce',
-  'http://tracker1.bt.moack.co.kr:80/announce',
-  // Port 443 (HTTPS)
-  'https://tracker.tamersunion.org:443/announce',
-  'https://tracker.loligirl.cn:443/announce',
-  'https://tracker.lilithraws.org:443/announce',
-  // Non-standard ports
-  'http://tracker.opentrackr.org:1337/announce',
-  'http://tracker.bt4g.com:2095/announce',
-];
-
-// Combined tracker list: UDP first (fastest), then WebSocket, then HTTP (slowest)
-const OPEN_TRACKERS = [...UDP_TRACKERS, ...WEBSOCKET_TRACKERS, ...HTTP_TRACKERS];
+// Combined tracker list: HTTP first (works on cloud), then WebSocket, then UDP (often blocked)
+// This order is optimized for cloud platforms like DigitalOcean where UDP is blocked
+const OPEN_TRACKERS = [...HTTP_TRACKERS, ...WEBSOCKET_TRACKERS, ...UDP_TRACKERS];
 
 /**
  * Custom error for streaming failures
@@ -200,6 +203,8 @@ export class StreamingService {
   private maxConcurrentStreams: number;
   private streamTimeout: number;
   private activeStreams: Map<string, ActiveStream>;
+  private dhtReady: boolean = false;
+  private dhtNodeCount: number = 0;
 
   constructor(options: StreamingServiceOptions = {}) {
     logger.info('Initializing StreamingService', {
@@ -208,14 +213,19 @@ export class StreamingService {
     });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
+    // Note: DHT requires UDP which may be blocked on cloud platforms
     this.client = new WebTorrent({
       dht: {
         bootstrap: DHT_BOOTSTRAP_NODES,
+        // Increase concurrency for faster DHT bootstrapping
+        concurrency: 32,
       },
       // Enable all peer discovery methods
       tracker: true,
       lsd: true, // Local Service Discovery
       webSeeds: true,
+      // Increase max connections for better peer discovery
+      maxConns: 100,
     } as WebTorrent.Options);
     
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
@@ -227,9 +237,42 @@ export class StreamingService {
       logger.error('WebTorrent client error', err);
     });
     
+    // Log DHT events for debugging and track DHT state
+    const dht = (this.client as unknown as { dht?: { on: (event: string, cb: (...args: unknown[]) => void) => void; toJSON?: () => { nodes: unknown[] } } }).dht;
+    if (dht) {
+      dht.on('ready', () => {
+        this.dhtReady = true;
+        logger.info('DHT ready - connected to bootstrap nodes');
+      });
+      dht.on('peer', (peer: unknown, infoHash: unknown) => {
+        logger.debug('DHT found peer', { peer, infoHash });
+      });
+      dht.on('node', () => {
+        this.dhtNodeCount++;
+        if (this.dhtNodeCount % 10 === 0) {
+          logger.info('DHT node count', { nodes: this.dhtNodeCount });
+        }
+      });
+      dht.on('error', (err: unknown) => {
+        logger.warn('DHT error (UDP may be blocked on this platform)', { error: String(err) });
+      });
+    } else {
+      logger.warn('DHT not available on WebTorrent client');
+    }
+    
     logger.debug('WebTorrent client created for streaming with DHT bootstrap nodes', {
       bootstrapNodes: DHT_BOOTSTRAP_NODES.length,
     });
+  }
+
+  /**
+   * Get DHT status for debugging
+   */
+  getDhtStatus(): { ready: boolean; nodeCount: number } {
+    return {
+      ready: this.dhtReady,
+      nodeCount: this.dhtNodeCount,
+    };
   }
 
   /**
@@ -586,15 +629,15 @@ export class StreamingService {
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
    *
-   * Priority order (fastest first):
-   * 1. DHT (always enabled via WebTorrent config - decentralized, no trackers needed)
-   * 2. Our open source UDP trackers (fastest tracker protocol)
-   * 3. Our open source WebSocket trackers (fast, work in browsers)
-   * 4. Our open source HTTP trackers (slowest but most reliable)
+   * Priority order (optimized for cloud platforms where UDP is blocked):
+   * 1. DHT (always enabled via WebTorrent config - but may not work on cloud)
+   * 2. Our HTTP/HTTPS trackers (most reliable on cloud platforms)
+   * 3. Our WebSocket trackers (work in browsers and some cloud)
+   * 4. Our UDP trackers (fastest but often blocked on cloud)
    * 5. Original magnet URL trackers (last priority)
    *
    * This function rebuilds the magnet URI to put our trackers FIRST,
-   * ensuring faster peer discovery.
+   * ensuring faster peer discovery on cloud platforms.
    */
   private enhanceMagnetUri(magnetUri: string): string {
     // Extract infohash from magnet URI
@@ -655,7 +698,7 @@ export class StreamingService {
       ourTrackersAdded: addedCount,
       originalTrackersAdded: originalCount,
       totalTrackers: addedTrackers.size,
-      priority: 'DHT → UDP → WSS → HTTP → Original',
+      priority: 'HTTP → WSS → UDP → Original (optimized for cloud)',
     });
     
     return enhanced;
@@ -692,7 +735,11 @@ export class StreamingService {
       }
     }
 
-    logger.debug('Adding new torrent', { infohash });
+    logger.info('Adding new torrent', {
+      infohash,
+      dhtReady: this.dhtReady,
+      dhtNodeCount: this.dhtNodeCount,
+    });
 
     // Enhance magnet URI with additional trackers for better peer discovery
     const enhancedMagnetUri = this.enhanceMagnetUri(magnetUri);
