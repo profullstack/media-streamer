@@ -317,8 +317,17 @@ export function getStreamingTranscodeProfile(mediaType: MediaType, format: strin
 /**
  * Build FFmpeg arguments for streaming transcoding (pipe input/output)
  *
- * Uses a simplified, proven command for MKV → MP4 transcoding:
- * ffmpeg -i pipe:0 -threads 4 -acodec aac -vcodec libx264 -movflags frag_keyframe+empty_moov -maxrate 2M -bufsize 1M -f mp4 pipe:1
+ * Uses iOS/Safari-compatible settings for both video and audio transcoding:
+ *
+ * For MKV → MP4 (video):
+ * - H.264 Main profile, level 3.1 (iOS Safari compatible)
+ * - yuv420p pixel format (required by iOS)
+ * - Fragmented MP4 with default_base_moof (required for iOS Safari)
+ *
+ * For FLAC → MP3 (audio):
+ * - write_xing header for proper duration estimation
+ * - ID3v2.3 tags for metadata compatibility
+ * - Disabled bit reservoir for consistent frame sizes
  *
  * @param profile - Transcoding profile
  * @param _inputFormat - Optional input format hint (currently unused, FFmpeg auto-detects)
@@ -343,23 +352,48 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
     args.push('-vcodec', profile.videoCodec);
   }
 
-  // MP4 specific: use fragmented MP4 for streaming (allows playback before complete)
-  // frag_keyframe+empty_moov is critical for streaming - puts moov atom at start
+  // MP4 specific: iOS/Safari-compatible H.264 settings
   if (profile.outputFormat === 'mp4') {
-    args.push('-movflags', 'frag_keyframe+empty_moov');
+    // H.264 profile and level for iOS Safari compatibility
+    // Main profile with level 3.1 is widely supported on iOS devices
+    args.push('-profile:v', 'main');
+    args.push('-level:v', '3.1');
+    
+    // Pixel format required by iOS Safari
+    args.push('-pix_fmt', 'yuv420p');
+    
+    // Fragmented MP4 for streaming (allows playback before complete)
+    // frag_keyframe+empty_moov puts moov atom at start
+    // default_base_moof is REQUIRED for iOS Safari fragmented MP4 playback
+    args.push('-movflags', 'frag_keyframe+empty_moov+default_base_moof');
+    
     // Rate control for consistent streaming
     args.push('-maxrate', '2M');
     args.push('-bufsize', '1M');
     args.push('-f', 'mp4');
   }
 
-  // MP3 specific
+  // MP3 specific: iOS/Safari-compatible settings
   if (profile.outputFormat === 'mp3') {
-    args.push('-f', 'mp3');
     // Audio bitrate for MP3
     if (profile.audioBitrate) {
       args.push('-b:a', profile.audioBitrate);
     }
+    
+    // iOS Safari MP3 compatibility options:
+    // 1. write_xing: Writes Xing/LAME header for proper duration estimation
+    //    Without this, iOS Safari shows incorrect duration and may abort playback
+    args.push('-write_xing', '1');
+    
+    // 2. id3v2_version: Use ID3v2.3 for maximum compatibility
+    //    iOS Safari handles ID3v2.3 better than ID3v2.4
+    args.push('-id3v2_version', '3');
+    
+    // 3. reservoir: Disable bit reservoir for consistent frame sizes
+    //    This helps with streaming as each frame is self-contained
+    args.push('-reservoir', '0');
+    
+    args.push('-f', 'mp3');
   }
 
   // Output to stdout (pipe)

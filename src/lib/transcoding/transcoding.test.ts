@@ -291,7 +291,7 @@ describe('Transcoding Service', () => {
       expect(args).toContain('pipe:1');
       // Should use fragmented MP4 for streaming
       expect(args).toContain('-movflags');
-      expect(args).toContain('frag_keyframe+empty_moov');
+      expect(args).toContain('frag_keyframe+empty_moov+default_base_moof');
       // Should use threads for performance
       expect(args).toContain('-threads');
       expect(args).toContain('4');
@@ -341,6 +341,111 @@ describe('Transcoding Service', () => {
       expect(args).toContain('pipe:1');
       expect(args).toContain('-acodec');
       expect(args).toContain('libmp3lame');
+    });
+
+    describe('iOS/Safari compatibility', () => {
+      it('should include H.264 profile and level constraints for iOS Safari video playback', () => {
+        const profile: TranscodeProfile = {
+          outputFormat: 'mp4',
+          videoCodec: 'libx264',
+          audioCodec: 'aac',
+          videoBitrate: '2000k',
+          audioBitrate: '128k',
+          preset: 'ultrafast',
+          crf: 23,
+        };
+
+        const args = buildStreamingFFmpegArgs(profile);
+
+        // iOS Safari requires H.264 Main profile with level 3.1 or lower
+        expect(args).toContain('-profile:v');
+        expect(args).toContain('main');
+        expect(args).toContain('-level:v');
+        expect(args).toContain('3.1');
+      });
+
+      it('should include yuv420p pixel format for iOS Safari video playback', () => {
+        const profile: TranscodeProfile = {
+          outputFormat: 'mp4',
+          videoCodec: 'libx264',
+          audioCodec: 'aac',
+          videoBitrate: '2000k',
+          audioBitrate: '128k',
+          preset: 'ultrafast',
+          crf: 23,
+        };
+
+        const args = buildStreamingFFmpegArgs(profile);
+
+        // iOS Safari requires yuv420p pixel format
+        expect(args).toContain('-pix_fmt');
+        expect(args).toContain('yuv420p');
+      });
+
+      it('should include default_base_moof movflag for iOS Safari fragmented MP4 playback', () => {
+        const profile: TranscodeProfile = {
+          outputFormat: 'mp4',
+          videoCodec: 'libx264',
+          audioCodec: 'aac',
+          videoBitrate: '2000k',
+          audioBitrate: '128k',
+          preset: 'ultrafast',
+          crf: 23,
+        };
+
+        const args = buildStreamingFFmpegArgs(profile);
+
+        // iOS Safari requires default_base_moof for proper fragmented MP4 playback
+        const movflagsIndex = args.indexOf('-movflags');
+        expect(movflagsIndex).toBeGreaterThan(-1);
+        const movflagsValue = args[movflagsIndex + 1];
+        expect(movflagsValue).toContain('default_base_moof');
+      });
+
+      it('should include write_xing option for iOS Safari MP3 streaming', () => {
+        const profile: TranscodeProfile = {
+          outputFormat: 'mp3',
+          audioCodec: 'libmp3lame',
+          audioBitrate: '192k',
+          sampleRate: 44100,
+        };
+
+        const args = buildStreamingFFmpegArgs(profile);
+
+        // iOS Safari needs Xing/LAME header for proper duration estimation
+        expect(args).toContain('-write_xing');
+        expect(args).toContain('1');
+      });
+
+      it('should include id3v2_version for iOS Safari MP3 metadata compatibility', () => {
+        const profile: TranscodeProfile = {
+          outputFormat: 'mp3',
+          audioCodec: 'libmp3lame',
+          audioBitrate: '192k',
+          sampleRate: 44100,
+        };
+
+        const args = buildStreamingFFmpegArgs(profile);
+
+        // iOS Safari needs ID3v2.3 for proper metadata handling
+        expect(args).toContain('-id3v2_version');
+        expect(args).toContain('3');
+      });
+
+      it('should include reservoir option disabled for iOS Safari MP3 streaming', () => {
+        const profile: TranscodeProfile = {
+          outputFormat: 'mp3',
+          audioCodec: 'libmp3lame',
+          audioBitrate: '192k',
+          sampleRate: 44100,
+        };
+
+        const args = buildStreamingFFmpegArgs(profile);
+
+        // Disable bit reservoir for more consistent frame sizes in streaming
+        expect(args).toContain('-reservoir');
+        expect(args).toContain('0');
+      });
     });
   });
 
