@@ -85,9 +85,16 @@ describe('Transcoding Service', () => {
         expect(profile!.outputFormat).toBe('mp3');
       });
 
+      it('should return web-optimized profile for FLAC (iOS Safari compatibility)', () => {
+        // FLAC is NOT supported on iOS Safari, so we transcode to MP3
+        const profile = getTranscodeProfile('audio', 'flac');
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp3');
+        expect(profile!.audioCodec).toBe('libmp3lame');
+      });
+
       it('should return null for already supported formats', () => {
-        // FLAC is natively supported in modern browsers (Chrome 56+, Firefox 51+, Edge 16+, Safari 11+)
-        expect(getTranscodeProfile('audio', 'flac')).toBeNull();
+        // These formats are natively supported in all browsers including iOS Safari
         expect(getTranscodeProfile('audio', 'mp3')).toBeNull();
         expect(getTranscodeProfile('audio', 'wav')).toBeNull();
         expect(getTranscodeProfile('audio', 'ogg')).toBeNull();
@@ -182,10 +189,11 @@ describe('Transcoding Service', () => {
     });
 
     it('should return mp3 for audio formats requiring transcoding', () => {
-      // FLAC is natively supported, so it should return null
       expect(getOutputFormat('audio', 'wma')).toBe('mp3');
       expect(getOutputFormat('audio', 'aiff')).toBe('mp3');
       expect(getOutputFormat('audio', 'ape')).toBe('mp3');
+      // FLAC requires transcoding for iOS Safari compatibility
+      expect(getOutputFormat('audio', 'flac')).toBe('mp3');
     });
 
     it('should return null for already supported formats', () => {
@@ -193,8 +201,6 @@ describe('Transcoding Service', () => {
       expect(getOutputFormat('video', 'webm')).toBeNull();
       expect(getOutputFormat('audio', 'mp3')).toBeNull();
       expect(getOutputFormat('audio', 'ogg')).toBeNull();
-      // FLAC is natively supported in modern browsers
-      expect(getOutputFormat('audio', 'flac')).toBeNull();
     });
   });
 
@@ -208,10 +214,11 @@ describe('Transcoding Service', () => {
     });
 
     it('should return true for audio formats that need transcoding', () => {
-      // FLAC is natively supported, so it should return false
       expect(isTranscodingSupported('audio', 'wma')).toBe(true);
       expect(isTranscodingSupported('audio', 'aiff')).toBe(true);
       expect(isTranscodingSupported('audio', 'ape')).toBe(true);
+      // FLAC requires transcoding for iOS Safari compatibility
+      expect(isTranscodingSupported('audio', 'flac')).toBe(true);
     });
 
     it('should return false for already supported formats', () => {
@@ -219,8 +226,6 @@ describe('Transcoding Service', () => {
       expect(isTranscodingSupported('video', 'webm')).toBe(false);
       expect(isTranscodingSupported('audio', 'mp3')).toBe(false);
       expect(isTranscodingSupported('audio', 'ogg')).toBe(false);
-      // FLAC is natively supported in modern browsers
-      expect(isTranscodingSupported('audio', 'flac')).toBe(false);
     });
 
     it('should return false for unknown formats', () => {
@@ -353,11 +358,17 @@ describe('Transcoding Service', () => {
       expect(profile!.outputFormat).toBe('mp3');
     });
 
+    it('should return streaming-optimized profile for FLAC (iOS Safari compatibility)', () => {
+      // FLAC is NOT supported on iOS Safari, so we transcode to MP3
+      const profile = getStreamingTranscodeProfile('audio', 'flac');
+      
+      expect(profile).not.toBeNull();
+      expect(profile!.outputFormat).toBe('mp3');
+    });
+
     it('should return null for already supported formats', () => {
       expect(getStreamingTranscodeProfile('video', 'mp4')).toBeNull();
       expect(getStreamingTranscodeProfile('audio', 'mp3')).toBeNull();
-      // FLAC is natively supported in modern browsers
-      expect(getStreamingTranscodeProfile('audio', 'flac')).toBeNull();
     });
   });
 
@@ -368,16 +379,15 @@ describe('Transcoding Service', () => {
     });
 
     it('should return audio/mpeg for transcoded audio', () => {
-      // FLAC is natively supported, so it should return null
       expect(getTranscodedMimeType('audio', 'wma')).toBe('audio/mpeg');
       expect(getTranscodedMimeType('audio', 'aiff')).toBe('audio/mpeg');
+      // FLAC requires transcoding for iOS Safari compatibility
+      expect(getTranscodedMimeType('audio', 'flac')).toBe('audio/mpeg');
     });
 
     it('should return null for formats that do not need transcoding', () => {
       expect(getTranscodedMimeType('video', 'mp4')).toBeNull();
       expect(getTranscodedMimeType('audio', 'mp3')).toBeNull();
-      // FLAC is natively supported in modern browsers
-      expect(getTranscodedMimeType('audio', 'flac')).toBeNull();
     });
   });
 });

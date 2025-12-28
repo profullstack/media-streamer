@@ -428,8 +428,12 @@ export function AudioPlayer({
       {/*
         iOS Safari requirements:
         - playsInline: Required for inline playback on iOS
-        - crossOrigin: Required for CORS when streaming from API
         - preload: 'metadata' to load duration without full download
+        
+        Note: We do NOT use crossOrigin="anonymous" because:
+        1. Same-origin requests don't need CORS
+        2. iOS Safari has issues with crossOrigin on streaming audio
+        3. The "operation not supported" error occurs with crossOrigin on iOS
       */}
       <audio
         ref={audioRef}
@@ -437,7 +441,6 @@ export function AudioPlayer({
         autoPlay={autoplay}
         preload="metadata"
         playsInline
-        crossOrigin="anonymous"
       />
 
       {/* Format Info */}
@@ -559,13 +562,12 @@ export function AudioPlayerCompact({
         {formatDuration(currentTime)} / {formatDuration(duration)}
       </span>
 
-      {/* iOS Safari requirements: playsInline and crossOrigin */}
+      {/* iOS Safari requirements: playsInline (no crossOrigin for same-origin) */}
       <audio
         ref={audioRef}
         src={audioSource.src}
         preload="metadata"
         playsInline
-        crossOrigin="anonymous"
       />
     </div>
   );

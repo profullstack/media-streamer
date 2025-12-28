@@ -51,10 +51,11 @@ const VIDEO_TRANSCODE_FORMATS = new Set(['mkv', 'avi', 'wmv', 'flv', 'mov', 'ts'
 /**
  * Audio formats that require transcoding for browser playback
  *
- * Note: FLAC is natively supported by modern browsers (Chrome 56+, Firefox 51+, Safari 11+)
- * so it does NOT require transcoding.
+ * Note: FLAC is NOT supported on iOS Safari, so we transcode it to MP3.
+ * Desktop browsers (Chrome 56+, Firefox 51+, Safari 11+) support FLAC natively,
+ * but for cross-platform compatibility we transcode all FLAC files.
  */
-const AUDIO_TRANSCODE_FORMATS = new Set(['wma', 'aiff', 'ape']);
+const AUDIO_TRANSCODE_FORMATS = new Set(['wma', 'aiff', 'ape', 'flac']);
 
 /**
  * Check if a file needs transcoding based on its extension

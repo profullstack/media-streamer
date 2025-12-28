@@ -26,7 +26,10 @@ export type VideoFormat =
  */
 export interface VideoSource {
   src: string;
+  /** Original MIME type of the source file */
   type: string;
+  /** MIME type to use for playback (may differ from type if transcoding) */
+  playbackType: string;
   format: VideoFormat;
   requiresTranscoding: boolean;
 }
@@ -192,10 +195,15 @@ export function createVideoSource(src: string, filename: string): VideoSource {
   const format = detectVideoFormat(filename);
   const type = getVideoMimeType(format);
   const requiresTranscoding = !isSupportedVideoFormat(format);
+  
+  // When transcoding is required, the server outputs MP4
+  // The player needs to know the actual playback MIME type
+  const playbackType = requiresTranscoding ? 'video/mp4' : type;
 
   return {
     src,
     type,
+    playbackType,
     format,
     requiresTranscoding,
   };

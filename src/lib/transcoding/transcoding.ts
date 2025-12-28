@@ -32,10 +32,11 @@ const VIDEO_TRANSCODE_FORMATS = new Set(['mkv', 'avi', 'wmv', 'flv', 'mov', 'ts'
 
 /**
  * Audio formats that require transcoding
- * Note: FLAC is natively supported in modern browsers (Chrome 56+, Firefox 51+, Edge 16+, Safari 11+)
+ * Note: FLAC is NOT supported on iOS Safari (only macOS Safari 11+ supports it)
  * Note: WAV, OGG, MP3, AAC, M4A are natively supported in browsers
+ * We transcode FLAC to MP3 for iOS Safari compatibility
  */
-const AUDIO_TRANSCODE_FORMATS = new Set(['wma', 'aiff', 'ape']);
+const AUDIO_TRANSCODE_FORMATS = new Set(['wma', 'aiff', 'ape', 'flac']);
 
 /**
  * Default video transcoding profile (to MP4 with H.264)

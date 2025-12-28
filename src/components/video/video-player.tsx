@@ -85,10 +85,11 @@ export function VideoPlayer({
 
     // Don't reinitialize if player already exists
     if (playerRef.current) {
-      // Just update the source
+      // Just update the source - use playbackType for the actual MIME type
+      // (may be different from original type if transcoding is enabled)
       playerRef.current.src({
         src: videoSource.src,
-        type: videoSource.type,
+        type: videoSource.playbackType,
       });
       return;
     }
@@ -108,10 +109,11 @@ export function VideoPlayer({
     const player = videojs(videoElement, playerOptions, function onPlayerReady() {
       setIsLoading(false);
       
-      // Set source
+      // Set source - use playbackType for the actual MIME type
+      // (may be different from original type if transcoding is enabled)
       this.src({
         src: videoSource.src,
-        type: videoSource.type,
+        type: videoSource.playbackType,
       });
 
       // Call onReady callback

@@ -176,44 +176,49 @@ describe('Video Player Utilities', () => {
   });
 
   describe('createVideoSource', () => {
-    it('should create source object for MP4', () => {
+    it('should create source object for MP4 (native playback)', () => {
       const source = createVideoSource('/api/stream?file=video.mp4', 'video.mp4');
       expect(source).toEqual({
         src: '/api/stream?file=video.mp4',
         type: 'video/mp4',
+        playbackType: 'video/mp4', // Same as type for native formats
         format: 'mp4',
         requiresTranscoding: false,
       });
     });
 
-    it('should create source object for HLS', () => {
+    it('should create source object for HLS (native playback)', () => {
       const source = createVideoSource('https://example.com/stream.m3u8', 'stream.m3u8');
       expect(source).toEqual({
         src: 'https://example.com/stream.m3u8',
         type: 'application/x-mpegURL',
+        playbackType: 'application/x-mpegURL', // Same as type for native formats
         format: 'hls',
         requiresTranscoding: false,
       });
     });
 
-    it('should mark MKV as requiring transcoding', () => {
+    it('should mark MKV as requiring transcoding with MP4 playback type', () => {
       const source = createVideoSource('/api/stream?file=video.mkv', 'video.mkv');
       expect(source).toEqual({
         src: '/api/stream?file=video.mkv',
-        type: 'video/x-matroska',
+        type: 'video/x-matroska', // Original type
+        playbackType: 'video/mp4', // Transcoded output type
         format: 'mkv',
         requiresTranscoding: true,
       });
     });
 
-    it('should mark AVI as requiring transcoding', () => {
+    it('should mark AVI as requiring transcoding with MP4 playback type', () => {
       const source = createVideoSource('/api/stream?file=video.avi', 'video.avi');
       expect(source.requiresTranscoding).toBe(true);
+      expect(source.playbackType).toBe('video/mp4'); // Transcoded to MP4
     });
 
     it('should handle WebM without transcoding', () => {
       const source = createVideoSource('/api/stream?file=video.webm', 'video.webm');
       expect(source.requiresTranscoding).toBe(false);
+      expect(source.playbackType).toBe('video/webm'); // Same as original
     });
   });
 
