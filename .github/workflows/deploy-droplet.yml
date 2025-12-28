@@ -1,48 +1,30 @@
 # Deploy to DigitalOcean Droplet
 # Deploys the application to a DigitalOcean Droplet via SSH
 # Requires UDP ports open for BitTorrent DHT to work
+#
+# This workflow runs AFTER the CI workflow completes successfully
+# to avoid duplicate test runs
 
 name: Deploy to Droplet
 
 on:
-  push:
+  # Run after CI workflow completes successfully
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
     branches: [main, master]
   workflow_dispatch: # Allow manual trigger
 
-env:
-  NODE_VERSION: '22'
-
 jobs:
-  # Run tests first (required)
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        # Version is read from package.json "packageManager" field
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run Vitest tests
-        run: pnpm test
-
-  # Deploy to Droplet
+  # Deploy to Droplet (only if CI passed)
   deploy:
     name: Deploy to Droplet
     runs-on: ubuntu-latest
-    needs: [test]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    # Only deploy if CI workflow succeeded (or manual trigger)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master'))
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
