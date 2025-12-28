@@ -21,6 +21,7 @@
  *   - SUPABASE_SERVICE_ROLE_KEY: Service role key for authentication
  *   - OMDB_API_KEY: (optional) OMDb API key for movie metadata
  *   - THETVDB_API_KEY: (optional) TheTVDB API key for TV show metadata
+ *   - FANART_TV_API_KEY: (optional) Fanart.tv API key for artist images
  *
  * Note: MusicBrainz and Open Library don't require API keys.
  */
@@ -416,6 +417,7 @@ async function processTorrent(
   // Check if we have the required API keys
   const omdbApiKey = process.env.OMDB_API_KEY;
   const thetvdbApiKey = process.env.THETVDB_API_KEY;
+  const fanartTvApiKey = process.env.FANART_TV_API_KEY;
 
   if (contentType === 'movie' && !omdbApiKey) {
     console.log(`  ⏭️  Skipping: OMDB_API_KEY not configured`);
@@ -436,6 +438,7 @@ async function processTorrent(
     const result = await enrichTorrentMetadata(torrent.name, {
       omdbApiKey,
       thetvdbApiKey,
+      fanartTvApiKey,
       musicbrainzUserAgent: MUSICBRAINZ_USER_AGENT,
       // Pass the file-detected content type as override
       contentTypeOverride: contentType,
@@ -529,6 +532,7 @@ async function main(): Promise<void> {
   console.log('🔑 API Keys:');
   console.log(`  OMDB_API_KEY: ${process.env.OMDB_API_KEY ? '✓ configured' : '✗ not set'}`);
   console.log(`  THETVDB_API_KEY: ${process.env.THETVDB_API_KEY ? '✓ configured' : '✗ not set'}`);
+  console.log(`  FANART_TV_API_KEY: ${process.env.FANART_TV_API_KEY ? '✓ configured' : '✗ not set (artist images disabled)'}`);
   console.log(`  MusicBrainz: ✓ no key required`);
   console.log(`  Open Library: ✓ no key required`);
 

@@ -32,6 +32,58 @@ interface TorrentDetailResponse {
   files: TorrentFile[];
 }
 
+/**
+ * Folder metadata from the API
+ */
+interface FolderMetadata {
+  id: string;
+  torrentId: string;
+  path: string;
+  artist: string | null;
+  album: string | null;
+  year: number | null;
+  coverUrl: string | null;
+  externalId: string | null;
+  externalSource: string | null;
+}
+
+interface FoldersResponse {
+  folders: FolderMetadata[];
+}
+
+/**
+ * Find the best matching folder metadata for a set of files
+ * Returns the folder whose path is the common parent of all files
+ */
+function findFolderMetadataForFiles(
+  files: TorrentFile[],
+  folders: FolderMetadata[]
+): FolderMetadata | undefined {
+  if (files.length === 0 || folders.length === 0) return undefined;
+
+  // Get the common path prefix of all files
+  const paths = files.map(f => f.path);
+  const firstPath = paths[0];
+  const parts = firstPath.split('/').filter(Boolean);
+  
+  // Find the longest common prefix
+  let commonPrefix = '';
+  for (let i = 0; i < parts.length - 1; i++) {
+    const testPrefix = parts.slice(0, i + 1).join('/');
+    const allMatch = paths.every(p => p.startsWith(testPrefix + '/') || p === testPrefix);
+    if (allMatch) {
+      commonPrefix = testPrefix;
+    } else {
+      break;
+    }
+  }
+
+  if (!commonPrefix) return undefined;
+
+  // Find the folder that matches this path
+  return folders.find(f => f.path === commonPrefix);
+}
+
 export default function TorrentDetailPage(): React.ReactElement {
   const params = useParams();
   const torrentId = params.id as string;
@@ -39,6 +91,7 @@ export default function TorrentDetailPage(): React.ReactElement {
   const [torrent, setTorrent] = useState<Torrent | null>(null);
   const [files, setFiles] = useState<TorrentFile[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<TorrentFile[]>([]);
+  const [folders, setFolders] = useState<FolderMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -48,15 +101,17 @@ export default function TorrentDetailPage(): React.ReactElement {
   
   // Playlist modal state
   const [playlistFiles, setPlaylistFiles] = useState<TorrentFile[]>([]);
+  const [playlistFolderMetadata, setPlaylistFolderMetadata] = useState<FolderMetadata | undefined>(undefined);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
 
-  // Fetch torrent details
+  // Fetch torrent details and folder metadata
   useEffect(() => {
     const fetchTorrent = async (): Promise<void> => {
       try {
         setIsLoading(true);
         setError(null);
 
+        // Fetch torrent details
         const response = await fetch(`/api/torrents/${torrentId}`);
         
         if (!response.ok) {
@@ -78,6 +133,19 @@ export default function TorrentDetailPage(): React.ReactElement {
         setTorrent(data.torrent);
         setFiles(data.files);
         setFilteredFiles(data.files);
+
+        // Fetch folder metadata for album-level cover art
+        try {
+          const foldersResponse = await fetch(`/api/torrents/${torrentId}/folders`);
+          if (foldersResponse.ok) {
+            const foldersData = await foldersResponse.json() as FoldersResponse;
+            console.log('[TorrentDetailPage] Folder metadata:', foldersData.folders);
+            setFolders(foldersData.folders);
+          }
+        } catch (folderErr) {
+          // Non-critical error - folder metadata is optional
+          console.warn('[TorrentDetailPage] Failed to fetch folder metadata:', folderErr);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -128,18 +196,29 @@ export default function TorrentDetailPage(): React.ReactElement {
     setSelectedFile(null);
   }, []);
 
-  // Handle play all - opens playlist modal
+  // Handle play all - opens playlist modal with folder-specific metadata
   const handlePlayAll = useCallback((audioFiles: TorrentFile[]) => {
     if (audioFiles.length > 0) {
+      // Find folder metadata for these files
+      const folderMeta = findFolderMetadataForFiles(audioFiles, folders);
+      console.log('[TorrentDetailPage] Play all with folder metadata:', {
+        fileCount: audioFiles.length,
+        folderPath: folderMeta?.path,
+        folderCoverUrl: folderMeta?.coverUrl,
+        folderArtist: folderMeta?.artist,
+        folderAlbum: folderMeta?.album,
+      });
+      setPlaylistFolderMetadata(folderMeta);
       setPlaylistFiles(audioFiles);
       setIsPlaylistModalOpen(true);
     }
-  }, []);
+  }, [folders]);
 
   // Handle playlist modal close
   const handlePlaylistModalClose = useCallback(() => {
     setIsPlaylistModalOpen(false);
     setPlaylistFiles([]);
+    setPlaylistFolderMetadata(undefined);
   }, []);
 
   // Get all audio files from the torrent (sorted by path)
@@ -375,15 +454,15 @@ export default function TorrentDetailPage(): React.ReactElement {
           torrentName={torrent.name}
         /> : null}
 
-      {/* Playlist Player Modal */}
+      {/* Playlist Player Modal - uses folder-specific metadata when available */}
       {torrent ? <PlaylistPlayerModal
           isOpen={isPlaylistModalOpen}
           onClose={handlePlaylistModalClose}
           files={playlistFiles}
           infohash={torrent.infohash}
-          torrentName={torrent.name}
-          coverArt={torrent.coverUrl ?? torrent.posterUrl ?? undefined}
-          artist={extractArtistFromTorrentName(torrent.name)}
+          torrentName={playlistFolderMetadata?.album ?? torrent.name}
+          coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
+          artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
         /> : null}
     </MainLayout>
   );

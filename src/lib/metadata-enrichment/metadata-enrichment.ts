@@ -1,13 +1,14 @@
 /**
  * Metadata Enrichment Service
- * 
+ *
  * Automatically fetches metadata (posters, covers, descriptions) from external APIs
  * based on torrent name analysis.
- * 
+ *
  * Supported sources:
  * - OMDb (movies)
  * - TheTVDB (TV shows)
  * - MusicBrainz (music)
+ * - Fanart.tv (artist images for discographies)
  * - Open Library (books)
  */
 
@@ -22,6 +23,7 @@ import {
   parseOpenLibraryResponse,
   parseOMDbResponse,
   parseTheTVDBResponse,
+  fetchArtistImage,
   type MusicBrainzSearchType,
 } from '@/lib/metadata';
 
@@ -40,6 +42,8 @@ export interface EnrichmentOptions {
   omdbApiKey?: string;
   thetvdbApiKey?: string;
   musicbrainzUserAgent?: string;
+  /** Fanart.tv API key for artist images */
+  fanartTvApiKey?: string;
   /** Override the auto-detected content type (useful when content type is known from file analysis) */
   contentTypeOverride?: ContentType;
 }
@@ -48,11 +52,15 @@ export interface EnrichmentResult {
   contentType: ContentType;
   posterUrl?: string;
   coverUrl?: string;
+  /** Artist image URL (for discography collections) */
+  artistImageUrl?: string;
   externalId?: string;
   externalSource?: string;
   year?: number;
   description?: string;
   title?: string;
+  /** Artist name extracted from torrent */
+  artist?: string;
   error?: string;
 }
 
@@ -311,18 +319,63 @@ async function fetchTVShowMetadata(
 }
 
 /**
+ * Check if the torrent name indicates a discography (artist collection, not single album)
+ */
+function isDiscography(name: string): boolean {
+  const lowerName = name.toLowerCase();
+  return (
+    lowerName.includes('discography') ||
+    lowerName.includes('complete works') ||
+    lowerName.includes('complete discography') ||
+    lowerName.includes('anthology') ||
+    lowerName.includes('studio albums') ||
+    // Pattern like "Artist - Discography" or "Artist Discography"
+    /discography/i.test(name)
+  );
+}
+
+/**
  * Check if the torrent name indicates a discography or album collection
  */
 function isDiscographyOrAlbum(name: string): boolean {
   const lowerName = name.toLowerCase();
   return (
-    lowerName.includes('discography') ||
+    isDiscography(name) ||
     lowerName.includes('complete') ||
     lowerName.includes('collection') ||
-    lowerName.includes('anthology') ||
     // Artist - Album format typically indicates an album
     /^[^-]+-[^-]+/.test(name)
   );
+}
+
+/**
+ * Extract artist name from torrent name
+ * Common patterns:
+ * - "Artist - Discography"
+ * - "Artist Discography"
+ * - "Artist - Album Name"
+ * - "Artist - Complete Works"
+ */
+function extractArtistName(torrentName: string): string | undefined {
+  // Clean up the name first
+  const cleanName = torrentName
+    .replace(/\[.*?\]/g, '') // Remove bracketed content
+    .replace(/\(.*?\)/g, '') // Remove parenthetical content
+    .trim();
+
+  // Pattern: "Artist - Something"
+  const dashMatch = cleanName.match(/^([^-]+)\s*-\s*/);
+  if (dashMatch) {
+    return dashMatch[1].trim();
+  }
+
+  // Pattern: "Artist Discography" or "Artist Complete Works"
+  const discographyMatch = cleanName.match(/^(.+?)\s+(discography|complete\s*works|anthology|studio\s*albums)/i);
+  if (discographyMatch) {
+    return discographyMatch[1].trim();
+  }
+
+  return undefined;
 }
 
 /**
@@ -361,11 +414,13 @@ async function fetchCoverArt(
 /**
  * Fetch music metadata from MusicBrainz
  * Uses release-group search for discographies/albums to get better results and cover art
+ * For discographies, also fetches artist image from Fanart.tv
  */
 async function fetchMusicMetadata(
   query: string,
   userAgent: string,
-  torrentName: string
+  torrentName: string,
+  fanartTvApiKey?: string
 ): Promise<Partial<EnrichmentResult>> {
   // Determine search type based on torrent name
   const searchType: MusicBrainzSearchType = isDiscographyOrAlbum(torrentName)
@@ -397,6 +452,7 @@ async function fetchMusicMetadata(
     externalSource: 'musicbrainz',
     year: result.year,
     title: result.title,
+    artist: result.artist,
   };
 
   // For release-groups, try to fetch cover art from Cover Art Archive
@@ -404,6 +460,24 @@ async function fetchMusicMetadata(
     const coverUrl = await fetchCoverArt(result.id, 'release-group', userAgent);
     if (coverUrl) {
       enrichmentResult.coverUrl = coverUrl;
+    }
+  }
+
+  // For discographies, fetch artist image from Fanart.tv
+  // This provides a band photo/artist image for the top-level torrent
+  if (isDiscography(torrentName) && fanartTvApiKey) {
+    const artistName = extractArtistName(torrentName) ?? result.artist;
+    if (artistName) {
+      const artistImageUrl = await fetchArtistImage(artistName, {
+        fanartTvApiKey,
+        userAgent,
+      });
+      if (artistImageUrl) {
+        enrichmentResult.artistImageUrl = artistImageUrl;
+        // For discographies, use artist image as the poster (top-level image)
+        // since there's no single album cover that represents the whole collection
+        enrichmentResult.posterUrl = artistImageUrl;
+      }
     }
   }
 
@@ -483,7 +557,7 @@ export async function enrichTorrentMetadata(
 
       case 'music': {
         const userAgent = options.musicbrainzUserAgent ?? 'BitTorrented/1.0.0';
-        const musicData = await fetchMusicMetadata(query, userAgent, torrentName);
+        const musicData = await fetchMusicMetadata(query, userAgent, torrentName, options.fanartTvApiKey);
         Object.assign(result, musicData);
         break;
       }

@@ -59,6 +59,19 @@ function extractAlbumFromPath(path: string): string | undefined {
 }
 
 /**
+ * Extract artist name from file path
+ * Assumes structure like: "Artist/Album/track.mp3"
+ */
+function extractArtistFromPath(path: string): string | undefined {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length >= 3) {
+    // Return the grandparent folder name as artist
+    return parts[parts.length - 3];
+  }
+  return undefined;
+}
+
+/**
  * Connection status event from SSE endpoint
  */
 interface ConnectionStatus {
@@ -146,7 +159,13 @@ export function PlaylistPlayerModal({
 
   // Extract track info for Media Session
   const trackInfo = currentFile ? extractTrackInfo(currentFile.name) : null;
-  const albumName = currentFile ? extractAlbumFromPath(currentFile.path) : undefined;
+  const albumFromPath = currentFile ? extractAlbumFromPath(currentFile.path) : undefined;
+  const artistFromPath = currentFile ? extractArtistFromPath(currentFile.path) : undefined;
+  
+  // Determine final artist and album values
+  const displayArtist = artist ?? artistFromPath;
+  const displayAlbum = albumFromPath ?? torrentName;
+  const displayTitle = trackInfo?.title ?? currentFile?.name ?? '';
 
   // Build stream URL for current file
   const streamUrl = currentFile
@@ -366,9 +385,9 @@ export function PlaylistPlayerModal({
             <AudioPlayer
               src={streamUrl}
               filename={currentFile.name}
-              title={trackInfo?.title}
-              artist={artist}
-              album={albumName ?? torrentName}
+              title={displayTitle}
+              artist={displayArtist}
+              album={displayAlbum}
               coverArt={coverArt}
               onReady={handlePlayerReady}
               onError={handlePlayerError}

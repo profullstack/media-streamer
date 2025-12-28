@@ -77,6 +77,55 @@ function needsTranscoding(filename: string): boolean {
 const SWARM_STATS_POLL_INTERVAL = 30000;
 
 /**
+ * Extract track info from filename
+ * Attempts to parse common naming patterns like:
+ * - "01 - Track Name.mp3"
+ * - "Artist - Track Name.mp3"
+ * - "01. Track Name.mp3"
+ */
+function extractTrackInfo(filename: string): { title: string; trackNumber?: number } {
+  // Remove extension
+  const nameWithoutExt = filename.replace(/\.[^.]+$/, '');
+  
+  // Try to extract track number from start
+  const trackNumMatch = nameWithoutExt.match(/^(\d{1,3})[\s._-]+(.+)$/);
+  if (trackNumMatch) {
+    return {
+      trackNumber: parseInt(trackNumMatch[1], 10),
+      title: trackNumMatch[2].trim(),
+    };
+  }
+  
+  return { title: nameWithoutExt };
+}
+
+/**
+ * Extract album name from file path
+ * Assumes structure like: "Artist/Album/track.mp3" or "Album/track.mp3"
+ */
+function extractAlbumFromPath(path: string): string | undefined {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length >= 2) {
+    // Return the parent folder name as album
+    return parts[parts.length - 2];
+  }
+  return undefined;
+}
+
+/**
+ * Extract artist name from file path
+ * Assumes structure like: "Artist/Album/track.mp3"
+ */
+function extractArtistFromPath(path: string): string | undefined {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length >= 3) {
+    // Return the grandparent folder name as artist
+    return parts[parts.length - 3];
+  }
+  return undefined;
+}
+
+/**
  * Props for the MediaPlayerModal component
  */
 export interface MediaPlayerModalProps {
@@ -90,12 +139,20 @@ export interface MediaPlayerModalProps {
   infohash: string;
   /** Optional torrent name for context */
   torrentName?: string;
+  /** Optional artist name for the track */
+  artist?: string;
+  /** Optional album name for the track */
+  album?: string;
+  /** Optional cover art URL */
+  coverArt?: string;
 }
 
 /**
  * Media Player Modal Component
  *
  * Displays a modal with the appropriate player based on media type.
+ * Supports displaying artist, album, song title, and cover art.
+ * Integrates with Media Session API for iOS lock screen and CarPlay.
  */
 export function MediaPlayerModal({
   isOpen,
@@ -103,6 +160,9 @@ export function MediaPlayerModal({
   file,
   infohash,
   torrentName,
+  artist: artistProp,
+  album: albumProp,
+  coverArt,
 }: MediaPlayerModalProps): React.ReactElement | null {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -276,8 +336,20 @@ export function MediaPlayerModal({
   if (!file) return null;
 
   const mediaCategory = getMediaCategory(file.name);
-  const title = file.name;
-  const subtitle = torrentName ? `From: ${torrentName}` : undefined;
+  
+  // Extract track info from filename
+  const trackInfo = extractTrackInfo(file.name);
+  
+  // Determine artist: use prop, or extract from path
+  const artist = artistProp ?? extractArtistFromPath(file.path);
+  
+  // Determine album: use prop, or extract from path, or use torrent name
+  const album = albumProp ?? extractAlbumFromPath(file.path) ?? torrentName;
+  
+  // Use extracted title for display
+  const displayTitle = trackInfo.title;
+  const modalTitle = file.name;
+  
   const isLoading = !isPlayerReady && !error;
   
   // Stream is ready when file has enough buffer for streaming (2MB for audio, 10MB for video)
@@ -292,15 +364,76 @@ export function MediaPlayerModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={title}
+      title={modalTitle}
       size="3xl"
       className="max-w-[90vw] lg:max-w-3xl"
     >
       <div className="space-y-3 sm:space-y-4">
-        {/* Subtitle and Swarm Stats Row */}
+        {/* Metadata Header - Artist → Album → Song with Cover Art */}
+        <div className="flex items-start gap-4" data-testid="metadata-header">
+          {/* Cover Art */}
+          {coverArt ? (
+            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg shadow-md">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={coverArt}
+                alt={album ?? displayTitle}
+                className="h-full w-full object-cover"
+                data-testid="cover-art-image"
+              />
+            </div>
+          ) : (
+            <div
+              className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-bg-tertiary shadow-md"
+              data-testid="cover-art-placeholder"
+            >
+              <svg
+                className="h-10 w-10 text-text-muted"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+                />
+              </svg>
+            </div>
+          )}
+          
+          {/* Track Info */}
+          <div className="min-w-0 flex-1">
+            {/* Artist → Album breadcrumb */}
+            {(artist || album) ? (
+              <p className="text-sm text-text-secondary truncate">
+                {artist}
+                {artist && album ? (
+                  <span className="mx-1.5 text-text-muted">→</span>
+                ) : null}
+                {album}
+              </p>
+            ) : null}
+            
+            {/* Song Title */}
+            <h3 className="mt-1 text-lg font-semibold text-text-primary truncate">
+              {displayTitle}
+            </h3>
+            
+            {/* Track Number if available */}
+            {trackInfo.trackNumber ? (
+              <p className="mt-0.5 text-xs text-text-muted">
+                Track {trackInfo.trackNumber}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Swarm Stats Row */}
         <div className="flex items-center justify-between gap-4">
-          {/* Subtitle */}
-          {subtitle ? <p className="text-sm text-text-muted truncate flex-1">{subtitle}</p> : null}
+          {/* Torrent Name */}
+          {torrentName ? <p className="text-sm text-text-muted truncate flex-1">From: {torrentName}</p> : null}
 
           {/* Swarm Stats Badge */}
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -468,6 +601,10 @@ export function MediaPlayerModal({
             <AudioPlayer
               src={streamUrl}
               filename={file.name}
+              title={displayTitle}
+              artist={artist}
+              album={album}
+              coverArt={coverArt}
               onReady={handlePlayerReady}
               onError={handlePlayerError}
               showTranscodingNotice={false}

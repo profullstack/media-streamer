@@ -25,3 +25,19 @@ export type {
   TVShowMetadata,
   MusicBrainzSearchType,
 } from './metadata';
+
+// Artist image utilities
+export {
+  buildMusicBrainzArtistSearchUrl,
+  buildFanartTvArtistUrl,
+  parseMusicBrainzArtistResponse,
+  parseFanartTvArtistResponse,
+  fetchArtistImage,
+} from './artist-image';
+
+export type {
+  MusicBrainzArtistResponse,
+  FanartTvArtistResponse,
+  ArtistInfo,
+  FetchArtistImageOptions,
+} from './artist-image';
