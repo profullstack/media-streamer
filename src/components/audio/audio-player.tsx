@@ -105,8 +105,20 @@ export function AudioPlayer({
     if (!audio) return;
 
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      // For transcoded streams, duration may be Infinity or NaN initially
+      const dur = audio.duration;
+      if (Number.isFinite(dur) && dur > 0) {
+        setDuration(dur);
+      }
       setIsLoading(false);
+    };
+
+    // Duration may update as more of the stream is buffered (especially for transcoded content)
+    const handleDurationChange = () => {
+      const dur = audio.duration;
+      if (Number.isFinite(dur) && dur > 0) {
+        setDuration(dur);
+      }
     };
 
     const handleTimeUpdate = () => {
@@ -146,6 +158,7 @@ export function AudioPlayer({
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
@@ -155,6 +168,7 @@ export function AudioPlayer({
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
@@ -416,7 +430,7 @@ export function AudioPlayer({
           {/* Time Display */}
           <div className="mt-1 flex justify-between text-xs text-text-muted">
             <span>{formatDuration(currentTime)}</span>
-            <span>{formatDuration(duration)}</span>
+            <span>{duration > 0 ? formatDuration(duration) : '--:--'}</span>
           </div>
         </div>
       </div>
@@ -563,7 +577,18 @@ export function AudioPlayerCompact({
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleLoadedMetadata = () => {
+      const dur = audio.duration;
+      if (Number.isFinite(dur) && dur > 0) {
+        setDuration(dur);
+      }
+    };
+    const handleDurationChange = () => {
+      const dur = audio.duration;
+      if (Number.isFinite(dur) && dur > 0) {
+        setDuration(dur);
+      }
+    };
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handlePlay = () => {
       setIsPlaying(true);
@@ -579,6 +604,7 @@ export function AudioPlayerCompact({
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
@@ -586,6 +612,7 @@ export function AudioPlayerCompact({
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
@@ -637,7 +664,7 @@ export function AudioPlayerCompact({
       </div>
 
       <span className="flex-shrink-0 text-xs text-text-muted">
-        {formatDuration(currentTime)} / {formatDuration(duration)}
+        {formatDuration(currentTime)} / {duration > 0 ? formatDuration(duration) : '--:--'}
       </span>
 
       {/* iOS Safari requirements: playsInline (no crossOrigin for same-origin) */}

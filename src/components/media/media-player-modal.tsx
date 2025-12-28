@@ -494,55 +494,68 @@ export function MediaPlayerModal({
                 {isLoading ? (
                   <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
                 ) : (
-                  <div className="h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-green-500 flex-shrink-0" title="Stream active" />
+                  <div className="h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="Stream active" />
                 )}
                 <span className="text-xs sm:text-sm text-text-secondary truncate">
-                  {isLoading ? connectionStatus.message : `Streaming (${connectionStatus.numPeers} peer${connectionStatus.numPeers !== 1 ? 's' : ''})`}
+                  {isLoading ? connectionStatus.message : 'Streaming'}
                 </span>
               </div>
               
-              {/* Stats - compact on small screens */}
-              <div className="flex items-center gap-2 sm:gap-4 text-xs text-text-muted flex-shrink-0">
+              {/* Stats - always visible */}
+              <div className="flex items-center gap-2 sm:gap-3 text-xs text-text-muted flex-shrink-0">
                 {/* Peers */}
                 <span title="Connected peers" className="flex items-center gap-1">
                   <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                   </svg>
-                  {connectionStatus.numPeers}
+                  <span className={connectionStatus.numPeers > 0 ? 'text-green-500' : 'text-orange-500'}>
+                    {connectionStatus.numPeers}
+                  </span>
                 </span>
                 
-                {/* Progress - show during loading or if not complete */}
-                {connectionStatus.progress > 0 && connectionStatus.progress < 1 && (
-                  <span title="Download progress">{(connectionStatus.progress * 100).toFixed(0)}%</span>
-                )}
-                
-                {/* Download speed */}
-                {connectionStatus.downloadSpeed > 0 && (
-                  <span className="hidden sm:flex items-center gap-1 text-green-500" title="Download speed">
+                {/* Progress - always show if not complete */}
+                {connectionStatus.progress < 1 && (
+                  <span title="Download progress" className="flex items-center gap-1">
                     <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
-                    {formatSpeed(connectionStatus.downloadSpeed)}
+                    <span className={connectionStatus.progress > 0.5 ? 'text-green-500' : 'text-yellow-500'}>
+                      {(connectionStatus.progress * 100).toFixed(0)}%
+                    </span>
                   </span>
                 )}
                 
-                {/* Upload speed - only show after ready */}
-                {!isLoading && connectionStatus.uploadSpeed > 0 && (
-                  <span className="hidden sm:flex items-center gap-1 text-blue-500" title="Upload speed">
+                {/* Download speed - always visible when active */}
+                {connectionStatus.downloadSpeed > 0 && (
+                  <span className="flex items-center gap-1 text-green-500" title="Download speed">
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <span className="hidden sm:inline">{formatSpeed(connectionStatus.downloadSpeed)}</span>
+                    <span className="sm:hidden">{formatSpeedCompact(connectionStatus.downloadSpeed)}</span>
+                  </span>
+                )}
+                
+                {/* Upload speed - always visible when active */}
+                {connectionStatus.uploadSpeed > 0 && (
+                  <span className="flex items-center gap-1 text-blue-500" title="Upload speed">
                     <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
-                    {formatSpeed(connectionStatus.uploadSpeed)}
+                    <span className="hidden sm:inline">{formatSpeed(connectionStatus.uploadSpeed)}</span>
+                    <span className="sm:hidden">{formatSpeedCompact(connectionStatus.uploadSpeed)}</span>
                   </span>
                 )}
               </div>
             </div>
             
-            {/* Progress bar - only during loading */}
-            {isLoading && connectionStatus.progress > 0 && (
+            {/* Progress bar - show during loading or when not complete */}
+            {connectionStatus.progress > 0 && connectionStatus.progress < 1 && (
               <div className="mt-1.5 sm:mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
                 <div
-                  className="h-full bg-accent-primary transition-all duration-300"
+                  className={`h-full transition-all duration-300 ${
+                    isLoading ? 'bg-accent-primary' : 'bg-green-500'
+                  }`}
                   style={{ width: `${connectionStatus.progress * 100}%` }}
                 />
               </div>
@@ -600,4 +613,17 @@ function formatSpeed(bytesPerSecond: number): string {
     return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
   }
   return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
+}
+
+/**
+ * Format bytes per second to compact speed (for mobile)
+ */
+function formatSpeedCompact(bytesPerSecond: number): string {
+  if (bytesPerSecond < 1024) {
+    return `${bytesPerSecond.toFixed(0)}B`;
+  }
+  if (bytesPerSecond < 1024 * 1024) {
+    return `${(bytesPerSecond / 1024).toFixed(0)}K`;
+  }
+  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)}M`;
 }
