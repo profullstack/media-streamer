@@ -1,0 +1,111 @@
+# Deploy to DigitalOcean Droplet
+# Deploys the application to a DigitalOcean Droplet via SSH
+# Requires UDP ports open for BitTorrent DHT to work
+
+name: Deploy to Droplet
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9'
+
+jobs:
+  # Run tests first (required)
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Vitest tests
+        run: pnpm test
+
+  # Deploy to Droplet
+  deploy:
+    name: Deploy to Droplet
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env file to Droplet
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          port: ${{ secrets.DROPLET_PORT || 22 }}
+          envs: ENV_FILE
+          script: |
+            # Write the entire .env file from secret
+            echo "$ENV_FILE" > /var/www/bittorrented/.env
+            echo ".env file written to Droplet"
+
+      - name: Deploy to Droplet via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          port: ${{ secrets.DROPLET_PORT || 22 }}
+          script: |
+            # Navigate to app directory
+            cd /var/www/bittorrented
+            
+            # Pull latest code
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Fix ownership (in case git reset changed it)
+            chown -R bittorrented:bittorrented /var/www/bittorrented
+            
+            # Install dependencies as bittorrented user
+            sudo -u bittorrented pnpm install --frozen-lockfile
+            
+            # Build the application as bittorrented user
+            sudo -u bittorrented pnpm build
+            
+            # Restart the application using systemd
+            systemctl restart bittorrented
+            
+            echo "Deployment complete!"
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          port: ${{ secrets.DROPLET_PORT || 22 }}
+          script: |
+            # Check if app is running via systemd
+            systemctl status bittorrented --no-pager
+            
+            # Check if port 3000 is listening
+            ss -tlnp | grep 3000 || echo "Warning: Port 3000 not listening"
+            
+            # Check DHT UDP ports
+            ss -ulnp | grep 6881 || echo "Note: DHT port 6881 not bound yet (will bind on first torrent)"
