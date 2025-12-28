@@ -227,9 +227,20 @@ if [ ! -f "${SSL_CERT}" ]; then
     
     # Check if domain resolves to this server (basic check)
     SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "unknown")
-    DOMAIN_IP=$(dig +short ${DOMAIN} 2>/dev/null | head -1 || echo "")
+    # Get all A records and check if any match (handles CNAME chains)
+    DOMAIN_IPS=$(dig +short ${DOMAIN} A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || echo "")
+    DOMAIN_IP=$(echo "$DOMAIN_IPS" | head -1)
     
-    if [ "${SERVER_IP}" = "${DOMAIN_IP}" ] || [ -n "${FORCE_SSL:-}" ]; then
+    echo "  Server IP: ${SERVER_IP}"
+    echo "  Domain IPs: ${DOMAIN_IPS:-none}"
+    
+    # Check if server IP is in the list of domain IPs
+    IP_MATCH=false
+    if echo "$DOMAIN_IPS" | grep -q "^${SERVER_IP}$"; then
+        IP_MATCH=true
+    fi
+    
+    if [ "$IP_MATCH" = true ] || [ -n "${FORCE_SSL:-}" ]; then
         echo "Domain ${DOMAIN} resolves to this server (${SERVER_IP})"
         echo "Requesting SSL certificate..."
         
