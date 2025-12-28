@@ -213,9 +213,21 @@ export default function TorrentDetailPage(): React.ReactElement {
         {/* Header */}
         <div className="card p-6">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-primary/20">
-              <MagnetIcon className="text-accent-primary" size={24} />
-            </div>
+            {/* Poster/Cover Art or Fallback Icon */}
+            {torrent.posterUrl || torrent.coverUrl ? (
+              <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg shadow-lg sm:h-32 sm:w-32">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={torrent.posterUrl ?? torrent.coverUrl ?? ''}
+                  alt={torrent.name}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-primary/20">
+                <MagnetIcon className="text-accent-primary" size={24} />
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xl font-bold text-text-primary">
                 {torrent.name}
@@ -223,6 +235,23 @@ export default function TorrentDetailPage(): React.ReactElement {
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {torrent.infohash}
               </p>
+              {/* Content type and year */}
+              {(torrent.contentType || torrent.year) && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
+                  {torrent.contentType && (
+                    <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
+                      {torrent.contentType}
+                    </span>
+                  )}
+                  {torrent.year && <span>{torrent.year}</span>}
+                </div>
+              )}
+              {/* Description */}
+              {torrent.description && (
+                <p className="mt-2 line-clamp-2 text-sm text-text-secondary">
+                  {torrent.description}
+                </p>
+              )}
             </div>
           </div>
 

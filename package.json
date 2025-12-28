@@ -19,7 +19,11 @@
     "enrich-metadata": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts",
     "enrich-metadata:all": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status",
     "enrich-metadata:dry-run": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status --dry-run",
-    "enrich-metadata:force": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status --force"
+    "enrich-metadata:force": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status --force",
+    "enrich-folders": "tsx --env-file=.env scripts/enrich-folder-metadata.ts",
+    "enrich-folders:all": "tsx --env-file=.env scripts/enrich-folder-metadata.ts --all-status",
+    "enrich-folders:dry-run": "tsx --env-file=.env scripts/enrich-folder-metadata.ts --all-status --dry-run",
+    "enrich-folders:force": "tsx --env-file=.env scripts/enrich-folder-metadata.ts --all-status --force"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

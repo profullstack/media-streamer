@@ -99,6 +99,59 @@ export type Database = {
         };
         Relationships: [];
       };
+      torrent_folders: {
+        Row: {
+          id: string;
+          torrent_id: string;
+          path: string;
+          artist: string | null;
+          album: string | null;
+          year: number | null;
+          cover_url: string | null;
+          external_id: string | null;
+          external_source: string | null;
+          metadata_fetched_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          torrent_id: string;
+          path: string;
+          artist?: string | null;
+          album?: string | null;
+          year?: number | null;
+          cover_url?: string | null;
+          external_id?: string | null;
+          external_source?: string | null;
+          metadata_fetched_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          torrent_id?: string;
+          path?: string;
+          artist?: string | null;
+          album?: string | null;
+          year?: number | null;
+          cover_url?: string | null;
+          external_id?: string | null;
+          external_source?: string | null;
+          metadata_fetched_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'torrent_folders_torrent_id_fkey';
+            columns: ['torrent_id'];
+            isOneToOne: false;
+            referencedRelation: 'torrents';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       torrent_files: {
         Row: {
           id: string;
@@ -750,6 +803,10 @@ export type TorrentUpdate = UpdateTables<'torrents'>;
 export type TorrentFile = Tables<'torrent_files'>;
 export type TorrentFileInsert = InsertTables<'torrent_files'>;
 export type TorrentFileUpdate = UpdateTables<'torrent_files'>;
+
+export type TorrentFolder = Tables<'torrent_folders'>;
+export type TorrentFolderInsert = InsertTables<'torrent_folders'>;
+export type TorrentFolderUpdate = UpdateTables<'torrent_folders'>;
 
 export type AudioMetadata = Tables<'audio_metadata'>;
 export type AudioMetadataInsert = InsertTables<'audio_metadata'>;
