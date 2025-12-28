@@ -30,6 +30,15 @@ describe('transforms', () => {
         status: 'ready',
         error_message: null,
         indexed_at: '2025-12-26T22:25:00.000Z',
+        // External metadata fields
+        poster_url: null,
+        cover_url: null,
+        content_type: null,
+        external_id: null,
+        external_source: null,
+        year: null,
+        description: null,
+        metadata_fetched_at: null,
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };
@@ -68,6 +77,15 @@ describe('transforms', () => {
         status: 'ready',
         error_message: null,
         indexed_at: null,
+        // External metadata fields
+        poster_url: null,
+        cover_url: null,
+        content_type: null,
+        external_id: null,
+        external_source: null,
+        year: null,
+        description: null,
+        metadata_fetched_at: null,
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };

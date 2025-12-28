@@ -57,6 +57,35 @@ function getSupabaseServiceRoleKey(): string {
  * - Global fetch timeout of 30 seconds
  * - Connection keep-alive disabled to prevent stale connections
  */
+/**
+ * Convert Headers object or plain object to a plain object
+ * This ensures we don't lose headers when spreading
+ * Exported for testing
+ */
+export function normalizeHeaders(headers: HeadersInit | undefined): Record<string, string> {
+  if (!headers) {
+    return {};
+  }
+  
+  if (headers instanceof Headers) {
+    const result: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      result[key] = value;
+    });
+    return result;
+  }
+  
+  if (Array.isArray(headers)) {
+    const result: Record<string, string> = {};
+    for (const [key, value] of headers) {
+      result[key] = value;
+    }
+    return result;
+  }
+  
+  return headers as Record<string, string>;
+}
+
 export function createServerClient(): SupabaseClient<Database> {
   return createClient<Database>(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
     auth: {
@@ -70,12 +99,15 @@ export function createServerClient(): SupabaseClient<Database> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
+        // Properly normalize headers to preserve apikey and other headers
+        const normalizedHeaders = normalizeHeaders(options.headers);
+        
         return fetch(url, {
           ...options,
           signal: controller.signal,
           // Disable keep-alive to prevent stale connections on serverless
           headers: {
-            ...options.headers as Record<string, string>,
+            ...normalizedHeaders,
             'Connection': 'close',
           },
         }).finally(() => {

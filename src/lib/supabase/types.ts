@@ -31,6 +31,15 @@ export type Database = {
           status: 'pending' | 'indexing' | 'ready' | 'error';
           error_message: string | null;
           indexed_at: string | null;
+          // External metadata fields
+          poster_url: string | null;
+          cover_url: string | null;
+          content_type: 'movie' | 'tvshow' | 'music' | 'book' | 'other' | null;
+          external_id: string | null;
+          external_source: string | null;
+          year: number | null;
+          description: string | null;
+          metadata_fetched_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -49,6 +58,15 @@ export type Database = {
           status?: 'pending' | 'indexing' | 'ready' | 'error';
           error_message?: string | null;
           indexed_at?: string | null;
+          // External metadata fields
+          poster_url?: string | null;
+          cover_url?: string | null;
+          content_type?: 'movie' | 'tvshow' | 'music' | 'book' | 'other' | null;
+          external_id?: string | null;
+          external_source?: string | null;
+          year?: number | null;
+          description?: string | null;
+          metadata_fetched_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -67,6 +85,15 @@ export type Database = {
           status?: 'pending' | 'indexing' | 'ready' | 'error';
           error_message?: string | null;
           indexed_at?: string | null;
+          // External metadata fields
+          poster_url?: string | null;
+          cover_url?: string | null;
+          content_type?: 'movie' | 'tvshow' | 'music' | 'book' | 'other' | null;
+          external_id?: string | null;
+          external_source?: string | null;
+          year?: number | null;
+          description?: string | null;
+          metadata_fetched_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

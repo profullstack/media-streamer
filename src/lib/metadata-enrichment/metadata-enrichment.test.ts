@@ -1,0 +1,488 @@
+/**
+ * Metadata Enrichment Service Tests
+ * 
+ * Tests for automatic metadata fetching during torrent indexing.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  detectContentType,
+  extractSearchQuery,
+  enrichTorrentMetadata,
+  type ContentType,
+  type EnrichmentOptions,
+} from './metadata-enrichment';
+
+// ============================================================================
+// Content Type Detection Tests
+// ============================================================================
+
+describe('detectContentType', () => {
+  describe('movie detection', () => {
+    it('should detect movie with year and quality', () => {
+      expect(detectContentType('The Matrix 1999 1080p BluRay x264')).toBe('movie');
+    });
+
+    it('should detect movie with quality and year', () => {
+      expect(detectContentType('Inception.2010.720p.BRRip.x264')).toBe('movie');
+    });
+
+    it('should detect movie with 4K quality', () => {
+      expect(detectContentType('Dune 2021 2160p 4K UHD BluRay')).toBe('movie');
+    });
+
+    it('should detect movie with IMAX tag', () => {
+      expect(detectContentType('Oppenheimer 2023 IMAX 1080p')).toBe('movie');
+    });
+
+    it('should detect movie with directors cut', () => {
+      expect(detectContentType('Blade Runner Directors Cut 1982 1080p')).toBe('movie');
+    });
+
+    it('should detect movie with extended edition', () => {
+      expect(detectContentType('Lord of the Rings Extended 2001 BluRay')).toBe('movie');
+    });
+  });
+
+  describe('TV show detection', () => {
+    it('should detect TV show with S01E01 format', () => {
+      expect(detectContentType('Breaking Bad S01E01 720p HDTV')).toBe('tvshow');
+    });
+
+    it('should detect TV show with S01 format', () => {
+      expect(detectContentType('Game of Thrones S08 1080p WEB-DL')).toBe('tvshow');
+    });
+
+    it('should detect TV show with season word', () => {
+      expect(detectContentType('The Office Season 3 720p')).toBe('tvshow');
+    });
+
+    it('should detect TV show with episode word', () => {
+      expect(detectContentType('Friends Episode 10 HDTV')).toBe('tvshow');
+    });
+
+    it('should detect complete series', () => {
+      expect(detectContentType('The Wire Complete Series 1080p')).toBe('tvshow');
+    });
+
+    it('should prioritize TV show over movie patterns', () => {
+      // Has both year and S01E01 - should be TV show
+      expect(detectContentType('Stranger Things 2016 S01E01 1080p')).toBe('tvshow');
+    });
+  });
+
+  describe('music detection', () => {
+    it('should detect music with FLAC format', () => {
+      expect(detectContentType('Pink Floyd - The Dark Side of the Moon [FLAC]')).toBe('music');
+    });
+
+    it('should detect music with MP3 format', () => {
+      expect(detectContentType('Beatles - Abbey Road [MP3 320]')).toBe('music');
+    });
+
+    it('should detect music with V0 quality', () => {
+      expect(detectContentType('Radiohead - OK Computer [V0]')).toBe('music');
+    });
+
+    it('should detect various artists compilation', () => {
+      expect(detectContentType('Various Artists - Best of 2023')).toBe('music');
+    });
+
+    it('should detect discography', () => {
+      expect(detectContentType('Led Zeppelin Discography 1969-1982 FLAC')).toBe('music');
+    });
+  });
+
+  describe('book detection', () => {
+    it('should detect EPUB format', () => {
+      expect(detectContentType('Stephen King - The Shining.epub')).toBe('book');
+    });
+
+    it('should detect PDF format', () => {
+      expect(detectContentType('Clean Code - Robert Martin [PDF]')).toBe('book');
+    });
+
+    it('should detect MOBI format', () => {
+      expect(detectContentType('Harry Potter Collection [MOBI]')).toBe('book');
+    });
+
+    it('should detect AZW3 format', () => {
+      expect(detectContentType('Dune - Frank Herbert.azw3')).toBe('book');
+    });
+  });
+
+  describe('other/unknown detection', () => {
+    it('should return other for empty string', () => {
+      expect(detectContentType('')).toBe('other');
+    });
+
+    it('should return other for whitespace only', () => {
+      expect(detectContentType('   ')).toBe('other');
+    });
+
+    it('should return other for generic filename', () => {
+      expect(detectContentType('random_file_name')).toBe('other');
+    });
+
+    it('should return other for software', () => {
+      expect(detectContentType('Adobe Photoshop 2024 x64')).toBe('other');
+    });
+  });
+});
+
+// ============================================================================
+// Search Query Extraction Tests
+// ============================================================================
+
+describe('extractSearchQuery', () => {
+  describe('movie queries', () => {
+    it('should extract clean movie title', () => {
+      const result = extractSearchQuery('The Matrix 1999 1080p BluRay x264', 'movie');
+      expect(result.query).toBe('The Matrix');
+      expect(result.year).toBe(1999);
+    });
+
+    it('should handle dots in filename', () => {
+      const result = extractSearchQuery('Inception.2010.720p.BRRip.x264', 'movie');
+      expect(result.query).toBe('Inception');
+      expect(result.year).toBe(2010);
+    });
+
+    it('should remove release group', () => {
+      const result = extractSearchQuery('Dune 2021 1080p BluRay-SPARKS', 'movie');
+      expect(result.query).toBe('Dune');
+      expect(result.year).toBe(2021);
+    });
+
+    it('should handle brackets', () => {
+      const result = extractSearchQuery('[YTS] Interstellar (2014) 1080p', 'movie');
+      expect(result.query).toBe('Interstellar');
+      expect(result.year).toBe(2014);
+    });
+  });
+
+  describe('TV show queries', () => {
+    it('should remove season/episode info', () => {
+      const result = extractSearchQuery('Breaking Bad S01E01 720p HDTV', 'tvshow');
+      expect(result.query).toBe('Breaking Bad');
+      expect(result.year).toBeUndefined();
+    });
+
+    it('should remove season word', () => {
+      const result = extractSearchQuery('The Office Season 3 720p', 'tvshow');
+      expect(result.query).toBe('The Office');
+    });
+
+    it('should handle complex TV show names', () => {
+      const result = extractSearchQuery('Game.of.Thrones.S08E06.1080p.WEB-DL', 'tvshow');
+      expect(result.query).toBe('Game of Thrones');
+    });
+  });
+
+  describe('music queries', () => {
+    it('should preserve artist - album format', () => {
+      const result = extractSearchQuery('Pink Floyd - The Dark Side of the Moon [FLAC]', 'music');
+      expect(result.query).toContain('Pink Floyd');
+      expect(result.query).toContain('Dark Side');
+    });
+
+    it('should handle year in music', () => {
+      const result = extractSearchQuery('Beatles - Abbey Road 1969 [FLAC]', 'music');
+      expect(result.year).toBe(1969);
+    });
+  });
+
+  describe('book queries', () => {
+    it('should extract book title', () => {
+      const result = extractSearchQuery('Stephen King - The Shining [EPUB]', 'book');
+      expect(result.query).toContain('Stephen King');
+      expect(result.query).toContain('Shining');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle very long names', () => {
+      const longName = 'A'.repeat(300) + ' 2020 1080p';
+      const result = extractSearchQuery(longName, 'movie');
+      expect(result.query.length).toBeLessThanOrEqual(200);
+    });
+
+    it('should handle multiple years', () => {
+      const result = extractSearchQuery('2001 A Space Odyssey 1968 1080p', 'movie');
+      // Should prefer the later year (release year)
+      expect(result.year).toBe(1968);
+    });
+
+    it('should filter invalid years', () => {
+      const result = extractSearchQuery('Movie 1800 1080p', 'movie');
+      // 1800 is too old to be a valid release year
+      expect(result.year).toBeUndefined();
+    });
+  });
+});
+
+// ============================================================================
+// Metadata Enrichment Tests
+// ============================================================================
+
+describe('enrichTorrentMetadata', () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  describe('movie enrichment', () => {
+    const options: EnrichmentOptions = {
+      omdbApiKey: 'test-api-key',
+    };
+
+    it('should fetch movie metadata from OMDb', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          Response: 'True',
+          Search: [
+            {
+              Title: 'The Matrix',
+              Year: '1999',
+              imdbID: 'tt0133093',
+              Poster: 'https://example.com/matrix.jpg',
+            },
+          ],
+        }),
+      });
+
+      const result = await enrichTorrentMetadata('The Matrix 1999 1080p BluRay', options);
+
+      expect(result.contentType).toBe('movie');
+      expect(result.posterUrl).toBe('https://example.com/matrix.jpg');
+      expect(result.externalId).toBe('tt0133093');
+      expect(result.externalSource).toBe('omdb');
+      expect(result.year).toBe(1999);
+    });
+
+    it('should handle OMDb API error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      const result = await enrichTorrentMetadata('The Matrix 1999 1080p BluRay', options);
+
+      expect(result.contentType).toBe('movie');
+      expect(result.error).toContain('OMDb API error');
+    });
+
+    it('should handle no results from OMDb', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          Response: 'False',
+          Error: 'Movie not found!',
+        }),
+      });
+
+      const result = await enrichTorrentMetadata('Unknown Movie 2099 1080p', options);
+
+      expect(result.contentType).toBe('movie');
+      expect(result.posterUrl).toBeUndefined();
+    });
+
+    it('should return error when OMDb API key not configured', async () => {
+      const result = await enrichTorrentMetadata('The Matrix 1999 1080p BluRay', {});
+
+      expect(result.contentType).toBe('movie');
+      expect(result.error).toBe('OMDb API key not configured');
+    });
+  });
+
+  describe('TV show enrichment', () => {
+    const options: EnrichmentOptions = {
+      thetvdbApiKey: 'test-tvdb-key',
+    };
+
+    it('should fetch TV show metadata from TheTVDB', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'success',
+          data: [
+            {
+              id: '81189',
+              name: 'Breaking Bad',
+              year: '2008',
+              image_url: 'https://example.com/breakingbad.jpg',
+              overview: 'A high school chemistry teacher turned meth producer.',
+            },
+          ],
+        }),
+      });
+
+      const result = await enrichTorrentMetadata('Breaking Bad S01E01 720p HDTV', options);
+
+      expect(result.contentType).toBe('tvshow');
+      expect(result.posterUrl).toBe('https://example.com/breakingbad.jpg');
+      expect(result.externalId).toBe('81189');
+      expect(result.externalSource).toBe('thetvdb');
+      expect(result.description).toContain('chemistry teacher');
+    });
+
+    it('should handle TheTVDB API error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      const result = await enrichTorrentMetadata('Breaking Bad S01E01 720p', options);
+
+      expect(result.contentType).toBe('tvshow');
+      expect(result.error).toContain('TheTVDB API error');
+    });
+
+    it('should return error when TheTVDB API key not configured', async () => {
+      const result = await enrichTorrentMetadata('Breaking Bad S01E01 720p', {});
+
+      expect(result.contentType).toBe('tvshow');
+      expect(result.error).toBe('TheTVDB API key not configured');
+    });
+  });
+
+  describe('music enrichment', () => {
+    it('should fetch music metadata from MusicBrainz', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          recordings: [
+            {
+              id: 'abc123',
+              title: 'Comfortably Numb',
+              'first-release-date': '1979-11-30',
+              'artist-credit': [
+                { name: 'Pink Floyd' },
+              ],
+            },
+          ],
+        }),
+      });
+
+      const result = await enrichTorrentMetadata('Pink Floyd - The Wall [FLAC]', {});
+
+      expect(result.contentType).toBe('music');
+      expect(result.externalId).toBe('abc123');
+      expect(result.externalSource).toBe('musicbrainz');
+    });
+
+    it('should use custom user agent for MusicBrainz', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          recordings: [],
+        }),
+      });
+
+      await enrichTorrentMetadata('Pink Floyd - The Wall [FLAC]', {
+        musicbrainzUserAgent: 'CustomApp/2.0.0',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'User-Agent': 'CustomApp/2.0.0',
+          }),
+        })
+      );
+    });
+
+    it('should handle MusicBrainz API error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+      });
+
+      const result = await enrichTorrentMetadata('Pink Floyd - The Wall [FLAC]', {});
+
+      expect(result.contentType).toBe('music');
+      expect(result.error).toContain('MusicBrainz API error');
+    });
+  });
+
+  describe('book enrichment', () => {
+    it('should fetch book metadata from Open Library', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          docs: [
+            {
+              key: '/works/OL27448W',
+              title: 'The Shining',
+              author_name: ['Stephen King'],
+              first_publish_year: 1977,
+              cover_i: 8231856,
+            },
+          ],
+        }),
+      });
+
+      const result = await enrichTorrentMetadata('Stephen King - The Shining [EPUB]', {});
+
+      expect(result.contentType).toBe('book');
+      expect(result.coverUrl).toContain('covers.openlibrary.org');
+      expect(result.externalId).toBe('/works/OL27448W');
+      expect(result.externalSource).toBe('openlibrary');
+      expect(result.year).toBe(1977);
+    });
+
+    it('should handle Open Library API error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      const result = await enrichTorrentMetadata('Stephen King - The Shining [EPUB]', {});
+
+      expect(result.contentType).toBe('book');
+      expect(result.error).toContain('Open Library API error');
+    });
+  });
+
+  describe('other content type', () => {
+    it('should skip enrichment for other content type', async () => {
+      const result = await enrichTorrentMetadata('random_file.zip', {});
+
+      expect(result.contentType).toBe('other');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle network errors gracefully', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await enrichTorrentMetadata('The Matrix 1999 1080p BluRay', {
+        omdbApiKey: 'test-key',
+      });
+
+      expect(result.contentType).toBe('movie');
+      expect(result.error).toBe('Network error');
+    });
+
+    it('should handle non-Error exceptions', async () => {
+      mockFetch.mockRejectedValueOnce('String error');
+
+      const result = await enrichTorrentMetadata('The Matrix 1999 1080p BluRay', {
+        omdbApiKey: 'test-key',
+      });
+
+      expect(result.contentType).toBe('movie');
+      expect(result.error).toBe('Unknown error');
+    });
+  });
+});
