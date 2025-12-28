@@ -35,10 +35,16 @@ interface ConnectionStatus {
   stage: 'initializing' | 'connecting' | 'searching_peers' | 'downloading_metadata' | 'buffering' | 'ready' | 'error';
   message: string;
   numPeers: number;
+  /** Overall torrent progress (0-1) */
   progress: number;
+  /** File-specific progress (0-1) - more accurate for streaming individual files */
+  fileProgress?: number;
   downloadSpeed: number;
   uploadSpeed: number;
+  /** Whether the torrent metadata is ready */
   ready: boolean;
+  /** Whether the file has enough data buffered for streaming (2MB for audio, 10MB for video) */
+  fileReady?: boolean;
   fileIndex?: number;
   timestamp: number;
 }
@@ -274,8 +280,9 @@ export function MediaPlayerModal({
   const subtitle = torrentName ? `From: ${torrentName}` : undefined;
   const isLoading = !isPlayerReady && !error;
   
-  // Stream is ready when SSE reports ready state
-  const isStreamReady = connectionStatus?.ready ?? false;
+  // Stream is ready when file has enough buffer for streaming (2MB for audio, 10MB for video)
+  // Falls back to ready (metadata ready) if fileReady is not yet available
+  const isStreamReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
   // Show play button when stream is ready but user hasn't clicked play yet
   const showPlayButton = isStreamReady && !userClickedPlay && !isPlayerReady;
   // Show loading spinner when stream is not ready yet
@@ -513,17 +520,20 @@ export function MediaPlayerModal({
                   </span>
                 </span>
                 
-                {/* Progress - always show if not complete */}
-                {connectionStatus.progress < 1 && (
-                  <span title="Download progress" className="flex items-center gap-1">
-                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                    <span className={connectionStatus.progress > 0.5 ? 'text-green-500' : 'text-yellow-500'}>
-                      {(connectionStatus.progress * 100).toFixed(0)}%
+                {/* Progress - use fileProgress when available (more accurate for streaming) */}
+                {(() => {
+                  const displayProgress = connectionStatus.fileProgress ?? connectionStatus.progress;
+                  return displayProgress < 1 && (
+                    <span title="File download progress" className="flex items-center gap-1">
+                      <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      <span className={displayProgress > 0.5 ? 'text-green-500' : 'text-yellow-500'}>
+                        {(displayProgress * 100).toFixed(0)}%
+                      </span>
                     </span>
-                  </span>
-                )}
+                  );
+                })()}
                 
                 {/* Download speed - always visible when active */}
                 {connectionStatus.downloadSpeed > 0 && (
@@ -550,16 +560,20 @@ export function MediaPlayerModal({
             </div>
             
             {/* Progress bar - show during loading or when not complete */}
-            {connectionStatus.progress > 0 && connectionStatus.progress < 1 && (
-              <div className="mt-1.5 sm:mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
-                <div
-                  className={`h-full transition-all duration-300 ${
-                    isLoading ? 'bg-accent-primary' : 'bg-green-500'
-                  }`}
-                  style={{ width: `${connectionStatus.progress * 100}%` }}
-                />
-              </div>
-            )}
+            {/* Use fileProgress when available (more accurate for streaming individual files) */}
+            {(() => {
+              const displayProgress = connectionStatus.fileProgress ?? connectionStatus.progress;
+              return displayProgress > 0 && displayProgress < 1 && (
+                <div className="mt-1.5 sm:mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      isLoading ? 'bg-accent-primary' : 'bg-green-500'
+                    }`}
+                    style={{ width: `${displayProgress * 100}%` }}
+                  />
+                </div>
+              );
+            })()}
           </div> : null}
 
         {/* Debug Info - hidden on small screens, compact on larger */}

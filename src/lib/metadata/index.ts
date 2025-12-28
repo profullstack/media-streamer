@@ -1,15 +1,17 @@
 /**
  * Metadata Module
- * 
+ *
  * Exports metadata API utilities and types
  */
 
 export {
   buildMusicBrainzUrl,
+  buildCoverArtArchiveUrl,
   buildOpenLibraryUrl,
   buildOMDbUrl,
   buildTheTVDBUrl,
   parseMusicBrainzResponse,
+  parseCoverArtArchiveResponse,
   parseOpenLibraryResponse,
   parseOMDbResponse,
   parseTheTVDBResponse,
@@ -21,4 +23,5 @@ export type {
   BookMetadata,
   MovieMetadata,
   TVShowMetadata,
+  MusicBrainzSearchType,
 } from './metadata';

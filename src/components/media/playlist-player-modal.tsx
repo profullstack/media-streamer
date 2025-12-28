@@ -65,10 +65,16 @@ interface ConnectionStatus {
   stage: 'initializing' | 'connecting' | 'searching_peers' | 'downloading_metadata' | 'buffering' | 'ready' | 'error';
   message: string;
   numPeers: number;
+  /** Overall torrent progress (0-1) */
   progress: number;
+  /** File-specific progress (0-1) - more accurate for streaming */
+  fileProgress?: number;
   downloadSpeed: number;
   uploadSpeed: number;
+  /** Whether the torrent metadata is ready */
   ready: boolean;
+  /** Whether the file has enough data buffered for streaming (2MB for audio, 10MB for video) */
+  fileReady?: boolean;
   fileIndex?: number;
   timestamp: number;
 }
@@ -258,8 +264,10 @@ export function PlaylistPlayerModal({
 
   if (!currentFile || files.length === 0) return null;
 
-  // Wait for torrent to be ready before showing player
-  const isTorrentReady = connectionStatus?.ready ?? false;
+  // Wait for file to have enough buffer before showing player
+  // fileReady indicates the file has enough data buffered for streaming (2MB for audio, 10MB for video)
+  // Falls back to ready (metadata ready) if fileReady is not yet available
+  const isFileReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
   const isLoading = !isPlayerReady && !error;
   const title = `Playing ${currentIndex + 1} of ${files.length}`;
 
@@ -336,8 +344,8 @@ export function PlaylistPlayerModal({
           </div>
         ) : null}
 
-        {/* Audio Player - only render when torrent is ready to avoid HTTP errors */}
-        {streamUrl && !error && isTorrentReady ? (
+        {/* Audio Player - only render when file has enough buffer to avoid HTTP errors */}
+        {streamUrl && !error && isFileReady ? (
           <div className="relative w-full">
             {isLoading ? (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
@@ -361,7 +369,7 @@ export function PlaylistPlayerModal({
               autoplay
             />
           </div>
-        ) : streamUrl && !error && !isTorrentReady ? (
+        ) : streamUrl && !error && !isFileReady ? (
           <div className="flex items-center justify-center rounded-lg bg-bg-tertiary p-8">
             <div className="flex flex-col items-center gap-2">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />

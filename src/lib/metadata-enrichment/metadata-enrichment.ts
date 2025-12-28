@@ -13,13 +13,16 @@
 
 import {
   buildMusicBrainzUrl,
+  buildCoverArtArchiveUrl,
   buildOpenLibraryUrl,
   buildOMDbUrl,
   buildTheTVDBUrl,
   parseMusicBrainzResponse,
+  parseCoverArtArchiveResponse,
   parseOpenLibraryResponse,
   parseOMDbResponse,
   parseTheTVDBResponse,
+  type MusicBrainzSearchType,
 } from '@/lib/metadata';
 
 // ============================================================================
@@ -297,13 +300,68 @@ async function fetchTVShowMetadata(
 }
 
 /**
+ * Check if the torrent name indicates a discography or album collection
+ */
+function isDiscographyOrAlbum(name: string): boolean {
+  const lowerName = name.toLowerCase();
+  return (
+    lowerName.includes('discography') ||
+    lowerName.includes('complete') ||
+    lowerName.includes('collection') ||
+    lowerName.includes('anthology') ||
+    // Artist - Album format typically indicates an album
+    /^[^-]+-[^-]+/.test(name)
+  );
+}
+
+/**
+ * Fetch cover art from Cover Art Archive
+ */
+async function fetchCoverArt(
+  mbid: string,
+  type: 'release' | 'release-group',
+  userAgent: string
+): Promise<string | undefined> {
+  const url = buildCoverArtArchiveUrl(mbid, type);
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': userAgent,
+      },
+    });
+
+    if (!response.ok) {
+      // 404 is common - no cover art available
+      if (response.status === 404) {
+        return undefined;
+      }
+      throw new Error(`Cover Art Archive API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return parseCoverArtArchiveResponse(data);
+  } catch {
+    // Cover art fetch is optional, don't fail the whole enrichment
+    return undefined;
+  }
+}
+
+/**
  * Fetch music metadata from MusicBrainz
+ * Uses release-group search for discographies/albums to get better results and cover art
  */
 async function fetchMusicMetadata(
   query: string,
-  userAgent: string
+  userAgent: string,
+  torrentName: string
 ): Promise<Partial<EnrichmentResult>> {
-  const url = buildMusicBrainzUrl('recording', query, 5);
+  // Determine search type based on torrent name
+  const searchType: MusicBrainzSearchType = isDiscographyOrAlbum(torrentName)
+    ? 'release-group'
+    : 'recording';
+  
+  const url = buildMusicBrainzUrl(searchType, query, 5);
   
   const response = await fetch(url, {
     headers: {
@@ -316,19 +374,29 @@ async function fetchMusicMetadata(
   }
 
   const data = await response.json();
-  const results = parseMusicBrainzResponse(data, 'recording');
+  const results = parseMusicBrainzResponse(data, searchType);
 
   if (results.length === 0) {
     return {};
   }
 
-  const recording = results[0];
-  return {
-    externalId: recording.id,
+  const result = results[0];
+  const enrichmentResult: Partial<EnrichmentResult> = {
+    externalId: result.id,
     externalSource: 'musicbrainz',
-    year: recording.year,
-    title: recording.title,
+    year: result.year,
+    title: result.title,
   };
+
+  // For release-groups, try to fetch cover art from Cover Art Archive
+  if (searchType === 'release-group') {
+    const coverUrl = await fetchCoverArt(result.id, 'release-group', userAgent);
+    if (coverUrl) {
+      enrichmentResult.coverUrl = coverUrl;
+    }
+  }
+
+  return enrichmentResult;
 }
 
 /**
@@ -403,7 +471,7 @@ export async function enrichTorrentMetadata(
 
       case 'music': {
         const userAgent = options.musicbrainzUserAgent ?? 'BitTorrented/1.0.0';
-        const musicData = await fetchMusicMetadata(query, userAgent);
+        const musicData = await fetchMusicMetadata(query, userAgent, torrentName);
         Object.assign(result, musicData);
         break;
       }

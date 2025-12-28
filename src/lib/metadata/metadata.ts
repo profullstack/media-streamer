@@ -71,11 +71,11 @@ export interface TVShowMetadata {
 // MusicBrainz
 // ============================================================================
 
-type MusicBrainzSearchType = 'recording' | 'artist' | 'release';
+export type MusicBrainzSearchType = 'recording' | 'artist' | 'release' | 'release-group';
 
 /**
  * Build MusicBrainz API URL
- * @param type - Search type (recording, artist, release)
+ * @param type - Search type (recording, artist, release, release-group)
  * @param query - Search query
  * @param limit - Maximum results
  * @returns API URL
@@ -91,14 +91,36 @@ export function buildMusicBrainzUrl(
 }
 
 /**
+ * Build Cover Art Archive URL for a release or release-group
+ * @param mbid - MusicBrainz ID
+ * @param type - 'release' or 'release-group'
+ * @returns Cover Art Archive URL
+ */
+export function buildCoverArtArchiveUrl(mbid: string, type: 'release' | 'release-group' = 'release-group'): string {
+  return `https://coverartarchive.org/${type}/${mbid}`;
+}
+
+/**
  * MusicBrainz recording response
  */
 interface MusicBrainzRecording {
   id: string;
   title: string;
   'artist-credit'?: Array<{ name: string }>;
-  releases?: Array<{ title: string; date?: string }>;
+  releases?: Array<{ title: string; date?: string; id?: string }>;
   length?: number;
+}
+
+/**
+ * MusicBrainz release-group response
+ */
+interface MusicBrainzReleaseGroup {
+  id: string;
+  title: string;
+  'artist-credit'?: Array<{ name: string }>;
+  'first-release-date'?: string;
+  'primary-type'?: string;
+  'secondary-types'?: string[];
 }
 
 /**
@@ -108,6 +130,48 @@ interface MusicBrainzResponse {
   recordings?: MusicBrainzRecording[];
   artists?: Array<{ id: string; name: string }>;
   releases?: Array<{ id: string; title: string }>;
+  'release-groups'?: MusicBrainzReleaseGroup[];
+}
+
+/**
+ * Cover Art Archive response
+ */
+interface CoverArtArchiveResponse {
+  images?: Array<{
+    id: string;
+    image: string;
+    thumbnails?: {
+      small?: string;
+      large?: string;
+      '250'?: string;
+      '500'?: string;
+      '1200'?: string;
+    };
+    front?: boolean;
+    back?: boolean;
+  }>;
+  release?: string;
+}
+
+/**
+ * Parse Cover Art Archive response to get the front cover URL
+ * @param response - Cover Art Archive API response
+ * @returns Cover URL or undefined
+ */
+export function parseCoverArtArchiveResponse(response: CoverArtArchiveResponse): string | undefined {
+  if (!response.images || response.images.length === 0) {
+    return undefined;
+  }
+
+  // Find the front cover image
+  const frontCover = response.images.find(img => img.front === true);
+  const image = frontCover ?? response.images[0];
+
+  // Prefer 500px thumbnail, then large, then full image
+  return image.thumbnails?.['500'] ??
+         image.thumbnails?.large ??
+         image.thumbnails?.['1200'] ??
+         image.image;
 }
 
 /**
@@ -134,6 +198,22 @@ export function parseMusicBrainzResponse(
         album: release?.title,
         year: year && !isNaN(year) ? year : undefined,
         duration,
+        source: 'musicbrainz' as const,
+      };
+    });
+  }
+
+  if (type === 'release-group' && response['release-groups']) {
+    return response['release-groups'].map((rg) => {
+      const artist = rg['artist-credit']?.[0]?.name;
+      const year = rg['first-release-date'] ? parseInt(rg['first-release-date'].slice(0, 4), 10) : undefined;
+
+      return {
+        id: rg.id,
+        title: rg.title,
+        artist,
+        album: rg.title, // For release-groups, the title IS the album
+        year: year && !isNaN(year) ? year : undefined,
         source: 'musicbrainz' as const,
       };
     });

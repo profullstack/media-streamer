@@ -2209,6 +2209,363 @@ describe('StreamingService', () => {
       expect(allStats).toHaveLength(0);
     });
   });
+
+  describe('getTorrentStats with fileIndex (fileReady)', () => {
+    it('should return fileReady=true when audio file has 2MB buffer', () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 10000000, // 10MB file
+        progress: 0.25, // 25% = 2.5MB downloaded (> 2MB threshold for audio)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 0.25,
+        downloadSpeed: 500000,
+        uploadSpeed: 100000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileProgress).toBe(0.25);
+      expect(stats?.fileReady).toBe(true); // 2.5MB > 2MB threshold for audio
+    });
+
+    it('should return fileReady=false when audio file has less than 2MB buffer', () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 10000000, // 10MB file
+        progress: 0.1, // 10% = 1MB downloaded (< 2MB threshold for audio)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 0.1,
+        downloadSpeed: 500000,
+        uploadSpeed: 100000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileProgress).toBe(0.1);
+      expect(stats?.fileReady).toBe(false); // 1MB < 2MB threshold for audio
+    });
+
+    it('should return fileReady=true when video file has 10MB buffer', () => {
+      const mockFile = {
+        name: 'movie.mkv',
+        path: 'Movies/movie.mkv',
+        length: 100000000, // 100MB file
+        progress: 0.15, // 15% = 15MB downloaded (> 10MB threshold for video)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Movies',
+        files: [mockFile],
+        numPeers: 10,
+        progress: 0.15,
+        downloadSpeed: 1000000,
+        uploadSpeed: 200000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileProgress).toBe(0.15);
+      expect(stats?.fileReady).toBe(true); // 15MB > 10MB threshold for video
+    });
+
+    it('should return fileReady=false when video file has less than 10MB buffer', () => {
+      const mockFile = {
+        name: 'movie.mkv',
+        path: 'Movies/movie.mkv',
+        length: 100000000, // 100MB file
+        progress: 0.05, // 5% = 5MB downloaded (< 10MB threshold for video)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Movies',
+        files: [mockFile],
+        numPeers: 10,
+        progress: 0.05,
+        downloadSpeed: 1000000,
+        uploadSpeed: 200000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileProgress).toBe(0.05);
+      expect(stats?.fileReady).toBe(false); // 5MB < 10MB threshold for video
+    });
+
+    it('should return fileReady=true when file is completely downloaded', () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 500000, // 500KB file (smaller than 2MB threshold)
+        progress: 1.0, // 100% downloaded
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 1.0,
+        downloadSpeed: 0,
+        uploadSpeed: 100000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileProgress).toBe(1.0);
+      expect(stats?.fileReady).toBe(true); // Complete file is always ready
+    });
+
+    it('should return fileReady=true when small file is complete', () => {
+      const mockFile = {
+        name: 'short.mp3',
+        path: 'Album/short.mp3',
+        length: 100000, // 100KB file (much smaller than 2MB threshold)
+        progress: 1.0, // 100% downloaded
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 1.0,
+        downloadSpeed: 0,
+        uploadSpeed: 50000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileReady).toBe(true); // Small complete file is ready
+    });
+
+    it('should return fileReady=false when torrent metadata is not ready', () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 10000000,
+        progress: 0.5, // 50% = 5MB downloaded (> 2MB threshold)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 0.5,
+        downloadSpeed: 500000,
+        uploadSpeed: 100000,
+        ready: false, // Metadata not ready
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileReady).toBe(false); // Not ready because torrent.ready is false
+    });
+
+    it('should not include fileProgress/fileReady when fileIndex is not provided', () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 10000000,
+        progress: 0.5,
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 0.5,
+        downloadSpeed: 500000,
+        uploadSpeed: 100000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678');
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileProgress).toBeUndefined();
+      expect(stats?.fileReady).toBeUndefined();
+    });
+
+    it('should not include fileProgress/fileReady when fileIndex is out of bounds', () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 10000000,
+        progress: 0.5,
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 0.5,
+        downloadSpeed: 500000,
+        uploadSpeed: 100000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 5); // Out of bounds
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileProgress).toBeUndefined();
+      expect(stats?.fileReady).toBeUndefined();
+    });
+
+    it('should use 2MB threshold for FLAC audio files', () => {
+      const mockFile = {
+        name: 'track.flac',
+        path: 'Album/track.flac',
+        length: 50000000, // 50MB FLAC file
+        progress: 0.05, // 5% = 2.5MB downloaded (> 2MB threshold for audio)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        numPeers: 5,
+        progress: 0.05,
+        downloadSpeed: 500000,
+        uploadSpeed: 100000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileReady).toBe(true); // FLAC is audio, uses 2MB threshold
+    });
+
+    it('should use 10MB threshold for MP4 video files', () => {
+      const mockFile = {
+        name: 'video.mp4',
+        path: 'Videos/video.mp4',
+        length: 500000000, // 500MB MP4 file
+        progress: 0.015, // 1.5% = 7.5MB downloaded (< 10MB threshold for video)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Videos',
+        files: [mockFile],
+        numPeers: 10,
+        progress: 0.015,
+        downloadSpeed: 1000000,
+        uploadSpeed: 200000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileReady).toBe(false); // MP4 is video, uses 10MB threshold
+    });
+
+    it('should use 10MB threshold for AVI video files', () => {
+      const mockFile = {
+        name: 'video.avi',
+        path: 'Videos/video.avi',
+        length: 200000000, // 200MB AVI file
+        progress: 0.06, // 6% = 12MB downloaded (> 10MB threshold for video)
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Videos',
+        files: [mockFile],
+        numPeers: 10,
+        progress: 0.06,
+        downloadSpeed: 1000000,
+        uploadSpeed: 200000,
+        ready: true,
+        on: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+
+      const service = new StreamingService();
+      const stats = service.getTorrentStats('1234567890abcdef1234567890abcdef12345678', 0);
+
+      expect(stats).not.toBeNull();
+      expect(stats?.fileReady).toBe(true); // AVI is video, 12MB > 10MB threshold
+    });
+  });
 });
 
 describe('getStreamingService singleton', () => {

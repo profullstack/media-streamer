@@ -355,21 +355,28 @@ describe('enrichTorrentMetadata', () => {
   });
 
   describe('music enrichment', () => {
-    it('should fetch music metadata from MusicBrainz', async () => {
+    it('should fetch music metadata from MusicBrainz using release-group for albums', async () => {
+      // First call: MusicBrainz release-group search
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          recordings: [
+          'release-groups': [
             {
               id: 'abc123',
-              title: 'Comfortably Numb',
+              title: 'The Wall',
               'first-release-date': '1979-11-30',
               'artist-credit': [
                 { name: 'Pink Floyd' },
               ],
+              'primary-type': 'Album',
             },
           ],
         }),
+      });
+      // Second call: Cover Art Archive (may return 404)
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
       });
 
       const result = await enrichTorrentMetadata('Pink Floyd - The Wall [FLAC]', {});
@@ -377,13 +384,54 @@ describe('enrichTorrentMetadata', () => {
       expect(result.contentType).toBe('music');
       expect(result.externalId).toBe('abc123');
       expect(result.externalSource).toBe('musicbrainz');
+      expect(result.year).toBe(1979);
+    });
+
+    it('should fetch cover art from Cover Art Archive for release-groups', async () => {
+      // First call: MusicBrainz release-group search
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          'release-groups': [
+            {
+              id: 'rg-123',
+              title: 'The Dark Side of the Moon',
+              'first-release-date': '1973-03-01',
+              'artist-credit': [
+                { name: 'Pink Floyd' },
+              ],
+            },
+          ],
+        }),
+      });
+      // Second call: Cover Art Archive
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          images: [
+            {
+              id: 'img-1',
+              image: 'https://coverartarchive.org/release-group/rg-123/front.jpg',
+              front: true,
+              thumbnails: {
+                '500': 'https://coverartarchive.org/release-group/rg-123/front-500.jpg',
+              },
+            },
+          ],
+        }),
+      });
+
+      const result = await enrichTorrentMetadata('Pink Floyd - Dark Side of the Moon [FLAC]', {});
+
+      expect(result.contentType).toBe('music');
+      expect(result.coverUrl).toBe('https://coverartarchive.org/release-group/rg-123/front-500.jpg');
     });
 
     it('should use custom user agent for MusicBrainz', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          recordings: [],
+          'release-groups': [],
         }),
       });
 
@@ -411,6 +459,33 @@ describe('enrichTorrentMetadata', () => {
 
       expect(result.contentType).toBe('music');
       expect(result.error).toContain('MusicBrainz API error');
+    });
+
+    it('should use recording search for non-album music', async () => {
+      // For torrents that don't look like albums, use recording search
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          recordings: [
+            {
+              id: 'rec-456',
+              title: 'Comfortably Numb',
+              'artist-credit': [
+                { name: 'Pink Floyd' },
+              ],
+              releases: [
+                { title: 'The Wall', date: '1979-11-30' },
+              ],
+            },
+          ],
+        }),
+      });
+
+      // Use a name that doesn't match the "Artist - Album" pattern
+      const result = await enrichTorrentMetadata('Various Artists - Best Hits [MP3]', {});
+
+      expect(result.contentType).toBe('music');
+      // Various Artists triggers recording search, not release-group
     });
   });
 

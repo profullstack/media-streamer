@@ -174,6 +174,19 @@ export interface StreamingServiceOptions {
 }
 
 /**
+ * Minimum buffer size in bytes before an audio file is considered "ready" for streaming
+ * 2MB is enough for most audio files to start playing without buffering
+ */
+const MIN_AUDIO_BUFFER_SIZE = 2 * 1024 * 1024; // 2MB
+
+/**
+ * Minimum buffer size in bytes before a video file is considered "ready" for streaming
+ * Video files need more buffer due to higher bitrates and transcoding overhead
+ * 10MB provides enough buffer for FFmpeg to start transcoding without stalling
+ */
+const MIN_VIDEO_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+
+/**
  * Live torrent statistics from DHT/peers
  */
 export interface TorrentStats {
@@ -181,14 +194,18 @@ export interface TorrentStats {
   infohash: string;
   /** Number of peers currently connected (from DHT) */
   numPeers: number;
-  /** Download progress (0-1) */
+  /** Download progress (0-1) - overall torrent progress */
   progress: number;
+  /** File-specific download progress (0-1) - only set if fileIndex was provided */
+  fileProgress?: number;
   /** Download speed in bytes/second */
   downloadSpeed: number;
   /** Upload speed in bytes/second */
   uploadSpeed: number;
-  /** Whether the torrent is ready */
+  /** Whether the torrent metadata is ready */
   ready: boolean;
+  /** Whether the file has enough data buffered for streaming (2MB or complete) */
+  fileReady?: boolean;
 }
 
 /**
@@ -549,15 +566,16 @@ export class StreamingService {
    * This provides real-time peer counts that are more accurate than tracker scraping
    *
    * @param infohash - The torrent infohash
+   * @param fileIndex - Optional file index to get file-specific progress
    * @returns TorrentStats or null if torrent is not loaded
    */
-  getTorrentStats(infohash: string): TorrentStats | null {
+  getTorrentStats(infohash: string, fileIndex?: number): TorrentStats | null {
     const torrent = this.client.torrents.find(t => t.infoHash === infohash);
     if (!torrent) {
       return null;
     }
 
-    return {
+    const stats: TorrentStats = {
       infohash: torrent.infoHash,
       numPeers: torrent.numPeers,
       progress: torrent.progress,
@@ -565,6 +583,32 @@ export class StreamingService {
       uploadSpeed: torrent.uploadSpeed,
       ready: torrent.ready,
     };
+
+    // Add file-specific progress and ready state if fileIndex is provided
+    if (fileIndex !== undefined && fileIndex >= 0 && fileIndex < torrent.files.length) {
+      const file = torrent.files[fileIndex];
+      // WebTorrent files have a progress property (0-1) for file-specific progress
+      const fileProgress = (file as unknown as { progress: number }).progress ?? 0;
+      stats.fileProgress = fileProgress;
+      
+      // Determine minimum buffer size based on media type
+      const mediaCategory = getMediaCategory(file.name);
+      const minBufferSize = mediaCategory === 'video' ? MIN_VIDEO_BUFFER_SIZE : MIN_AUDIO_BUFFER_SIZE;
+      
+      // Calculate if file has enough data buffered for streaming
+      // File is ready if:
+      // 1. File is completely downloaded (progress >= 1), OR
+      // 2. File has at least minBufferSize bytes downloaded, OR
+      // 3. File is smaller than minBufferSize and is complete
+      const downloadedBytes = fileProgress * file.length;
+      const isComplete = fileProgress >= 1;
+      const hasMinBuffer = downloadedBytes >= minBufferSize;
+      const isSmallAndComplete = file.length < minBufferSize && isComplete;
+      
+      stats.fileReady = torrent.ready && (isComplete || hasMinBuffer || isSmallAndComplete);
+    }
+
+    return stats;
   }
 
   /**

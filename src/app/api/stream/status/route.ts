@@ -34,10 +34,16 @@ export interface StreamStatusEvent {
   stage: ConnectionStage;
   message: string;
   numPeers: number;
+  /** Overall torrent progress (0-1) */
   progress: number;
+  /** File-specific progress (0-1) - more accurate for streaming */
+  fileProgress?: number;
   downloadSpeed: number;
   uploadSpeed: number;
+  /** Whether the torrent metadata is ready */
   ready: boolean;
+  /** Whether the file has enough data buffered for streaming (2MB or complete) */
+  fileReady?: boolean;
   fileIndex?: number;
   timestamp: number;
 }
@@ -192,7 +198,8 @@ export async function GET(request: NextRequest): Promise<Response> {
         }
 
         try {
-          const stats = streamingService.getTorrentStats(infohash);
+          // Pass fileIndex to get file-specific progress (more accurate for streaming)
+          const stats = streamingService.getTorrentStats(infohash, fileIndex);
           const stage = determineStage(stats);
           const numPeers = stats?.numPeers ?? 0;
 
@@ -201,9 +208,11 @@ export async function GET(request: NextRequest): Promise<Response> {
             message: getStageMessage(stage, numPeers),
             numPeers,
             progress: stats?.progress ?? 0,
+            fileProgress: stats?.fileProgress,
             downloadSpeed: stats?.downloadSpeed ?? 0,
             uploadSpeed: stats?.uploadSpeed ?? 0,
             ready: stats?.ready ?? false,
+            fileReady: stats?.fileReady,
             fileIndex,
             timestamp: Date.now(),
           };

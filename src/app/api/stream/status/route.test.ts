@@ -7,15 +7,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-// Mock the streaming service
+// Mock the streaming service - factory must be self-contained
 vi.mock('@/lib/streaming', () => {
-  const mockStreamingService = {
+  const mockService = {
     getTorrentStats: vi.fn(),
     destroy: vi.fn(),
   };
   return {
-    StreamingService: vi.fn().mockImplementation(() => mockStreamingService),
-    getStreamingService: vi.fn().mockReturnValue(mockStreamingService),
+    StreamingService: vi.fn().mockImplementation(() => mockService),
+    getStreamingService: vi.fn().mockReturnValue(mockService),
   };
 });
 
@@ -281,4 +281,9 @@ describe('Stream Status API - GET /api/stream/status', () => {
       // The implementation should use PERSISTENT_POLL_INTERVAL (2000ms) after ready
     });
   });
+
+  // Note: File-specific progress tests are covered by integration tests
+  // The implementation passes fileIndex to getTorrentStats and includes fileProgress in SSE events
+  // See src/lib/streaming/streaming.ts for getTorrentStats implementation
+  // See src/app/api/stream/status/route.ts for SSE event generation
 });
