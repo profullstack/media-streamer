@@ -12,7 +12,6 @@ on:
 
 env:
   NODE_VERSION: '22'
-  PNPM_VERSION: '9'
 
 jobs:
   # Job 1: Lint and Type Check
@@ -25,8 +24,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Version is read from package.json "packageManager" field
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,8 +51,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Version is read from package.json "packageManager" field
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -86,8 +83,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Version is read from package.json "packageManager" field
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -121,8 +117,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Version is read from package.json "packageManager" field
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
