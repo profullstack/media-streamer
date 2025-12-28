@@ -34,14 +34,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH key
+      - name: Setup SSH key and config
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
-          # Add host to known_hosts
-          ssh-keyscan -p ${{ secrets.DROPLET_PORT || 22 }} -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Add host to known_hosts (with retry for transient failures)
+          for i in 1 2 3; do
+            ssh-keyscan -p ${{ secrets.DROPLET_PORT || 22 }} -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 5
+          done
+          
+          # Create SSH config for connection multiplexing (reduces connection attempts)
+          cat >> ~/.ssh/config << EOF
+          Host droplet
+            HostName ${{ secrets.DROPLET_HOST }}
+            Port ${{ secrets.DROPLET_PORT || 22 }}
+            User ${{ secrets.DROPLET_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+            ConnectTimeout 60
+            ServerAliveInterval 30
+            ServerAliveCountMax 5
+            ConnectionAttempts 3
+            ControlMaster auto
+            ControlPath ~/.ssh/sockets/%r@%h-%p
+            ControlPersist 600
+          EOF
+          
+          # Create socket directory for connection multiplexing
+          mkdir -p ~/.ssh/sockets
 
       - name: Write .env file
         run: |
@@ -50,42 +73,32 @@ jobs:
       - name: Sync files to Droplet (with retry)
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
+          timeout_minutes: 15
           max_attempts: 5
-          retry_wait_seconds: 30
+          retry_wait_seconds: 60
           command: |
-            # Create deploy directory if it doesn't exist
-            ssh -i ~/.ssh/deploy_key \
-                -p ${{ secrets.DROPLET_PORT || 22 }} \
-                -o StrictHostKeyChecking=no \
-                -o ConnectTimeout=30 \
-                ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
-                "mkdir -p ${{ env.DEPLOY_PATH }}"
+            # Create deploy directory if it doesn't exist (using SSH config alias)
+            ssh droplet "mkdir -p ${{ env.DEPLOY_PATH }}"
             
-            # Sync files
+            # Sync files (using SSH config for connection settings)
             rsync -azv --partial --progress --delete \
               --exclude='.git' \
               --exclude='node_modules' \
               --exclude='.next' \
               --exclude='.env.local' \
               --exclude='*.log' \
-              -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.DROPLET_PORT || 22 }} -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3" \
-              ./ ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.DEPLOY_PATH }}/
+              -e "ssh -F ~/.ssh/config" \
+              ./ droplet:${{ env.DEPLOY_PATH }}/
 
       - name: Build and restart on Droplet (with retry)
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 20
+          timeout_minutes: 25
           max_attempts: 5
-          retry_wait_seconds: 30
+          retry_wait_seconds: 90
           command: |
-            ssh -i ~/.ssh/deploy_key \
-                -p ${{ secrets.DROPLET_PORT || 22 }} \
-                -o StrictHostKeyChecking=no \
-                -o ConnectTimeout=30 \
-                -o ServerAliveInterval=15 \
-                -o ServerAliveCountMax=3 \
-                ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} << 'DEPLOY_SCRIPT'
+            # Use SSH config alias (connection multiplexing reduces rate limiting)
+            ssh droplet << 'DEPLOY_SCRIPT'
             set -e
             
             cd /home/ubuntu/www/bittorrented.com/media-streamer
