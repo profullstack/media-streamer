@@ -2,9 +2,10 @@
 
 /**
  * Media Player Modal Component
- * 
+ *
  * A modal dialog that displays a video/audio player for streaming torrent files.
  * Shows the file title and provides playback controls.
+ * Supports automatic transcoding for non-browser-supported formats.
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -13,6 +14,24 @@ import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { getMediaCategory } from '@/lib/utils';
 import type { TorrentFile } from '@/types';
+
+/**
+ * Video formats that require transcoding for browser playback
+ */
+const VIDEO_TRANSCODE_FORMATS = new Set(['mkv', 'avi', 'wmv', 'flv', 'mov', 'ts']);
+
+/**
+ * Audio formats that require transcoding for browser playback
+ */
+const AUDIO_TRANSCODE_FORMATS = new Set(['flac', 'wma', 'aiff', 'ape']);
+
+/**
+ * Check if a file needs transcoding based on its extension
+ */
+function needsTranscoding(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return VIDEO_TRANSCODE_FORMATS.has(ext) || AUDIO_TRANSCODE_FORMATS.has(ext);
+}
 
 /**
  * Props for the MediaPlayerModal component
@@ -45,16 +64,26 @@ export function MediaPlayerModal({
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTranscoding, setIsTranscoding] = useState(false);
 
   // Build stream URL when file changes
+  // Add transcode=auto parameter for files that need transcoding
   useEffect(() => {
     if (file && infohash) {
-      const url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+      const requiresTranscoding = needsTranscoding(file.name);
+      setIsTranscoding(requiresTranscoding);
+      
+      let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+      if (requiresTranscoding) {
+        url += '&transcode=auto';
+      }
+      
       setStreamUrl(url);
       setError(null);
       setIsLoading(true);
     } else {
       setStreamUrl(null);
+      setIsTranscoding(false);
     }
   }, [file, infohash]);
 
@@ -103,7 +132,38 @@ export function MediaPlayerModal({
           <div className="flex h-64 items-center justify-center rounded-lg bg-bg-tertiary">
             <div className="flex flex-col items-center gap-2">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
-              <span className="text-sm text-text-muted">Loading stream...</span>
+              <span className="text-sm text-text-muted">
+                {isTranscoding ? 'Transcoding and loading stream...' : 'Loading stream...'}
+              </span>
+              {isTranscoding && (
+                <span className="text-xs text-text-muted">
+                  Converting to browser-compatible format
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Transcoding Notice */}
+        {isTranscoding && !isLoading && !error && (
+          <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-3">
+            <div className="flex items-center gap-2">
+              <svg
+                className="h-4 w-4 text-accent-primary"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+              <span className="text-sm text-accent-primary">
+                Live transcoding enabled - converting to browser-compatible format
+              </span>
             </div>
           </div>
         )}
@@ -181,6 +241,9 @@ export function MediaPlayerModal({
             <span>Index: {file.fileIndex}</span>
             <span>Size: {formatBytes(file.size)}</span>
             <span className="break-all">Infohash: {infohash}</span>
+            {isTranscoding && (
+              <span className="text-accent-primary">Transcoding: enabled</span>
+            )}
           </div>
           {streamUrl && (
             <div className="mt-2 break-all">

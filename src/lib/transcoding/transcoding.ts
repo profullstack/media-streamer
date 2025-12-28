@@ -239,9 +239,175 @@ export function generateOutputFilename(inputFilename: string, outputFormat: stri
 export function estimateTranscodeTime(fileSizeBytes: number, mediaType: MediaType): number {
   // Rough estimates based on typical transcoding speeds
   // These are conservative estimates for a typical server
-  const bytesPerSecond = mediaType === 'video' 
+  const bytesPerSecond = mediaType === 'video'
     ? 500_000  // ~500KB/s for video transcoding
     : 2_000_000; // ~2MB/s for audio transcoding
 
   return Math.ceil(fileSizeBytes / bytesPerSecond);
+}
+
+/**
+ * Streaming-optimized video transcoding profile
+ * Uses ultrafast preset for real-time streaming
+ */
+const STREAMING_VIDEO_PROFILE: TranscodeProfile = {
+  outputFormat: 'mp4',
+  videoCodec: 'libx264',
+  audioCodec: 'aac',
+  videoBitrate: '2000k',
+  audioBitrate: '128k',
+  preset: 'ultrafast', // Critical for real-time streaming
+  crf: 23,
+};
+
+/**
+ * Streaming-optimized audio transcoding profile
+ */
+const STREAMING_AUDIO_PROFILE: TranscodeProfile = {
+  outputFormat: 'mp3',
+  audioCodec: 'libmp3lame',
+  audioBitrate: '192k', // Slightly lower for faster streaming
+  sampleRate: 44100,
+};
+
+/**
+ * Get streaming-optimized transcoding profile for a media format
+ * Uses faster presets suitable for real-time transcoding
+ * @param mediaType - Type of media (video or audio)
+ * @param format - Input format (e.g., 'mkv', 'flac')
+ * @returns Streaming-optimized transcoding profile or null if format doesn't need transcoding
+ */
+export function getStreamingTranscodeProfile(mediaType: MediaType, format: string): TranscodeProfile | null {
+  const normalizedFormat = format.toLowerCase();
+
+  if (mediaType === 'video') {
+    if (VIDEO_TRANSCODE_FORMATS.has(normalizedFormat)) {
+      return { ...STREAMING_VIDEO_PROFILE };
+    }
+    return null;
+  }
+
+  if (mediaType === 'audio') {
+    if (AUDIO_TRANSCODE_FORMATS.has(normalizedFormat)) {
+      return { ...STREAMING_AUDIO_PROFILE };
+    }
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Build FFmpeg arguments for streaming transcoding (pipe input/output)
+ * @param profile - Transcoding profile
+ * @returns Array of FFmpeg arguments for streaming
+ */
+export function buildStreamingFFmpegArgs(profile: TranscodeProfile): string[] {
+  const args: string[] = [];
+
+  // Input from stdin (pipe)
+  args.push('-i', 'pipe:0');
+
+  // Video codec
+  if (profile.videoCodec) {
+    args.push('-c:v', profile.videoCodec);
+  }
+
+  // Audio codec
+  if (profile.audioCodec) {
+    args.push('-c:a', profile.audioCodec);
+  }
+
+  // Video bitrate
+  if (profile.videoBitrate) {
+    args.push('-b:v', profile.videoBitrate);
+  }
+
+  // Audio bitrate
+  if (profile.audioBitrate) {
+    args.push('-b:a', profile.audioBitrate);
+  }
+
+  // Preset (for x264/x265) - use ultrafast for streaming
+  if (profile.preset) {
+    args.push('-preset', profile.preset);
+  }
+
+  // CRF (Constant Rate Factor for quality)
+  if (profile.crf !== undefined) {
+    args.push('-crf', String(profile.crf));
+  }
+
+  // Sample rate (for audio)
+  if (profile.sampleRate) {
+    args.push('-ar', String(profile.sampleRate));
+  }
+
+  // MP4 specific: use fragmented MP4 for streaming (allows playback before complete)
+  if (profile.outputFormat === 'mp4') {
+    args.push('-movflags', 'frag_keyframe+empty_moov+faststart');
+    args.push('-f', 'mp4');
+  }
+
+  // MP3 specific
+  if (profile.outputFormat === 'mp3') {
+    args.push('-f', 'mp3');
+  }
+
+  // Output to stdout (pipe)
+  args.push('pipe:1');
+
+  return args;
+}
+
+/**
+ * Get the MIME type for transcoded output
+ * @param mediaType - Type of media (video or audio)
+ * @param inputFormat - Input format
+ * @returns MIME type for transcoded output or null if no transcoding needed
+ */
+export function getTranscodedMimeType(mediaType: MediaType, inputFormat: string): string | null {
+  const profile = getStreamingTranscodeProfile(mediaType, inputFormat);
+  if (!profile) {
+    return null;
+  }
+
+  if (profile.outputFormat === 'mp4') {
+    return 'video/mp4';
+  }
+  if (profile.outputFormat === 'mp3') {
+    return 'audio/mpeg';
+  }
+
+  return null;
+}
+
+/**
+ * Detect media type from file extension
+ * @param filename - File name with extension
+ * @returns Media type or null if not a media file
+ */
+export function detectMediaType(filename: string): MediaType | null {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (!ext) return null;
+
+  const videoExtensions = new Set(['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'ts', 'webm', 'ogv', 'm4v']);
+  const audioExtensions = new Set(['mp3', 'flac', 'wma', 'aiff', 'ape', 'wav', 'ogg', 'aac', 'm4a']);
+
+  if (videoExtensions.has(ext)) return 'video';
+  if (audioExtensions.has(ext)) return 'audio';
+
+  return null;
+}
+
+/**
+ * Check if a file needs transcoding based on its extension
+ * @param filename - File name with extension
+ * @returns True if the file needs transcoding for browser playback
+ */
+export function needsTranscoding(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (!ext) return false;
+
+  return VIDEO_TRANSCODE_FORMATS.has(ext) || AUDIO_TRANSCODE_FORMATS.has(ext);
 }

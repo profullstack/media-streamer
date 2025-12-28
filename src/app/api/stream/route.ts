@@ -3,14 +3,17 @@
  *
  * Provides HTTP streaming for audio, video, and ebook files from torrents.
  * Supports HTTP range requests for seeking.
+ * Supports automatic transcoding for non-browser-supported formats.
  *
  * FREE - No authentication required to encourage usage.
  *
- * GET /api/stream?infohash=...&fileIndex=...
+ * GET /api/stream?infohash=...&fileIndex=...&transcode=auto
  * HEAD /api/stream?infohash=...&fileIndex=...
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { spawn } from 'node:child_process';
+import { PassThrough } from 'node:stream';
 import {
   StreamingService,
   StreamingError,
@@ -19,6 +22,13 @@ import {
 } from '@/lib/streaming';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import { getTorrentByInfohash } from '@/lib/supabase';
+import {
+  needsTranscoding,
+  detectMediaType,
+  getStreamingTranscodeProfile,
+  buildStreamingFFmpegArgs,
+  getTranscodedMimeType,
+} from '@/lib/transcoding';
 
 const logger = createLogger('API:stream');
 
@@ -84,9 +94,10 @@ function parseRangeHeader(
  */
 function validateParams(
   searchParams: URLSearchParams
-): { infohash: string; fileIndex: number } | { error: string; status: number } {
+): { infohash: string; fileIndex: number; transcode: string | null } | { error: string; status: number } {
   const infohash = searchParams.get('infohash');
   const fileIndexStr = searchParams.get('fileIndex');
+  const transcode = searchParams.get('transcode');
 
   if (!infohash) {
     return { error: 'Missing required parameter: infohash', status: 400 };
@@ -101,7 +112,7 @@ function validateParams(
     return { error: 'fileIndex must be a non-negative integer', status: 400 };
   }
 
-  return { infohash, fileIndex };
+  return { infohash, fileIndex, transcode };
 }
 
 /**
@@ -142,9 +153,115 @@ function nodeStreamToWebStream(nodeStream: NodeJS.ReadableStream): ReadableStrea
 }
 
 /**
+ * Create a transcoded stream by piping torrent stream through FFmpeg
+ */
+function createTranscodedStream(
+  sourceStream: NodeJS.ReadableStream,
+  fileName: string,
+  reqLogger: ReturnType<typeof logger.child>
+): { stream: NodeJS.ReadableStream; mimeType: string } | null {
+  const mediaType = detectMediaType(fileName);
+  if (!mediaType) {
+    reqLogger.warn('Cannot detect media type for transcoding', { fileName });
+    return null;
+  }
+
+  // Extract format from filename
+  const format = fileName.split('.').pop()?.toLowerCase() ?? '';
+  if (!format) {
+    reqLogger.warn('Cannot extract format from filename', { fileName });
+    return null;
+  }
+
+  const profile = getStreamingTranscodeProfile(mediaType, format);
+  if (!profile) {
+    reqLogger.warn('No transcoding profile available', { fileName, mediaType, format });
+    return null;
+  }
+
+  const ffmpegArgs = buildStreamingFFmpegArgs(profile);
+  const outputMimeType = getTranscodedMimeType(mediaType, format);
+  if (!outputMimeType) {
+    reqLogger.warn('Cannot determine output MIME type', { fileName, mediaType, format });
+    return null;
+  }
+
+  reqLogger.info('Starting FFmpeg transcoding', {
+    fileName,
+    mediaType,
+    format,
+    outputFormat: profile.outputFormat,
+    outputMimeType,
+    ffmpegArgs: ffmpegArgs.join(' '),
+  });
+
+  const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  // Create a PassThrough stream for the output
+  const outputStream = new PassThrough();
+
+  // Pipe source stream to FFmpeg stdin
+  sourceStream.pipe(ffmpeg.stdin);
+
+  // Pipe FFmpeg stdout to output stream
+  ffmpeg.stdout.pipe(outputStream);
+
+  // Handle FFmpeg stderr (logging only)
+  let stderrBuffer = '';
+  ffmpeg.stderr.on('data', (data: Buffer) => {
+    stderrBuffer += data.toString();
+    // Log progress periodically (FFmpeg outputs progress to stderr)
+    if (stderrBuffer.includes('frame=') || stderrBuffer.includes('time=')) {
+      const lines = stderrBuffer.split('\n');
+      const lastLine = lines[lines.length - 2] || lines[lines.length - 1];
+      if (lastLine.trim()) {
+        reqLogger.debug('FFmpeg progress', { progress: lastLine.trim() });
+      }
+      stderrBuffer = lines[lines.length - 1];
+    }
+  });
+
+  // Handle FFmpeg errors
+  ffmpeg.on('error', (err: Error) => {
+    reqLogger.error('FFmpeg process error', err);
+    outputStream.destroy(err);
+  });
+
+  ffmpeg.on('close', (code: number | null) => {
+    if (code !== 0 && code !== null) {
+      reqLogger.warn('FFmpeg exited with non-zero code', { code, stderr: stderrBuffer });
+    } else {
+      reqLogger.info('FFmpeg transcoding completed');
+    }
+  });
+
+  // Handle source stream errors
+  sourceStream.on('error', (err: Error) => {
+    reqLogger.error('Source stream error during transcoding', err);
+    ffmpeg.kill('SIGTERM');
+    outputStream.destroy(err);
+  });
+
+  // Handle output stream close (client disconnected)
+  outputStream.on('close', () => {
+    reqLogger.debug('Output stream closed, killing FFmpeg');
+    ffmpeg.kill('SIGTERM');
+  });
+
+  return { stream: outputStream, mimeType: outputMimeType };
+}
+
+/**
  * GET /api/stream
  * Stream a file from a torrent
  * FREE - No authentication required.
+ *
+ * Query params:
+ * - infohash: torrent infohash (required)
+ * - fileIndex: file index in torrent (required)
+ * - transcode: 'auto' to automatically transcode non-browser formats (optional)
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const requestId = generateRequestId();
@@ -161,35 +278,91 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
-  const { infohash, fileIndex } = validation;
+  const { infohash, fileIndex, transcode } = validation;
   const magnetUri = await getMagnetUri(infohash);
   const rangeHeader = request.headers.get('Range');
 
-  reqLogger.info('GET /api/stream', { 
-    infohash, 
-    fileIndex, 
+  reqLogger.info('GET /api/stream', {
+    infohash,
+    fileIndex,
     hasRange: !!rangeHeader,
-    rangeHeader 
+    rangeHeader,
+    transcode,
   });
 
   try {
     const service = getStreamingService();
 
-    // If range header present, we need to get file info first to parse the range
+    // Get file info first to check if transcoding is needed
+    reqLogger.debug('Getting stream info');
+    const info = await service.getStreamInfo({ magnetUri, fileIndex });
+    reqLogger.debug('Stream info retrieved', {
+      fileName: info.fileName,
+      size: info.size,
+      mimeType: info.mimeType
+    });
+
+    // Check if transcoding is requested and needed
+    const shouldTranscode = transcode === 'auto' && needsTranscoding(info.fileName);
+    
+    if (shouldTranscode) {
+      reqLogger.info('Transcoding requested and needed', {
+        fileName: info.fileName,
+        originalMimeType: info.mimeType,
+      });
+
+      // For transcoding, we don't support range requests (transcoded output has unknown size)
+      // Create full stream without range
+      const result = await service.createStream({
+        magnetUri,
+        fileIndex,
+        range: undefined,
+      });
+
+      const transcoded = createTranscodedStream(
+        result.stream as NodeJS.ReadableStream,
+        info.fileName,
+        reqLogger
+      );
+
+      if (!transcoded) {
+        reqLogger.error('Failed to create transcoded stream');
+        return NextResponse.json(
+          { error: 'Failed to transcode file' },
+          { status: 500 }
+        );
+      }
+
+      reqLogger.info('Returning transcoded stream', {
+        streamId: result.streamId,
+        originalMimeType: info.mimeType,
+        transcodedMimeType: transcoded.mimeType,
+      });
+
+      // Transcoded streams don't have a known Content-Length
+      const headers: HeadersInit = {
+        'Content-Type': transcoded.mimeType,
+        'Cache-Control': 'no-cache',
+        'X-Stream-Id': result.streamId,
+        'X-Transcoded': 'true',
+        'X-Original-Mime-Type': info.mimeType,
+        'Transfer-Encoding': 'chunked',
+      };
+
+      return new Response(nodeStreamToWebStream(transcoded.stream), {
+        status: 200,
+        headers,
+      });
+    }
+
+    // Non-transcoded path: support range requests
     let range: { start: number; end: number } | undefined;
     if (rangeHeader) {
-      reqLogger.debug('Getting stream info for range request');
-      const info = await service.getStreamInfo({ magnetUri, fileIndex });
-      reqLogger.debug('Stream info retrieved', { 
-        size: info.size, 
-        mimeType: info.mimeType 
-      });
-      
       const parsedRange = parseRangeHeader(rangeHeader, info.size);
       if (parsedRange) {
         range = parsedRange;
-        reqLogger.debug('Range parsed', { 
-          start: range.start, 
+        reqLogger.debug('Range parsed', {
+          start: range.start,
           end: range.end,
           length: range.end - range.start + 1
         });
@@ -224,7 +397,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       headers['Content-Range'] = result.contentRange;
       headers['Content-Length'] = result.contentLength.toString();
 
-      reqLogger.debug('Returning partial content (206)', { 
+      reqLogger.debug('Returning partial content (206)', {
         contentRange: result.contentRange,
         contentLength: result.contentLength
       });

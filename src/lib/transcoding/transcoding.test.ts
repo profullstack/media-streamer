@@ -1,6 +1,6 @@
 /**
  * Transcoding Service Tests
- * 
+ *
  * Tests for FFmpeg transcoding configuration and command generation
  */
 
@@ -10,8 +10,11 @@ import {
   buildFFmpegArgs,
   getOutputFormat,
   isTranscodingSupported,
-  TranscodeProfile,
-  MediaType,
+  buildStreamingFFmpegArgs,
+  getStreamingTranscodeProfile,
+  getTranscodedMimeType,
+  type TranscodeProfile,
+  type MediaType,
 } from './transcoding';
 
 describe('Transcoding Service', () => {
@@ -254,6 +257,90 @@ describe('Transcoding Service', () => {
         sampleRate: 44100,
       };
       expect(profile.outputFormat).toBe('mp3');
+    });
+  });
+
+  describe('buildStreamingFFmpegArgs', () => {
+    it('should build video streaming arguments for pipe input/output', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        videoBitrate: '2000k',
+        audioBitrate: '128k',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      const args = buildStreamingFFmpegArgs(profile);
+
+      // Should use pipe for input
+      expect(args).toContain('-i');
+      expect(args).toContain('pipe:0');
+      // Should output to pipe
+      expect(args).toContain('pipe:1');
+      // Should use fragmented MP4 for streaming
+      expect(args).toContain('-movflags');
+      expect(args).toContain('frag_keyframe+empty_moov+faststart');
+      // Should use ultrafast preset for real-time streaming
+      expect(args).toContain('-preset');
+      expect(args).toContain('ultrafast');
+    });
+
+    it('should build audio streaming arguments for pipe input/output', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp3',
+        audioCodec: 'libmp3lame',
+        audioBitrate: '320k',
+        sampleRate: 44100,
+      };
+
+      const args = buildStreamingFFmpegArgs(profile);
+
+      expect(args).toContain('-i');
+      expect(args).toContain('pipe:0');
+      expect(args).toContain('pipe:1');
+      expect(args).toContain('-c:a');
+      expect(args).toContain('libmp3lame');
+    });
+  });
+
+  describe('getStreamingTranscodeProfile', () => {
+    it('should return streaming-optimized profile for MKV', () => {
+      const profile = getStreamingTranscodeProfile('video', 'mkv');
+      
+      expect(profile).not.toBeNull();
+      expect(profile!.outputFormat).toBe('mp4');
+      expect(profile!.preset).toBe('ultrafast'); // Optimized for real-time
+    });
+
+    it('should return streaming-optimized profile for FLAC', () => {
+      const profile = getStreamingTranscodeProfile('audio', 'flac');
+      
+      expect(profile).not.toBeNull();
+      expect(profile!.outputFormat).toBe('mp3');
+    });
+
+    it('should return null for already supported formats', () => {
+      expect(getStreamingTranscodeProfile('video', 'mp4')).toBeNull();
+      expect(getStreamingTranscodeProfile('audio', 'mp3')).toBeNull();
+    });
+  });
+
+  describe('getTranscodedMimeType', () => {
+    it('should return video/mp4 for transcoded video', () => {
+      expect(getTranscodedMimeType('video', 'mkv')).toBe('video/mp4');
+      expect(getTranscodedMimeType('video', 'avi')).toBe('video/mp4');
+    });
+
+    it('should return audio/mpeg for transcoded audio', () => {
+      expect(getTranscodedMimeType('audio', 'flac')).toBe('audio/mpeg');
+      expect(getTranscodedMimeType('audio', 'wma')).toBe('audio/mpeg');
+    });
+
+    it('should return null for formats that do not need transcoding', () => {
+      expect(getTranscodedMimeType('video', 'mp4')).toBeNull();
+      expect(getTranscodedMimeType('audio', 'mp3')).toBeNull();
     });
   });
 });

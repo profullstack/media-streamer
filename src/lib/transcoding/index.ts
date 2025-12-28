@@ -1,6 +1,6 @@
 /**
  * Transcoding Module
- * 
+ *
  * Exports transcoding utilities and types
  */
 
@@ -11,6 +11,12 @@ export {
   isTranscodingSupported,
   generateOutputFilename,
   estimateTranscodeTime,
+  // Streaming transcoding functions
+  getStreamingTranscodeProfile,
+  buildStreamingFFmpegArgs,
+  getTranscodedMimeType,
+  detectMediaType,
+  needsTranscoding,
 } from './transcoding';
 
 export type {

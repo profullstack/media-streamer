@@ -33,6 +33,9 @@ FROM node:22-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
+# Install FFmpeg for video/audio transcoding
+RUN apk add --no-cache ffmpeg
+
 # Set environment variables
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
