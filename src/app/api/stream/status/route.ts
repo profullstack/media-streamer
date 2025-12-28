@@ -199,7 +199,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
         try {
           // Pass fileIndex to get file-specific progress (more accurate for streaming)
-          const stats = streamingService.getTorrentStats(infohash, fileIndex);
+          // Also select the file for download priority so it starts downloading immediately
+          const stats = streamingService.getTorrentStats(infohash, fileIndex, true);
           const stage = determineStage(stats);
           const numPeers = stats?.numPeers ?? 0;
 

@@ -562,14 +562,43 @@ export class StreamingService {
   }
 
   /**
+   * Select a file for download priority
+   * This tells WebTorrent to prioritize downloading pieces for this specific file
+   *
+   * @param infohash - The torrent infohash
+   * @param fileIndex - The file index to prioritize
+   * @returns true if file was selected, false if torrent/file not found
+   */
+  selectFileForDownload(infohash: string, fileIndex: number): boolean {
+    const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+    if (!torrent || !torrent.ready) {
+      return false;
+    }
+
+    if (fileIndex < 0 || fileIndex >= torrent.files.length) {
+      return false;
+    }
+
+    const file = torrent.files[fileIndex];
+    file.select();
+    logger.debug('File selected for download priority via selectFileForDownload', {
+      infohash,
+      fileIndex,
+      fileName: file.name,
+    });
+    return true;
+  }
+
+  /**
    * Get live statistics for a torrent from DHT/connected peers
    * This provides real-time peer counts that are more accurate than tracker scraping
    *
    * @param infohash - The torrent infohash
    * @param fileIndex - Optional file index to get file-specific progress
+   * @param selectFile - If true and fileIndex is provided, select the file for download priority
    * @returns TorrentStats or null if torrent is not loaded
    */
-  getTorrentStats(infohash: string, fileIndex?: number): TorrentStats | null {
+  getTorrentStats(infohash: string, fileIndex?: number, selectFile = false): TorrentStats | null {
     const torrent = this.client.torrents.find(t => t.infoHash === infohash);
     if (!torrent) {
       return null;
@@ -587,6 +616,12 @@ export class StreamingService {
     // Add file-specific progress and ready state if fileIndex is provided
     if (fileIndex !== undefined && fileIndex >= 0 && fileIndex < torrent.files.length) {
       const file = torrent.files[fileIndex];
+      
+      // Select file for download priority if requested and torrent is ready
+      if (selectFile && torrent.ready) {
+        file.select();
+      }
+      
       // WebTorrent files have a progress property (0-1) for file-specific progress
       const fileProgress = (file as unknown as { progress: number }).progress ?? 0;
       stats.fileProgress = fileProgress;

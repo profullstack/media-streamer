@@ -283,36 +283,59 @@ function FileTreeNodeComponent({
           }
         }}
       >
-        {/* Expand/collapse arrow for directories */}
-        {node.isDirectory ? (
-          <span className="flex h-5 w-5 items-center justify-center text-text-muted flex-shrink-0">
-            {isExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
-          </span>
-        ) : (
-          /* Action buttons for files - LEFT of filename, always visible */
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {isPlayable && onFilePlay ? <button
-                type="button"
-                onClick={handlePlay}
-                className="rounded-lg p-2 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/30 active:bg-accent-primary/40 transition-colors"
-                title="Play"
-                aria-label={`Play ${node.name}`}
-              >
-                <PlayIcon size={20} />
-              </button> : null}
-            {onFileDownload ? <button
-                type="button"
-                onClick={handleDownload}
-                className="rounded-lg p-2 bg-accent-secondary/10 text-accent-secondary hover:bg-accent-secondary/30 active:bg-accent-secondary/40 transition-colors"
-                title="Download"
-                aria-label={`Download ${node.name}`}
-              >
-                <DownloadIcon size={20} />
-              </button> : null}
-            {/* Spacer if no buttons */}
-            {!isPlayable && !onFilePlay && !onFileDownload && <span className="w-5" />}
-          </div>
-        )}
+        {/* Action buttons and expand/collapse - LEFT of filename */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {node.isDirectory ? (
+            <>
+              {/* Expand/collapse arrow for directories */}
+              <span className="flex h-5 w-5 items-center justify-center text-text-muted">
+                {isExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+              </span>
+              {/* Play All button for directories with audio files - pill style */}
+              {audioFileCount > 0 && onPlayAll ? (
+                <button
+                  type="button"
+                  onClick={handlePlayAll}
+                  className="flex items-center gap-1 rounded-full bg-accent-audio/10 px-2 py-0.5 text-xs font-medium text-accent-audio hover:bg-accent-audio/20 active:bg-accent-audio/30 transition-colors"
+                  title={`Play all ${audioFileCount} audio files`}
+                  aria-label={`Play all ${audioFileCount} audio files in ${node.name}`}
+                >
+                  <PlayIcon size={12} />
+                  <span>Play All ({audioFileCount})</span>
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {/* Play button for playable files */}
+              {isPlayable && onFilePlay ? (
+                <button
+                  type="button"
+                  onClick={handlePlay}
+                  className="rounded-lg p-2 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/30 active:bg-accent-primary/40 transition-colors"
+                  title="Play"
+                  aria-label={`Play ${node.name}`}
+                >
+                  <PlayIcon size={20} />
+                </button>
+              ) : null}
+              {/* Download button for files */}
+              {onFileDownload ? (
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="rounded-lg p-2 bg-accent-secondary/10 text-accent-secondary hover:bg-accent-secondary/30 active:bg-accent-secondary/40 transition-colors"
+                  title="Download"
+                  aria-label={`Download ${node.name}`}
+                >
+                  <DownloadIcon size={20} />
+                </button>
+              ) : null}
+              {/* Spacer if no buttons */}
+              {!isPlayable && !onFilePlay && !onFileDownload && <span className="w-5" />}
+            </>
+          )}
+        </div>
 
         {/* Icon */}
         <Icon className={cn(iconColor, 'flex-shrink-0')} size={18} />
@@ -322,20 +345,6 @@ function FileTreeNodeComponent({
 
         {/* File size */}
         {node.file ? <span className="text-xs text-text-muted flex-shrink-0 ml-2">{formatBytes(node.file.size)}</span> : null}
-
-        {/* Play All button for directories with audio files */}
-        {node.isDirectory && audioFileCount > 0 && onPlayAll ? (
-          <button
-            type="button"
-            onClick={handlePlayAll}
-            className="flex items-center gap-1 rounded-full bg-accent-audio/10 px-2 py-0.5 text-xs font-medium text-accent-audio hover:bg-accent-audio/20 active:bg-accent-audio/30 transition-colors flex-shrink-0 ml-2"
-            title={`Play all ${audioFileCount} audio files`}
-            aria-label={`Play all ${audioFileCount} audio files in ${node.name}`}
-          >
-            <PlayIcon size={12} />
-            <span>Play All ({audioFileCount})</span>
-          </button>
-        ) : null}
       </div>
 
       {/* Children */}
