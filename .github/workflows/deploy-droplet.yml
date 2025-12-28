@@ -16,8 +16,9 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 env:
-  DEPLOY_PATH: /var/www/bittorrented
-  DEPLOY_USER: bittorrented
+  # Deploy path: /home/ubuntu/www/:domain/:repo
+  DEPLOY_PATH: /home/ubuntu/www/bittorrented.com/media-streamer
+  SERVICE_NAME: bittorrented
 
 jobs:
   # Deploy to Droplet (only if CI passed)
@@ -51,8 +52,17 @@ jobs:
         with:
           timeout_minutes: 10
           max_attempts: 3
-          retry_wait_seconds: 15
+          retry_wait_seconds: 30
           command: |
+            # Create deploy directory if it doesn't exist
+            ssh -i ~/.ssh/deploy_key \
+                -p ${{ secrets.DROPLET_PORT || 22 }} \
+                -o StrictHostKeyChecking=no \
+                -o ConnectTimeout=30 \
+                ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+                "mkdir -p ${{ env.DEPLOY_PATH }}"
+            
+            # Sync files
             rsync -azv --partial --progress --delete \
               --exclude='.git' \
               --exclude='node_modules' \
@@ -62,12 +72,12 @@ jobs:
               -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.DROPLET_PORT || 22 }} -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3" \
               ./ ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.DEPLOY_PATH }}/
 
-      - name: Build and restart on Droplet (with retry)
+      - name: Setup, build and restart on Droplet (with retry)
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 15
+          timeout_minutes: 20
           max_attempts: 3
-          retry_wait_seconds: 15
+          retry_wait_seconds: 30
           command: |
             ssh -i ~/.ssh/deploy_key \
                 -p ${{ secrets.DROPLET_PORT || 22 }} \
@@ -78,22 +88,28 @@ jobs:
                 ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} << 'DEPLOY_SCRIPT'
             set -e
             
-            echo "=== Starting build and restart ==="
-            cd ${{ env.DEPLOY_PATH }}
+            cd /home/ubuntu/www/bittorrented.com/media-streamer
             
-            # Fix ownership
-            sudo chown -R ${{ env.DEPLOY_USER }}:${{ env.DEPLOY_USER }} ${{ env.DEPLOY_PATH }}
-            echo "✓ Ownership fixed"
+            # Run idempotent setup script (installs Node, pnpm, ffmpeg, configures firewall, etc.)
+            echo "=== Running setup script ==="
+            bash scripts/setup-droplet.sh
             
-            # Install dependencies
+            # Source profile to get pnpm in PATH
+            export PATH="$HOME/.local/share/pnpm:$PATH"
+            export PNPM_HOME="$HOME/.local/share/pnpm"
+            
+            echo ""
+            echo "=== Installing dependencies ==="
             pnpm install --frozen-lockfile
             echo "✓ Dependencies installed"
             
-            # Build the application
+            echo ""
+            echo "=== Building application ==="
             pnpm build
             echo "✓ Build complete"
             
-            # Restart the application using systemd
+            echo ""
+            echo "=== Restarting service ==="
             sudo systemctl restart bittorrented
             echo "✓ Service restarted"
             

@@ -1,194 +1,169 @@
 #!/bin/bash
-# BitTorrented Droplet Setup Script (using systemd)
-# 
-# USAGE:
-# 1. First push this to GitHub: git push origin main
-# 2. SSH into your Droplet: ssh root@YOUR_DROPLET_IP
-# 3. Run: curl -fsSL https://raw.githubusercontent.com/profullstack/music-torrent/main/scripts/setup-droplet.sh | bash
+# Idempotent setup script for DigitalOcean Droplet
+# Safe to run multiple times - only installs/configures what's missing
 #
-# Or copy/paste this entire script into your Droplet terminal
+# Run manually: bash scripts/setup-droplet.sh
+# Or via GitHub Actions (runs automatically on deploy)
 
 set -e
 
-echo "=========================================="
-echo "BitTorrented Droplet Setup (systemd)"
-echo "=========================================="
-
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root"
-  exit 1
-fi
-
-# Configuration - EDIT THESE
+# Configuration
 DOMAIN="bittorrented.com"
-GITHUB_REPO="https://github.com/profullstack/music-torrent.git"
-APP_DIR="/var/www/bittorrented"
+REPO="media-streamer"
+DEPLOY_PATH="/home/ubuntu/www/${DOMAIN}/${REPO}"
 SERVICE_NAME="bittorrented"
+NODE_VERSION="22"  # LTS version
+PNPM_HOME="${HOME}/.local/share/pnpm"
 
+echo "=== BitTorrented Droplet Setup (Idempotent) ==="
+echo "Deploy path: ${DEPLOY_PATH}"
 echo ""
-echo -e "${GREEN}[1/10] Updating system...${NC}"
-apt update && apt upgrade -y
 
-echo ""
-echo -e "${GREEN}[2/10] Installing Node.js 22...${NC}"
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt install -y nodejs
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
 
-echo ""
-echo -e "${GREEN}[3/10] Installing pnpm...${NC}"
-npm install -g pnpm
-
-echo ""
-echo -e "${GREEN}[4/10] Installing FFmpeg, Git, Nginx, Certbot...${NC}"
-apt install -y ffmpeg git nginx certbot python3-certbot-nginx
-
-echo ""
-echo -e "${GREEN}[5/10] Creating app user...${NC}"
-# Create a dedicated user for the app (more secure than running as root)
-if ! id -u bittorrented &>/dev/null; then
-  useradd -r -s /bin/false -d $APP_DIR bittorrented
-fi
-
-echo ""
-echo -e "${GREEN}[6/10] Cloning repository...${NC}"
-mkdir -p $APP_DIR
-cd $APP_DIR
-if [ -d ".git" ]; then
-  echo "Repository already exists, pulling latest..."
-  git fetch origin main
-  git reset --hard origin/main
+# Update system (only if not updated recently - within 1 hour)
+LAST_UPDATE_FILE="/tmp/apt-last-update"
+if [ ! -f "$LAST_UPDATE_FILE" ] || [ $(find "$LAST_UPDATE_FILE" -mmin +60 2>/dev/null) ]; then
+    echo "=== Updating system packages ==="
+    sudo apt-get update
+    touch "$LAST_UPDATE_FILE"
 else
-  git clone $GITHUB_REPO .
+    echo "=== System packages recently updated, skipping ==="
 fi
-chown -R bittorrented:bittorrented $APP_DIR
 
-echo ""
-echo -e "${GREEN}[7/10] Creating placeholder .env (GitHub Actions will overwrite)...${NC}"
-if [ ! -f .env ]; then
-  cat > .env << 'EOF'
-# This is a placeholder - GitHub Actions will overwrite this on deploy
-# If you need to test manually, add your real values here
-NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder
-SUPABASE_SERVICE_ROLE_KEY=placeholder
-NODE_ENV=production
-PORT=3000
+# Install essential packages (only if missing)
+echo "=== Checking essential packages ==="
+PACKAGES_TO_INSTALL=""
+for pkg in curl git build-essential ffmpeg rsync ufw fail2ban; do
+    if ! dpkg -l | grep -q "^ii  $pkg "; then
+        PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $pkg"
+    fi
+done
+
+if [ -n "$PACKAGES_TO_INSTALL" ]; then
+    echo "Installing:$PACKAGES_TO_INSTALL"
+    sudo apt-get install -y $PACKAGES_TO_INSTALL
+else
+    echo "All essential packages already installed"
+fi
+
+# Install Node.js if not present or wrong version
+if ! command_exists node || ! node --version | grep -q "v${NODE_VERSION}"; then
+    echo "=== Installing Node.js ${NODE_VERSION} ==="
+    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+else
+    echo "=== Node.js $(node --version) already installed ==="
+fi
+
+# Install pnpm if not present
+if ! command_exists pnpm; then
+    echo "=== Installing pnpm ==="
+    curl -fsSL https://get.pnpm.io/install.sh | sh -
+else
+    echo "=== pnpm $(pnpm --version 2>/dev/null || echo 'installed') already installed ==="
+fi
+
+# Add pnpm to PATH for this session
+export PATH="$PNPM_HOME:$PATH"
+
+# Add pnpm to bashrc if not already there
+if ! grep -q "PNPM_HOME" ~/.bashrc 2>/dev/null; then
+    echo "=== Adding pnpm to ~/.bashrc ==="
+    echo '' >> ~/.bashrc
+    echo '# pnpm' >> ~/.bashrc
+    echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> ~/.bashrc
+    echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.bashrc
+fi
+
+# Create deploy directory if not exists
+if [ ! -d "${DEPLOY_PATH}" ]; then
+    echo "=== Creating deploy directory ==="
+    mkdir -p "${DEPLOY_PATH}"
+else
+    echo "=== Deploy directory already exists ==="
+fi
+
+# Configure firewall (idempotent - ufw handles duplicates)
+echo "=== Configuring firewall ==="
+sudo ufw default deny incoming 2>/dev/null || true
+sudo ufw default allow outgoing 2>/dev/null || true
+sudo ufw allow ssh 2>/dev/null || true
+sudo ufw allow 80/tcp 2>/dev/null || true
+sudo ufw allow 443/tcp 2>/dev/null || true
+sudo ufw allow 3000/tcp 2>/dev/null || true
+sudo ufw allow 6881/tcp 2>/dev/null || true
+sudo ufw allow 6881/udp 2>/dev/null || true
+sudo ufw allow 6882:6889/udp 2>/dev/null || true
+
+# Enable firewall if not already enabled
+if ! sudo ufw status | grep -q "Status: active"; then
+    sudo ufw --force enable
+fi
+
+# Configure fail2ban (only if config doesn't exist)
+if [ ! -f /etc/fail2ban/jail.local ]; then
+    echo "=== Configuring fail2ban ==="
+    sudo tee /etc/fail2ban/jail.local > /dev/null << 'EOF'
+[DEFAULT]
+bantime = 600
+findtime = 600
+maxretry = 10
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 10
+bantime = 600
 EOF
+    sudo systemctl restart fail2ban
+else
+    echo "=== fail2ban already configured ==="
 fi
-chown bittorrented:bittorrented .env
 
-echo ""
-echo -e "${GREEN}[8/10] Installing dependencies and building...${NC}"
-# Run as bittorrented user
-sudo -u bittorrented pnpm install
-sudo -u bittorrented pnpm build
-
-echo ""
-echo -e "${GREEN}[9/10] Creating systemd service...${NC}"
-cat > /etc/systemd/system/${SERVICE_NAME}.service << EOF
+# Create/update systemd service
+echo "=== Updating systemd service ==="
+sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << EOF
 [Unit]
-Description=BitTorrented - Torrent Streaming Service
-Documentation=https://github.com/profullstack/music-torrent
+Description=BitTorrented Media Streamer
 After=network.target
 
 [Service]
 Type=simple
-User=bittorrented
-Group=bittorrented
-WorkingDirectory=$APP_DIR
-ExecStart=/usr/bin/pnpm start
-Restart=always
+User=ubuntu
+WorkingDirectory=${DEPLOY_PATH}
+ExecStart=${PNPM_HOME}/pnpm start
+Restart=on-failure
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=$SERVICE_NAME
-
-# Environment
 Environment=NODE_ENV=production
-Environment=PORT=3000
+Environment=PATH=${PNPM_HOME}:/usr/local/bin:/usr/bin:/bin
 
-# Security hardening
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=$APP_DIR
-PrivateTmp=true
+# Increase file descriptor limits for torrents
+LimitNOFILE=65535
+
+# Allow binding to privileged ports if needed
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 # Reload systemd and enable service
-systemctl daemon-reload
-systemctl enable $SERVICE_NAME
-systemctl start $SERVICE_NAME
+sudo systemctl daemon-reload
+sudo systemctl enable ${SERVICE_NAME} 2>/dev/null || true
 
 echo ""
-echo -e "${GREEN}[10/10] Configuring Nginx...${NC}"
-cat > /etc/nginx/sites-available/bittorrented << EOF
-server {
-    listen 80;
-    server_name $DOMAIN www.$DOMAIN;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        
-        # Streaming timeouts
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_buffering off;
-        
-        # Large file uploads
-        client_max_body_size 100M;
-    }
-}
-EOF
-
-ln -sf /etc/nginx/sites-available/bittorrented /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl restart nginx
-
+echo "=== Setup Complete! ==="
 echo ""
-echo "=========================================="
-echo -e "${GREEN}Setup Complete!${NC}"
-echo "=========================================="
+echo "Installed versions:"
+echo "  Node.js: $(node --version 2>/dev/null || echo 'not found')"
+echo "  pnpm: $(pnpm --version 2>/dev/null || echo 'not found')"
+echo "  ffmpeg: $(ffmpeg -version 2>/dev/null | head -1 || echo 'not found')"
 echo ""
-echo "Your Droplet IP: $(curl -s ifconfig.me)"
-echo ""
-echo -e "${YELLOW}SYSTEMD COMMANDS:${NC}"
-echo "  systemctl status $SERVICE_NAME    # Check status"
-echo "  systemctl restart $SERVICE_NAME   # Restart app"
-echo "  systemctl stop $SERVICE_NAME      # Stop app"
-echo "  journalctl -u $SERVICE_NAME -f    # View logs (live)"
-echo "  journalctl -u $SERVICE_NAME -n 100 # View last 100 lines"
-echo ""
-echo -e "${YELLOW}NEXT STEPS:${NC}"
-echo ""
-echo "1. Setup SSL (run this command):"
-echo "   certbot --nginx -d $DOMAIN -d www.$DOMAIN"
-echo ""
-echo "2. Trigger a GitHub Actions deploy to write the real .env file:"
-echo "   - Go to GitHub → Actions → Deploy to Droplet → Run workflow"
-echo "   - Or push a commit to main branch"
-echo ""
-echo "3. Verify the app is running:"
-echo "   systemctl status $SERVICE_NAME"
-echo "   curl http://localhost:3000/api/health"
-echo ""
-echo "4. Check your site:"
-echo "   http://$DOMAIN"
-echo ""
+echo "Service: ${SERVICE_NAME}"
+echo "Deploy path: ${DEPLOY_PATH}"
