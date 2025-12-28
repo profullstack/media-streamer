@@ -431,11 +431,27 @@ async function processTorrent(
 
   // Fetch metadata
   try {
+    console.log(`  🔍 Searching for: "${torrent.name}" (as ${contentType})`);
+    
     const result = await enrichTorrentMetadata(torrent.name, {
       omdbApiKey,
       thetvdbApiKey,
       musicbrainzUserAgent: MUSICBRAINZ_USER_AGENT,
+      // Pass the file-detected content type as override
+      contentTypeOverride: contentType,
     });
+
+    // Log the full result for debugging
+    console.log(`  📋 API Response:`, JSON.stringify({
+      contentType: result.contentType,
+      title: result.title,
+      year: result.year,
+      posterUrl: result.posterUrl ? '✓' : '✗',
+      coverUrl: result.coverUrl ? '✓' : '✗',
+      externalId: result.externalId,
+      externalSource: result.externalSource,
+      error: result.error,
+    }, null, 2).split('\n').map(l => `     ${l}`).join('\n'));
 
     if (result.error) {
       console.log(`  ⚠️  API error: ${result.error}`);

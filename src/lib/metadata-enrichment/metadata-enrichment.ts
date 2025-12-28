@@ -40,6 +40,8 @@ export interface EnrichmentOptions {
   omdbApiKey?: string;
   thetvdbApiKey?: string;
   musicbrainzUserAgent?: string;
+  /** Override the auto-detected content type (useful when content type is known from file analysis) */
+  contentTypeOverride?: ContentType;
 }
 
 export interface EnrichmentResult {
@@ -445,7 +447,8 @@ export async function enrichTorrentMetadata(
   torrentName: string,
   options: EnrichmentOptions
 ): Promise<EnrichmentResult> {
-  const contentType = detectContentType(torrentName);
+  // Use override if provided, otherwise detect from name
+  const contentType = options.contentTypeOverride ?? detectContentType(torrentName);
   const result: EnrichmentResult = { contentType };
 
   // Skip enrichment for 'other' content type

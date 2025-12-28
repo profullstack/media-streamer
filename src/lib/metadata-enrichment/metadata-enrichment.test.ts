@@ -582,6 +582,70 @@ describe('enrichTorrentMetadata', () => {
     });
   });
 
+  describe('contentTypeOverride option', () => {
+    it('should use contentTypeOverride when provided', async () => {
+      // Mock MusicBrainz response for music (recording search type since name doesn't match discography patterns)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          recordings: [
+            {
+              id: 'test-123',
+              title: 'Big Buck Bunny Soundtrack',
+              'artist-credit': [{ name: 'Blender Foundation' }],
+              releases: [{ title: 'Big Buck Bunny OST', date: '2008-05-30' }],
+            },
+          ],
+        }),
+      });
+
+      // "Big Buck Bunny" would normally be detected as 'other' from name
+      // but we override it to 'music'
+      const result = await enrichTorrentMetadata('Big Buck Bunny', {
+        contentTypeOverride: 'music',
+      });
+
+      expect(result.contentType).toBe('music');
+      expect(result.externalId).toBe('test-123');
+      expect(result.externalSource).toBe('musicbrainz');
+    });
+
+    it('should use contentTypeOverride for movie even without year/quality in name', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          Response: 'True',
+          Search: [
+            {
+              Title: 'Sintel',
+              Year: '2010',
+              imdbID: 'tt1727587',
+              Poster: 'https://example.com/sintel.jpg',
+            },
+          ],
+        }),
+      });
+
+      // "Sintel" would normally be detected as 'other' from name
+      // but we override it to 'movie'
+      const result = await enrichTorrentMetadata('Sintel', {
+        omdbApiKey: 'test-key',
+        contentTypeOverride: 'movie',
+      });
+
+      expect(result.contentType).toBe('movie');
+      expect(result.posterUrl).toBe('https://example.com/sintel.jpg');
+      expect(result.externalId).toBe('tt1727587');
+    });
+
+    it('should fall back to name detection when no override provided', async () => {
+      const result = await enrichTorrentMetadata('random_file.zip', {});
+
+      expect(result.contentType).toBe('other');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('error handling', () => {
     it('should handle network errors gracefully', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
