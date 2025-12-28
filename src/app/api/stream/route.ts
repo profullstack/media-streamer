@@ -18,6 +18,7 @@ import {
   RangeNotSatisfiableError,
 } from '@/lib/streaming';
 import { createLogger, generateRequestId } from '@/lib/logger';
+import { getTorrentByInfohash } from '@/lib/supabase';
 
 const logger = createLogger('API:stream');
 
@@ -104,9 +105,15 @@ function validateParams(
 }
 
 /**
- * Build magnet URI from infohash
+ * Get magnet URI from database or build a basic one as fallback
+ * The stored magnet URI contains all the trackers from the original submission
  */
-function buildMagnetUri(infohash: string): string {
+async function getMagnetUri(infohash: string): Promise<string> {
+  const torrent = await getTorrentByInfohash(infohash);
+  if (torrent?.magnet_uri) {
+    return torrent.magnet_uri;
+  }
+  // Fallback to basic magnet URI if not found in database
   return `magnet:?xt=urn:btih:${infohash}`;
 }
 
@@ -155,7 +162,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const { infohash, fileIndex } = validation;
-  const magnetUri = buildMagnetUri(infohash);
+  const magnetUri = await getMagnetUri(infohash);
   const rangeHeader = request.headers.get('Range');
 
   reqLogger.info('GET /api/stream', { 
@@ -287,7 +294,7 @@ export async function HEAD(request: NextRequest): Promise<Response> {
   }
 
   const { infohash, fileIndex } = validation;
-  const magnetUri = buildMagnetUri(infohash);
+  const magnetUri = await getMagnetUri(infohash);
 
   reqLogger.info('HEAD /api/stream', { infohash, fileIndex });
 

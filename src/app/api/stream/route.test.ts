@@ -22,6 +22,18 @@ vi.mock('@/lib/subscription', () => ({
   getSubscriptionRepository: vi.fn(() => mockSubscriptionRepository),
 }));
 
+// Mock supabase - return the stored magnet URI with trackers
+vi.mock('@/lib/supabase', () => ({
+  getTorrentByInfohash: vi.fn().mockResolvedValue({
+    id: 'torrent-123',
+    infohash: '1234567890abcdef1234567890abcdef12345678',
+    magnet_uri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce',
+    name: 'Test Torrent',
+    total_size: 1000000,
+    file_count: 1,
+  }),
+}));
+
 // Mock the streaming service - must be before imports
 const mockCreateStream = vi.fn();
 const mockGetStreamInfo = vi.fn();
