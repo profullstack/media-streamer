@@ -38,7 +38,7 @@ A comprehensive multi-media streaming platform that allows users to stream music
 - **Video**: Video.js with HLS.js for M3U8 streaming
 - **Payments**: CoinPayPortal (cryptocurrency)
 - **Testing**: Vitest with TDD approach
-- **Deployment**: DigitalOcean App Platform
+- **Deployment**: DigitalOcean Droplet (with UDP support for DHT)
 
 ## Prerequisites
 
@@ -149,13 +149,34 @@ pnpm test:coverage
 
 ## Deployment
 
-### DigitalOcean App Platform
+### DigitalOcean Droplet (Recommended)
 
-1. Connect your GitHub repository to DigitalOcean App Platform
-2. Set environment variables in the App Platform dashboard
-3. Deploy automatically on push to main
+We use a DigitalOcean Droplet instead of App Platform because **App Platform doesn't support UDP**, which is required for DHT (Distributed Hash Table) peer discovery in BitTorrent.
 
-See [docs/deployment-digitalocean.md](docs/deployment-digitalocean.md) for detailed instructions.
+**Quick Start:**
+
+```bash
+# 1. SSH into your Droplet
+ssh root@YOUR_DROPLET_IP
+
+# 2. Run the setup script
+curl -fsSL https://raw.githubusercontent.com/profullstack/music-torrent/main/scripts/setup-droplet.sh | bash
+
+# 3. Setup SSL
+certbot --nginx -d yourdomain.com -d www.yourdomain.com
+```
+
+**What the setup script does:**
+- Installs Node.js 22, pnpm, FFmpeg, Nginx
+- Clones the repository
+- Creates a systemd service for auto-restart
+- Configures Nginx as reverse proxy
+
+**GitHub Actions auto-deploy:**
+- Push to `main` branch triggers automatic deployment
+- Requires GitHub Secrets: `DROPLET_HOST`, `DROPLET_USER`, `DROPLET_SSH_KEY`, `ENV_FILE`
+
+See [docs/deployment-droplet.md](docs/deployment-droplet.md) for detailed instructions.
 
 ## Security
 
