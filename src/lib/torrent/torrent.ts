@@ -121,10 +121,10 @@ export interface MetadataProgressEvent {
  */
 export type MetadataProgressCallback = (event: MetadataProgressEvent) => void;
 
-// Default timeout for metadata fetch (60 seconds)
+// Default timeout for metadata fetch (90 seconds)
 // Can be overridden via TORRENT_METADATA_TIMEOUT_MS environment variable
 const DEFAULT_METADATA_TIMEOUT = parseInt(
-  process.env.TORRENT_METADATA_TIMEOUT_MS ?? '60000',
+  process.env.TORRENT_METADATA_TIMEOUT_MS ?? '90000',
   10
 );
 
@@ -568,34 +568,61 @@ export class TorrentService {
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
    *
-   * Tracker priority order (fastest first):
-   * 1. UDP trackers (fastest, work with DHT, but blocked on some cloud platforms)
-   * 2. WebSocket trackers (fast, work in browsers and cloud)
-   * 3. HTTP/HTTPS trackers (slowest, but work everywhere)
+   * Priority order (fastest first):
+   * 1. DHT (always enabled via WebTorrent config - decentralized, no trackers needed)
+   * 2. Our open source UDP trackers (fastest tracker protocol)
+   * 3. Our open source WebSocket trackers (fast, work in browsers)
+   * 4. Our open source HTTP trackers (slowest but most reliable)
+   * 5. Original magnet URL trackers (last priority)
    *
-   * DHT is the primary peer discovery method and is always enabled.
-   * Trackers are used as a supplement to DHT.
+   * This function rebuilds the magnet URI to put our trackers FIRST,
+   * ensuring faster peer discovery.
    */
   private enhanceMagnetUri(magnetUri: string): string {
-    // Prioritize UDP trackers first (fastest), then WSS, then HTTP (slowest)
-    const allTrackers = [...UDP_TRACKERS, ...WEBSOCKET_TRACKERS, ...HTTP_TRACKERS];
+    // Parse the magnet URI to extract components
+    const parsed = parseMagnetUri(magnetUri);
     
-    // Add trackers that aren't already in the magnet URI
-    let enhanced = magnetUri;
+    // Our open source trackers in priority order (UDP first, then WSS, then HTTP)
+    const ourTrackers = [...UDP_TRACKERS, ...WEBSOCKET_TRACKERS, ...HTTP_TRACKERS];
+    
+    // Build a new magnet URI with our trackers FIRST, then original trackers
+    // Start with the base magnet (xt=urn:btih:infohash)
+    let enhanced = `magnet:?xt=urn:btih:${parsed.infohash}`;
+    
+    // Add display name if present
+    if (parsed.displayName) {
+      enhanced += `&dn=${encodeURIComponent(parsed.displayName)}`;
+    }
+    
+    // Add OUR trackers FIRST (highest priority after DHT)
     let addedCount = 0;
-    for (const tracker of allTrackers) {
-      const encodedTracker = encodeURIComponent(tracker);
-      if (!magnetUri.includes(encodedTracker) && !magnetUri.includes(tracker)) {
-        enhanced += `&tr=${encodedTracker}`;
+    const addedTrackers = new Set<string>();
+    
+    for (const tracker of ourTrackers) {
+      const normalizedTracker = tracker.toLowerCase();
+      if (!addedTrackers.has(normalizedTracker)) {
+        enhanced += `&tr=${encodeURIComponent(tracker)}`;
+        addedTrackers.add(normalizedTracker);
         addedCount++;
       }
     }
     
-    logger.debug('Enhanced magnet URI with trackers', {
-      addedTrackers: addedCount,
-      udpTrackers: UDP_TRACKERS.length,
-      wssTrackers: WEBSOCKET_TRACKERS.length,
-      httpTrackers: HTTP_TRACKERS.length,
+    // Add original magnet trackers LAST (lowest priority)
+    let originalCount = 0;
+    for (const tracker of parsed.trackers) {
+      const normalizedTracker = tracker.toLowerCase();
+      if (!addedTrackers.has(normalizedTracker)) {
+        enhanced += `&tr=${encodeURIComponent(tracker)}`;
+        addedTrackers.add(normalizedTracker);
+        originalCount++;
+      }
+    }
+    
+    logger.info('Enhanced magnet URI - our trackers FIRST, original trackers LAST', {
+      ourTrackersAdded: addedCount,
+      originalTrackersAdded: originalCount,
+      totalTrackers: addedTrackers.size,
+      priority: 'DHT → UDP → WSS → HTTP → Original',
     });
     
     return enhanced;

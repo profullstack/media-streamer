@@ -45,13 +45,13 @@ export interface SwarmStats {
  * Options for scraping trackers
  */
 export interface ScrapeOptions {
-  /** Timeout in milliseconds for each tracker request (default: 5000) */
+  /** Timeout in milliseconds for each tracker request (default: 15000) */
   timeout?: number;
   /** Maximum number of trackers to query concurrently (default: 5) */
   maxConcurrent?: number;
 }
 
-const DEFAULT_TIMEOUT = 5000;
+const DEFAULT_TIMEOUT = 15000;
 const DEFAULT_MAX_CONCURRENT = 5;
 
 /**

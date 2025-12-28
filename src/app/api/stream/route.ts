@@ -40,7 +40,7 @@ function getStreamingService(): StreamingService {
     logger.info('Creating new StreamingService instance');
     streamingService = new StreamingService({
       maxConcurrentStreams: 10,
-      streamTimeout: 60000, // 60 seconds for audio/video to connect to peers
+      streamTimeout: 90000, // 90 seconds for audio/video to connect to peers
     });
   }
   return streamingService;
@@ -130,21 +130,48 @@ async function getMagnetUri(infohash: string): Promise<string> {
 
 /**
  * Convert Node.js Readable stream to Web ReadableStream
+ * Handles edge cases where stream events fire in unexpected order
  */
 function nodeStreamToWebStream(nodeStream: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
+  let controllerClosed = false;
+  
   return new ReadableStream({
     start(controller) {
       nodeStream.on('data', (chunk: Buffer) => {
-        controller.enqueue(new Uint8Array(chunk));
+        if (!controllerClosed) {
+          try {
+            controller.enqueue(new Uint8Array(chunk));
+          } catch {
+            // Controller may be closed if client disconnected
+            controllerClosed = true;
+          }
+        }
       });
+      
       nodeStream.on('end', () => {
-        controller.close();
+        if (!controllerClosed) {
+          controllerClosed = true;
+          try {
+            controller.close();
+          } catch {
+            // Controller may already be closed
+          }
+        }
       });
+      
       nodeStream.on('error', (err: Error) => {
-        controller.error(err);
+        if (!controllerClosed) {
+          controllerClosed = true;
+          try {
+            controller.error(err);
+          } catch {
+            // Controller may already be closed
+          }
+        }
       });
     },
     cancel() {
+      controllerClosed = true;
       if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
         nodeStream.destroy();
       }
@@ -154,105 +181,177 @@ function nodeStreamToWebStream(nodeStream: NodeJS.ReadableStream): ReadableStrea
 
 /**
  * Create a transcoded stream by piping torrent stream through FFmpeg
+ * All operations are wrapped in try/catch to prevent server crashes
  */
 function createTranscodedStream(
   sourceStream: NodeJS.ReadableStream,
   fileName: string,
   reqLogger: ReturnType<typeof logger.child>
 ): { stream: NodeJS.ReadableStream; mimeType: string } | null {
-  const mediaType = detectMediaType(fileName);
-  if (!mediaType) {
-    reqLogger.warn('Cannot detect media type for transcoding', { fileName });
-    return null;
-  }
+  try {
+    const mediaType = detectMediaType(fileName);
+    if (!mediaType) {
+      reqLogger.warn('Cannot detect media type for transcoding', { fileName });
+      return null;
+    }
 
-  // Extract format from filename
-  const format = fileName.split('.').pop()?.toLowerCase() ?? '';
-  if (!format) {
-    reqLogger.warn('Cannot extract format from filename', { fileName });
-    return null;
-  }
+    // Extract format from filename
+    const format = fileName.split('.').pop()?.toLowerCase() ?? '';
+    if (!format) {
+      reqLogger.warn('Cannot extract format from filename', { fileName });
+      return null;
+    }
 
-  const profile = getStreamingTranscodeProfile(mediaType, format);
-  if (!profile) {
-    reqLogger.warn('No transcoding profile available', { fileName, mediaType, format });
-    return null;
-  }
+    const profile = getStreamingTranscodeProfile(mediaType, format);
+    if (!profile) {
+      reqLogger.warn('No transcoding profile available', { fileName, mediaType, format });
+      return null;
+    }
 
-  // Pass the input format to FFmpeg args builder for proper container detection
-  // This is critical for non-seekable streams like MKV where metadata is at the end
-  const ffmpegArgs = buildStreamingFFmpegArgs(profile, format);
-  const outputMimeType = getTranscodedMimeType(mediaType, format);
-  if (!outputMimeType) {
-    reqLogger.warn('Cannot determine output MIME type', { fileName, mediaType, format });
-    return null;
-  }
+    // Pass the input format to FFmpeg args builder for proper container detection
+    // This is critical for non-seekable streams like MKV where metadata is at the end
+    const ffmpegArgs = buildStreamingFFmpegArgs(profile, format);
+    const outputMimeType = getTranscodedMimeType(mediaType, format);
+    if (!outputMimeType) {
+      reqLogger.warn('Cannot determine output MIME type', { fileName, mediaType, format });
+      return null;
+    }
 
-  reqLogger.info('Starting FFmpeg transcoding', {
-    fileName,
-    mediaType,
-    format,
-    outputFormat: profile.outputFormat,
-    outputMimeType,
-    ffmpegArgs: ffmpegArgs.join(' '),
-  });
+    reqLogger.info('Starting FFmpeg transcoding', {
+      fileName,
+      mediaType,
+      format,
+      outputFormat: profile.outputFormat,
+      outputMimeType,
+      ffmpegArgs: ffmpegArgs.join(' '),
+    });
 
-  const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+    let ffmpeg;
+    try {
+      ffmpeg = spawn('ffmpeg', ffmpegArgs, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (spawnError) {
+      reqLogger.error('Failed to spawn FFmpeg process', spawnError);
+      return null;
+    }
 
-  // Create a PassThrough stream for the output
-  const outputStream = new PassThrough();
+    // Create a PassThrough stream for the output
+    const outputStream = new PassThrough();
 
-  // Pipe source stream to FFmpeg stdin
-  sourceStream.pipe(ffmpeg.stdin);
+    // Track if streams are already destroyed to prevent double-destroy errors
+    let ffmpegKilled = false;
+    let outputDestroyed = false;
 
-  // Pipe FFmpeg stdout to output stream
-  ffmpeg.stdout.pipe(outputStream);
-
-  // Handle FFmpeg stderr (logging only)
-  let stderrBuffer = '';
-  ffmpeg.stderr.on('data', (data: Buffer) => {
-    stderrBuffer += data.toString();
-    // Log progress periodically (FFmpeg outputs progress to stderr)
-    if (stderrBuffer.includes('frame=') || stderrBuffer.includes('time=')) {
-      const lines = stderrBuffer.split('\n');
-      const lastLine = lines[lines.length - 2] || lines[lines.length - 1];
-      if (lastLine.trim()) {
-        reqLogger.debug('FFmpeg progress', { progress: lastLine.trim() });
+    const safeKillFFmpeg = (): void => {
+      if (!ffmpegKilled && ffmpeg) {
+        ffmpegKilled = true;
+        try {
+          ffmpeg.kill('SIGTERM');
+        } catch (killError) {
+          reqLogger.debug('Error killing FFmpeg (may already be dead)', { error: String(killError) });
+        }
       }
-      stderrBuffer = lines[lines.length - 1];
+    };
+
+    const safeDestroyOutput = (err?: Error): void => {
+      if (!outputDestroyed) {
+        outputDestroyed = true;
+        try {
+          if (err) {
+            outputStream.destroy(err);
+          } else {
+            outputStream.destroy();
+          }
+        } catch (destroyError) {
+          reqLogger.debug('Error destroying output stream', { error: String(destroyError) });
+        }
+      }
+    };
+
+    // Pipe source stream to FFmpeg stdin with error handling
+    try {
+      sourceStream.pipe(ffmpeg.stdin);
+    } catch (pipeError) {
+      reqLogger.error('Failed to pipe source to FFmpeg stdin', pipeError);
+      safeKillFFmpeg();
+      return null;
     }
-  });
 
-  // Handle FFmpeg errors
-  ffmpeg.on('error', (err: Error) => {
-    reqLogger.error('FFmpeg process error', err);
-    outputStream.destroy(err);
-  });
-
-  ffmpeg.on('close', (code: number | null) => {
-    if (code !== 0 && code !== null) {
-      reqLogger.warn('FFmpeg exited with non-zero code', { code, stderr: stderrBuffer });
-    } else {
-      reqLogger.info('FFmpeg transcoding completed');
+    // Pipe FFmpeg stdout to output stream with error handling
+    try {
+      ffmpeg.stdout.pipe(outputStream);
+    } catch (pipeError) {
+      reqLogger.error('Failed to pipe FFmpeg stdout to output', pipeError);
+      safeKillFFmpeg();
+      return null;
     }
-  });
 
-  // Handle source stream errors
-  sourceStream.on('error', (err: Error) => {
-    reqLogger.error('Source stream error during transcoding', err);
-    ffmpeg.kill('SIGTERM');
-    outputStream.destroy(err);
-  });
+    // Handle FFmpeg stdin errors (source stream closed unexpectedly)
+    ffmpeg.stdin.on('error', (err: Error) => {
+      // EPIPE is expected when FFmpeg closes stdin early (e.g., on error)
+      if ((err as NodeJS.ErrnoException).code !== 'EPIPE') {
+        reqLogger.warn('FFmpeg stdin error', { error: err.message });
+      }
+    });
 
-  // Handle output stream close (client disconnected)
-  outputStream.on('close', () => {
-    reqLogger.debug('Output stream closed, killing FFmpeg');
-    ffmpeg.kill('SIGTERM');
-  });
+    // Handle FFmpeg stderr (logging only)
+    let stderrBuffer = '';
+    ffmpeg.stderr.on('data', (data: Buffer) => {
+      try {
+        stderrBuffer += data.toString();
+        // Log progress periodically (FFmpeg outputs progress to stderr)
+        if (stderrBuffer.includes('frame=') || stderrBuffer.includes('time=')) {
+          const lines = stderrBuffer.split('\n');
+          const lastLine = lines[lines.length - 2] || lines[lines.length - 1];
+          if (lastLine.trim()) {
+            reqLogger.debug('FFmpeg progress', { progress: lastLine.trim() });
+          }
+          stderrBuffer = lines[lines.length - 1];
+        }
+      } catch {
+        // Ignore logging errors
+      }
+    });
 
-  return { stream: outputStream, mimeType: outputMimeType };
+    // Handle FFmpeg process errors
+    ffmpeg.on('error', (err: Error) => {
+      reqLogger.error('FFmpeg process error', err);
+      safeDestroyOutput(err);
+    });
+
+    ffmpeg.on('close', (code: number | null) => {
+      if (code !== 0 && code !== null) {
+        reqLogger.warn('FFmpeg exited with non-zero code', { code, stderr: stderrBuffer.slice(-500) });
+      } else {
+        reqLogger.info('FFmpeg transcoding completed');
+      }
+    });
+
+    // Handle source stream errors
+    sourceStream.on('error', (err: Error) => {
+      reqLogger.error('Source stream error during transcoding', err);
+      safeKillFFmpeg();
+      safeDestroyOutput(err);
+    });
+
+    // Handle output stream close (client disconnected)
+    outputStream.on('close', () => {
+      reqLogger.debug('Output stream closed, killing FFmpeg');
+      safeKillFFmpeg();
+    });
+
+    // Handle output stream errors
+    outputStream.on('error', (err: Error) => {
+      reqLogger.error('Output stream error', err);
+      safeKillFFmpeg();
+    });
+
+    return { stream: outputStream, mimeType: outputMimeType };
+  } catch (error) {
+    reqLogger.error('Unexpected error in createTranscodedStream', error);
+    return null;
+  }
 }
 
 /**

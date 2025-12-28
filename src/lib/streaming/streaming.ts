@@ -159,7 +159,7 @@ export interface StreamInfo {
 export interface StreamingServiceOptions {
   /** Maximum concurrent streams (default: 10) */
   maxConcurrentStreams?: number;
-  /** Timeout for stream operations in milliseconds (default: 30000) */
+  /** Timeout for stream operations in milliseconds (default: 90000) */
   streamTimeout?: number;
 }
 
@@ -204,7 +204,7 @@ export class StreamingService {
   constructor(options: StreamingServiceOptions = {}) {
     logger.info('Initializing StreamingService', {
       maxConcurrentStreams: options.maxConcurrentStreams ?? 10,
-      streamTimeout: options.streamTimeout ?? 30000
+      streamTimeout: options.streamTimeout ?? 90000
     });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
@@ -219,7 +219,7 @@ export class StreamingService {
     } as WebTorrent.Options);
     
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
-    this.streamTimeout = options.streamTimeout ?? 30000;
+    this.streamTimeout = options.streamTimeout ?? 90000;
     this.activeStreams = new Map();
     
     // Log client events
@@ -585,27 +585,77 @@ export class StreamingService {
 
   /**
    * Enhance a magnet URI with additional trackers for better peer discovery
-   * This is especially important in cloud environments where UDP is blocked
-   * HTTP trackers are prioritized as they work on cloud platforms
+   *
+   * Priority order (fastest first):
+   * 1. DHT (always enabled via WebTorrent config - decentralized, no trackers needed)
+   * 2. Our open source UDP trackers (fastest tracker protocol)
+   * 3. Our open source WebSocket trackers (fast, work in browsers)
+   * 4. Our open source HTTP trackers (slowest but most reliable)
+   * 5. Original magnet URL trackers (last priority)
+   *
+   * This function rebuilds the magnet URI to put our trackers FIRST,
+   * ensuring faster peer discovery.
    */
   private enhanceMagnetUri(magnetUri: string): string {
-    // Add trackers that aren't already in the magnet URI
-    let enhanced = magnetUri;
+    // Extract infohash from magnet URI
+    const infohash = extractInfohash(magnetUri);
+    if (!infohash) {
+      logger.warn('Could not extract infohash for enhancement, returning original');
+      return magnetUri;
+    }
+    
+    // Extract display name if present
+    const dnMatch = magnetUri.match(/[?&]dn=([^&]+)/);
+    const displayName = dnMatch ? decodeURIComponent(dnMatch[1]) : null;
+    
+    // Extract original trackers
+    const originalTrackers: string[] = [];
+    const trMatches = magnetUri.matchAll(/[?&]tr=([^&]+)/g);
+    for (const match of trMatches) {
+      try {
+        originalTrackers.push(decodeURIComponent(match[1]));
+      } catch {
+        // Skip invalid tracker URLs
+      }
+    }
+    
+    // Build a new magnet URI with our trackers FIRST, then original trackers
+    let enhanced = `magnet:?xt=urn:btih:${infohash}`;
+    
+    // Add display name if present
+    if (displayName) {
+      enhanced += `&dn=${encodeURIComponent(displayName)}`;
+    }
+    
+    // Add OUR trackers FIRST (highest priority after DHT)
     let addedCount = 0;
+    const addedTrackers = new Set<string>();
     
     for (const tracker of OPEN_TRACKERS) {
-      const encodedTracker = encodeURIComponent(tracker);
-      if (!magnetUri.includes(encodedTracker) && !magnetUri.includes(tracker)) {
-        enhanced += `&tr=${encodedTracker}`;
+      const normalizedTracker = tracker.toLowerCase();
+      if (!addedTrackers.has(normalizedTracker)) {
+        enhanced += `&tr=${encodeURIComponent(tracker)}`;
+        addedTrackers.add(normalizedTracker);
         addedCount++;
       }
     }
     
-    logger.debug('Enhanced magnet URI with additional trackers', {
-      originalLength: magnetUri.length,
-      enhancedLength: enhanced.length,
-      totalTrackers: OPEN_TRACKERS.length,
-      addedTrackers: addedCount,
+    // Add original magnet trackers LAST (lowest priority)
+    let originalCount = 0;
+    for (const tracker of originalTrackers) {
+      const normalizedTracker = tracker.toLowerCase();
+      if (!addedTrackers.has(normalizedTracker)) {
+        enhanced += `&tr=${encodeURIComponent(tracker)}`;
+        addedTrackers.add(normalizedTracker);
+        originalCount++;
+      }
+    }
+    
+    logger.info('Enhanced magnet URI - our trackers FIRST, original trackers LAST', {
+      ourTrackersAdded: addedCount,
+      originalTrackersAdded: originalCount,
+      totalTrackers: addedTrackers.size,
+      priority: 'DHT → UDP → WSS → HTTP → Original',
     });
     
     return enhanced;
