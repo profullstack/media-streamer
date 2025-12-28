@@ -179,7 +179,9 @@ function createTranscodedStream(
     return null;
   }
 
-  const ffmpegArgs = buildStreamingFFmpegArgs(profile);
+  // Pass the input format to FFmpeg args builder for proper container detection
+  // This is critical for non-seekable streams like MKV where metadata is at the end
+  const ffmpegArgs = buildStreamingFFmpegArgs(profile, format);
   const outputMimeType = getTranscodedMimeType(mediaType, format);
   if (!outputMimeType) {
     reqLogger.warn('Cannot determine output MIME type', { fileName, mediaType, format });

@@ -300,11 +300,37 @@ export function getStreamingTranscodeProfile(mediaType: MediaType, format: strin
 
 /**
  * Build FFmpeg arguments for streaming transcoding (pipe input/output)
+ * Handles non-seekable input streams like torrent downloads
  * @param profile - Transcoding profile
+ * @param inputFormat - Optional input format hint (e.g., 'mkv', 'avi')
  * @returns Array of FFmpeg arguments for streaming
  */
-export function buildStreamingFFmpegArgs(profile: TranscodeProfile): string[] {
+export function buildStreamingFFmpegArgs(profile: TranscodeProfile, inputFormat?: string): string[] {
   const args: string[] = [];
+
+  // CRITICAL: These flags must come BEFORE -i for non-seekable input
+  // -fflags +genpts: Generate presentation timestamps if missing
+  // -analyzeduration: Increase analysis duration for better stream detection
+  // -probesize: Increase probe size for better format detection
+  args.push('-fflags', '+genpts+discardcorrupt');
+  args.push('-analyzeduration', '10M');
+  args.push('-probesize', '10M');
+
+  // For MKV specifically, we need to handle the container format
+  // MKV stores metadata at the end, but with these flags FFmpeg can handle streaming
+  if (inputFormat === 'mkv') {
+    args.push('-f', 'matroska');
+  } else if (inputFormat === 'avi') {
+    args.push('-f', 'avi');
+  } else if (inputFormat === 'flv') {
+    args.push('-f', 'flv');
+  } else if (inputFormat === 'wmv') {
+    args.push('-f', 'asf');
+  } else if (inputFormat === 'mov') {
+    args.push('-f', 'mov');
+  } else if (inputFormat === 'ts') {
+    args.push('-f', 'mpegts');
+  }
 
   // Input from stdin (pipe)
   args.push('-i', 'pipe:0');
