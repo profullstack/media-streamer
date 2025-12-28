@@ -14,13 +14,30 @@
 set -e
 
 # Load environment variables from .env file if it exists
+# Uses a safe method that doesn't execute values as bash commands
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 if [ -f "${PROJECT_ROOT}/.env" ]; then
     echo "=== Loading environment from .env ==="
-    set -a  # automatically export all variables
-    source "${PROJECT_ROOT}/.env"
-    set +a
+    # Only load simple KEY=value lines, skip comments and complex values
+    # This safely handles values with special characters like parentheses
+    while IFS='=' read -r key value; do
+        # Skip empty lines and comments
+        [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+        # Remove leading/trailing whitespace from key
+        key=$(echo "$key" | xargs)
+        # Skip if key is empty after trimming
+        [[ -z "$key" ]] && continue
+        # Only export if it's a valid variable name (letters, numbers, underscore)
+        if [[ "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+            # Remove surrounding quotes from value if present
+            value="${value%\"}"
+            value="${value#\"}"
+            value="${value%\'}"
+            value="${value#\'}"
+            export "$key=$value"
+        fi
+    done < "${PROJECT_ROOT}/.env"
 fi
 
 # Configuration
