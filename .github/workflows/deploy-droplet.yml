@@ -67,8 +67,10 @@ jobs:
           mkdir -p ~/.ssh/sockets
 
       - name: Write .env file
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE }}
         run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
+          printf '%s\n' "$ENV_FILE_CONTENT" > .env
 
       - name: Sync files to Droplet (with retry)
         uses: nick-fields/retry@v3
