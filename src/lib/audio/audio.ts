@@ -70,8 +70,15 @@ const FORMAT_MIME_MAP: Record<AudioFormat, string> = {
 
 /**
  * Formats that can be played natively in browsers
+ *
+ * FLAC is supported by:
+ * - Chrome 56+ (2017)
+ * - Firefox 51+ (2017)
+ * - Edge 16+ (2017)
+ * - Safari 11+ (2017)
+ * - Opera 43+ (2017)
  */
-const NATIVE_FORMATS: Set<AudioFormat> = new Set(['mp3', 'wav', 'ogg', 'aac', 'webm', 'opus']);
+const NATIVE_FORMATS: Set<AudioFormat> = new Set(['mp3', 'flac', 'wav', 'ogg', 'aac', 'webm', 'opus']);
 
 /**
  * Extract file extension from a path or URL

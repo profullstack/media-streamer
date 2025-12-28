@@ -87,6 +87,7 @@ describe('Audio Player Utilities', () => {
   describe('isSupportedAudioFormat', () => {
     it('should return true for natively supported formats', () => {
       expect(isSupportedAudioFormat('mp3')).toBe(true);
+      expect(isSupportedAudioFormat('flac')).toBe(true); // FLAC is natively supported since 2017
       expect(isSupportedAudioFormat('wav')).toBe(true);
       expect(isSupportedAudioFormat('ogg')).toBe(true);
       expect(isSupportedAudioFormat('aac')).toBe(true);
@@ -95,7 +96,6 @@ describe('Audio Player Utilities', () => {
     });
 
     it('should return false for formats requiring transcoding', () => {
-      expect(isSupportedAudioFormat('flac')).toBe(false);
       expect(isSupportedAudioFormat('wma')).toBe(false);
       expect(isSupportedAudioFormat('aiff')).toBe(false);
       expect(isSupportedAudioFormat('ape')).toBe(false);
@@ -163,13 +163,13 @@ describe('Audio Player Utilities', () => {
       });
     });
 
-    it('should create source object for FLAC (requires transcoding)', () => {
+    it('should create source object for FLAC (natively supported)', () => {
       const source = createAudioSource('/api/stream?file=song.flac', 'song.flac');
       expect(source).toEqual({
         src: '/api/stream?file=song.flac',
         type: 'audio/flac',
         format: 'flac',
-        requiresTranscoding: true,
+        requiresTranscoding: false, // FLAC is natively supported since 2017
       });
     });
 

@@ -33,6 +33,8 @@ export interface AudioPlayerProps {
   coverArt?: string;
   /** Optional CSS class name */
   className?: string;
+  /** Callback when audio is ready to play */
+  onReady?: () => void;
   /** Callback when playback starts */
   onPlay?: () => void;
   /** Callback when playback pauses */
@@ -60,6 +62,7 @@ export function AudioPlayer({
   album,
   coverArt,
   className,
+  onReady,
   onPlay,
   onPause,
   onEnded,
@@ -131,6 +134,7 @@ export function AudioPlayer({
 
     const handleCanPlay = () => {
       setIsLoading(false);
+      if (onReady) onReady();
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -150,7 +154,7 @@ export function AudioPlayer({
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('canplay', handleCanPlay);
     };
-  }, [onPlay, onPause, onEnded, onTimeUpdate, onError]);
+  }, [onReady, onPlay, onPause, onEnded, onTimeUpdate, onError]);
 
   // Toggle play/pause
   const togglePlay = useCallback(() => {

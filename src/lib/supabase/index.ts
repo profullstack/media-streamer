@@ -43,6 +43,7 @@ export type {
 
 // Queries
 export {
+  getTorrentById,
   getTorrentByInfohash,
   createTorrent,
   deleteTorrent,

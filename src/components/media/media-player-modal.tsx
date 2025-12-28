@@ -6,14 +6,26 @@
  * A modal dialog that displays a video/audio player for streaming torrent files.
  * Shows the file title and provides playback controls.
  * Supports automatic transcoding for non-browser-supported formats.
+ * Displays realtime swarm statistics (seeders/leechers).
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { getMediaCategory } from '@/lib/utils';
 import type { TorrentFile } from '@/types';
+
+/**
+ * Swarm statistics from the API
+ */
+interface SwarmStats {
+  seeders: number | null;
+  leechers: number | null;
+  fetchedAt: string;
+  trackersResponded: number;
+  trackersQueried: number;
+}
 
 /**
  * Video formats that require transcoding for browser playback
@@ -22,8 +34,11 @@ const VIDEO_TRANSCODE_FORMATS = new Set(['mkv', 'avi', 'wmv', 'flv', 'mov', 'ts'
 
 /**
  * Audio formats that require transcoding for browser playback
+ *
+ * Note: FLAC is natively supported by modern browsers (Chrome 56+, Firefox 51+, Safari 11+)
+ * so it does NOT require transcoding.
  */
-const AUDIO_TRANSCODE_FORMATS = new Set(['flac', 'wma', 'aiff', 'ape']);
+const AUDIO_TRANSCODE_FORMATS = new Set(['wma', 'aiff', 'ape']);
 
 /**
  * Check if a file needs transcoding based on its extension
@@ -32,6 +47,11 @@ function needsTranscoding(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return VIDEO_TRANSCODE_FORMATS.has(ext) || AUDIO_TRANSCODE_FORMATS.has(ext);
 }
+
+/**
+ * Swarm stats polling interval in milliseconds (30 seconds)
+ */
+const SWARM_STATS_POLL_INTERVAL = 30000;
 
 /**
  * Props for the MediaPlayerModal component
@@ -65,6 +85,57 @@ export function MediaPlayerModal({
   const [error, setError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isTranscoding, setIsTranscoding] = useState(false);
+  const [swarmStats, setSwarmStats] = useState<SwarmStats | null>(null);
+  const [isLoadingSwarm, setIsLoadingSwarm] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch swarm stats from the API
+  const fetchSwarmStats = useCallback(async () => {
+    if (!infohash) return;
+
+    setIsLoadingSwarm(true);
+    try {
+      const response = await fetch(`/api/torrents/${infohash}/swarm`);
+      if (response.ok) {
+        const data = await response.json() as SwarmStats;
+        setSwarmStats(data);
+        console.log('[MediaPlayerModal] Swarm stats updated:', data);
+      } else {
+        console.warn('[MediaPlayerModal] Failed to fetch swarm stats:', response.status);
+      }
+    } catch (err) {
+      console.error('[MediaPlayerModal] Error fetching swarm stats:', err);
+    } finally {
+      setIsLoadingSwarm(false);
+    }
+  }, [infohash]);
+
+  // Start/stop polling for swarm stats when modal opens/closes
+  useEffect(() => {
+    if (isOpen && infohash) {
+      // Fetch immediately
+      void fetchSwarmStats();
+
+      // Set up polling
+      pollIntervalRef.current = setInterval(() => {
+        void fetchSwarmStats();
+      }, SWARM_STATS_POLL_INTERVAL);
+
+      return () => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      };
+    } else {
+      // Clear stats when modal closes
+      setSwarmStats(null);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    }
+  }, [isOpen, infohash, fetchSwarmStats]);
 
   // Build stream URL when file changes
   // Add transcode=auto parameter for files that need transcoding
@@ -114,6 +185,7 @@ export function MediaPlayerModal({
     setStreamUrl(null);
     setError(null);
     setIsPlayerReady(false);
+    setSwarmStats(null);
     onClose();
   }, [onClose]);
 
@@ -133,10 +205,66 @@ export function MediaPlayerModal({
       className="max-w-4xl"
     >
       <div className="space-y-4">
-        {/* Subtitle */}
-        {subtitle && (
-          <p className="text-sm text-text-muted truncate">{subtitle}</p>
-        )}
+        {/* Subtitle and Swarm Stats Row */}
+        <div className="flex items-center justify-between gap-4">
+          {/* Subtitle */}
+          {subtitle && (
+            <p className="text-sm text-text-muted truncate flex-1">{subtitle}</p>
+          )}
+
+          {/* Swarm Stats Badge */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {isLoadingSwarm && !swarmStats ? (
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                <span>Loading swarm...</span>
+              </div>
+            ) : swarmStats ? (
+              <>
+                {/* Seeders */}
+                <div className="flex items-center gap-1.5" title="Seeders (peers with complete file)">
+                  <svg
+                    className="h-4 w-4 text-green-500"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-green-500">
+                    {swarmStats.seeders ?? '?'}
+                  </span>
+                </div>
+
+                {/* Leechers */}
+                <div className="flex items-center gap-1.5" title="Leechers (peers downloading)">
+                  <svg
+                    className="h-4 w-4 text-orange-500"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-orange-500">
+                    {swarmStats.leechers ?? '?'}
+                  </span>
+                </div>
+
+                {/* Refresh indicator */}
+                {isLoadingSwarm && (
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-text-muted border-t-transparent" />
+                )}
+              </>
+            ) : null}
+          </div>
+        </div>
 
         {/* Transcoding Notice - show when transcoding is active */}
         {isTranscoding && !error && (
@@ -230,7 +358,8 @@ export function MediaPlayerModal({
             <AudioPlayer
               src={streamUrl}
               filename={file.name}
-              onPlay={handlePlayerReady}
+              onReady={handlePlayerReady}
+              onError={handlePlayerError}
               showTranscodingNotice={false}
             />
           </div>
@@ -265,6 +394,11 @@ export function MediaPlayerModal({
             <span className={isPlayerReady ? 'text-green-500' : 'text-yellow-500'}>
               Status: {isPlayerReady ? 'Ready' : 'Loading'}
             </span>
+            {swarmStats && (
+              <span className="text-text-secondary">
+                Trackers: {swarmStats.trackersResponded}/{swarmStats.trackersQueried}
+              </span>
+            )}
           </div>
           {streamUrl && (
             <div className="mt-2 break-all">
