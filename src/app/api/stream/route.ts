@@ -40,7 +40,7 @@ function getStreamingService(): StreamingService {
     logger.info('Creating new StreamingService instance');
     streamingService = new StreamingService({
       maxConcurrentStreams: 10,
-      streamTimeout: 30000,
+      streamTimeout: 60000, // 60 seconds for audio/video to connect to peers
     });
   }
   return streamingService;
@@ -307,7 +307,16 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     // Get file info first to check if transcoding is needed
     reqLogger.debug('Getting stream info');
-    const info = await service.getStreamInfo({ magnetUri, fileIndex });
+    let info;
+    try {
+      info = await service.getStreamInfo({ magnetUri, fileIndex });
+    } catch (infoError) {
+      reqLogger.error('Failed to get stream info', infoError);
+      return NextResponse.json(
+        { error: 'Failed to connect to torrent. Please try again in a few seconds.' },
+        { status: 503 }
+      );
+    }
     reqLogger.debug('Stream info retrieved', {
       fileName: info.fileName,
       size: info.size,

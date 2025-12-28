@@ -2,7 +2,7 @@
 
 /**
  * Watch Party Page
- * 
+ *
  * Synchronized streaming with real-time chat.
  * Free for anyone without requiring login.
  */
@@ -11,6 +11,7 @@ import { useState, useCallback } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { PartyIcon, PlusIcon, UsersIcon } from '@/components/ui/icons';
+import { MediaSelectionModal } from '@/components/watch-party';
 
 interface PartyMember {
   id: string;
@@ -35,6 +36,24 @@ interface PartyData {
   };
 }
 
+interface TorrentItem {
+  id: string;
+  name: string;
+  size: number;
+  files_count: number;
+  created_at: string;
+}
+
+interface FileItem {
+  id: string;
+  torrent_id: string;
+  path: string;
+  name: string;
+  size: number;
+  media_type: string;
+  extension: string;
+}
+
 type ViewState = 'home' | 'create-form' | 'party-room';
 
 export default function WatchPartyPage(): React.ReactElement {
@@ -46,6 +65,7 @@ export default function WatchPartyPage(): React.ReactElement {
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
 
   const handleCreateParty = useCallback(async () => {
     if (!hostName.trim()) {
@@ -132,6 +152,37 @@ export default function WatchPartyPage(): React.ReactElement {
     setError(null);
   }, []);
 
+  const handleMediaSelect = useCallback(async (file: FileItem, torrent: TorrentItem) => {
+    if (!party || !userId) return;
+
+    try {
+      const response = await fetch('/api/watch-party', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: party.code,
+          hostId: userId,
+          torrentId: file.torrent_id,
+          filePath: file.path,
+          mediaTitle: file.name,
+        }),
+      });
+
+      const data = await response.json() as { success?: boolean; party?: PartyData; error?: string };
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error ?? 'Failed to update party media');
+      }
+
+      // Update local party state
+      setParty(data.party ?? null);
+      setIsMediaModalOpen(false);
+    } catch (err) {
+      console.error('Failed to update party media:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update party media');
+    }
+  }, [party, userId]);
+
   // Party Room View
   if (viewState === 'party-room' && party) {
     const isHost = userId === party.hostId;
@@ -196,7 +247,10 @@ export default function WatchPartyPage(): React.ReactElement {
                 <div className="mt-4 p-4 rounded-lg bg-bg-secondary border border-border-subtle">
                   <p className="text-sm text-text-muted mb-2">Host Controls</p>
                   <div className="flex gap-2">
-                    <button className="px-4 py-2 rounded bg-accent-primary text-white text-sm">
+                    <button
+                      onClick={() => setIsMediaModalOpen(true)}
+                      className="px-4 py-2 rounded bg-accent-primary text-white text-sm hover:bg-accent-primary/90 transition-colors"
+                    >
                       Select Media
                     </button>
                     <button className="px-4 py-2 rounded bg-bg-tertiary text-text-primary text-sm">

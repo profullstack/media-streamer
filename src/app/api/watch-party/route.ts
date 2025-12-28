@@ -3,6 +3,7 @@
  *
  * POST /api/watch-party - Create a new watch party
  * GET /api/watch-party?code=XXXXXX - Get party by code
+ * PATCH /api/watch-party - Update party media (host only)
  *
  * This is a simple in-memory implementation for demo purposes.
  * For production, parties should be stored in a database.
@@ -157,6 +158,122 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.error('[WatchParty] Error getting party:', error);
     return NextResponse.json(
       { error: 'Failed to get watch party' },
+      { status: 500 }
+    );
+  }
+}
+
+interface UpdatePartyBody {
+  code: string;
+  hostId: string;
+  mediaUrl?: string;
+  mediaTitle?: string;
+  torrentId?: string;
+  filePath?: string;
+}
+
+/**
+ * PATCH /api/watch-party
+ * Update party media (host only)
+ */
+export async function PATCH(request: NextRequest): Promise<NextResponse> {
+  try {
+    const body = await request.json() as UpdatePartyBody;
+
+    // Validate required fields
+    if (!body.code || typeof body.code !== 'string') {
+      return NextResponse.json(
+        { error: 'Party code is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!body.hostId || typeof body.hostId !== 'string') {
+      return NextResponse.json(
+        { error: 'Host ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const code = body.code.toUpperCase();
+
+    if (!validatePartyCode(code)) {
+      return NextResponse.json(
+        { error: 'Invalid party code format' },
+        { status: 400 }
+      );
+    }
+
+    const party = getParty(code);
+
+    if (!party) {
+      return NextResponse.json(
+        { error: 'Party not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify the requester is the host
+    if (party.hostId !== body.hostId) {
+      return NextResponse.json(
+        { error: 'Only the host can update party media' },
+        { status: 403 }
+      );
+    }
+
+    // Check if party has ended
+    if (party.state === 'ended') {
+      return NextResponse.json(
+        { error: 'Party has ended' },
+        { status: 410 }
+      );
+    }
+
+    // Build the stream URL from torrent and file info
+    let mediaUrl = body.mediaUrl ?? '';
+    if (body.torrentId && body.filePath) {
+      mediaUrl = `/api/stream?torrent=${body.torrentId}&file=${encodeURIComponent(body.filePath)}`;
+    }
+
+    // Update the party
+    party.mediaUrl = mediaUrl;
+    party.mediaTitle = body.mediaTitle ?? party.mediaTitle;
+    party.state = 'waiting'; // Reset to waiting when new media is selected
+
+    // Save the updated party
+    setParty(code, party);
+
+    console.log('[WatchParty] Updated party media:', {
+      code: party.code,
+      mediaTitle: party.mediaTitle,
+      mediaUrl: party.mediaUrl,
+    });
+
+    return NextResponse.json({
+      success: true,
+      party: {
+        id: party.id,
+        code: party.code,
+        hostId: party.hostId,
+        hostName: party.hostName,
+        mediaUrl: party.mediaUrl,
+        mediaTitle: party.mediaTitle,
+        state: party.state,
+        memberCount: party.members.length,
+        members: party.members.map(m => ({
+          id: m.id,
+          name: m.name,
+          isHost: m.isHost,
+        })),
+        playback: party.playback,
+        settings: party.settings,
+        createdAt: party.createdAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('[WatchParty] Error updating party:', error);
+    return NextResponse.json(
+      { error: 'Failed to update watch party' },
       { status: 500 }
     );
   }

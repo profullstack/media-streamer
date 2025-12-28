@@ -21,6 +21,7 @@ vi.mock('webtorrent', () => ({
     get: mockGet,
     get torrents() { return mockTorrents; },
     on: vi.fn(),
+        removeListener: vi.fn(),
   })),
 }));
 
@@ -1497,6 +1498,460 @@ describe('StreamingService', () => {
 
       // Torrent should be removed from client after error
       expect(mockRemove).toHaveBeenCalledWith(mockTorrent, expect.any(Function));
+    });
+  });
+
+  describe('waitForData functionality', () => {
+    it('should return immediately when start piece is already downloaded', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        offset: 0, // File starts at beginning of torrent
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // Mock bitfield with piece 0 already downloaded
+      const mockBitfield = {
+        get: vi.fn((index: number) => index === 0), // Piece 0 is downloaded
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 350 },
+        ready: true,
+        progress: 0.01,
+        numPeers: 5,
+        bitfield: mockBitfield,
+        on: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService();
+      
+      // Should complete quickly since piece is already downloaded
+      const startTime = Date.now();
+      const result = await service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+      });
+      const elapsed = Date.now() - startTime;
+
+      expect(result.size).toBe(5000000);
+      // Should be fast since piece was already downloaded
+      expect(elapsed).toBeLessThan(1000);
+      // Bitfield should have been checked
+      expect(mockBitfield.get).toHaveBeenCalledWith(0);
+    });
+
+    it('should wait for piece to be downloaded when not available', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        offset: 0,
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // Mock bitfield that starts with no pieces, then gets piece 0
+      let pieceDownloaded = false;
+      const mockBitfield = {
+        get: vi.fn((index: number) => index === 0 && pieceDownloaded),
+      };
+
+      let downloadHandler: (() => void) | null = null;
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 350 },
+        ready: true,
+        progress: 0,
+        numPeers: 5,
+        bitfield: mockBitfield,
+        on: vi.fn((event: string, handler: () => void) => {
+          if (event === 'download') {
+            downloadHandler = handler;
+          }
+        }),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 5000 });
+      
+      // Start the stream request
+      const streamPromise = service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+      });
+
+      // Simulate piece being downloaded after a short delay
+      setTimeout(() => {
+        pieceDownloaded = true;
+        if (downloadHandler) downloadHandler();
+      }, 100);
+
+      const result = await streamPromise;
+
+      expect(result.size).toBe(5000000);
+      // Download event listener should have been registered
+      expect(mockTorrent.on).toHaveBeenCalledWith('download', expect.any(Function));
+    });
+
+    it('should timeout when piece is never downloaded', async () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        offset: 0,
+        createReadStream: vi.fn(),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // Mock bitfield that never has the piece
+      const mockBitfield = {
+        get: vi.fn(() => false),
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 350 },
+        ready: true,
+        progress: 0,
+        numPeers: 0, // No peers
+        bitfield: mockBitfield,
+        on: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 200 }); // Short timeout for test
+
+      await expect(
+        service.createStream({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+          fileIndex: 0,
+        })
+      ).rejects.toThrow(/Timeout waiting for data/);
+    });
+
+    it('should calculate correct piece for range request with file offset', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      // File starts at offset 1000000 in the torrent
+      const mockFile = {
+        name: 'track2.mp3',
+        path: 'Album/track2.mp3',
+        length: 5000000,
+        offset: 1000000, // File starts at 1MB into torrent
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // pieceLength is 16384 (16KB)
+      // File offset: 1000000
+      // Range start: 500000
+      // Absolute position: 1000000 + 500000 = 1500000
+      // Start piece: floor(1500000 / 16384) = 91
+      const expectedPiece = Math.floor(1500000 / 16384); // 91
+
+      const checkedPieces: number[] = [];
+      const mockBitfield = {
+        get: vi.fn((index: number) => {
+          checkedPieces.push(index);
+          return index === expectedPiece; // Only piece 91 is downloaded
+        }),
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 500 },
+        ready: true,
+        progress: 0.2,
+        numPeers: 5,
+        bitfield: mockBitfield,
+        on: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService();
+      
+      const result = await service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+        range: { start: 500000, end: 600000 },
+      });
+
+      expect(result.isPartial).toBe(true);
+      // Should have checked the correct piece (91)
+      expect(checkedPieces).toContain(expectedPiece);
+    });
+
+    it('should handle file with no offset property gracefully', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      // File without offset property (defaults to 0)
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        // No offset property
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      const mockBitfield = {
+        get: vi.fn(() => true), // All pieces downloaded
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 350 },
+        ready: true,
+        progress: 1,
+        numPeers: 5,
+        bitfield: mockBitfield,
+        on: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService();
+      
+      const result = await service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+      });
+
+      expect(result.size).toBe(5000000);
+      // Should check piece 0 (since offset defaults to 0)
+      expect(mockBitfield.get).toHaveBeenCalledWith(0);
+    });
+
+    it('should handle torrent without bitfield property', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        offset: 0,
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      // Torrent without bitfield - should wait for download event
+      let downloadHandler: (() => void) | null = null;
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 350 },
+        // No bitfield property - explicitly undefined
+        bitfield: undefined,
+        ready: true,
+        progress: 0,
+        numPeers: 5,
+        on: vi.fn((event: string, handler: () => void) => {
+          if (event === 'download') {
+            downloadHandler = handler;
+          }
+        }),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 500 });
+      
+      // Should timeout since there's no bitfield to check
+      await expect(
+        service.createStream({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+          fileIndex: 0,
+        })
+      ).rejects.toThrow(/Timeout waiting for data/);
+    });
+
+    it('should clean up download listener after piece is downloaded', async () => {
+      const mockFileStream = {
+        pipe: vi.fn(),
+        on: vi.fn(),
+        destroy: vi.fn(),
+      };
+
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        offset: 0,
+        createReadStream: vi.fn(() => mockFileStream),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      let pieceDownloaded = false;
+      const mockBitfield = {
+        get: vi.fn(() => pieceDownloaded),
+      };
+
+      let downloadHandler: (() => void) | null = null;
+      const mockRemoveListener = vi.fn();
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 350 },
+        ready: true,
+        progress: 0,
+        numPeers: 5,
+        bitfield: mockBitfield,
+        on: vi.fn((event: string, handler: () => void) => {
+          if (event === 'download') {
+            downloadHandler = handler;
+          }
+        }),
+        removeListener: mockRemoveListener,
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 5000 });
+      
+      const streamPromise = service.createStream({
+        magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        fileIndex: 0,
+      });
+
+      // Simulate piece being downloaded
+      setTimeout(() => {
+        pieceDownloaded = true;
+        if (downloadHandler) downloadHandler();
+      }, 100);
+
+      await streamPromise;
+
+      // Download listener should have been removed
+      expect(mockRemoveListener).toHaveBeenCalledWith('download', expect.any(Function));
+    });
+
+    it('should include progress and peer info in timeout error message', async () => {
+      const mockFile = {
+        name: 'song.mp3',
+        path: 'Album/song.mp3',
+        length: 5000000,
+        offset: 0,
+        createReadStream: vi.fn(),
+        select: vi.fn(),
+        deselect: vi.fn(),
+      };
+
+      const mockBitfield = {
+        get: vi.fn(() => false),
+      };
+
+      const mockTorrent = {
+        infoHash: '1234567890abcdef1234567890abcdef12345678',
+        name: 'Album',
+        files: [mockFile],
+        pieceLength: 16384,
+        pieces: { length: 350 },
+        ready: true,
+        progress: 0.25, // 25% progress
+        numPeers: 3, // 3 peers
+        bitfield: mockBitfield,
+        on: vi.fn(),
+        deselect: vi.fn(),
+        select: vi.fn(),
+      };
+
+      mockTorrents = [mockTorrent];
+      mockGet.mockReturnValue(mockTorrent);
+
+      const service = new StreamingService({ streamTimeout: 200 });
+
+      try {
+        await service.createStream({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+          fileIndex: 0,
+        });
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(StreamingError);
+        const message = (error as Error).message;
+        expect(message).toContain('Progress:');
+        expect(message).toContain('Peers:');
+      }
     });
   });
 });

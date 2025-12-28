@@ -300,6 +300,10 @@ export class StreamingService {
     file.select();
     logger.debug('File selected for download priority');
 
+    // Wait for at least some data to be available before streaming
+    // This prevents MEDIA_ELEMENT_ERROR when the browser receives empty data
+    await this.waitForData(torrent, file, range?.start ?? 0);
+
     // Create the stream
     const streamId = randomUUID();
     let stream: Readable;
@@ -730,6 +734,148 @@ export class StreamingService {
         logger.error('Torrent error (waiting for existing)', err, { infohash });
         removeTorrentAndReject(new StreamingError(`Torrent error: ${err.message}`));
       });
+    });
+  }
+
+  /**
+   * Wait for data to be available at a specific position in the file
+   * This prevents MEDIA_ELEMENT_ERROR when the browser receives empty data
+   *
+   * @param torrent - The torrent object
+   * @param file - The file to wait for
+   * @param startByte - The byte position to wait for (default: 0)
+   */
+  private async waitForData(
+    torrent: WebTorrent.Torrent,
+    file: WebTorrent.TorrentFile,
+    startByte: number
+  ): Promise<void> {
+    const startTime = Date.now();
+    const pieceLength = torrent.pieceLength;
+    
+    // Calculate which piece contains the start byte
+    // File offset within torrent + start byte position
+    const fileOffset = (file as unknown as { offset: number }).offset ?? 0;
+    const absolutePosition = fileOffset + startByte;
+    const startPiece = Math.floor(absolutePosition / pieceLength);
+    
+    logger.debug('Waiting for data', {
+      fileName: file.name,
+      startByte,
+      fileOffset,
+      absolutePosition,
+      startPiece,
+      pieceLength,
+      totalPieces: torrent.pieces.length,
+    });
+
+    // Type assertion for bitfield which exists at runtime but not in types
+    const bitfield = (torrent as unknown as { bitfield?: { get: (index: number) => boolean } }).bitfield;
+
+    // Check if the piece is already downloaded
+    if (bitfield?.get(startPiece)) {
+      logger.debug('Start piece already downloaded', { startPiece });
+      return;
+    }
+
+    // Wait for the piece to be downloaded
+    return new Promise((resolve, reject) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let downloadHandler: ((piece: number) => void) | null = null;
+
+      const cleanup = (): void => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        if (downloadHandler) {
+          torrent.removeListener('download', downloadHandler);
+          downloadHandler = null;
+        }
+      };
+
+      // Set timeout
+      timeoutId = setTimeout(() => {
+        cleanup();
+        const elapsed = Date.now() - startTime;
+        logger.warn('Timeout waiting for data', {
+          fileName: file.name,
+          startPiece,
+          elapsed: `${elapsed}ms`,
+          timeout: this.streamTimeout,
+          progress: torrent.progress,
+          numPeers: torrent.numPeers,
+        });
+        reject(new StreamingError(
+          `Timeout waiting for data. No peers available or download too slow. ` +
+          `Progress: ${(torrent.progress * 100).toFixed(1)}%, Peers: ${torrent.numPeers}`
+        ));
+      }, this.streamTimeout);
+
+      // Get bitfield reference for use in callbacks
+      const getBitfield = (): { get: (index: number) => boolean } | undefined =>
+        (torrent as unknown as { bitfield?: { get: (index: number) => boolean } }).bitfield;
+
+      // Listen for download events
+      downloadHandler = (): void => {
+        // Check if our piece is now available
+        const bf = getBitfield();
+        if (bf?.get(startPiece)) {
+          cleanup();
+          const elapsed = Date.now() - startTime;
+          logger.info('Data now available', {
+            fileName: file.name,
+            startPiece,
+            elapsed: `${elapsed}ms`,
+            progress: torrent.progress,
+            numPeers: torrent.numPeers,
+          });
+          resolve();
+        }
+      };
+
+      torrent.on('download', downloadHandler);
+
+      // Also check periodically in case we missed the event
+      const checkInterval = setInterval(() => {
+        const bf = getBitfield();
+        if (bf?.get(startPiece)) {
+          clearInterval(checkInterval);
+          cleanup();
+          const elapsed = Date.now() - startTime;
+          logger.info('Data now available (periodic check)', {
+            fileName: file.name,
+            startPiece,
+            elapsed: `${elapsed}ms`,
+          });
+          resolve();
+        }
+      }, 500);
+
+      // Clean up interval on timeout or success
+      const originalCleanup = cleanup;
+      const cleanupWithInterval = (): void => {
+        clearInterval(checkInterval);
+        originalCleanup();
+      };
+      
+      // Replace cleanup with the one that also clears interval
+      timeoutId = setTimeout(() => {
+        cleanupWithInterval();
+        const elapsed = Date.now() - startTime;
+        logger.warn('Timeout waiting for data', {
+          fileName: file.name,
+          startPiece,
+          elapsed: `${elapsed}ms`,
+          timeout: this.streamTimeout,
+          progress: torrent.progress,
+          numPeers: torrent.numPeers,
+        });
+        reject(new StreamingError(
+          `Timeout waiting for data. No peers available or download too slow. ` +
+          `Progress: ${(torrent.progress * 100).toFixed(1)}%, Peers: ${torrent.numPeers}`
+        ));
+      }, this.streamTimeout);
     });
   }
 }
