@@ -2,7 +2,7 @@
 
 /**
  * Torrent Detail Page
- * 
+ *
  * Shows torrent information and file browser.
  */
 
@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
 import { SearchBar, type SearchFilters } from '@/components/search';
+import { MediaPlayerModal } from '@/components/media';
 import {
   MagnetIcon,
   ChevronRightIcon,
@@ -38,6 +39,10 @@ export default function TorrentDetailPage(): React.ReactElement {
   const [filteredFiles, setFilteredFiles] = useState<TorrentFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Modal state
+  const [selectedFile, setSelectedFile] = useState<TorrentFile | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Fetch torrent details
   useEffect(() => {
@@ -96,13 +101,19 @@ export default function TorrentDetailPage(): React.ReactElement {
     setFilteredFiles(filtered);
   }, [files]);
 
-  // Handle file play
+  // Handle file play - opens modal instead of new tab
   const handleFilePlay = useCallback((file: TorrentFile) => {
     if (torrent) {
-      const streamUrl = `/api/stream?infohash=${torrent.infohash}&fileIndex=${file.fileIndex}`;
-      window.open(streamUrl, '_blank');
+      setSelectedFile(file);
+      setIsModalOpen(true);
     }
   }, [torrent]);
+
+  // Handle modal close
+  const handleModalClose = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedFile(null);
+  }, []);
 
   // Handle file download
   const handleFileDownload = useCallback((file: TorrentFile) => {
@@ -277,6 +288,17 @@ export default function TorrentDetailPage(): React.ReactElement {
           </div>
         </div>
       </div>
+
+      {/* Media Player Modal */}
+      {torrent && (
+        <MediaPlayerModal
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          file={selectedFile}
+          infohash={torrent.infohash}
+          torrentName={torrent.name}
+        />
+      )}
     </MainLayout>
   );
 }
