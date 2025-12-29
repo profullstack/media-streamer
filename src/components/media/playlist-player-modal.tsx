@@ -389,7 +389,10 @@ export function PlaylistPlayerModal({
               artist={displayArtist}
               album={displayAlbum}
               coverArt={coverArt}
-              onReady={handlePlayerReady}
+              onReady={() => {
+                console.log('[PlaylistPlayerModal] AudioPlayer ready with coverArt:', coverArt);
+                handlePlayerReady();
+              }}
               onError={handlePlayerError}
               onEnded={handleTrackEnded}
               showTranscodingNotice={false}

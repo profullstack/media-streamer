@@ -387,12 +387,23 @@ export function AudioPlayer({
       <div className="flex items-center gap-4">
         {/* Cover Art - using img because coverArt URL is dynamic/external */}
         {coverArt ? (
-          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={coverArt}
               alt={album ?? title ?? 'Cover art'}
               className="h-full w-full object-cover"
+              onError={(e) => {
+                // Hide broken image and show fallback
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                // Show the fallback icon in the parent
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.innerHTML = `<svg class="h-8 w-8 text-text-muted m-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>`;
+                  parent.classList.add('flex', 'items-center', 'justify-center');
+                }
+              }}
             />
           </div>
         ) : (
