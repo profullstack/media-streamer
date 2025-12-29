@@ -7,6 +7,7 @@
  * Shows the current track, playlist, and provides playback controls.
  * Supports automatic advancement to the next track.
  * Updates Media Session API for iOS lock screen, CarPlay, and other media surfaces.
+ * Shows download progress for each track in the playlist to inform users they are torrenting.
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -19,6 +20,7 @@ import {
   SkipBackIcon,
   SkipForwardIcon,
   MusicIcon,
+  DownloadIcon,
 } from '@/components/ui/icons';
 import type { TorrentFile } from '@/types';
 
@@ -90,6 +92,24 @@ interface ConnectionStatus {
   fileReady?: boolean;
   fileIndex?: number;
   timestamp: number;
+}
+
+/**
+ * Download status for a file in the playlist
+ */
+interface FileDownloadStatus {
+  /** File index */
+  fileIndex: number;
+  /** Download progress (0-1) */
+  progress: number;
+  /** Number of peers */
+  numPeers: number;
+  /** Download speed in bytes/sec */
+  downloadSpeed: number;
+  /** Whether the file is ready for playback */
+  ready: boolean;
+  /** Current stage */
+  stage: string;
 }
 
 /**
@@ -177,6 +197,10 @@ export function PlaylistPlayerModal({
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const prefetchedIndicesRef = useRef<Set<number>>(new Set());
+  
+  // Track download status for each file in the playlist
+  const [fileDownloadStatuses, setFileDownloadStatuses] = useState<Map<number, FileDownloadStatus>>(new Map());
+  const fileEventSourcesRef = useRef<Map<number, EventSource>>(new Map());
 
   // Reset index when files change
   useEffect(() => {
@@ -255,10 +279,18 @@ export function PlaylistPlayerModal({
     setError(null);
     setIsPlayerReady(false);
     setConnectionStatus(null);
+    setFileDownloadStatuses(new Map());
+    
+    // Close main event source
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+    
+    // Close all file event sources
+    fileEventSourcesRef.current.forEach((es) => es.close());
+    fileEventSourcesRef.current.clear();
+    
     onClose();
   }, [onClose]);
 
@@ -349,6 +381,76 @@ export function PlaylistPlayerModal({
       prefetchedIndicesRef.current.clear();
     }
   }, [isOpen]);
+
+  // Subscribe to SSE for prefetched files to track their download progress
+  useEffect(() => {
+    if (!isOpen || !infohash) return;
+
+    // Subscribe to status updates for all prefetched files (except current file which has its own SSE)
+    const prefetchedIndices = Array.from(prefetchedIndicesRef.current);
+    
+    for (const fileIndex of prefetchedIndices) {
+      // Skip if we already have an event source for this file
+      if (fileEventSourcesRef.current.has(fileIndex)) continue;
+      // Skip the current file - it uses the main eventSourceRef
+      if (currentFile && fileIndex === currentFile.fileIndex) continue;
+
+      const url = `/api/stream/status?infohash=${infohash}&fileIndex=${fileIndex}&persistent=true`;
+      console.log('[PlaylistPlayerModal] Subscribing to prefetch status:', { fileIndex, url });
+
+      const eventSource = new EventSource(url);
+      fileEventSourcesRef.current.set(fileIndex, eventSource);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const status = JSON.parse(event.data as string) as ConnectionStatus;
+          setFileDownloadStatuses((prev) => {
+            const next = new Map(prev);
+            next.set(fileIndex, {
+              fileIndex,
+              progress: status.fileProgress ?? status.progress,
+              numPeers: status.numPeers,
+              downloadSpeed: status.downloadSpeed,
+              ready: status.fileReady ?? status.ready,
+              stage: status.stage,
+            });
+            return next;
+          });
+        } catch (err) {
+          console.error('[PlaylistPlayerModal] Failed to parse prefetch SSE data:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        // Close and remove on error
+        eventSource.close();
+        fileEventSourcesRef.current.delete(fileIndex);
+      };
+    }
+
+    // Cleanup function - close event sources for files that are no longer prefetched
+    return () => {
+      // We don't close all here - just let handleClose do that
+    };
+  }, [isOpen, infohash, currentFile, prefetchedIndicesRef.current.size]);
+
+  // Update fileDownloadStatuses with current file's status from connectionStatus
+  useEffect(() => {
+    if (!connectionStatus || !currentFile) return;
+
+    setFileDownloadStatuses((prev) => {
+      const next = new Map(prev);
+      next.set(currentFile.fileIndex, {
+        fileIndex: currentFile.fileIndex,
+        progress: connectionStatus.fileProgress ?? connectionStatus.progress,
+        numPeers: connectionStatus.numPeers,
+        downloadSpeed: connectionStatus.downloadSpeed,
+        ready: connectionStatus.fileReady ?? connectionStatus.ready,
+        stage: connectionStatus.stage,
+      });
+      return next;
+    });
+  }, [connectionStatus, currentFile]);
 
   if (!currentFile || files.length === 0) return null;
 
@@ -516,28 +618,77 @@ export function PlaylistPlayerModal({
             <h3 className="text-sm font-medium text-text-primary">Playlist</h3>
           </div>
           <div className="max-h-48 overflow-y-auto">
-            {files.map((file, index) => (
-              <button
-                key={file.fileIndex}
-                type="button"
-                onClick={() => handleSelectTrack(index)}
-                className={cn(
-                  'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
-                  index === currentIndex
-                    ? 'bg-accent-audio/10 text-accent-audio'
-                    : 'hover:bg-bg-hover text-text-secondary'
-                )}
-              >
-                <span className="w-6 text-center text-xs">
-                  {index === currentIndex ? (
-                    <PlayIcon size={14} className="inline" />
-                  ) : (
-                    index + 1
+            {files.map((file, index) => {
+              const downloadStatus = fileDownloadStatuses.get(file.fileIndex);
+              const progress = downloadStatus?.progress ?? 0;
+              const isDownloading = downloadStatus && !downloadStatus.ready && progress > 0;
+              const isReady = downloadStatus?.ready ?? false;
+              
+              return (
+                <button
+                  key={file.fileIndex}
+                  type="button"
+                  onClick={() => handleSelectTrack(index)}
+                  className={cn(
+                    'relative flex w-full items-center gap-3 px-3 py-2 text-left transition-colors overflow-hidden',
+                    index === currentIndex
+                      ? 'bg-accent-audio/10 text-accent-audio'
+                      : 'hover:bg-bg-hover text-text-secondary'
                   )}
-                </span>
-                <span className="truncate text-sm">{file.name}</span>
-              </button>
-            ))}
+                >
+                  {/* Download progress bar background */}
+                  {(isDownloading || isReady) && (
+                    <div
+                      className={cn(
+                        'absolute inset-y-0 left-0 transition-all duration-300',
+                        isReady
+                          ? 'bg-success/10'
+                          : 'bg-accent-primary/10'
+                      )}
+                      style={{ width: `${Math.round(progress * 100)}%` }}
+                    />
+                  )}
+                  
+                  {/* Track number / play icon */}
+                  <span className="relative z-10 w-6 text-center text-xs">
+                    {index === currentIndex ? (
+                      <PlayIcon size={14} className="inline" />
+                    ) : (
+                      index + 1
+                    )}
+                  </span>
+                  
+                  {/* Track name */}
+                  <span className="relative z-10 flex-1 truncate text-sm">{file.name}</span>
+                  
+                  {/* Download status indicator */}
+                  {downloadStatus && (
+                    <span className="relative z-10 flex items-center gap-1 text-xs">
+                      {isDownloading ? (
+                        <>
+                          <DownloadIcon size={12} className="text-accent-primary animate-pulse" />
+                          <span className="text-text-muted">{Math.round(progress * 100)}%</span>
+                        </>
+                      ) : isReady ? (
+                        <svg
+                          className="h-3 w-3 text-success"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      ) : null}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
