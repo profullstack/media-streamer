@@ -28,7 +28,7 @@ import {
   getStreamingTranscodeProfile,
   buildStreamingFFmpegArgs,
   getTranscodedMimeType,
-  TRANSCODE_PRE_BUFFER_BYTES,
+  getPreBufferSize,
   TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
 } from '@/lib/transcoding';
 
@@ -615,11 +615,15 @@ export async function GET(request: NextRequest): Promise<Response> {
         );
       }
 
+      // Get appropriate pre-buffer size based on media type
+      // Video needs 10MB buffer (~40 seconds at 2Mbps), audio needs 2MB
+      const preBufferBytes = getPreBufferSize(info.fileName);
+      
       reqLogger.info('Returning transcoded stream with pre-buffer', {
         streamId: result.streamId,
         originalMimeType: info.mimeType,
         transcodedMimeType: transcoded.mimeType,
-        preBufferBytes: TRANSCODE_PRE_BUFFER_BYTES,
+        preBufferBytes,
         preBufferTimeoutMs: TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
       });
 
@@ -631,7 +635,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         'X-Stream-Id': result.streamId,
         'X-Transcoded': 'true',
         'X-Original-Mime-Type': info.mimeType,
-        'X-Pre-Buffer-Bytes': TRANSCODE_PRE_BUFFER_BYTES.toString(),
+        'X-Pre-Buffer-Bytes': preBufferBytes.toString(),
         'Transfer-Encoding': 'chunked',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -640,11 +644,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       };
 
       // Use pre-buffered stream to prevent buffering during playback
-      // This collects 2MB of transcoded data before sending to the client
+      // Video gets 10MB buffer (~40 seconds), audio gets 2MB buffer
       return new Response(
         nodeStreamToWebStreamWithPreBuffer(
           transcoded.stream,
-          TRANSCODE_PRE_BUFFER_BYTES,
+          preBufferBytes,
           TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
           reqLogger
         ),

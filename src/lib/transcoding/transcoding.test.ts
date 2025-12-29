@@ -13,6 +13,9 @@ import {
   buildStreamingFFmpegArgs,
   getStreamingTranscodeProfile,
   getTranscodedMimeType,
+  getPreBufferSize,
+  TRANSCODE_PRE_BUFFER_BYTES_VIDEO,
+  TRANSCODE_PRE_BUFFER_BYTES_AUDIO,
   TRANSCODE_PRE_BUFFER_BYTES,
   TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
   type TranscodeProfile,
@@ -292,15 +295,48 @@ describe('Transcoding Service', () => {
       // Should use fragmented MP4 for streaming
       expect(args).toContain('-movflags');
       expect(args).toContain('frag_keyframe+empty_moov+default_base_moof');
-      // Should use threads for performance
+      // Should use threads for performance (2 to match typical VPS vCPU count)
       expect(args).toContain('-threads');
-      expect(args).toContain('4');
+      expect(args).toContain('2');
       // Should use video codec
       expect(args).toContain('-vcodec');
       expect(args).toContain('libx264');
       // Should use audio codec
       expect(args).toContain('-acodec');
       expect(args).toContain('aac');
+    });
+
+    it('should include real-time streaming optimizations for video', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        videoBitrate: '2000k',
+        audioBitrate: '128k',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      const args = buildStreamingFFmpegArgs(profile);
+
+      // Should use ultrafast preset for real-time transcoding
+      expect(args).toContain('-preset');
+      expect(args).toContain('ultrafast');
+      // Should use zerolatency tuning for real-time streaming
+      expect(args).toContain('-tune');
+      expect(args).toContain('zerolatency');
+      // Should use baseline profile for faster encoding
+      expect(args).toContain('-profile:v');
+      expect(args).toContain('baseline');
+      // Should disable B-frames for lower latency
+      expect(args).toContain('-bf');
+      expect(args).toContain('0');
+      // Should use CRF 28 for faster encoding
+      expect(args).toContain('-crf');
+      expect(args).toContain('28');
+      // Should set keyframe interval
+      expect(args).toContain('-g');
+      expect(args).toContain('60');
     });
 
     it('should include bitrate limiting for streaming', () => {
@@ -319,8 +355,9 @@ describe('Transcoding Service', () => {
       // Should limit bitrate for streaming
       expect(args).toContain('-maxrate');
       expect(args).toContain('2M');
+      // Should have larger buffer for smoother output
       expect(args).toContain('-bufsize');
-      expect(args).toContain('1M');
+      expect(args).toContain('4M');
       // Should output as MP4 format
       expect(args).toContain('-f');
       expect(args).toContain('mp4');
@@ -357,9 +394,10 @@ describe('Transcoding Service', () => {
 
         const args = buildStreamingFFmpegArgs(profile);
 
-        // iOS Safari requires H.264 Main profile with level 3.1 or lower
+        // iOS Safari supports H.264 Baseline profile with level 3.1
+        // Baseline is simpler (no B-frames, CABAC) = faster encoding for real-time streaming
         expect(args).toContain('-profile:v');
-        expect(args).toContain('main');
+        expect(args).toContain('baseline');
         expect(args).toContain('-level:v');
         expect(args).toContain('3.1');
       });
@@ -499,20 +537,56 @@ describe('Transcoding Service', () => {
   });
 
   describe('Pre-buffer configuration', () => {
-    it('should have a reasonable pre-buffer size (2MB)', () => {
-      expect(TRANSCODE_PRE_BUFFER_BYTES).toBe(2 * 1024 * 1024);
+    it('should have a larger pre-buffer size for video (10MB)', () => {
+      expect(TRANSCODE_PRE_BUFFER_BYTES_VIDEO).toBe(10 * 1024 * 1024);
     });
 
-    it('should have a reasonable pre-buffer timeout (30 seconds)', () => {
-      expect(TRANSCODE_PRE_BUFFER_TIMEOUT_MS).toBe(30_000);
+    it('should have a smaller pre-buffer size for audio (2MB)', () => {
+      expect(TRANSCODE_PRE_BUFFER_BYTES_AUDIO).toBe(2 * 1024 * 1024);
     });
 
-    it('should have pre-buffer size greater than 0', () => {
-      expect(TRANSCODE_PRE_BUFFER_BYTES).toBeGreaterThan(0);
+    it('should have legacy TRANSCODE_PRE_BUFFER_BYTES equal to video buffer', () => {
+      expect(TRANSCODE_PRE_BUFFER_BYTES).toBe(TRANSCODE_PRE_BUFFER_BYTES_VIDEO);
+    });
+
+    it('should have a reasonable pre-buffer timeout (60 seconds for video)', () => {
+      expect(TRANSCODE_PRE_BUFFER_TIMEOUT_MS).toBe(60_000);
+    });
+
+    it('should have pre-buffer sizes greater than 0', () => {
+      expect(TRANSCODE_PRE_BUFFER_BYTES_VIDEO).toBeGreaterThan(0);
+      expect(TRANSCODE_PRE_BUFFER_BYTES_AUDIO).toBeGreaterThan(0);
     });
 
     it('should have pre-buffer timeout greater than 0', () => {
       expect(TRANSCODE_PRE_BUFFER_TIMEOUT_MS).toBeGreaterThan(0);
+    });
+  });
+
+  describe('getPreBufferSize', () => {
+    it('should return video buffer size for MKV files', () => {
+      expect(getPreBufferSize('movie.mkv')).toBe(TRANSCODE_PRE_BUFFER_BYTES_VIDEO);
+    });
+
+    it('should return video buffer size for AVI files', () => {
+      expect(getPreBufferSize('movie.avi')).toBe(TRANSCODE_PRE_BUFFER_BYTES_VIDEO);
+    });
+
+    it('should return video buffer size for MP4 files', () => {
+      expect(getPreBufferSize('movie.mp4')).toBe(TRANSCODE_PRE_BUFFER_BYTES_VIDEO);
+    });
+
+    it('should return audio buffer size for FLAC files', () => {
+      expect(getPreBufferSize('song.flac')).toBe(TRANSCODE_PRE_BUFFER_BYTES_AUDIO);
+    });
+
+    it('should return audio buffer size for MP3 files', () => {
+      expect(getPreBufferSize('song.mp3')).toBe(TRANSCODE_PRE_BUFFER_BYTES_AUDIO);
+    });
+
+    it('should return audio buffer size for unknown files', () => {
+      // Unknown files default to audio buffer (smaller, safer)
+      expect(getPreBufferSize('document.txt')).toBe(TRANSCODE_PRE_BUFFER_BYTES_AUDIO);
     });
   });
 });

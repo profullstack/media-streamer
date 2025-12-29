@@ -11,16 +11,29 @@
 export type MediaType = 'video' | 'audio';
 
 /**
- * Pre-buffer configuration for transcoding
+ * Pre-buffer configuration for video transcoding
  * Collects this much data before sending to client to prevent buffering
+ * 10MB at 2Mbps = ~40 seconds of video buffer
  */
-export const TRANSCODE_PRE_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB pre-buffer
+export const TRANSCODE_PRE_BUFFER_BYTES_VIDEO = 10 * 1024 * 1024; // 10MB pre-buffer for video
+
+/**
+ * Pre-buffer configuration for audio transcoding
+ * Audio needs less buffer since bitrate is much lower
+ */
+export const TRANSCODE_PRE_BUFFER_BYTES_AUDIO = 2 * 1024 * 1024; // 2MB pre-buffer for audio
+
+/**
+ * Legacy export for backwards compatibility
+ * @deprecated Use TRANSCODE_PRE_BUFFER_BYTES_VIDEO or TRANSCODE_PRE_BUFFER_BYTES_AUDIO
+ */
+export const TRANSCODE_PRE_BUFFER_BYTES = TRANSCODE_PRE_BUFFER_BYTES_VIDEO;
 
 /**
  * Pre-buffer timeout in milliseconds
  * Maximum time to wait for pre-buffer before starting playback anyway
  */
-export const TRANSCODE_PRE_BUFFER_TIMEOUT_MS = 30_000; // 30 seconds
+export const TRANSCODE_PRE_BUFFER_TIMEOUT_MS = 60_000; // 60 seconds (increased for video)
 
 /**
  * Transcoding profile configuration
@@ -339,8 +352,9 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
   // Input from stdin (pipe) - FFmpeg auto-detects format
   args.push('-i', 'pipe:0');
 
-  // Use multiple threads for faster transcoding
-  args.push('-threads', '4');
+  // Use 2 threads to match typical VPS vCPU count
+  // More threads than vCPUs causes context switching overhead
+  args.push('-threads', '2');
 
   // Audio codec
   if (profile.audioCodec) {
@@ -352,15 +366,35 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
     args.push('-vcodec', profile.videoCodec);
   }
 
-  // MP4 specific: iOS/Safari-compatible H.264 settings
+  // MP4 specific: iOS/Safari-compatible H.264 settings optimized for real-time streaming
   if (profile.outputFormat === 'mp4') {
-    // H.264 profile and level for iOS Safari compatibility
-    // Main profile with level 3.1 is widely supported on iOS devices
-    args.push('-profile:v', 'main');
+    // Use ultrafast preset for real-time transcoding
+    // This is critical - without it, encoding can't keep up with playback
+    args.push('-preset', 'ultrafast');
+    
+    // Zero latency tuning for real-time streaming
+    // Disables features that add latency (B-frames, lookahead, etc.)
+    args.push('-tune', 'zerolatency');
+    
+    // H.264 Baseline profile for maximum compatibility and faster encoding
+    // Baseline is simpler than Main (no B-frames, CABAC) = faster encoding
+    // Level 3.1 supports up to 1280x720@30fps which is sufficient
+    args.push('-profile:v', 'baseline');
     args.push('-level:v', '3.1');
     
     // Pixel format required by iOS Safari
     args.push('-pix_fmt', 'yuv420p');
+    
+    // Keyframe every 2 seconds (at 30fps = 60 frames)
+    // More frequent keyframes = faster seeking and better streaming
+    args.push('-g', '60');
+    
+    // Disable B-frames for lower latency (baseline profile doesn't use them anyway)
+    args.push('-bf', '0');
+    
+    // Use CRF for quality-based encoding (faster than bitrate targeting)
+    // CRF 28 is lower quality but much faster to encode
+    args.push('-crf', '28');
     
     // Fragmented MP4 for streaming (allows playback before complete)
     // frag_keyframe+empty_moov puts moov atom at start
@@ -368,8 +402,9 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
     args.push('-movflags', 'frag_keyframe+empty_moov+default_base_moof');
     
     // Rate control for consistent streaming
+    // Increased buffer size for smoother output
     args.push('-maxrate', '2M');
-    args.push('-bufsize', '1M');
+    args.push('-bufsize', '4M');
     args.push('-f', 'mp4');
   }
 
@@ -452,4 +487,18 @@ export function needsTranscoding(filename: string): boolean {
   if (!ext) return false;
 
   return VIDEO_TRANSCODE_FORMATS.has(ext) || AUDIO_TRANSCODE_FORMATS.has(ext);
+}
+
+/**
+ * Get the appropriate pre-buffer size for a file based on its media type
+ * Video needs more buffer than audio due to higher bitrate
+ * @param filename - File name with extension
+ * @returns Pre-buffer size in bytes
+ */
+export function getPreBufferSize(filename: string): number {
+  const mediaType = detectMediaType(filename);
+  if (mediaType === 'video') {
+    return TRANSCODE_PRE_BUFFER_BYTES_VIDEO;
+  }
+  return TRANSCODE_PRE_BUFFER_BYTES_AUDIO;
 }
