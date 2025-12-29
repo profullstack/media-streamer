@@ -327,8 +327,11 @@ export function PlaylistPlayerModal({
   }, [isOpen, currentIndex, files.length, handlePrevious, handleNext]);
 
   // Subscribe to connection status SSE
+  // Use currentFile.fileIndex as dependency instead of currentFile object to avoid
+  // unnecessary reconnections when the files array reference changes
+  const currentFileIndex = currentFile?.fileIndex;
   useEffect(() => {
-    if (!isOpen || !infohash || !currentFile) {
+    if (!isOpen || !infohash || currentFileIndex === undefined) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -337,7 +340,7 @@ export function PlaylistPlayerModal({
       return;
     }
 
-    const url = `/api/stream/status?infohash=${infohash}&fileIndex=${currentFile.fileIndex}&persistent=true`;
+    const url = `/api/stream/status?infohash=${infohash}&fileIndex=${currentFileIndex}&persistent=true`;
     console.log('[PlaylistPlayerModal] Connecting to SSE:', url);
 
     const eventSource = new EventSource(url);
@@ -360,7 +363,7 @@ export function PlaylistPlayerModal({
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [isOpen, infohash, currentFile]);
+  }, [isOpen, infohash, currentFileIndex]);
 
   // Prefetch upcoming tracks when the current track starts playing
   // This ensures seamless playback by downloading the next tracks in advance
@@ -396,6 +399,8 @@ export function PlaylistPlayerModal({
   }, [isOpen]);
 
   // Subscribe to SSE for prefetched files to track their download progress
+  // Use currentFileIndex instead of currentFile object to avoid unnecessary re-runs
+  const prefetchedIndicesSize = prefetchedIndicesRef.current.size;
   useEffect(() => {
     if (!isOpen || !infohash) return;
 
@@ -406,7 +411,7 @@ export function PlaylistPlayerModal({
       // Skip if we already have an event source for this file
       if (fileEventSourcesRef.current.has(fileIndex)) continue;
       // Skip the current file - it uses the main eventSourceRef
-      if (currentFile && fileIndex === currentFile.fileIndex) continue;
+      if (currentFileIndex !== undefined && fileIndex === currentFileIndex) continue;
 
       const url = `/api/stream/status?infohash=${infohash}&fileIndex=${fileIndex}&persistent=true`;
       console.log('[PlaylistPlayerModal] Subscribing to prefetch status:', { fileIndex, url });
@@ -445,16 +450,17 @@ export function PlaylistPlayerModal({
     return () => {
       // We don't close all here - just let handleClose do that
     };
-  }, [isOpen, infohash, currentFile, prefetchedIndicesRef.current.size]);
+  }, [isOpen, infohash, currentFileIndex, prefetchedIndicesSize]);
 
   // Update fileDownloadStatuses with current file's status from connectionStatus
+  // Use currentFileIndex instead of currentFile object to avoid unnecessary re-runs
   useEffect(() => {
-    if (!connectionStatus || !currentFile) return;
+    if (!connectionStatus || currentFileIndex === undefined) return;
 
     setFileDownloadStatuses((prev) => {
       const next = new Map(prev);
-      next.set(currentFile.fileIndex, {
-        fileIndex: currentFile.fileIndex,
+      next.set(currentFileIndex, {
+        fileIndex: currentFileIndex,
         progress: connectionStatus.fileProgress ?? connectionStatus.progress,
         numPeers: connectionStatus.numPeers,
         downloadSpeed: connectionStatus.downloadSpeed,
@@ -463,7 +469,7 @@ export function PlaylistPlayerModal({
       });
       return next;
     });
-  }, [connectionStatus, currentFile]);
+  }, [connectionStatus, currentFileIndex]);
 
   if (!currentFile || files.length === 0) return null;
 

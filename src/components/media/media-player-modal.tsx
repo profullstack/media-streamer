@@ -292,8 +292,11 @@ export function MediaPlayerModal({
   }, []);
 
   // Subscribe to connection status SSE - persistent mode keeps streaming after ready
+  // Use file.fileIndex as dependency instead of file object to avoid unnecessary reconnections
+  // when the file object reference changes but the actual file is the same
+  const fileIndex = file?.fileIndex;
   useEffect(() => {
-    if (!isOpen || !infohash || !file) {
+    if (!isOpen || !infohash || fileIndex === undefined) {
       // Close existing connection when modal closes
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -305,7 +308,7 @@ export function MediaPlayerModal({
 
     // Create SSE connection for connection status with persistent=true
     // This keeps the stream open after ready to show ongoing health stats
-    const url = `/api/stream/status?infohash=${infohash}&fileIndex=${file.fileIndex}&persistent=true`;
+    const url = `/api/stream/status?infohash=${infohash}&fileIndex=${fileIndex}&persistent=true`;
     console.log('[MediaPlayerModal] Connecting to persistent SSE:', url);
     
     const eventSource = new EventSource(url);
@@ -331,7 +334,7 @@ export function MediaPlayerModal({
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [isOpen, infohash, file]);
+  }, [isOpen, infohash, fileIndex]);
 
   if (!file) return null;
 

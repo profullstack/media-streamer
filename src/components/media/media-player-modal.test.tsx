@@ -38,13 +38,22 @@ vi.mock('@/components/video/video-player', () => ({
   VideoPlayer: vi.fn(() => <div data-testid="video-player" />),
 }));
 
+// Track EventSource instances for testing
+let eventSourceInstances: MockEventSource[] = [];
+let eventSourceConstructorCalls: string[] = [];
+
 // Mock EventSource for SSE
 class MockEventSource {
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   close = vi.fn();
+  url: string;
   
-  constructor(_url: string) {
+  constructor(url: string) {
+    this.url = url;
+    eventSourceInstances.push(this);
+    eventSourceConstructorCalls.push(url);
+    
     // Simulate ready state after construction
     setTimeout(() => {
       if (this.onmessage) {
@@ -96,6 +105,9 @@ describe('MediaPlayerModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset EventSource tracking
+    eventSourceInstances = [];
+    eventSourceConstructorCalls = [];
   });
 
   afterEach(() => {
@@ -364,6 +376,159 @@ describe('MediaPlayerModal', () => {
       });
 
       expect(screen.getByTestId('audio-artist')).toHaveTextContent('Explicit Artist');
+    });
+  });
+
+  describe('SSE Connection Stability', () => {
+    it('should not recreate EventSource when file object reference changes but fileIndex stays the same', async () => {
+      const file1: TorrentFile = {
+        ...mockFile,
+        fileIndex: 0,
+      };
+
+      const file2: TorrentFile = {
+        ...mockFile,
+        fileIndex: 0, // Same fileIndex
+      };
+
+      const { rerender } = render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={file1}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      // Should have created exactly one EventSource
+      const initialCount = eventSourceConstructorCalls.length;
+      expect(initialCount).toBe(1);
+
+      // Rerender with a new file object reference but same fileIndex
+      rerender(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={file2}
+        />
+      );
+
+      // Wait a tick for any potential effect re-runs
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      // Should NOT have created a new EventSource since fileIndex is the same
+      expect(eventSourceConstructorCalls.length).toBe(initialCount);
+    });
+
+    it('should create new EventSource when fileIndex changes', async () => {
+      const file1: TorrentFile = {
+        ...mockFile,
+        fileIndex: 0,
+      };
+
+      const file2: TorrentFile = {
+        ...mockFile,
+        fileIndex: 1, // Different fileIndex
+      };
+
+      const { rerender } = render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={file1}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      const initialCount = eventSourceConstructorCalls.length;
+      expect(initialCount).toBe(1);
+
+      // Rerender with a different fileIndex
+      rerender(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={file2}
+        />
+      );
+
+      // Wait for the new SSE connection
+      await vi.waitFor(() => {
+        expect(eventSourceConstructorCalls.length).toBe(initialCount + 1);
+      });
+
+      // Verify the new URL has the correct fileIndex
+      const lastUrl = eventSourceConstructorCalls[eventSourceConstructorCalls.length - 1];
+      expect(lastUrl).toContain('fileIndex=1');
+    });
+
+    it('should close EventSource when modal closes', async () => {
+      const { rerender } = render(
+        <MediaPlayerModal
+          {...defaultProps}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      expect(eventSourceInstances.length).toBe(1);
+      const eventSource = eventSourceInstances[0];
+
+      // Close the modal
+      rerender(
+        <MediaPlayerModal
+          {...defaultProps}
+          isOpen={false}
+        />
+      );
+
+      // EventSource should be closed
+      expect(eventSource.close).toHaveBeenCalled();
+    });
+
+    it('should maintain stable connection during parent re-renders', async () => {
+      // Simulate a parent component that re-renders frequently
+      const { rerender } = render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={mockFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      const initialCount = eventSourceConstructorCalls.length;
+
+      // Simulate multiple parent re-renders with new file object references
+      for (let i = 0; i < 5; i++) {
+        const newFileRef: TorrentFile = {
+          ...mockFile,
+          fileIndex: 0, // Same fileIndex
+        };
+
+        rerender(
+          <MediaPlayerModal
+            {...defaultProps}
+            file={newFileRef}
+          />
+        );
+      }
+
+      // Wait a tick
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      // Should still have only the initial EventSource connection
+      expect(eventSourceConstructorCalls.length).toBe(initialCount);
     });
   });
 });
