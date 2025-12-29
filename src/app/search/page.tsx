@@ -350,7 +350,7 @@ function SearchPageInner(): React.ReactElement {
               Search Results
               {queryParam && (
                 <span className="font-normal text-text-secondary">
-                  {' '}for "{queryParam}"
+                  {' '}for &ldquo;{queryParam}&rdquo;
                 </span>
               )}
             </h1>
