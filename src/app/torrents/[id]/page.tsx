@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/icons';
 import { formatBytes } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
+import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import type { Torrent, TorrentFile } from '@/types';
 
 interface TorrentDetailResponse {
@@ -335,7 +336,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           </div>
 
           {/* Stats */}
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
             <div>
               <p className="text-sm text-text-muted">Total Size</p>
               <p className="text-lg font-medium text-text-primary">
@@ -359,6 +360,18 @@ export default function TorrentDetailPage(): React.ReactElement {
               <p className="text-lg font-medium text-orange-500">
                 {torrent.leechers !== null ? torrent.leechers : '—'}
               </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Health</p>
+              <div className="mt-1 flex items-center gap-0.5" title={`Health: ${calculateHealthBars(torrent.seeders, torrent.leechers)}/5`}>
+                {getHealthBarColors(calculateHealthBars(torrent.seeders, torrent.leechers)).map((color, index) => (
+                  <div
+                    key={index}
+                    className={`w-2 rounded-sm ${color}`}
+                    style={{ height: `${12 + index * 3}px` }}
+                  />
+                ))}
+              </div>
             </div>
             <div>
               <p className="text-sm text-text-muted">Piece Size</p>
