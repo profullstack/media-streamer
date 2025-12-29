@@ -24,6 +24,30 @@ import {
 import { cn } from '@/lib/utils';
 
 /**
+ * Connection status for torrent streaming
+ */
+export interface ConnectionStatus {
+  /** Current connection stage */
+  stage: 'initializing' | 'connecting' | 'searching_peers' | 'downloading_metadata' | 'buffering' | 'ready' | 'error';
+  /** Human-readable status message */
+  message: string;
+  /** Number of connected peers */
+  numPeers: number;
+  /** Overall torrent progress (0-1) */
+  progress: number;
+  /** File-specific progress (0-1) - more accurate for streaming */
+  fileProgress?: number;
+  /** Download speed in bytes per second */
+  downloadSpeed: number;
+  /** Upload speed in bytes per second */
+  uploadSpeed: number;
+  /** Whether the torrent metadata is ready */
+  ready: boolean;
+  /** Whether the file has enough data buffered for streaming */
+  fileReady?: boolean;
+}
+
+/**
  * Audio player props
  */
 export interface AudioPlayerProps {
@@ -57,6 +81,23 @@ export interface AudioPlayerProps {
   showTranscodingNotice?: boolean;
   /** Whether to autoplay */
   autoplay?: boolean;
+  /** Optional connection status for torrent streaming stats */
+  connectionStatus?: ConnectionStatus | null;
+  /** Whether to show connection stats */
+  showConnectionStats?: boolean;
+}
+
+/**
+ * Format bytes per second to human readable speed
+ */
+function formatSpeed(bytesPerSecond: number): string {
+  if (bytesPerSecond < 1024) {
+    return `${bytesPerSecond.toFixed(0)} B/s`;
+  }
+  if (bytesPerSecond < 1024 * 1024) {
+    return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
+  }
+  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
 }
 
 /**
@@ -78,6 +119,8 @@ export function AudioPlayer({
   onError,
   showTranscodingNotice = true,
   autoplay = false,
+  connectionStatus,
+  showConnectionStats = true,
 }: AudioPlayerProps): React.ReactElement {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -576,6 +619,100 @@ export function AudioPlayer({
             )}
           </span>
         </div> : null}
+
+      {/* Connection Stats - Torrent swarm and streaming status */}
+      {showConnectionStats && connectionStatus ? (
+        <div
+          className={cn(
+            'mt-3 rounded-lg border p-2',
+            connectionStatus.stage === 'ready'
+              ? 'border-green-500/30 bg-green-500/5'
+              : connectionStatus.stage === 'error'
+              ? 'border-red-500/30 bg-red-500/5'
+              : 'border-border-subtle bg-bg-tertiary'
+          )}
+        >
+          <div className="flex items-center justify-between gap-2">
+            {/* Status indicator and message */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              {connectionStatus.stage === 'ready' ? (
+                <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="Streaming" />
+              ) : connectionStatus.stage === 'error' ? (
+                <div className="h-2.5 w-2.5 rounded-full bg-red-500 flex-shrink-0" title="Error" />
+              ) : (
+                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
+              )}
+              <span className="text-xs text-text-secondary truncate">
+                {connectionStatus.stage === 'ready' ? 'Streaming' : connectionStatus.message}
+              </span>
+            </div>
+
+            {/* Stats */}
+            <div className="flex items-center gap-2 text-xs text-text-muted flex-shrink-0">
+              {/* Peers */}
+              <span title="Connected peers" className="flex items-center gap-1">
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                </svg>
+                <span className={connectionStatus.numPeers > 0 ? 'text-green-500' : 'text-orange-500'}>
+                  {connectionStatus.numPeers}
+                </span>
+              </span>
+
+              {/* Progress - show when not complete */}
+              {(() => {
+                const displayProgress = connectionStatus.fileProgress ?? connectionStatus.progress;
+                return displayProgress > 0 && displayProgress < 1 && (
+                  <span title="Download progress" className="flex items-center gap-1">
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    <span className={displayProgress > 0.5 ? 'text-green-500' : 'text-yellow-500'}>
+                      {(displayProgress * 100).toFixed(0)}%
+                    </span>
+                  </span>
+                );
+              })()}
+
+              {/* Download speed */}
+              {connectionStatus.downloadSpeed > 0 && (
+                <span className="flex items-center gap-1 text-green-500" title="Download speed">
+                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {formatSpeed(connectionStatus.downloadSpeed)}
+                </span>
+              )}
+
+              {/* Upload speed */}
+              {connectionStatus.uploadSpeed > 0 && (
+                <span className="flex items-center gap-1 text-blue-500" title="Upload speed">
+                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {formatSpeed(connectionStatus.uploadSpeed)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Progress bar - show when downloading */}
+          {(() => {
+            const displayProgress = connectionStatus.fileProgress ?? connectionStatus.progress;
+            return displayProgress > 0 && displayProgress < 1 && (
+              <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
+                <div
+                  className={cn(
+                    'h-full transition-all duration-300',
+                    connectionStatus.stage === 'ready' ? 'bg-green-500' : 'bg-accent-primary'
+                  )}
+                  style={{ width: `${displayProgress * 100}%` }}
+                />
+              </div>
+            );
+          })()}
+        </div>
+      ) : null}
     </div>
   );
 }

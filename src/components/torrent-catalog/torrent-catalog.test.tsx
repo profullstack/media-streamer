@@ -247,10 +247,10 @@ describe('Torrent Catalog', () => {
       mockFetch.mockImplementationOnce(() => new Promise(() => {})); // Never resolves
 
       render(
-        <AddMagnetModal 
-          isOpen={true} 
-          onClose={mockOnClose} 
-          onSuccess={mockOnSuccess} 
+        <AddMagnetModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
         />
       );
       
@@ -259,7 +259,8 @@ describe('Torrent Catalog', () => {
       await userEvent.type(input, validMagnet);
       await userEvent.click(screen.getByRole('button', { name: /add torrent/i }));
       
-      expect(screen.getByText(/adding/i)).toBeInTheDocument();
+      // Check for the submit button showing "Adding..." text
+      expect(screen.getByRole('button', { name: /adding\.\.\./i })).toBeInTheDocument();
     });
 
     it('should show error on submission failure', async () => {

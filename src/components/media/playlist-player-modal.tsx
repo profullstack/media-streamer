@@ -128,9 +128,38 @@ export interface PlaylistPlayerModalProps {
 }
 
 /**
+ * Number of tracks to prefetch ahead of the current track
+ */
+const PREFETCH_AHEAD_COUNT = 2;
+
+/**
+ * Prefetch a file to start downloading it before it's needed
+ */
+async function prefetchFile(infohash: string, fileIndex: number): Promise<void> {
+  try {
+    console.log('[PlaylistPlayerModal] Prefetching file:', { infohash, fileIndex });
+    const response = await fetch('/api/stream/prefetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ infohash, fileIndex }),
+    });
+    
+    if (response.ok) {
+      const data = await response.json() as { success: boolean; fileName: string };
+      console.log('[PlaylistPlayerModal] Prefetch initiated:', data.fileName);
+    } else {
+      console.warn('[PlaylistPlayerModal] Prefetch failed:', response.status);
+    }
+  } catch (err) {
+    console.warn('[PlaylistPlayerModal] Prefetch error:', err);
+  }
+}
+
+/**
  * Playlist Player Modal Component
  *
  * Displays a modal with an audio player and playlist for sequential playback.
+ * Prefetches upcoming tracks for seamless playback.
  */
 export function PlaylistPlayerModal({
   isOpen,
@@ -147,6 +176,7 @@ export function PlaylistPlayerModal({
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const prefetchedIndicesRef = useRef<Set<number>>(new Set());
 
   // Reset index when files change
   useEffect(() => {
@@ -287,6 +317,39 @@ export function PlaylistPlayerModal({
     };
   }, [isOpen, infohash, currentFile]);
 
+  // Prefetch upcoming tracks when the current track starts playing
+  // This ensures seamless playback by downloading the next tracks in advance
+  useEffect(() => {
+    if (!isOpen || !infohash || !isPlayerReady || files.length === 0) return;
+
+    // Prefetch the next PREFETCH_AHEAD_COUNT tracks
+    const prefetchPromises: Promise<void>[] = [];
+    
+    for (let i = 1; i <= PREFETCH_AHEAD_COUNT; i++) {
+      const nextIndex = currentIndex + i;
+      if (nextIndex < files.length) {
+        const nextFile = files[nextIndex];
+        // Only prefetch if we haven't already prefetched this file
+        if (!prefetchedIndicesRef.current.has(nextFile.fileIndex)) {
+          prefetchedIndicesRef.current.add(nextFile.fileIndex);
+          prefetchPromises.push(prefetchFile(infohash, nextFile.fileIndex));
+        }
+      }
+    }
+
+    if (prefetchPromises.length > 0) {
+      console.log('[PlaylistPlayerModal] Prefetching', prefetchPromises.length, 'upcoming tracks');
+      void Promise.all(prefetchPromises);
+    }
+  }, [isOpen, infohash, currentIndex, isPlayerReady, files]);
+
+  // Clear prefetch cache when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      prefetchedIndicesRef.current.clear();
+    }
+  }, [isOpen]);
+
   if (!currentFile || files.length === 0) return null;
 
   // Wait for file to have enough buffer before showing player
@@ -389,6 +452,8 @@ export function PlaylistPlayerModal({
               artist={displayArtist}
               album={displayAlbum}
               coverArt={coverArt}
+              connectionStatus={connectionStatus}
+              showConnectionStats={true}
               onReady={() => {
                 console.log('[PlaylistPlayerModal] AudioPlayer ready with coverArt:', coverArt);
                 handlePlayerReady();
@@ -445,40 +510,6 @@ export function PlaylistPlayerModal({
           </button>
         </div>
 
-        {/* Connection Status */}
-        {connectionStatus ? (
-          <div
-            className={cn(
-              'rounded-lg border p-2',
-              isLoading
-                ? 'border-border-subtle bg-bg-secondary'
-                : 'border-green-500/30 bg-green-500/5'
-            )}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                {isLoading ? (
-                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
-                ) : (
-                  <div className="h-3 w-3 rounded-full bg-green-500 flex-shrink-0" />
-                )}
-                <span className="text-xs text-text-secondary truncate">
-                  {isLoading
-                    ? connectionStatus.message
-                    : `Streaming (${connectionStatus.numPeers} peer${connectionStatus.numPeers !== 1 ? 's' : ''})`}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-text-muted flex-shrink-0">
-                {connectionStatus.downloadSpeed > 0 && (
-                  <span className="text-green-500">
-                    {formatSpeed(connectionStatus.downloadSpeed)}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {/* Playlist */}
         <div className="rounded-lg border border-border-subtle">
           <div className="border-b border-border-subtle px-3 py-2">
@@ -512,18 +543,5 @@ export function PlaylistPlayerModal({
       </div>
     </Modal>
   );
-}
-
-/**
- * Format bytes per second to human readable speed
- */
-function formatSpeed(bytesPerSecond: number): string {
-  if (bytesPerSecond < 1024) {
-    return `${bytesPerSecond.toFixed(0)} B/s`;
-  }
-  if (bytesPerSecond < 1024 * 1024) {
-    return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
-  }
-  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
 }
 

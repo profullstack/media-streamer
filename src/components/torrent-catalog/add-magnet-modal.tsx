@@ -2,8 +2,10 @@
 
 /**
  * Add Magnet Modal Component
- * 
- * Modal for adding new magnet URLs to the catalog
+ *
+ * Modal for adding new magnet URLs to the catalog.
+ * After successful ingestion, triggers metadata enrichment to fetch
+ * album covers, posters, and other metadata from external APIs.
  */
 
 import React, { useState, useCallback } from 'react';
@@ -19,14 +21,44 @@ function isValidMagnetUrl(url: string): boolean {
   return url.startsWith('magnet:?xt=urn:btih:');
 }
 
+/**
+ * Trigger metadata enrichment for a torrent (fire and forget)
+ * This fetches album covers, posters, etc. from external APIs
+ */
+async function triggerEnrichment(torrentId: string): Promise<void> {
+  try {
+    console.log('[AddMagnetModal] Triggering enrichment for torrent:', torrentId);
+    const response = await fetch(`/api/torrents/${torrentId}/enrich`, {
+      method: 'POST',
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('[AddMagnetModal] Enrichment result:', {
+        contentType: data.enrichment?.contentType,
+        hasPoster: !!data.enrichment?.posterUrl,
+        hasCover: !!data.enrichment?.coverUrl,
+        updated: data.updated,
+      });
+    } else {
+      console.warn('[AddMagnetModal] Enrichment failed:', response.status);
+    }
+  } catch (error) {
+    // Don't fail the whole operation if enrichment fails
+    console.warn('[AddMagnetModal] Enrichment error:', error);
+  }
+}
+
 export function AddMagnetModal({ isOpen, onClose, onSuccess }: AddMagnetModalProps): React.ReactElement | null {
   const [magnetUrl, setMagnetUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<string>('');
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setStatus('');
 
     // Validate magnet URL
     if (!isValidMagnetUrl(magnetUrl)) {
@@ -35,14 +67,16 @@ export function AddMagnetModal({ isOpen, onClose, onSuccess }: AddMagnetModalPro
     }
 
     setIsLoading(true);
+    setStatus('Adding torrent...');
 
     try {
+      // Note: API expects magnetUri, not magnetUrl
       const response = await fetch('/api/magnets', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ magnetUrl }),
+        body: JSON.stringify({ magnetUri: magnetUrl }),
       });
 
       const data = await response.json();
@@ -52,8 +86,17 @@ export function AddMagnetModal({ isOpen, onClose, onSuccess }: AddMagnetModalPro
         return;
       }
 
+      // Trigger metadata enrichment in the background
+      // This fetches album covers, posters, etc.
+      if (data.torrentId && !data.isDuplicate) {
+        setStatus('Fetching metadata...');
+        // Fire and forget - don't wait for enrichment to complete
+        triggerEnrichment(data.torrentId);
+      }
+
       // Success - reset form and notify parent
       setMagnetUrl('');
+      setStatus('');
       onSuccess();
       onClose();
     } catch {
@@ -109,6 +152,9 @@ export function AddMagnetModal({ isOpen, onClose, onSuccess }: AddMagnetModalPro
             />
             {error ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">
                 {error}
+              </p> : null}
+            {status && !error ? <p className="mt-2 text-sm text-blue-600 dark:text-blue-400">
+                {status}
               </p> : null}
           </div>
 
