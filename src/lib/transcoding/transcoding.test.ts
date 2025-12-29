@@ -516,6 +516,44 @@ describe('Transcoding Service', () => {
       expect(getStreamingTranscodeProfile('video', 'mp4')).toBeNull();
       expect(getStreamingTranscodeProfile('audio', 'mp3')).toBeNull();
     });
+
+    describe('forceTranscode parameter', () => {
+      it('should return profile for MP4 when forceTranscode is true', () => {
+        // MP4 normally doesn't need transcoding, but with forceTranscode=true it should
+        // This handles cases where the container is supported but the codec isn't (e.g., HEVC in MP4)
+        const profile = getStreamingTranscodeProfile('video', 'mp4', true);
+        
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp4');
+        expect(profile!.videoCodec).toBe('libx264');
+        expect(profile!.preset).toBe('ultrafast');
+      });
+
+      it('should return profile for WebM when forceTranscode is true', () => {
+        const profile = getStreamingTranscodeProfile('video', 'webm', true);
+        
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp4');
+      });
+
+      it('should return profile for MP3 when forceTranscode is true', () => {
+        const profile = getStreamingTranscodeProfile('audio', 'mp3', true);
+        
+        expect(profile).not.toBeNull();
+        expect(profile!.outputFormat).toBe('mp3');
+      });
+
+      it('should return null for MP4 when forceTranscode is false (default)', () => {
+        expect(getStreamingTranscodeProfile('video', 'mp4', false)).toBeNull();
+        expect(getStreamingTranscodeProfile('video', 'mp4')).toBeNull();
+      });
+
+      it('should still return profile for MKV regardless of forceTranscode', () => {
+        // MKV always needs transcoding
+        expect(getStreamingTranscodeProfile('video', 'mkv', false)).not.toBeNull();
+        expect(getStreamingTranscodeProfile('video', 'mkv', true)).not.toBeNull();
+      });
+    });
   });
 
   describe('getTranscodedMimeType', () => {
@@ -534,6 +572,26 @@ describe('Transcoding Service', () => {
     it('should return null for formats that do not need transcoding', () => {
       expect(getTranscodedMimeType('video', 'mp4')).toBeNull();
       expect(getTranscodedMimeType('audio', 'mp3')).toBeNull();
+    });
+
+    describe('forceTranscode parameter', () => {
+      it('should return video/mp4 for MP4 when forceTranscode is true', () => {
+        // MP4 with unsupported codec (e.g., HEVC) needs transcoding
+        expect(getTranscodedMimeType('video', 'mp4', true)).toBe('video/mp4');
+      });
+
+      it('should return video/mp4 for WebM when forceTranscode is true', () => {
+        expect(getTranscodedMimeType('video', 'webm', true)).toBe('video/mp4');
+      });
+
+      it('should return audio/mpeg for MP3 when forceTranscode is true', () => {
+        expect(getTranscodedMimeType('audio', 'mp3', true)).toBe('audio/mpeg');
+      });
+
+      it('should return null for MP4 when forceTranscode is false (default)', () => {
+        expect(getTranscodedMimeType('video', 'mp4', false)).toBeNull();
+        expect(getTranscodedMimeType('video', 'mp4')).toBeNull();
+      });
     });
   });
 

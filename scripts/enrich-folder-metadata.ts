@@ -312,16 +312,18 @@ async function processTorrent(
 
     // Enrich folder with cover art
     try {
-      console.log(`     🔍 Searching MusicBrainz...`);
+      console.log(`     🔍 Searching MusicBrainz + Fanart.tv...`);
+      const fanartTvApiKey = process.env.FANART_TV_API_KEY;
       const result = await enrichAlbumFolder(folder, {
         musicbrainzUserAgent: MUSICBRAINZ_USER_AGENT,
+        fanartTvApiKey,
       });
 
       if (result.error) {
         console.log(`     ⚠️  Error: ${result.error}`);
         stats.errors++;
       } else if (result.coverUrl) {
-        console.log(`     ✓ Found cover: ${result.coverUrl.substring(0, 50)}...`);
+        console.log(`     ✓ Found cover: ${result.coverUrl}`);
 
         // Save to database
         const saved = await upsertFolder(
@@ -398,7 +400,7 @@ async function main(): Promise<void> {
 
   console.log('🔑 API Keys:');
   console.log(`  MusicBrainz: ✓ no key required`);
-  console.log(`  Cover Art Archive: ✓ no key required`);
+  console.log(`  FANART_TV_API_KEY: ${process.env.FANART_TV_API_KEY ? '✓ configured' : '✗ not set (album covers disabled)'}`);
 
   // Initialize Supabase client
   const supabase = getSupabaseClient();

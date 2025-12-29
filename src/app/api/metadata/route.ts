@@ -1,6 +1,6 @@
 /**
  * Metadata API Route
- * 
+ *
  * GET /api/metadata - Search for metadata from external APIs
  */
 
@@ -9,11 +9,9 @@ import {
   buildMusicBrainzUrl,
   buildOpenLibraryUrl,
   buildOMDbUrl,
-  buildTheTVDBUrl,
   parseMusicBrainzResponse,
   parseOpenLibraryResponse,
   parseOMDbResponse,
-  parseTheTVDBResponse,
   type MetadataType,
 } from '@/lib/metadata';
 
@@ -133,36 +131,34 @@ export async function GET(request: NextRequest): Promise<NextResponse<MetadataSe
       }
 
       case 'tvshow': {
-        const apiKey = process.env.THETVDB_API_KEY;
+        // Use OMDb for TV shows (type='series')
+        const apiKey = process.env.OMDB_API_KEY;
         if (!apiKey) {
           return NextResponse.json({
             type,
             query,
             results: [],
-            source: 'thetvdb',
-            error: 'TheTVDB API key not configured',
+            source: 'omdb',
+            error: 'OMDb API key not configured',
           });
         }
 
-        const url = buildTheTVDBUrl(query, 'series', limit);
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-          },
-        });
+        // OMDb supports type='series' for TV shows
+        const url = buildOMDbUrl(query, apiKey, undefined, 'series');
+        const response = await fetch(url);
 
         if (!response.ok) {
-          throw new Error(`TheTVDB API error: ${response.status}`);
+          throw new Error(`OMDb API error: ${response.status}`);
         }
 
         const data = await response.json();
-        const results = parseTheTVDBResponse(data);
+        const results = parseOMDbResponse(data);
 
         return NextResponse.json({
           type,
           query,
-          results,
-          source: 'thetvdb',
+          results: results.slice(0, limit),
+          source: 'omdb',
         });
       }
 

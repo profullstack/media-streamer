@@ -64,6 +64,12 @@ function createMockTorrent(overrides: Partial<{
     year: null,
     description: null,
     metadata_fetched_at: null,
+    // Codec fields
+    video_codec: null,
+    audio_codec: null,
+    container: null,
+    needs_transcoding: false,
+    codec_detected_at: null,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,

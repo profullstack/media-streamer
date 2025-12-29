@@ -312,11 +312,17 @@ function nodeStreamToWebStreamWithPreBuffer(
 /**
  * Create a transcoded stream by piping torrent stream through FFmpeg
  * All operations are wrapped in try/catch to prevent server crashes
+ * @param sourceStream - The source stream to transcode
+ * @param fileName - The original filename for format detection
+ * @param reqLogger - Logger instance for this request
+ * @param forceTranscode - If true, always transcode even for "supported" formats
+ *                         This is used when the client detects codec issues at runtime
  */
 function createTranscodedStream(
   sourceStream: NodeJS.ReadableStream,
   fileName: string,
-  reqLogger: ReturnType<typeof logger.child>
+  reqLogger: ReturnType<typeof logger.child>,
+  forceTranscode = false
 ): { stream: NodeJS.ReadableStream; mimeType: string } | null {
   try {
     const mediaType = detectMediaType(fileName);
@@ -332,16 +338,18 @@ function createTranscodedStream(
       return null;
     }
 
-    const profile = getStreamingTranscodeProfile(mediaType, format);
+    // Pass forceTranscode to get a profile even for "supported" formats like MP4
+    // This handles cases where the container is supported but the codec isn't (e.g., HEVC in MP4)
+    const profile = getStreamingTranscodeProfile(mediaType, format, forceTranscode);
     if (!profile) {
-      reqLogger.warn('No transcoding profile available', { fileName, mediaType, format });
+      reqLogger.warn('No transcoding profile available', { fileName, mediaType, format, forceTranscode });
       return null;
     }
 
     // Pass the input format to FFmpeg args builder for proper container detection
     // This is critical for non-seekable streams like MKV where metadata is at the end
     const ffmpegArgs = buildStreamingFFmpegArgs(profile, format);
-    const outputMimeType = getTranscodedMimeType(mediaType, format);
+    const outputMimeType = getTranscodedMimeType(mediaType, format, forceTranscode);
     if (!outputMimeType) {
       reqLogger.warn('Cannot determine output MIME type', { fileName, mediaType, format });
       return null;
@@ -610,10 +618,14 @@ export async function GET(request: NextRequest): Promise<Response> {
         range: undefined,
       }, false); // skipWaitForData = false - FFmpeg needs the beginning of the file
 
+      // Pass forceTranscode=true since transcode=auto was explicitly requested
+      // This ensures we get a transcoding profile even for "supported" formats like MP4
+      // that may have unsupported codecs (e.g., HEVC/H.265)
       const transcoded = createTranscodedStream(
         result.stream as NodeJS.ReadableStream,
         info.fileName,
-        reqLogger
+        reqLogger,
+        true // forceTranscode - client detected codec error
       );
 
       if (!transcoded) {

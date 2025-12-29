@@ -171,6 +171,8 @@ export interface StreamingServiceOptions {
   maxConcurrentStreams?: number;
   /** Timeout for stream operations in milliseconds (default: 90000) */
   streamTimeout?: number;
+  /** Delay before removing torrent after last watcher disconnects in milliseconds (default: 30000) */
+  torrentCleanupDelay?: number;
 }
 
 /**
@@ -220,20 +222,38 @@ interface ActiveStream {
 }
 
 /**
+ * Default cleanup delay: 30 seconds after last watcher disconnects
+ */
+const DEFAULT_CLEANUP_DELAY = 30000;
+
+/**
+ * Watcher tracking for a torrent
+ */
+interface TorrentWatchers {
+  /** Set of active watcher IDs */
+  watchers: Set<string>;
+  /** Cleanup timer (if scheduled) */
+  cleanupTimer: ReturnType<typeof setTimeout> | null;
+}
+
+/**
  * Service for streaming media files from torrents
  */
 export class StreamingService {
   private client: WebTorrent.Instance;
   private maxConcurrentStreams: number;
   private streamTimeout: number;
+  private torrentCleanupDelay: number;
   private activeStreams: Map<string, ActiveStream>;
+  private torrentWatchers: Map<string, TorrentWatchers>;
   private dhtReady: boolean = false;
   private dhtNodeCount: number = 0;
 
   constructor(options: StreamingServiceOptions = {}) {
     logger.info('Initializing StreamingService', {
       maxConcurrentStreams: options.maxConcurrentStreams ?? 10,
-      streamTimeout: options.streamTimeout ?? 90000
+      streamTimeout: options.streamTimeout ?? 90000,
+      torrentCleanupDelay: options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY,
     });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
@@ -254,7 +274,9 @@ export class StreamingService {
     
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
     this.streamTimeout = options.streamTimeout ?? 90000;
+    this.torrentCleanupDelay = options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY;
     this.activeStreams = new Map();
+    this.torrentWatchers = new Map();
     
     // Log client events
     this.client.on('error', (err) => {
@@ -449,14 +471,28 @@ export class StreamingService {
       elapsed: `${Date.now() - startTime}ms`
     });
 
-    // Clean up on stream end or error
+    // Clean up on stream end, error, or close
+    // 'end' fires when stream is fully consumed
+    // 'error' fires on stream errors
+    // 'close' fires when the underlying resource is closed (e.g., client disconnects)
+    const cleanupStream = (): void => {
+      if (this.activeStreams.has(streamId)) {
+        this.activeStreams.delete(streamId);
+        logger.debug('Stream cleaned up', { streamId, activeStreams: this.activeStreams.size });
+      }
+    };
+
     stream.on('end', () => {
       logger.debug('Stream ended', { streamId });
-      this.activeStreams.delete(streamId);
+      cleanupStream();
     });
     stream.on('error', (err) => {
       logger.error('Stream error', err, { streamId });
-      this.activeStreams.delete(streamId);
+      cleanupStream();
+    });
+    stream.on('close', () => {
+      logger.debug('Stream closed (client disconnected)', { streamId });
+      cleanupStream();
     });
 
     const mimeType = getMimeType(file.name);
@@ -619,9 +655,9 @@ export class StreamingService {
       try {
         const torrent = this.client.add(enhancedMagnetUri);
         
-        // Log peer connections
+        // Log peer connections (debug level to avoid log spam)
         torrent.on('wire', (wire) => {
-          logger.info('Peer connected (status tracking)', {
+          logger.debug('Peer connected (status tracking)', {
             infohash,
             peerAddress: wire.remoteAddress,
             numPeers: torrent.numPeers,
@@ -733,12 +769,152 @@ export class StreamingService {
   }
 
   /**
+   * Register a watcher for a torrent (e.g., when SSE connection opens)
+   * This tracks active viewers to know when to clean up torrents.
+   *
+   * @param infohash - The torrent infohash
+   * @returns A unique watcher ID to use when unregistering
+   */
+  registerWatcher(infohash: string): string {
+    const watcherId = randomUUID();
+    
+    let watcherInfo = this.torrentWatchers.get(infohash);
+    if (!watcherInfo) {
+      watcherInfo = {
+        watchers: new Set(),
+        cleanupTimer: null,
+      };
+      this.torrentWatchers.set(infohash, watcherInfo);
+    }
+    
+    // Cancel any pending cleanup since we have a new watcher
+    if (watcherInfo.cleanupTimer) {
+      clearTimeout(watcherInfo.cleanupTimer);
+      watcherInfo.cleanupTimer = null;
+      logger.debug('Cancelled pending torrent cleanup due to new watcher', { infohash });
+    }
+    
+    watcherInfo.watchers.add(watcherId);
+    
+    logger.debug('Watcher registered', {
+      infohash,
+      watcherId,
+      totalWatchers: watcherInfo.watchers.size,
+    });
+    
+    return watcherId;
+  }
+
+  /**
+   * Unregister a watcher for a torrent (e.g., when SSE connection closes)
+   * If this was the last watcher, schedules torrent removal after a grace period.
+   *
+   * @param infohash - The torrent infohash
+   * @param watcherId - The watcher ID returned from registerWatcher
+   */
+  unregisterWatcher(infohash: string, watcherId: string): void {
+    const watcherInfo = this.torrentWatchers.get(infohash);
+    if (!watcherInfo) {
+      logger.debug('No watcher info found for infohash', { infohash, watcherId });
+      return;
+    }
+    
+    // Remove this watcher
+    const wasRemoved = watcherInfo.watchers.delete(watcherId);
+    if (!wasRemoved) {
+      logger.debug('Watcher ID not found', { infohash, watcherId });
+      return;
+    }
+    
+    logger.debug('Watcher unregistered', {
+      infohash,
+      watcherId,
+      remainingWatchers: watcherInfo.watchers.size,
+    });
+    
+    // If no more watchers, schedule cleanup
+    if (watcherInfo.watchers.size === 0) {
+      this.scheduleCleanup(infohash);
+    }
+  }
+
+  /**
+   * Get the number of active watchers for a torrent
+   *
+   * @param infohash - The torrent infohash
+   * @returns Number of active watchers (0 if none)
+   */
+  getActiveWatcherCount(infohash: string): number {
+    const watcherInfo = this.torrentWatchers.get(infohash);
+    return watcherInfo?.watchers.size ?? 0;
+  }
+
+  /**
+   * Schedule torrent removal after the cleanup delay
+   * This is called when the last watcher disconnects.
+   */
+  private scheduleCleanup(infohash: string): void {
+    const watcherInfo = this.torrentWatchers.get(infohash);
+    if (!watcherInfo) {
+      return;
+    }
+    
+    // Cancel any existing cleanup timer
+    if (watcherInfo.cleanupTimer) {
+      clearTimeout(watcherInfo.cleanupTimer);
+    }
+    
+    logger.info('Scheduling torrent cleanup', {
+      infohash,
+      delayMs: this.torrentCleanupDelay,
+    });
+    
+    watcherInfo.cleanupTimer = setTimeout(() => {
+      // Double-check no new watchers connected during the delay
+      const currentInfo = this.torrentWatchers.get(infohash);
+      if (currentInfo && currentInfo.watchers.size === 0) {
+        logger.info('Removing torrent after cleanup delay (no active watchers)', { infohash });
+        
+        // Remove the torrent from WebTorrent client
+        (this.client.remove as (torrentId: string, callback: (err: Error | null) => void) => void)(
+          infohash,
+          (err: Error | null) => {
+            if (err) {
+              logger.warn('Error removing torrent during cleanup', { infohash, error: String(err) });
+            } else {
+              logger.info('Torrent removed successfully (DMCA protection)', { infohash });
+            }
+          }
+        );
+        
+        // Clean up watcher tracking
+        this.torrentWatchers.delete(infohash);
+      } else {
+        logger.debug('Cleanup cancelled - new watchers connected', {
+          infohash,
+          watcherCount: currentInfo?.watchers.size ?? 0,
+        });
+      }
+    }, this.torrentCleanupDelay);
+  }
+
+  /**
    * Destroy the service and clean up all resources
    */
   async destroy(): Promise<void> {
     logger.info('Destroying StreamingService', {
-      activeStreams: this.activeStreams.size
+      activeStreams: this.activeStreams.size,
+      activeWatchers: this.torrentWatchers.size,
     });
+
+    // Clear all cleanup timers
+    for (const [infohash, watcherInfo] of this.torrentWatchers) {
+      if (watcherInfo.cleanupTimer) {
+        clearTimeout(watcherInfo.cleanupTimer);
+        logger.debug('Cleared cleanup timer during destroy', { infohash });
+      }
+    }
+    this.torrentWatchers.clear();
 
     // Close all active streams
     for (const [streamId, activeStream] of this.activeStreams) {
@@ -988,9 +1164,9 @@ export class StreamingService {
         }
       });
 
-      // Log peer connections
+      // Log peer connections (debug level to avoid log spam)
       torrent.on('wire', (wire) => {
-        logger.info('Peer connected', {
+        logger.debug('Peer connected', {
           infohash,
           peerAddress: wire.remoteAddress,
           numPeers: torrent?.numPeers,

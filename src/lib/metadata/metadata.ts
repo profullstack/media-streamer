@@ -20,6 +20,8 @@ export interface MusicMetadata {
   id: string;
   title: string;
   artist?: string;
+  /** MusicBrainz artist ID (for Fanart.tv lookups) */
+  artistMbid?: string;
   album?: string;
   year?: number;
   duration?: number;
@@ -112,12 +114,23 @@ interface MusicBrainzRecording {
 }
 
 /**
+ * MusicBrainz artist credit entry
+ */
+interface MusicBrainzArtistCredit {
+  name: string;
+  artist?: {
+    id: string;
+    name: string;
+  };
+}
+
+/**
  * MusicBrainz release-group response
  */
 interface MusicBrainzReleaseGroup {
   id: string;
   title: string;
-  'artist-credit'?: Array<{ name: string }>;
+  'artist-credit'?: MusicBrainzArtistCredit[];
   'first-release-date'?: string;
   'primary-type'?: string;
   'secondary-types'?: string[];
@@ -205,13 +218,16 @@ export function parseMusicBrainzResponse(
 
   if (type === 'release-group' && response['release-groups']) {
     return response['release-groups'].map((rg) => {
-      const artist = rg['artist-credit']?.[0]?.name;
+      const artistCredit = rg['artist-credit']?.[0];
+      const artist = artistCredit?.name;
+      const artistMbid = artistCredit?.artist?.id;
       const year = rg['first-release-date'] ? parseInt(rg['first-release-date'].slice(0, 4), 10) : undefined;
 
       return {
         id: rg.id,
         title: rg.title,
         artist,
+        artistMbid,
         album: rg.title, // For release-groups, the title IS the album
         year: year && !isNaN(year) ? year : undefined,
         source: 'musicbrainz' as const,
@@ -430,4 +446,161 @@ export function parseTheTVDBResponse(response: TheTVDBResponse): TVShowMetadata[
     network: result.network,
     source: 'thetvdb' as const,
   }));
+}
+
+// ============================================================================
+// TMDB (The Movie Database)
+// ============================================================================
+
+/**
+ * TMDB movie search result
+ */
+interface TMDBMovieResult {
+  id: number;
+  title: string;
+  release_date?: string;
+  poster_path?: string;
+  overview?: string;
+}
+
+/**
+ * TMDB search response
+ */
+interface TMDBSearchResponse {
+  results: TMDBMovieResult[];
+  total_results: number;
+}
+
+/**
+ * TMDB find by external ID response
+ */
+interface TMDBFindResponse {
+  movie_results: TMDBMovieResult[];
+  tv_results: Array<{
+    id: number;
+    name: string;
+    first_air_date?: string;
+    poster_path?: string;
+    overview?: string;
+  }>;
+}
+
+/**
+ * Build TMDB search URL
+ * @param query - Search query
+ * @param apiKey - TMDB API key
+ * @param year - Optional year filter
+ * @returns API URL
+ */
+export function buildTMDBSearchUrl(query: string, apiKey: string, year?: number): string {
+  const baseUrl = 'https://api.themoviedb.org/3/search/movie';
+  const encodedQuery = encodeURIComponent(query);
+  let url = `${baseUrl}?api_key=${apiKey}&query=${encodedQuery}`;
+  
+  if (year) {
+    url += `&year=${year}`;
+  }
+  
+  return url;
+}
+
+/**
+ * Build TMDB find by IMDB ID URL
+ * @param imdbId - IMDB ID (e.g., tt1234567)
+ * @param apiKey - TMDB API key
+ * @returns API URL
+ */
+export function buildTMDBFindUrl(imdbId: string, apiKey: string): string {
+  return `https://api.themoviedb.org/3/find/${imdbId}?api_key=${apiKey}&external_source=imdb_id`;
+}
+
+/**
+ * Build TMDB poster URL
+ * @param posterPath - Poster path from TMDB (e.g., /abc123.jpg)
+ * @param size - Poster size (w92, w154, w185, w342, w500, w780, original)
+ * @returns Full poster URL
+ */
+export function buildTMDBPosterUrl(posterPath: string, size: 'w92' | 'w154' | 'w185' | 'w342' | 'w500' | 'w780' | 'original' = 'w500'): string {
+  return `https://image.tmdb.org/t/p/${size}${posterPath}`;
+}
+
+/**
+ * Movie metadata from TMDB
+ */
+export interface TMDBMovieMetadata {
+  id: number;
+  title: string;
+  year?: number;
+  posterUrl?: string;
+  overview?: string;
+  source: 'tmdb';
+}
+
+/**
+ * Parse TMDB search response
+ * @param response - TMDB API response
+ * @returns Parsed movie metadata
+ */
+export function parseTMDBSearchResponse(response: TMDBSearchResponse): TMDBMovieMetadata[] {
+  return response.results.map((result) => {
+    const year = result.release_date ? parseInt(result.release_date.slice(0, 4), 10) : undefined;
+    const posterUrl = result.poster_path ? buildTMDBPosterUrl(result.poster_path) : undefined;
+
+    return {
+      id: result.id,
+      title: result.title,
+      year: year && !isNaN(year) ? year : undefined,
+      posterUrl,
+      overview: result.overview,
+      source: 'tmdb' as const,
+    };
+  });
+}
+
+/**
+ * Parse TMDB find response (for IMDB ID lookup)
+ * @param response - TMDB find API response
+ * @returns Parsed movie metadata or undefined
+ */
+export function parseTMDBFindResponse(response: TMDBFindResponse): TMDBMovieMetadata | undefined {
+  if (response.movie_results.length === 0) {
+    return undefined;
+  }
+
+  const result = response.movie_results[0];
+  const year = result.release_date ? parseInt(result.release_date.slice(0, 4), 10) : undefined;
+  const posterUrl = result.poster_path ? buildTMDBPosterUrl(result.poster_path) : undefined;
+
+  return {
+    id: result.id,
+    title: result.title,
+    year: year && !isNaN(year) ? year : undefined,
+    posterUrl,
+    overview: result.overview,
+    source: 'tmdb' as const,
+  };
+}
+
+/**
+ * Fetch movie poster from TMDB using IMDB ID
+ * @param imdbId - IMDB ID (e.g., tt1234567)
+ * @param apiKey - TMDB API key
+ * @returns Poster URL or undefined
+ */
+export async function fetchTMDBPosterByImdbId(imdbId: string, apiKey: string): Promise<string | undefined> {
+  try {
+    const url = buildTMDBFindUrl(imdbId, apiKey);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const data = await response.json() as TMDBFindResponse;
+    const movie = parseTMDBFindResponse(data);
+    
+    return movie?.posterUrl;
+  } catch {
+    return undefined;
+  }
 }

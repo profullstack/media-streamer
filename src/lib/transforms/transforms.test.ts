@@ -39,6 +39,12 @@ describe('transforms', () => {
         year: null,
         description: null,
         metadata_fetched_at: null,
+        // Codec fields
+        video_codec: null,
+        audio_codec: null,
+        container: null,
+        needs_transcoding: false,
+        codec_detected_at: null,
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };
@@ -91,6 +97,12 @@ describe('transforms', () => {
         year: null,
         description: null,
         metadata_fetched_at: null,
+        // Codec fields
+        video_codec: null,
+        audio_codec: null,
+        container: null,
+        needs_transcoding: false,
+        codec_detected_at: null,
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };
@@ -128,6 +140,12 @@ describe('transforms', () => {
         year: 1973,
         description: 'Complete discography of Pink Floyd',
         metadata_fetched_at: '2025-12-26T23:00:00.000Z',
+        // Codec fields
+        video_codec: null,
+        audio_codec: 'flac',
+        container: 'flac',
+        needs_transcoding: false,
+        codec_detected_at: '2025-12-26T23:00:00.000Z',
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };

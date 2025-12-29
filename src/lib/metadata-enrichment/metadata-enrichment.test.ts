@@ -176,6 +176,46 @@ describe('detectContentType', () => {
     });
   });
 
+  describe('XXX/adult content detection', () => {
+    it('should detect XXX keyword', () => {
+      expect(detectContentType('Some Video XXX 1080p')).toBe('xxx');
+    });
+
+    it('should detect porn keyword', () => {
+      expect(detectContentType('Adult Content Porn Collection')).toBe('xxx');
+    });
+
+    it('should detect adult keyword', () => {
+      expect(detectContentType('Adult Video 2023')).toBe('xxx');
+    });
+
+    it('should detect 18+ keyword', () => {
+      expect(detectContentType('Video 18+ Content')).toBe('xxx');
+    });
+
+    it('should detect NSFW keyword', () => {
+      expect(detectContentType('NSFW Collection 2023')).toBe('xxx');
+    });
+
+    it('should detect adult studio names', () => {
+      expect(detectContentType('Brazzers Collection 2023')).toBe('xxx');
+    });
+
+    it('should detect site rip with XXX', () => {
+      expect(detectContentType('SomeStudio SiteRip XXX 1080p')).toBe('xxx');
+    });
+
+    it('should prioritize XXX over movie patterns', () => {
+      // Has both movie patterns and XXX - should be XXX
+      expect(detectContentType('Adult Movie XXX 2023 1080p BluRay')).toBe('xxx');
+    });
+
+    it('should prioritize XXX over TV show patterns', () => {
+      // Has both TV patterns and XXX - should be XXX
+      expect(detectContentType('Adult Show XXX S01E01 720p')).toBe('xxx');
+    });
+  });
+
   describe('other/unknown detection', () => {
     it('should return other for empty string', () => {
       expect(detectContentType('')).toBe('other');
@@ -370,21 +410,21 @@ describe('enrichTorrentMetadata', () => {
 
   describe('TV show enrichment', () => {
     const options: EnrichmentOptions = {
-      thetvdbApiKey: 'test-tvdb-key',
+      omdbApiKey: 'test-omdb-key',
     };
 
-    it('should fetch TV show metadata from TheTVDB', async () => {
+    it('should fetch TV show metadata from OMDb', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          status: 'success',
-          data: [
+          Response: 'True',
+          Search: [
             {
-              id: '81189',
-              name: 'Breaking Bad',
-              year: '2008',
-              image_url: 'https://example.com/breakingbad.jpg',
-              overview: 'A high school chemistry teacher turned meth producer.',
+              Title: 'Breaking Bad',
+              Year: '2008',
+              imdbID: 'tt0903747',
+              Type: 'series',
+              Poster: 'https://example.com/breakingbad.jpg',
             },
           ],
         }),
@@ -394,12 +434,11 @@ describe('enrichTorrentMetadata', () => {
 
       expect(result.contentType).toBe('tvshow');
       expect(result.posterUrl).toBe('https://example.com/breakingbad.jpg');
-      expect(result.externalId).toBe('81189');
-      expect(result.externalSource).toBe('thetvdb');
-      expect(result.description).toContain('chemistry teacher');
+      expect(result.externalId).toBe('tt0903747');
+      expect(result.externalSource).toBe('omdb');
     });
 
-    it('should handle TheTVDB API error', async () => {
+    it('should handle OMDb API error for TV shows', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -408,14 +447,14 @@ describe('enrichTorrentMetadata', () => {
       const result = await enrichTorrentMetadata('Breaking Bad S01E01 720p', options);
 
       expect(result.contentType).toBe('tvshow');
-      expect(result.error).toContain('TheTVDB API error');
+      expect(result.error).toContain('OMDb API error');
     });
 
-    it('should return error when TheTVDB API key not configured', async () => {
+    it('should return error when OMDb API key not configured for TV shows', async () => {
       const result = await enrichTorrentMetadata('Breaking Bad S01E01 720p', {});
 
       expect(result.contentType).toBe('tvshow');
-      expect(result.error).toBe('TheTVDB API key not configured');
+      expect(result.error).toBe('OMDb API key not configured');
     });
   });
 
@@ -452,7 +491,7 @@ describe('enrichTorrentMetadata', () => {
       expect(result.year).toBe(1979);
     });
 
-    it('should fetch cover art from Cover Art Archive for release-groups', async () => {
+    it('should fetch cover art from Fanart.tv for release-groups', async () => {
       // First call: MusicBrainz release-group search
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -463,33 +502,49 @@ describe('enrichTorrentMetadata', () => {
               title: 'The Dark Side of the Moon',
               'first-release-date': '1973-03-01',
               'artist-credit': [
-                { name: 'Pink Floyd' },
+                {
+                  name: 'Pink Floyd',
+                  artist: { id: 'pink-floyd-mbid', name: 'Pink Floyd' }
+                },
               ],
             },
           ],
         }),
       });
-      // Second call: Cover Art Archive
+      // Second call: MusicBrainz artist search (inside fetchAlbumCover)
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          images: [
+          artists: [
             {
-              id: 'img-1',
-              image: 'https://coverartarchive.org/release-group/rg-123/front.jpg',
-              front: true,
-              thumbnails: {
-                '500': 'https://coverartarchive.org/release-group/rg-123/front-500.jpg',
-              },
+              id: 'pink-floyd-mbid',
+              name: 'Pink Floyd',
+              'sort-name': 'Pink Floyd',
+              score: 100,
             },
           ],
         }),
       });
+      // Third call: Fanart.tv artist lookup
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          albums: {
+            'rg-123': {
+              albumcover: [{
+                url: 'https://assets.fanart.tv/fanart/music/pink-floyd-mbid/albumcover/rg-123.jpg',
+              }],
+            },
+          },
+        }),
+      });
 
-      const result = await enrichTorrentMetadata('Pink Floyd - Dark Side of the Moon [FLAC]', {});
+      const result = await enrichTorrentMetadata('Pink Floyd - Dark Side of the Moon [FLAC]', {
+        fanartTvApiKey: 'test-fanart-key',
+      });
 
       expect(result.contentType).toBe('music');
-      expect(result.coverUrl).toBe('https://coverartarchive.org/release-group/rg-123/front-500.jpg');
+      expect(result.coverUrl).toBe('https://assets.fanart.tv/fanart/music/pink-floyd-mbid/albumcover/rg-123.jpg');
     });
 
     it('should use custom user agent for MusicBrainz', async () => {
@@ -598,6 +653,26 @@ describe('enrichTorrentMetadata', () => {
       const result = await enrichTorrentMetadata('random_file.zip', {});
 
       expect(result.contentType).toBe('other');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('XXX content type', () => {
+    it('should skip enrichment for XXX content type', async () => {
+      const result = await enrichTorrentMetadata('Adult Video XXX 1080p', {});
+
+      expect(result.contentType).toBe('xxx');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should detect XXX and not fetch external metadata', async () => {
+      const result = await enrichTorrentMetadata('Brazzers Collection 2023', {
+        omdbApiKey: 'test-key',
+      });
+
+      expect(result.contentType).toBe('xxx');
+      expect(result.posterUrl).toBeUndefined();
+      expect(result.externalId).toBeUndefined();
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });

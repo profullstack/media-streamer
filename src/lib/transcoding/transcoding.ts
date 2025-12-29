@@ -305,20 +305,28 @@ const STREAMING_AUDIO_PROFILE: TranscodeProfile = {
  * Uses faster presets suitable for real-time transcoding
  * @param mediaType - Type of media (video or audio)
  * @param format - Input format (e.g., 'mkv', 'flac')
+ * @param forceTranscode - If true, always return a profile even for "supported" formats
+ *                         This is used when the client detects codec issues at runtime
  * @returns Streaming-optimized transcoding profile or null if format doesn't need transcoding
  */
-export function getStreamingTranscodeProfile(mediaType: MediaType, format: string): TranscodeProfile | null {
+export function getStreamingTranscodeProfile(
+  mediaType: MediaType,
+  format: string,
+  forceTranscode = false
+): TranscodeProfile | null {
   const normalizedFormat = format.toLowerCase();
 
   if (mediaType === 'video') {
-    if (VIDEO_TRANSCODE_FORMATS.has(normalizedFormat)) {
+    // If forceTranscode is true, always return a profile
+    // This handles cases where the container is supported (e.g., MP4) but the codec isn't (e.g., HEVC)
+    if (forceTranscode || VIDEO_TRANSCODE_FORMATS.has(normalizedFormat)) {
       return { ...STREAMING_VIDEO_PROFILE };
     }
     return null;
   }
 
   if (mediaType === 'audio') {
-    if (AUDIO_TRANSCODE_FORMATS.has(normalizedFormat)) {
+    if (forceTranscode || AUDIO_TRANSCODE_FORMATS.has(normalizedFormat)) {
       return { ...STREAMING_AUDIO_PROFILE };
     }
     return null;
@@ -442,10 +450,15 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
  * Get the MIME type for transcoded output
  * @param mediaType - Type of media (video or audio)
  * @param inputFormat - Input format
+ * @param forceTranscode - If true, always return a MIME type even for "supported" formats
  * @returns MIME type for transcoded output or null if no transcoding needed
  */
-export function getTranscodedMimeType(mediaType: MediaType, inputFormat: string): string | null {
-  const profile = getStreamingTranscodeProfile(mediaType, inputFormat);
+export function getTranscodedMimeType(
+  mediaType: MediaType,
+  inputFormat: string,
+  forceTranscode = false
+): string | null {
+  const profile = getStreamingTranscodeProfile(mediaType, inputFormat, forceTranscode);
   if (!profile) {
     return null;
   }

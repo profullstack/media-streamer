@@ -7,18 +7,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-// Mock the streaming service - factory must be self-contained
-vi.mock('@/lib/streaming', () => {
-  const mockService = {
-    getTorrentStats: vi.fn(),
-    addTorrentIfNeeded: vi.fn().mockResolvedValue(undefined),
-    destroy: vi.fn(),
-  };
-  return {
-    StreamingService: vi.fn().mockImplementation(() => mockService),
-    getStreamingService: vi.fn().mockReturnValue(mockService),
-  };
-});
+// Create mock service outside the factory so it's shared
+const mockStreamingService = {
+  getTorrentStats: vi.fn(),
+  addTorrentIfNeeded: vi.fn().mockResolvedValue(undefined),
+  registerWatcher: vi.fn().mockReturnValue('mock-watcher-id'),
+  unregisterWatcher: vi.fn(),
+  destroy: vi.fn(),
+};
+
+// Mock the streaming service
+vi.mock('@/lib/streaming', () => ({
+  StreamingService: vi.fn().mockImplementation(() => mockStreamingService),
+  getStreamingService: vi.fn(() => mockStreamingService),
+}));
 
 // Mock the supabase queries
 vi.mock('@/lib/supabase', () => ({
@@ -95,6 +97,11 @@ describe('Stream Status API - GET /api/stream/status', () => {
       year: null,
       description: null,
       metadata_fetched_at: null,
+      video_codec: null,
+      audio_codec: null,
+      container: null,
+      needs_transcoding: false,
+      codec_detected_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -134,6 +141,11 @@ describe('Stream Status API - GET /api/stream/status', () => {
       year: null,
       description: null,
       metadata_fetched_at: null,
+      video_codec: null,
+      audio_codec: null,
+      container: null,
+      needs_transcoding: false,
+      codec_detected_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -194,6 +206,11 @@ describe('Stream Status API - GET /api/stream/status', () => {
         year: null,
         description: null,
         metadata_fetched_at: null,
+        video_codec: null,
+        audio_codec: null,
+        container: null,
+        needs_transcoding: false,
+        codec_detected_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -232,6 +249,11 @@ describe('Stream Status API - GET /api/stream/status', () => {
         year: null,
         description: null,
         metadata_fetched_at: null,
+        video_codec: null,
+        audio_codec: null,
+        container: null,
+        needs_transcoding: false,
+        codec_detected_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -269,6 +291,11 @@ describe('Stream Status API - GET /api/stream/status', () => {
         year: null,
         description: null,
         metadata_fetched_at: null,
+        video_codec: null,
+        audio_codec: null,
+        container: null,
+        needs_transcoding: false,
+        codec_detected_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

@@ -3,14 +3,13 @@
  *
  * Extracts and enriches folder-level metadata for discographies
  * and multi-album torrents. Each album folder can have its own
- * cover art fetched from MusicBrainz/Cover Art Archive.
+ * cover art fetched from MusicBrainz and Fanart.tv.
  */
 
 import {
   buildMusicBrainzUrl,
-  buildCoverArtArchiveUrl,
   parseMusicBrainzResponse,
-  parseCoverArtArchiveResponse,
+  fetchAlbumCover,
 } from '@/lib/metadata';
 
 // ============================================================================
@@ -43,6 +42,8 @@ export interface FileWithPath {
  */
 export interface FolderEnrichmentOptions {
   musicbrainzUserAgent?: string;
+  /** Fanart.tv API key for album covers */
+  fanartTvApiKey?: string;
 }
 
 /**
@@ -304,40 +305,7 @@ export function extractAlbumFolders(files: FileWithPath[]): AlbumFolder[] {
 }
 
 /**
- * Fetch cover art from Cover Art Archive
- */
-async function fetchCoverArt(
-  mbid: string,
-  type: 'release' | 'release-group',
-  userAgent: string
-): Promise<string | undefined> {
-  const url = buildCoverArtArchiveUrl(mbid, type);
-
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': userAgent,
-      },
-    });
-
-    if (!response.ok) {
-      // 404 is common - no cover art available
-      if (response.status === 404) {
-        return undefined;
-      }
-      throw new Error(`Cover Art Archive API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return parseCoverArtArchiveResponse(data);
-  } catch {
-    // Cover art fetch is optional, don't fail the whole enrichment
-    return undefined;
-  }
-}
-
-/**
- * Enrich an album folder with cover art from MusicBrainz
+ * Enrich an album folder with cover art from MusicBrainz + Fanart.tv
  *
  * @param folder - Album folder to enrich
  * @param options - Enrichment options
@@ -348,6 +316,7 @@ export async function enrichAlbumFolder(
   options: FolderEnrichmentOptions
 ): Promise<FolderEnrichmentResult> {
   const userAgent = options.musicbrainzUserAgent ?? 'BitTorrented/1.0.0';
+  const { fanartTvApiKey } = options;
 
   try {
     // Build search query
@@ -383,10 +352,17 @@ export async function enrichAlbumFolder(
       year: result.year,
     };
 
-    // Fetch cover art from Cover Art Archive
-    const coverUrl = await fetchCoverArt(result.id, 'release-group', userAgent);
-    if (coverUrl) {
-      enrichmentResult.coverUrl = coverUrl;
+    // Fetch cover art from Fanart.tv (requires API key)
+    // Pass the artist MBID from the release-group result to avoid a separate artist search
+    if (fanartTvApiKey) {
+      const coverUrl = await fetchAlbumCover(folder.artist, {
+        fanartTvApiKey,
+        userAgent,
+        artistMbid: result.artistMbid, // Use artist MBID from release-group search
+      }, result.id);
+      if (coverUrl) {
+        enrichmentResult.coverUrl = coverUrl;
+      }
     }
 
     return enrichmentResult;

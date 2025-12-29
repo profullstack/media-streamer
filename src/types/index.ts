@@ -6,7 +6,7 @@
 export type MediaCategory = 'audio' | 'video' | 'ebook' | 'document' | 'other';
 
 // Content Types for metadata enrichment
-export type ContentType = 'movie' | 'tvshow' | 'music' | 'book' | 'other';
+export type ContentType = 'movie' | 'tvshow' | 'music' | 'book' | 'xxx' | 'other';
 
 // Torrent Types
 export interface Torrent {
@@ -50,6 +50,14 @@ export interface TorrentFile {
   mediaCategory: MediaCategory;
   mimeType: string;
   createdAt: string;
+  /** Video/audio codec (e.g., h264, hevc, aac, mp3) */
+  videoCodec?: string | null;
+  /** Audio codec for video files (e.g., aac, ac3, dts) */
+  audioCodec?: string | null;
+  /** Container format (e.g., mp4, mkv, webm) */
+  container?: string | null;
+  /** Whether the file needs transcoding for browser playback */
+  needsTranscoding?: boolean;
 }
 
 // Metadata Types
@@ -65,6 +73,10 @@ export interface AudioMetadata {
   sampleRate: number | null;
   genre: string | null;
   year: number | null;
+  codec: string | null;
+  container: string | null;
+  needsTranscoding: boolean;
+  codecDetectedAt: string | null;
   createdAt: string;
 }
 
@@ -76,8 +88,12 @@ export interface VideoMetadata {
   width: number | null;
   height: number | null;
   codec: string | null;
+  audioCodec: string | null;
+  container: string | null;
   bitrate: number | null;
   framerate: number | null;
+  needsTranscoding: boolean;
+  codecDetectedAt: string | null;
   createdAt: string;
 }
 

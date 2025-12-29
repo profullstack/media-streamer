@@ -34,12 +34,18 @@ export type Database = {
           // External metadata fields
           poster_url: string | null;
           cover_url: string | null;
-          content_type: 'movie' | 'tvshow' | 'music' | 'book' | 'other' | null;
+          content_type: 'movie' | 'tvshow' | 'music' | 'book' | 'xxx' | 'other' | null;
           external_id: string | null;
           external_source: string | null;
           year: number | null;
           description: string | null;
           metadata_fetched_at: string | null;
+          // Codec fields (from representative file in collection)
+          video_codec: string | null;
+          audio_codec: string | null;
+          container: string | null;
+          needs_transcoding: boolean;
+          codec_detected_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -61,12 +67,18 @@ export type Database = {
           // External metadata fields
           poster_url?: string | null;
           cover_url?: string | null;
-          content_type?: 'movie' | 'tvshow' | 'music' | 'book' | 'other' | null;
+          content_type?: 'movie' | 'tvshow' | 'music' | 'book' | 'xxx' | 'other' | null;
           external_id?: string | null;
           external_source?: string | null;
           year?: number | null;
           description?: string | null;
           metadata_fetched_at?: string | null;
+          // Codec fields (from representative file in collection)
+          video_codec?: string | null;
+          audio_codec?: string | null;
+          container?: string | null;
+          needs_transcoding?: boolean;
+          codec_detected_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -88,12 +100,18 @@ export type Database = {
           // External metadata fields
           poster_url?: string | null;
           cover_url?: string | null;
-          content_type?: 'movie' | 'tvshow' | 'music' | 'book' | 'other' | null;
+          content_type?: 'movie' | 'tvshow' | 'music' | 'book' | 'xxx' | 'other' | null;
           external_id?: string | null;
           external_source?: string | null;
           year?: number | null;
           description?: string | null;
           metadata_fetched_at?: string | null;
+          // Codec fields (from representative file in collection)
+          video_codec?: string | null;
+          audio_codec?: string | null;
+          container?: string | null;
+          needs_transcoding?: boolean;
+          codec_detected_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -219,6 +237,9 @@ export type Database = {
           sample_rate: number | null;
           genre: string | null;
           year: number | null;
+          codec: string | null;
+          container: string | null;
+          codec_detected_at: string | null;
           search_vector: unknown;
           created_at: string;
         };
@@ -234,6 +255,9 @@ export type Database = {
           sample_rate?: number | null;
           genre?: string | null;
           year?: number | null;
+          codec?: string | null;
+          container?: string | null;
+          codec_detected_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -248,6 +272,9 @@ export type Database = {
           sample_rate?: number | null;
           genre?: string | null;
           year?: number | null;
+          codec?: string | null;
+          container?: string | null;
+          codec_detected_at?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -269,8 +296,12 @@ export type Database = {
           width: number | null;
           height: number | null;
           codec: string | null;
+          audio_codec: string | null;
+          container: string | null;
           bitrate: number | null;
           framerate: number | null;
+          needs_transcoding: boolean;
+          codec_detected_at: string | null;
           search_vector: unknown;
           created_at: string;
         };
@@ -282,8 +313,12 @@ export type Database = {
           width?: number | null;
           height?: number | null;
           codec?: string | null;
+          audio_codec?: string | null;
+          container?: string | null;
           bitrate?: number | null;
           framerate?: number | null;
+          needs_transcoding?: boolean;
+          codec_detected_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -294,8 +329,12 @@ export type Database = {
           width?: number | null;
           height?: number | null;
           codec?: string | null;
+          audio_codec?: string | null;
+          container?: string | null;
           bitrate?: number | null;
           framerate?: number | null;
+          needs_transcoding?: boolean;
+          codec_detected_at?: string | null;
           created_at?: string;
         };
         Relationships: [

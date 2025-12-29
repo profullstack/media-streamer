@@ -6,15 +6,11 @@
 
 export {
   buildMusicBrainzUrl,
-  buildCoverArtArchiveUrl,
   buildOpenLibraryUrl,
   buildOMDbUrl,
-  buildTheTVDBUrl,
   parseMusicBrainzResponse,
-  parseCoverArtArchiveResponse,
   parseOpenLibraryResponse,
   parseOMDbResponse,
-  parseTheTVDBResponse,
 } from './metadata';
 
 export type {
@@ -26,13 +22,27 @@ export type {
   MusicBrainzSearchType,
 } from './metadata';
 
-// Artist image utilities
+// Fanart.tv utilities for all media types
 export {
+  // Music
   buildMusicBrainzArtistSearchUrl,
   buildFanartTvArtistUrl,
   parseMusicBrainzArtistResponse,
   parseFanartTvArtistResponse,
+  parseFanartTvAlbumCover,
+  getFirstAlbumCover,
   fetchArtistImage,
+  fetchAlbumCover,
+  // Movies (via IMDB ID from OMDb)
+  buildFanartTvMovieUrl,
+  buildFanartTvMovieUrlByImdb,
+  parseFanartTvMovieResponse,
+  fetchMoviePoster,
+  fetchMoviePosterByImdb,
+  // TV Shows (via TVDB ID or IMDB ID)
+  buildFanartTvTvShowUrl,
+  parseFanartTvTvShowResponse,
+  fetchTvShowPoster,
 } from './artist-image';
 
 export type {
@@ -40,4 +50,11 @@ export type {
   FanartTvArtistResponse,
   ArtistInfo,
   FetchArtistImageOptions,
+  FetchAlbumCoverOptions,
+  // Movie types
+  FanartTvMovieResponse,
+  FetchMoviePosterOptions,
+  // TV Show types
+  FanartTvTvShowResponse,
+  FetchTvShowPosterOptions,
 } from './artist-image';

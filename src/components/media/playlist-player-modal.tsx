@@ -545,9 +545,28 @@ export function PlaylistPlayerModal({
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <div>
+              <div className="flex-1">
                 <h4 className="font-medium text-error">Playback Error</h4>
                 <p className="mt-1 text-sm text-text-muted">{error}</p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setIsPlayerReady(false);
+                    }}
+                    className="rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="rounded-lg bg-bg-tertiary px-4 py-2 text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>

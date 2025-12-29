@@ -179,6 +179,111 @@ export async function getTorrentFiles(torrentId: string): Promise<TorrentFile[]>
 }
 
 /**
+ * File with codec metadata from joined tables
+ */
+export interface TorrentFileWithCodec extends TorrentFile {
+  video_codec?: string | null;
+  audio_codec?: string | null;
+  container?: string | null;
+  needs_transcoding?: boolean;
+}
+
+/**
+ * Get all files for a torrent with codec metadata
+ * Joins with video_metadata and audio_metadata tables to get codec info
+ * @param torrentId - The torrent ID
+ * @returns Array of torrent files with codec info
+ */
+export async function getTorrentFilesWithCodec(torrentId: string): Promise<TorrentFileWithCodec[]> {
+  const client = getServerClient();
+  
+  // First get all files
+  const { data: files, error: filesError } = await client
+    .from('torrent_files')
+    .select('*')
+    .eq('torrent_id', torrentId);
+
+  if (filesError) {
+    throw new Error(filesError.message);
+  }
+
+  if (!files || files.length === 0) {
+    return [];
+  }
+
+  // Get file IDs for video and audio files
+  const videoFileIds = files
+    .filter(f => f.media_category === 'video')
+    .map(f => f.id);
+  const audioFileIds = files
+    .filter(f => f.media_category === 'audio')
+    .map(f => f.id);
+
+  // Fetch video metadata
+  let videoMetadataMap = new Map<string, { codec: string | null; audio_codec: string | null; container: string | null; needs_transcoding: boolean }>();
+  if (videoFileIds.length > 0) {
+    const { data: videoMeta } = await client
+      .from('video_metadata')
+      .select('file_id, codec, audio_codec, container, needs_transcoding')
+      .in('file_id', videoFileIds);
+    
+    if (videoMeta) {
+      for (const vm of videoMeta) {
+        videoMetadataMap.set(vm.file_id, {
+          codec: vm.codec,
+          audio_codec: vm.audio_codec,
+          container: vm.container,
+          needs_transcoding: vm.needs_transcoding ?? false,
+        });
+      }
+    }
+  }
+
+  // Fetch audio metadata (audio files don't need transcoding check - browsers support most audio codecs)
+  let audioMetadataMap = new Map<string, { codec: string | null; container: string | null }>();
+  if (audioFileIds.length > 0) {
+    const { data: audioMeta } = await client
+      .from('audio_metadata')
+      .select('file_id, codec, container')
+      .in('file_id', audioFileIds);
+    
+    if (audioMeta) {
+      for (const am of audioMeta) {
+        audioMetadataMap.set(am.file_id, {
+          codec: am.codec,
+          container: am.container,
+        });
+      }
+    }
+  }
+
+  // Merge codec info into files
+  return files.map(file => {
+    const result: TorrentFileWithCodec = { ...file };
+    
+    if (file.media_category === 'video') {
+      const videoMeta = videoMetadataMap.get(file.id);
+      if (videoMeta) {
+        result.video_codec = videoMeta.codec;
+        result.audio_codec = videoMeta.audio_codec;
+        result.container = videoMeta.container;
+        result.needs_transcoding = videoMeta.needs_transcoding;
+      }
+    } else if (file.media_category === 'audio') {
+      const audioMeta = audioMetadataMap.get(file.id);
+      if (audioMeta) {
+        result.audio_codec = audioMeta.codec;
+        result.container = audioMeta.container;
+        // Audio files don't need transcoding - browsers support most audio codecs
+        result.needs_transcoding = false;
+      }
+    }
+    
+    return result;
+  });
+}
+
+/**
  * Create multiple torrent files
  * @param files - Array of file data to insert
  * @returns Array of created files
@@ -415,4 +520,102 @@ export async function searchFiles(options: SearchOptions): Promise<SearchResult[
   }
 
   return data ?? [];
+}
+
+/**
+ * Torrent search result type
+ */
+export interface TorrentSearchResult {
+  torrent_id: string;
+  torrent_name: string;
+  torrent_infohash: string;
+  torrent_total_size: number;
+  torrent_file_count: number;
+  torrent_seeders: number | null;
+  torrent_leechers: number | null;
+  torrent_created_at: string;
+  match_type: string;
+  rank: number;
+}
+
+/**
+ * Search options for torrent search
+ */
+export interface TorrentSearchOptions {
+  query: string;
+  mediaType?: MediaCategory | null;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Search torrents by name using ILIKE pattern matching
+ * This is a simpler approach that doesn't require RPC functions
+ * @param options - Search options
+ * @returns Array of torrent search results
+ */
+export async function searchTorrents(options: TorrentSearchOptions): Promise<TorrentSearchResult[]> {
+  const client = getServerClient();
+  
+  const { query, mediaType = null, limit = 50, offset = 0 } = options;
+
+  // Build the search pattern - split query into words and search for each
+  const searchPattern = `%${query.toLowerCase()}%`;
+
+  // Build the query
+  let queryBuilder = client
+    .from('torrents')
+    .select('id, name, infohash, total_size, file_count, seeders, leechers, created_at')
+    .ilike('name', searchPattern)
+    .order('seeders', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  const { data, error } = await queryBuilder;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  // If media type filter is specified, we need to filter by files
+  let results = data ?? [];
+  
+  if (mediaType && results.length > 0) {
+    // Get torrent IDs that have files of the specified media type
+    const torrentIds = results.map(t => t.id);
+    const { data: filesWithType } = await client
+      .from('torrent_files')
+      .select('torrent_id')
+      .in('torrent_id', torrentIds)
+      .eq('media_category', mediaType);
+    
+    if (filesWithType) {
+      const torrentIdsWithType = new Set(filesWithType.map(f => f.torrent_id));
+      results = results.filter(t => torrentIdsWithType.has(t.id));
+    }
+  }
+
+  // Transform to TorrentSearchResult format
+  return results.map(t => ({
+    torrent_id: t.id,
+    torrent_name: t.name,
+    torrent_infohash: t.infohash,
+    torrent_total_size: t.total_size,
+    torrent_file_count: t.file_count,
+    torrent_seeders: t.seeders,
+    torrent_leechers: t.leechers,
+    torrent_created_at: t.created_at,
+    match_type: 'torrent_name',
+    rank: 1.0, // Simple ranking - all matches are equal
+  }));
+}
+
+/**
+ * Search torrents by name only (simpler, faster)
+ * @param options - Search options
+ * @returns Array of torrent search results
+ */
+export async function searchTorrentsByName(options: TorrentSearchOptions): Promise<TorrentSearchResult[]> {
+  // This is the same as searchTorrents for now
+  return searchTorrents(options);
 }

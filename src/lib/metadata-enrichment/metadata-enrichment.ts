@@ -5,25 +5,22 @@
  * based on torrent name analysis.
  *
  * Supported sources:
- * - OMDb (movies)
- * - TheTVDB (TV shows)
+ * - OMDb (movies and TV shows) - provides IMDB IDs
+ * - Fanart.tv (posters via IMDB IDs for movies/TV, artist images for music)
  * - MusicBrainz (music)
- * - Fanart.tv (artist images for discographies)
  * - Open Library (books)
  */
 
 import {
   buildMusicBrainzUrl,
-  buildCoverArtArchiveUrl,
   buildOpenLibraryUrl,
   buildOMDbUrl,
-  buildTheTVDBUrl,
   parseMusicBrainzResponse,
-  parseCoverArtArchiveResponse,
   parseOpenLibraryResponse,
   parseOMDbResponse,
-  parseTheTVDBResponse,
   fetchArtistImage,
+  fetchAlbumCover,
+  fetchMoviePosterByImdb,
   type MusicBrainzSearchType,
 } from '@/lib/metadata';
 
@@ -31,7 +28,7 @@ import {
 // Types
 // ============================================================================
 
-export type ContentType = 'movie' | 'tvshow' | 'music' | 'book' | 'other';
+export type ContentType = 'movie' | 'tvshow' | 'music' | 'book' | 'xxx' | 'other';
 
 export interface SearchQuery {
   query: string;
@@ -39,10 +36,10 @@ export interface SearchQuery {
 }
 
 export interface EnrichmentOptions {
+  /** OMDb API key (used for both movies and TV shows) */
   omdbApiKey?: string;
-  thetvdbApiKey?: string;
   musicbrainzUserAgent?: string;
-  /** Fanart.tv API key for artist images */
+  /** Fanart.tv API key for posters (movies, TV shows) and artist images (music) */
   fanartTvApiKey?: string;
   /** Override the auto-detected content type (useful when content type is known from file analysis) */
   contentTypeOverride?: ContentType;
@@ -120,6 +117,19 @@ const CONTENT_PATTERNS = {
     // Author - Title pattern with book format
     /^[^-]+-[^-]+\s*\[(epub|mobi|pdf)\]/i,
   ],
+  xxx: [
+    // Common adult content indicators
+    /\b(xxx|porn|adult|nsfw)\b/i,
+    // 18+ pattern (escaped plus sign)
+    /\b18\+/i,
+    // Adult studio names (common patterns)
+    /\b(brazzers|bangbros|realitykings|naughtyamerica|pornhub|xvideos|xhamster)\b/i,
+    // Adult content categories
+    /\b(milf|teen|amateur|lesbian|gay|anal|hardcore|softcore|erotic)\b/i,
+    // Adult site rips
+    /\b(siterip|site\s*rip)\b.*\b(xxx|adult|porn)\b/i,
+    /\b(xxx|adult|porn)\b.*\b(siterip|site\s*rip)\b/i,
+  ],
 };
 
 /**
@@ -132,7 +142,14 @@ export function detectContentType(name: string): ContentType {
 
   const normalizedName = name.trim();
 
-  // Check TV show first (more specific patterns)
+  // Check XXX first (highest priority - adult content should be flagged immediately)
+  for (const pattern of CONTENT_PATTERNS.xxx) {
+    if (pattern.test(normalizedName)) {
+      return 'xxx';
+    }
+  }
+
+  // Check TV show (more specific patterns)
   for (const pattern of CONTENT_PATTERNS.tvshow) {
     if (pattern.test(normalizedName)) {
       return 'tvshow';
@@ -255,12 +272,14 @@ export function extractSearchQuery(name: string, contentType: ContentType): Sear
 // ============================================================================
 
 /**
- * Fetch movie metadata from OMDb
+ * Fetch movie metadata from OMDb, then try Fanart.tv for better poster
+ * Uses IMDB ID from OMDb to fetch high-quality posters from Fanart.tv
  */
 async function fetchMovieMetadata(
   query: string,
   year: number | undefined,
-  apiKey: string
+  apiKey: string,
+  fanartTvApiKey?: string
 ): Promise<Partial<EnrichmentResult>> {
   const url = buildOMDbUrl(query, apiKey, year, 'movie');
   
@@ -277,50 +296,70 @@ async function fetchMovieMetadata(
   }
 
   const movie = results[0];
-  return {
+  const result: Partial<EnrichmentResult> = {
     posterUrl: movie.posterUrl,
     externalId: movie.id,
     externalSource: 'omdb',
     year: movie.year,
     title: movie.title,
   };
+
+  // Try to get better poster from Fanart.tv using IMDB ID
+  // Fanart.tv provides higher quality posters than OMDb
+  if (fanartTvApiKey && movie.id) {
+    const fanartPoster = await fetchMoviePosterByImdb(movie.id, { fanartTvApiKey });
+    if (fanartPoster) {
+      result.posterUrl = fanartPoster;
+    }
+  }
+
+  return result;
 }
 
 /**
- * Fetch TV show metadata from TheTVDB
+ * Fetch TV show metadata from OMDb (type='series'), then try Fanart.tv for better poster
+ * Uses IMDB ID from OMDb to fetch high-quality posters from Fanart.tv
  */
 async function fetchTVShowMetadata(
   query: string,
-  apiKey: string
+  apiKey: string,
+  fanartTvApiKey?: string
 ): Promise<Partial<EnrichmentResult>> {
-  const url = buildTheTVDBUrl(query, 'series', 5);
+  // OMDb supports TV shows via type='series'
+  const url = buildOMDbUrl(query, apiKey, undefined, 'series');
   
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-    },
-  });
+  const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`TheTVDB API error: ${response.status}`);
+    throw new Error(`OMDb API error: ${response.status}`);
   }
 
   const data = await response.json();
-  const results = parseTheTVDBResponse(data);
+  const results = parseOMDbResponse(data);
 
   if (results.length === 0) {
     return {};
   }
 
   const show = results[0];
-  return {
-    posterUrl: show.imageUrl,
+  const result: Partial<EnrichmentResult> = {
+    posterUrl: show.posterUrl,
     externalId: show.id,
-    externalSource: 'thetvdb',
+    externalSource: 'omdb',
     year: show.year,
     title: show.title,
-    description: show.overview,
   };
+
+  // Try to get better poster from Fanart.tv using IMDB ID
+  // Fanart.tv supports TV shows via IMDB ID as well
+  if (fanartTvApiKey && show.id) {
+    const fanartPoster = await fetchMoviePosterByImdb(show.id, { fanartTvApiKey });
+    if (fanartPoster) {
+      result.posterUrl = fanartPoster;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -384,42 +423,9 @@ function extractArtistName(torrentName: string): string | undefined {
 }
 
 /**
- * Fetch cover art from Cover Art Archive
- */
-async function fetchCoverArt(
-  mbid: string,
-  type: 'release' | 'release-group',
-  userAgent: string
-): Promise<string | undefined> {
-  const url = buildCoverArtArchiveUrl(mbid, type);
-  
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': userAgent,
-      },
-    });
-
-    if (!response.ok) {
-      // 404 is common - no cover art available
-      if (response.status === 404) {
-        return undefined;
-      }
-      throw new Error(`Cover Art Archive API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return parseCoverArtArchiveResponse(data);
-  } catch {
-    // Cover art fetch is optional, don't fail the whole enrichment
-    return undefined;
-  }
-}
-
-/**
  * Fetch music metadata from MusicBrainz
- * Uses release-group search for discographies/albums to get better results and cover art
- * For discographies, also fetches artist image from Fanart.tv
+ * Uses release-group search for discographies/albums to get better results
+ * Fetches album covers and artist images from Fanart.tv
  */
 async function fetchMusicMetadata(
   query: string,
@@ -460,29 +466,33 @@ async function fetchMusicMetadata(
     artist: result.artist,
   };
 
-  // For release-groups, try to fetch cover art from Cover Art Archive
-  if (searchType === 'release-group') {
-    const coverUrl = await fetchCoverArt(result.id, 'release-group', userAgent);
-    if (coverUrl) {
-      enrichmentResult.coverUrl = coverUrl;
-    }
-  }
+  // Extract artist name for Fanart.tv lookups
+  const artistName = extractArtistName(torrentName) ?? result.artist;
 
   // For discographies, fetch artist image from Fanart.tv
   // This provides a band photo/artist image for the top-level torrent
-  if (isDiscography(torrentName) && fanartTvApiKey) {
-    const artistName = extractArtistName(torrentName) ?? result.artist;
-    if (artistName) {
-      const artistImageUrl = await fetchArtistImage(artistName, {
-        fanartTvApiKey,
-        userAgent,
-      });
-      if (artistImageUrl) {
-        enrichmentResult.artistImageUrl = artistImageUrl;
-        // For discographies, use artist image as the poster (top-level image)
-        // since there's no single album cover that represents the whole collection
-        enrichmentResult.posterUrl = artistImageUrl;
-      }
+  if (isDiscography(torrentName) && fanartTvApiKey && artistName) {
+    const artistImageUrl = await fetchArtistImage(artistName, {
+      fanartTvApiKey,
+      userAgent,
+    });
+    if (artistImageUrl) {
+      enrichmentResult.artistImageUrl = artistImageUrl;
+      // For discographies, use artist image as the poster (top-level image)
+      // since there's no single album cover that represents the whole collection
+      enrichmentResult.posterUrl = artistImageUrl;
+    }
+  }
+
+  // For single albums (release-groups), fetch album cover from Fanart.tv
+  if (searchType === 'release-group' && !isDiscography(torrentName) && fanartTvApiKey && artistName) {
+    // Pass the MusicBrainz release-group ID to get the specific album cover
+    const coverUrl = await fetchAlbumCover(artistName, {
+      fanartTvApiKey,
+      userAgent,
+    }, result.id);
+    if (coverUrl) {
+      enrichmentResult.coverUrl = coverUrl;
     }
   }
 
@@ -530,8 +540,9 @@ export async function enrichTorrentMetadata(
   const contentType = options.contentTypeOverride ?? detectContentType(torrentName);
   const result: EnrichmentResult = { contentType };
 
-  // Skip enrichment for 'other' content type
-  if (contentType === 'other') {
+  // Skip enrichment for 'other' and 'xxx' content types
+  // XXX content doesn't get external metadata enrichment
+  if (contentType === 'other' || contentType === 'xxx') {
     return result;
   }
 
@@ -545,17 +556,18 @@ export async function enrichTorrentMetadata(
           result.error = 'OMDb API key not configured';
           return result;
         }
-        const movieData = await fetchMovieMetadata(query, year, options.omdbApiKey);
+        const movieData = await fetchMovieMetadata(query, year, options.omdbApiKey, options.fanartTvApiKey);
         Object.assign(result, movieData);
         break;
       }
 
       case 'tvshow': {
-        if (!options.thetvdbApiKey) {
-          result.error = 'TheTVDB API key not configured';
+        // TV shows also use OMDb (type='series') - no separate TheTVDB key needed
+        if (!options.omdbApiKey) {
+          result.error = 'OMDb API key not configured';
           return result;
         }
-        const tvData = await fetchTVShowMetadata(query, options.thetvdbApiKey);
+        const tvData = await fetchTVShowMetadata(query, options.omdbApiKey, options.fanartTvApiKey);
         Object.assign(result, tvData);
         break;
       }

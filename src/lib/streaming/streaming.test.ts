@@ -2568,6 +2568,284 @@ describe('StreamingService', () => {
   });
 });
 
+describe('Torrent auto-cleanup (DMCA protection)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTorrents = [];
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should track active watchers when registerWatcher is called', () => {
+    const service = new StreamingService();
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register a watcher
+    const watcherId = service.registerWatcher(infohash);
+    expect(watcherId).toBeDefined();
+    expect(typeof watcherId).toBe('string');
+
+    // Should have 1 active watcher
+    expect(service.getActiveWatcherCount(infohash)).toBe(1);
+  });
+
+  it('should increment watcher count for multiple watchers on same torrent', () => {
+    const service = new StreamingService();
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register multiple watchers
+    const watcher1 = service.registerWatcher(infohash);
+    const watcher2 = service.registerWatcher(infohash);
+    const watcher3 = service.registerWatcher(infohash);
+
+    // Should have 3 active watchers
+    expect(service.getActiveWatcherCount(infohash)).toBe(3);
+
+    // Each watcher should have unique ID
+    expect(watcher1).not.toBe(watcher2);
+    expect(watcher2).not.toBe(watcher3);
+  });
+
+  it('should decrement watcher count when unregisterWatcher is called', () => {
+    const service = new StreamingService();
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register watchers
+    const watcher1 = service.registerWatcher(infohash);
+    const watcher2 = service.registerWatcher(infohash);
+    expect(service.getActiveWatcherCount(infohash)).toBe(2);
+
+    // Unregister one watcher
+    service.unregisterWatcher(infohash, watcher1);
+    expect(service.getActiveWatcherCount(infohash)).toBe(1);
+
+    // Unregister second watcher
+    service.unregisterWatcher(infohash, watcher2);
+    expect(service.getActiveWatcherCount(infohash)).toBe(0);
+  });
+
+  it('should schedule torrent removal when last watcher disconnects', () => {
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 5000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister watcher
+    const watcherId = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcherId);
+
+    // Torrent should still exist (grace period not elapsed)
+    expect(mockRemove).not.toHaveBeenCalled();
+
+    // Advance time past cleanup delay
+    vi.advanceTimersByTime(5001);
+
+    // Torrent should be removed
+    expect(mockRemove).toHaveBeenCalledWith(infohash, expect.any(Function));
+  });
+
+  it('should cancel scheduled removal if new watcher connects during grace period', () => {
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 5000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister first watcher
+    const watcher1 = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcher1);
+
+    // Advance time partially (within grace period)
+    vi.advanceTimersByTime(3000);
+
+    // New watcher connects
+    const watcher2 = service.registerWatcher(infohash);
+    expect(service.getActiveWatcherCount(infohash)).toBe(1);
+
+    // Advance time past original cleanup time
+    vi.advanceTimersByTime(3000);
+
+    // Torrent should NOT be removed (new watcher is active)
+    expect(mockRemove).not.toHaveBeenCalled();
+
+    // Unregister second watcher
+    service.unregisterWatcher(infohash, watcher2);
+
+    // Advance time past new cleanup delay
+    vi.advanceTimersByTime(5001);
+
+    // Now torrent should be removed
+    expect(mockRemove).toHaveBeenCalledWith(infohash, expect.any(Function));
+  });
+
+  it('should not remove torrent if watchers remain after one disconnects', () => {
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 5000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register two watchers
+    const watcher1 = service.registerWatcher(infohash);
+    const watcher2 = service.registerWatcher(infohash);
+
+    // Unregister one watcher
+    service.unregisterWatcher(infohash, watcher1);
+
+    // Advance time past cleanup delay
+    vi.advanceTimersByTime(10000);
+
+    // Torrent should NOT be removed (watcher2 still active)
+    expect(mockRemove).not.toHaveBeenCalled();
+    expect(service.getActiveWatcherCount(infohash)).toBe(1);
+  });
+
+  it('should return 0 for watcher count on unknown infohash', () => {
+    const service = new StreamingService();
+    expect(service.getActiveWatcherCount('unknown')).toBe(0);
+  });
+
+  it('should handle unregister for unknown watcher gracefully', () => {
+    const service = new StreamingService();
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register a watcher
+    service.registerWatcher(infohash);
+
+    // Unregister unknown watcher - should not throw
+    expect(() => {
+      service.unregisterWatcher(infohash, 'unknown-watcher-id');
+    }).not.toThrow();
+
+    // Original watcher should still be counted
+    expect(service.getActiveWatcherCount(infohash)).toBe(1);
+  });
+
+  it('should handle unregister for unknown infohash gracefully', () => {
+    const service = new StreamingService();
+
+    // Unregister from unknown infohash - should not throw
+    expect(() => {
+      service.unregisterWatcher('unknown-infohash', 'unknown-watcher-id');
+    }).not.toThrow();
+  });
+
+  it('should use default cleanup delay of 30 seconds', () => {
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService(); // No custom delay
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister watcher
+    const watcherId = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcherId);
+
+    // Advance time to 29 seconds - should not remove
+    vi.advanceTimersByTime(29000);
+    expect(mockRemove).not.toHaveBeenCalled();
+
+    // Advance time to 31 seconds - should remove
+    vi.advanceTimersByTime(2000);
+    expect(mockRemove).toHaveBeenCalledWith(infohash, expect.any(Function));
+  });
+
+  it('should clear all cleanup timers on destroy', async () => {
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 5000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister watcher (schedules cleanup)
+    const watcherId = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcherId);
+
+    // Destroy service before cleanup timer fires
+    await service.destroy();
+
+    // Advance time past cleanup delay
+    vi.advanceTimersByTime(10000);
+
+    // mockRemove should only be called once by destroy(), not by the cleanup timer
+    // The destroy() method calls client.destroy() which handles torrent cleanup
+    expect(mockDestroy).toHaveBeenCalled();
+  });
+
+  it('should track watchers independently for different torrents', () => {
+    const service = new StreamingService();
+    const infohash1 = '1234567890abcdef1234567890abcdef12345678';
+    const infohash2 = 'abcdef1234567890abcdef1234567890abcdef12';
+
+    // Register watchers for different torrents
+    service.registerWatcher(infohash1);
+    service.registerWatcher(infohash1);
+    service.registerWatcher(infohash2);
+
+    expect(service.getActiveWatcherCount(infohash1)).toBe(2);
+    expect(service.getActiveWatcherCount(infohash2)).toBe(1);
+  });
+});
+
 describe('getStreamingService singleton', () => {
   it('should return a StreamingService instance', () => {
     const service = getStreamingService();

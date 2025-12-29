@@ -6,47 +6,112 @@
  */
 
 import { MainLayout } from '@/components/layout';
-import { MusicIcon, VideoIcon, BookIcon, MagnetIcon, SearchIcon, TvIcon } from '@/components/ui/icons';
+import { MusicIcon, VideoIcon, BookIcon, MagnetIcon, SearchIcon, TvIcon, HeartIcon } from '@/components/ui/icons';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
+import { cookies } from 'next/headers';
+
+/**
+ * Check if user has an active paid subscription (premium or family)
+ * Returns false if not logged in or on trial
+ */
+async function hasActivePaidSubscription(): Promise<boolean> {
+  try {
+    const supabase = createServerClient();
+    
+    // Get the current user from the session
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return false;
+    }
+    
+    // Check subscription status
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('tier, status, subscription_expires_at')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (!subscription) {
+      return false;
+    }
+    
+    // Only premium and family tiers with active status can see XXX
+    if (subscription.tier !== 'premium' && subscription.tier !== 'family') {
+      return false;
+    }
+    
+    if (subscription.status !== 'active') {
+      return false;
+    }
+    
+    // Check if subscription hasn't expired
+    if (subscription.subscription_expires_at) {
+      const expiresAt = new Date(subscription.subscription_expires_at);
+      if (expiresAt < new Date()) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Fetch category counts from the database
  */
-async function getCategoryCounts(): Promise<{
+async function getCategoryCounts(includexxx: boolean): Promise<{
   movies: number;
   tvshows: number;
   music: number;
   books: number;
+  xxx: number;
   total: number;
 }> {
   try {
     const supabase = createServerClient();
     
     // Fetch counts for each content type
-    const [moviesResult, tvshowsResult, musicResult, booksResult, totalResult] = await Promise.all([
+    const queries = [
       supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'movie'),
       supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'tvshow'),
       supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'music'),
       supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'book'),
       supabase.from('torrents').select('id', { count: 'exact', head: true }),
-    ]);
+    ];
+    
+    // Only fetch XXX count if user has access
+    if (includexxx) {
+      queries.push(
+        supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'xxx')
+      );
+    }
+    
+    const results = await Promise.all(queries);
+    const [moviesResult, tvshowsResult, musicResult, booksResult, totalResult] = results;
+    const xxxResult = includexxx ? results[5] : null;
 
     return {
       movies: moviesResult.count ?? 0,
       tvshows: tvshowsResult.count ?? 0,
       music: musicResult.count ?? 0,
       books: booksResult.count ?? 0,
+      xxx: xxxResult?.count ?? 0,
       total: totalResult.count ?? 0,
     };
   } catch (error) {
     console.error('Failed to fetch category counts:', error);
-    return { movies: 0, tvshows: 0, music: 0, books: 0, total: 0 };
+    return { movies: 0, tvshows: 0, music: 0, books: 0, xxx: 0, total: 0 };
   }
 }
 
 export default async function HomePage(): Promise<React.ReactElement> {
-  const counts = await getCategoryCounts();
+  // Check if user has paid subscription for XXX access
+  const canAccessXxx = await hasActivePaidSubscription();
+  const counts = await getCategoryCounts(canAccessXxx);
   
   return (
     <MainLayout>
@@ -96,7 +161,7 @@ export default async function HomePage(): Promise<React.ReactElement> {
         {/* Media Categories */}
         <section>
           <h2 className="mb-4 text-xl font-semibold text-text-primary">Browse by Category</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <CategoryCard
               href="/movies"
               icon={VideoIcon}
@@ -132,6 +197,16 @@ export default async function HomePage(): Promise<React.ReactElement> {
               count={0}
               color="accent-primary"
             />
+            {/* XXX category - only visible to paid subscribers */}
+            {canAccessXxx && (
+              <CategoryCard
+                href="/xxx"
+                icon={HeartIcon}
+                title="XXX"
+                count={counts.xxx}
+                color="accent-primary"
+              />
+            )}
           </div>
         </section>
 

@@ -185,8 +185,9 @@ describe('enrichAlbumFolder', () => {
       year: 1986,
     };
 
-    // Mock fetch for MusicBrainz and Cover Art Archive
+    // Mock fetch for MusicBrainz and Fanart.tv
     const mockFetch = vi.fn()
+      // First call: MusicBrainz release-group search
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -194,19 +195,24 @@ describe('enrichAlbumFolder', () => {
             id: 'test-mbid-123',
             title: 'Master of Puppets',
             'first-release-date': '1986-03-03',
-            'artist-credit': [{ name: 'Metallica' }],
+            'artist-credit': [{
+              name: 'Metallica',
+              artist: { id: 'artist-mbid-456', name: 'Metallica' }
+            }],
           }],
         }),
       })
+      // Second call: Fanart.tv artist lookup
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          images: [{
-            front: true,
-            thumbnails: {
-              '500': 'https://coverartarchive.org/release-group/test-mbid-123/front-500.jpg',
+          albums: {
+            'test-mbid-123': {
+              albumcover: [{
+                url: 'https://assets.fanart.tv/fanart/music/artist-mbid-456/albumcover/test-mbid-123.jpg',
+              }],
             },
-          }],
+          },
         }),
       });
 
@@ -214,9 +220,10 @@ describe('enrichAlbumFolder', () => {
 
     const result = await enrichAlbumFolder(folder, {
       musicbrainzUserAgent: 'TestApp/1.0',
+      fanartTvApiKey: 'test-fanart-key',
     });
 
-    expect(result.coverUrl).toBe('https://coverartarchive.org/release-group/test-mbid-123/front-500.jpg');
+    expect(result.coverUrl).toBe('https://assets.fanart.tv/fanart/music/artist-mbid-456/albumcover/test-mbid-123.jpg');
     expect(result.externalId).toBe('test-mbid-123');
     expect(result.externalSource).toBe('musicbrainz');
   });
@@ -275,6 +282,7 @@ describe('enrichAlbumFolder', () => {
     };
 
     const mockFetch = vi.fn()
+      // First call: MusicBrainz release-group search
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -282,19 +290,24 @@ describe('enrichAlbumFolder', () => {
             id: 'black-album-mbid',
             title: 'Metallica',
             'first-release-date': '1991-08-12',
-            'artist-credit': [{ name: 'Metallica' }],
+            'artist-credit': [{
+              name: 'Metallica',
+              artist: { id: 'metallica-artist-mbid', name: 'Metallica' }
+            }],
           }],
         }),
       })
+      // Second call: Fanart.tv artist lookup
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          images: [{
-            front: true,
-            thumbnails: {
-              '500': 'https://coverartarchive.org/release-group/black-album-mbid/front-500.jpg',
+          albums: {
+            'black-album-mbid': {
+              albumcover: [{
+                url: 'https://assets.fanart.tv/fanart/music/metallica-artist-mbid/albumcover/black-album-mbid.jpg',
+              }],
             },
-          }],
+          },
         }),
       });
 
@@ -302,6 +315,7 @@ describe('enrichAlbumFolder', () => {
 
     const result = await enrichAlbumFolder(folder, {
       musicbrainzUserAgent: 'TestApp/1.0',
+      fanartTvApiKey: 'test-fanart-key',
     });
 
     // Verify the search query included the year

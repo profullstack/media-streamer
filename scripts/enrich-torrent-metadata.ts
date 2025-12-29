@@ -19,9 +19,8 @@
  * Required environment variables:
  *   - SUPABASE_URL: Your Supabase project URL
  *   - SUPABASE_SERVICE_ROLE_KEY: Service role key for authentication
- *   - OMDB_API_KEY: (optional) OMDb API key for movie metadata
- *   - THETVDB_API_KEY: (optional) TheTVDB API key for TV show metadata
- *   - FANART_TV_API_KEY: (optional) Fanart.tv API key for artist images
+ *   - OMDB_API_KEY: (optional) OMDb API key for movie and TV show metadata
+ *   - FANART_TV_API_KEY: (optional) Fanart.tv API key for high-quality posters and artist images
  *
  * Note: MusicBrainz and Open Library don't require API keys.
  */
@@ -100,8 +99,7 @@ const MUSICBRAINZ_USER_AGENT = 'BitTorrented/1.0.0 (https://bittorrented.com)';
 
 // Rate limiting delays (in ms) to respect API limits
 const RATE_LIMITS: Record<string, number> = {
-  omdb: 100, // OMDb: 1000 requests/day for free tier
-  thetvdb: 100, // TheTVDB: varies by plan
+  omdb: 100, // OMDb: 1000 requests/day for free tier (used for movies AND TV shows)
   musicbrainz: 1100, // MusicBrainz: 1 request/second
   openlibrary: 100, // Open Library: no strict limit but be nice
 };
@@ -169,9 +167,9 @@ function getSupabaseClient(): SupabaseClient<Database> {
 function getRateLimitDelay(contentType: ContentType): number {
   switch (contentType) {
     case 'movie':
-      return RATE_LIMITS.omdb;
     case 'tvshow':
-      return RATE_LIMITS.thetvdb;
+      // Both movies and TV shows use OMDb
+      return RATE_LIMITS.omdb;
     case 'music':
       return RATE_LIMITS.musicbrainz;
     case 'book':
@@ -416,17 +414,11 @@ async function processTorrent(
 
   // Check if we have the required API keys
   const omdbApiKey = process.env.OMDB_API_KEY;
-  const thetvdbApiKey = process.env.THETVDB_API_KEY;
   const fanartTvApiKey = process.env.FANART_TV_API_KEY;
 
-  if (contentType === 'movie' && !omdbApiKey) {
+  // Both movies and TV shows use OMDb
+  if ((contentType === 'movie' || contentType === 'tvshow') && !omdbApiKey) {
     console.log(`  ⏭️  Skipping: OMDB_API_KEY not configured`);
-    stats.skipped++;
-    return;
-  }
-
-  if (contentType === 'tvshow' && !thetvdbApiKey) {
-    console.log(`  ⏭️  Skipping: THETVDB_API_KEY not configured`);
     stats.skipped++;
     return;
   }
@@ -437,7 +429,6 @@ async function processTorrent(
     
     const result = await enrichTorrentMetadata(torrent.name, {
       omdbApiKey,
-      thetvdbApiKey,
       fanartTvApiKey,
       musicbrainzUserAgent: MUSICBRAINZ_USER_AGENT,
       // Pass the file-detected content type as override
@@ -475,8 +466,8 @@ async function processTorrent(
     console.log(`  ✓ Found metadata:`);
     if (result.title) console.log(`    Title: ${result.title}`);
     if (result.year) console.log(`    Year: ${result.year}`);
-    if (result.posterUrl) console.log(`    Poster: ${result.posterUrl.substring(0, 50)}...`);
-    if (result.coverUrl) console.log(`    Cover: ${result.coverUrl.substring(0, 50)}...`);
+    if (result.posterUrl) console.log(`    Poster: ${result.posterUrl}`);
+    if (result.coverUrl) console.log(`    Cover: ${result.coverUrl}`);
     if (result.externalSource) console.log(`    Source: ${result.externalSource}`);
 
     // Update the database
@@ -530,9 +521,8 @@ async function main(): Promise<void> {
 
   // Check for API keys
   console.log('🔑 API Keys:');
-  console.log(`  OMDB_API_KEY: ${process.env.OMDB_API_KEY ? '✓ configured' : '✗ not set'}`);
-  console.log(`  THETVDB_API_KEY: ${process.env.THETVDB_API_KEY ? '✓ configured' : '✗ not set'}`);
-  console.log(`  FANART_TV_API_KEY: ${process.env.FANART_TV_API_KEY ? '✓ configured' : '✗ not set (artist images disabled)'}`);
+  console.log(`  OMDB_API_KEY: ${process.env.OMDB_API_KEY ? '✓ configured (movies + TV shows)' : '✗ not set'}`);
+  console.log(`  FANART_TV_API_KEY: ${process.env.FANART_TV_API_KEY ? '✓ configured (high-quality posters)' : '✗ not set (using OMDb posters)'}`);
   console.log(`  MusicBrainz: ✓ no key required`);
   console.log(`  Open Library: ✓ no key required`);
 

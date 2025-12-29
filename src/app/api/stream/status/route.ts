@@ -9,6 +9,13 @@
  * When persistent=true, the stream continues after the torrent is ready,
  * allowing the client to monitor ongoing health stats (peers, speeds, progress).
  * In persistent mode, the poll interval slows down to 2 seconds after ready.
+ *
+ * DMCA Protection:
+ * This endpoint registers a "watcher" when the SSE connection opens and
+ * unregisters it when the connection closes. When the last watcher disconnects,
+ * the torrent is automatically removed from the WebTorrent client after a
+ * 30-second grace period. This prevents the server from staying connected
+ * to the BitTorrent swarm indefinitely after users stop watching.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -186,11 +193,17 @@ export async function GET(request: NextRequest): Promise<Response> {
   let isStreamClosed = false;
   let hasReachedReady = false;
   let torrentAddInitiated = false;
+  let watcherId: string | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
       // Use singleton to share WebTorrent client with stream endpoint
       const streamingService = getStreamingService();
+
+      // Register this SSE connection as a watcher for DMCA protection
+      // When the last watcher disconnects, the torrent will be removed after a grace period
+      watcherId = streamingService.registerWatcher(infohash);
+      console.log(`[SSE] Watcher registered for ${infohash}: ${watcherId}`);
 
       // Add torrent to WebTorrent client if not already added
       // This ensures the torrent starts downloading when the status endpoint is called
@@ -291,6 +304,15 @@ export async function GET(request: NextRequest): Promise<Response> {
       if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
+      }
+      
+      // Unregister watcher for DMCA protection
+      // This triggers cleanup timer if this was the last watcher
+      if (watcherId) {
+        const streamingService = getStreamingService();
+        streamingService.unregisterWatcher(infohash, watcherId);
+        console.log(`[SSE] Watcher unregistered for ${infohash}: ${watcherId}`);
+        watcherId = null;
       }
     },
   });

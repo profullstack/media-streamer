@@ -43,7 +43,7 @@ const MUSICBRAINZ_USER_AGENT = 'BitTorrented/1.0.0 (https://bittorrented.com)';
  * POST /api/torrents/[id]/enrich
  *
  * Trigger metadata enrichment for a specific torrent.
- * Fetches metadata from external APIs (MusicBrainz, OMDb, TheTVDB, Open Library)
+ * Fetches metadata from external APIs (MusicBrainz, OMDb, Fanart.tv, Open Library)
  * and updates the torrent record in the database.
  */
 export async function POST(
@@ -81,13 +81,11 @@ export async function POST(
 
   // Get API keys from environment
   const omdbApiKey = process.env.OMDB_API_KEY;
-  const thetvdbApiKey = process.env.THETVDB_API_KEY;
   const fanartTvApiKey = process.env.FANART_TV_API_KEY;
 
   // Enrich metadata
   const enrichment = await enrichTorrentMetadata(torrent.name, {
     omdbApiKey,
-    thetvdbApiKey,
     fanartTvApiKey,
     musicbrainzUserAgent: MUSICBRAINZ_USER_AGENT,
   });

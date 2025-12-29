@@ -17,13 +17,13 @@ const logger = createLogger('API:browse');
 /**
  * Valid content types for browsing
  */
-const VALID_CONTENT_TYPES = ['movie', 'tvshow', 'music', 'book'] as const;
+const VALID_CONTENT_TYPES = ['movie', 'tvshow', 'music', 'book', 'xxx'] as const;
 type ContentType = typeof VALID_CONTENT_TYPES[number];
 
 /**
  * Valid sort fields
  */
-const VALID_SORT_BY = ['date', 'seeders', 'name', 'size'] as const;
+const VALID_SORT_BY = ['date', 'seeders', 'leechers', 'size', 'name'] as const;
 type SortBy = typeof VALID_SORT_BY[number];
 
 /**
@@ -38,8 +38,9 @@ type SortOrder = typeof VALID_SORT_ORDER[number];
 const SORT_COLUMN_MAP: Record<SortBy, string> = {
   date: 'created_at',
   seeders: 'seeders',
-  name: 'name',
+  leechers: 'leechers',
   size: 'total_size',
+  name: 'name',
 };
 
 /**
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const supabase = getServerClient();
 
     // Build query - cast contentType to the proper database type
-    const dbContentType = contentType as 'movie' | 'tvshow' | 'music' | 'book' | 'other';
+    const dbContentType = contentType as 'movie' | 'tvshow' | 'music' | 'book' | 'xxx' | 'other';
     let query = supabase
       .from('torrents')
       .select('*', { count: 'exact' })

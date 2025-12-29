@@ -34,8 +34,9 @@ let streamingServiceInstance: StreamingService | null = null;
 export function getStreamingService(): StreamingService {
   if (!streamingServiceInstance) {
     streamingServiceInstance = new StreamingService({
-      maxConcurrentStreams: 10,
+      maxConcurrentStreams: 50, // Increased from 10 to handle multiple users and playlist playback
       streamTimeout: 90000, // 90 seconds for audio/video to connect to peers
+      torrentCleanupDelay: 30000, // 30 seconds grace period before removing torrent after last watcher disconnects
     });
   }
   return streamingServiceInstance;
