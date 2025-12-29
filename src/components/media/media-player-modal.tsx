@@ -667,6 +667,7 @@ export function MediaPlayerModal({
                 </div>
               </button> : null}
             <VideoPlayer
+              key={`video-${retryCount}-${isTranscoding ? 'transcode' : 'native'}`}
               src={streamUrl}
               filename={file.name}
               onReady={handlePlayerReady}
@@ -704,6 +705,7 @@ export function MediaPlayerModal({
                 </div>
               </button> : null}
             <AudioPlayer
+              key={`audio-${retryCount}-${isTranscoding ? 'transcode' : 'native'}`}
               src={streamUrl}
               filename={file.name}
               title={displayTitle}
