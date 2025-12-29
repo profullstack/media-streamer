@@ -36,6 +36,23 @@ function isConnectionError(error: unknown): boolean {
 }
 
 /**
+ * Valid sort fields
+ */
+const VALID_SORT_BY = ['date', 'seeders', 'leechers', 'size', 'name'] as const;
+type SortBy = typeof VALID_SORT_BY[number];
+
+/**
+ * Map sortBy parameter to database column
+ */
+const SORT_COLUMN_MAP: Record<SortBy, string> = {
+  date: 'created_at',
+  seeders: 'seeders',
+  leechers: 'leechers',
+  size: 'total_size',
+  name: 'name',
+};
+
+/**
  * GET /api/torrents
  *
  * List all torrents with pagination.
@@ -44,10 +61,13 @@ function isConnectionError(error: unknown): boolean {
  * Query parameters:
  * - limit: number (optional, default 50, max 100)
  * - offset: number (optional, default 0)
+ * - page: number (optional) - Alternative to offset (page * limit)
  * - status: string (optional) - Filter by status
+ * - sortBy: string (optional) - date, seeders, leechers, size, name (default: date)
+ * - sortOrder: string (optional) - asc, desc (default: desc)
  *
  * Response:
- * - 200: List of torrents
+ * - 200: List of torrents with pagination info
  * - 500: Server error
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -58,12 +78,33 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   
   const limitParam = searchParams.get('limit');
   const offsetParam = searchParams.get('offset');
+  const pageParam = searchParams.get('page');
   const status = searchParams.get('status');
+  const sortByParam = searchParams.get('sortBy');
+  const sortOrderParam = searchParams.get('sortOrder');
 
   const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 50, 100);
-  const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+  
+  // Support both offset and page-based pagination
+  let offset: number;
+  if (offsetParam) {
+    offset = parseInt(offsetParam, 10);
+  } else if (pageParam) {
+    const page = parseInt(pageParam, 10);
+    offset = (page - 1) * limit;
+  } else {
+    offset = 0;
+  }
 
-  reqLogger.info('GET /api/torrents', { limit, offset, status });
+  // Validate and set sort options
+  const sortBy: SortBy = sortByParam && VALID_SORT_BY.includes(sortByParam as SortBy)
+    ? sortByParam as SortBy
+    : 'date';
+  const sortOrder = sortOrderParam === 'asc' ? 'asc' : 'desc';
+  const sortColumn = SORT_COLUMN_MAP[sortBy];
+  const ascending = sortOrder === 'asc';
+
+  reqLogger.info('GET /api/torrents', { limit, offset, status, sortBy, sortOrder });
 
   try {
     const supabase = getServerClient();
@@ -71,7 +112,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let query = supabase
       .from('torrents')
       .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .order(sortColumn, { ascending, nullsFirst: false })
       .range(offset, offset + limit - 1);
 
     const validStatuses = ['pending', 'indexing', 'ready', 'error'] as const;
