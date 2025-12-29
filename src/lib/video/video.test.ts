@@ -220,6 +220,39 @@ describe('Video Player Utilities', () => {
       expect(source.requiresTranscoding).toBe(false);
       expect(source.playbackType).toBe('video/webm'); // Same as original
     });
+
+    it('should detect transcode=auto URL parameter and mark as requiring transcoding', () => {
+      // MP4 normally doesn't require transcoding, but with transcode=auto it should
+      const source = createVideoSource('/api/stream?infohash=abc&fileIndex=0&transcode=auto', 'video.mp4');
+      expect(source.requiresTranscoding).toBe(true);
+      expect(source.playbackType).toBe('video/mp4'); // Transcoded output is MP4
+      expect(source.format).toBe('mp4'); // Original format is still MP4
+    });
+
+    it('should detect transcode=auto with other query params', () => {
+      const source = createVideoSource('/api/stream?infohash=abc&transcode=auto&fileIndex=0', 'movie.mp4');
+      expect(source.requiresTranscoding).toBe(true);
+    });
+
+    it('should not detect transcoding when transcode param has different value', () => {
+      const source = createVideoSource('/api/stream?infohash=abc&transcode=false', 'video.mp4');
+      expect(source.requiresTranscoding).toBe(false);
+    });
+
+    it('should not detect transcoding when transcode param is missing', () => {
+      const source = createVideoSource('/api/stream?infohash=abc&fileIndex=0', 'video.mp4');
+      expect(source.requiresTranscoding).toBe(false);
+    });
+
+    it('should handle transcode=auto at end of URL', () => {
+      const source = createVideoSource('/api/stream?infohash=abc&transcode=auto', 'video.mp4');
+      expect(source.requiresTranscoding).toBe(true);
+    });
+
+    it('should handle transcode=auto with retry parameter', () => {
+      const source = createVideoSource('/api/stream?infohash=abc&fileIndex=0&transcode=auto&_retry=1', 'video.mp4');
+      expect(source.requiresTranscoding).toBe(true);
+    });
   });
 
   describe('getDefaultPlayerOptions', () => {

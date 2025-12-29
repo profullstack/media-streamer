@@ -186,6 +186,21 @@ export function getVideoMimeType(format: VideoFormat): string {
 }
 
 /**
+ * Check if a URL has transcoding enabled via query parameter
+ * @param url - Source URL to check
+ * @returns True if transcode=auto is in the URL
+ */
+function hasTranscodeParam(url: string): boolean {
+  try {
+    const urlObj = new URL(url, 'http://localhost');
+    return urlObj.searchParams.get('transcode') === 'auto';
+  } catch {
+    // If URL parsing fails, check with regex
+    return /[?&]transcode=auto(&|$)/.test(url);
+  }
+}
+
+/**
  * Create a video source configuration
  * @param src - Source URL
  * @param filename - Original filename for format detection
@@ -194,7 +209,12 @@ export function getVideoMimeType(format: VideoFormat): string {
 export function createVideoSource(src: string, filename: string): VideoSource {
   const format = detectVideoFormat(filename);
   const type = getVideoMimeType(format);
-  const requiresTranscoding = !isSupportedVideoFormat(format);
+  
+  // Check if transcoding is required based on format OR if explicitly requested via URL
+  // The URL parameter is used when we detect codec errors at runtime and retry with transcoding
+  const formatRequiresTranscoding = !isSupportedVideoFormat(format);
+  const urlRequestsTranscoding = hasTranscodeParam(src);
+  const requiresTranscoding = formatRequiresTranscoding || urlRequestsTranscoding;
   
   // When transcoding is required, the server outputs MP4
   // The player needs to know the actual playback MIME type

@@ -574,14 +574,23 @@ export async function GET(request: NextRequest): Promise<Response> {
       elapsed: `${streamInfoElapsed}ms`,
     });
 
-    // Check if transcoding is requested and needed
-    const shouldTranscode = transcode === 'auto' && needsTranscoding(info.fileName);
+    // Check if transcoding is requested
+    // When transcode=auto is explicitly requested, ALWAYS transcode regardless of file extension
+    // This handles cases where:
+    // 1. The file extension requires transcoding (e.g., .mkv, .avi)
+    // 2. The file extension is "supported" (e.g., .mp4) but the codec isn't (e.g., HEVC/H.265)
+    // The client only sets transcode=auto when it encounters a playback error (codec not supported)
+    const formatNeedsTranscoding = needsTranscoding(info.fileName);
+    const shouldTranscode = transcode === 'auto';
     
     reqLogger.info('Transcoding decision', {
       transcode,
       fileName: info.fileName,
-      needsTranscoding: needsTranscoding(info.fileName),
+      formatNeedsTranscoding,
       shouldTranscode,
+      reason: shouldTranscode
+        ? 'Client requested transcoding (codec error detected)'
+        : 'No transcoding requested',
     });
     
     if (shouldTranscode) {
