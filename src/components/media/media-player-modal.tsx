@@ -203,6 +203,8 @@ export function MediaPlayerModal({
   const [hasTriedTranscoding, setHasTriedTranscoding] = useState(false);
   /** Track if we're retrying with transcoding after a codec error */
   const [isRetryingWithTranscode, setIsRetryingWithTranscode] = useState(false);
+  /** Counter to force player reload on retry */
+  const [retryCount, setRetryCount] = useState(0);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -257,15 +259,20 @@ export function MediaPlayerModal({
   // Build stream URL when file changes
   // Add transcode=auto parameter for files that need transcoding
   // Also handles retry with transcoding after codec errors
+  // retryCount is included to force URL rebuild on manual retry
   useEffect(() => {
     if (file && infohash) {
       // Force transcoding if we're retrying after a codec error, or if the format requires it
       const requiresTranscoding = isRetryingWithTranscode || needsTranscoding(file.name);
       setIsTranscoding(requiresTranscoding);
 
+      // Add cache-busting parameter on retry to ensure fresh request
       let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
       if (requiresTranscoding) {
         url += '&transcode=auto';
+      }
+      if (retryCount > 0) {
+        url += `&_retry=${retryCount}`;
       }
 
       console.log('[MediaPlayerModal] Building stream URL:', {
@@ -274,21 +281,20 @@ export function MediaPlayerModal({
         fileName: file.name,
         requiresTranscoding,
         isRetryingWithTranscode,
+        retryCount,
         url,
       });
 
       setStreamUrl(url);
-      // Only clear error if we're not retrying (to show the retry message)
-      if (!isRetryingWithTranscode) {
-        setError(null);
-      }
+      // Always clear error when building a new URL (including when retrying with transcoding)
+      setError(null);
       setIsPlayerReady(false);
     } else {
       setStreamUrl(null);
       setIsTranscoding(false);
       setIsPlayerReady(false);
     }
-  }, [file, infohash, isRetryingWithTranscode]);
+  }, [file, infohash, isRetryingWithTranscode, retryCount]);
 
   // Handle player ready
   const handlePlayerReady = useCallback(() => {
@@ -306,9 +312,9 @@ export function MediaPlayerModal({
       console.log('[MediaPlayerModal] Detected codec error, retrying with transcoding...');
       setHasTriedTranscoding(true);
       setIsRetryingWithTranscode(true);
-      setError('Unsupported codec detected. Switching to transcoding...');
-      setIsPlayerReady(false);
+      // Don't set error - we want the player to keep rendering while we switch to transcoding
       // The useEffect will rebuild the URL with transcode=auto
+      setIsPlayerReady(false);
       return;
     }
     
@@ -349,6 +355,16 @@ export function MediaPlayerModal({
     setUserClickedPlay(true);
     // The underlying player has autoplay enabled, so it should start playing
     // If autoplay is still blocked, the user can use the player's native controls
+  }, []);
+
+  // Handle retry button click - clears error and forces player reload
+  const handleRetry = useCallback(() => {
+    console.log('[MediaPlayerModal] User clicked retry button');
+    setError(null);
+    setIsPlayerReady(false);
+    setUserClickedPlay(false);
+    // Increment retry count to force URL rebuild and player remount
+    setRetryCount(prev => prev + 1);
   }, []);
 
   // Subscribe to connection status SSE - persistent mode keeps streaming after ready
@@ -553,28 +569,34 @@ export function MediaPlayerModal({
         {/* Transcoding Notice - show when transcoding is active */}
         {isTranscoding && !error ? <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-3">
             <div className="flex items-center gap-2">
-              <svg
-                className="h-4 w-4 text-accent-primary"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
+              {isRetryingWithTranscode && isLoading ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+              ) : (
+                <svg
+                  className="h-4 w-4 text-accent-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+              )}
               <span className="text-sm text-accent-primary">
-                {isLoading
-                  ? 'Transcoding and loading stream...'
-                  : 'Live transcoding enabled - converting to browser-compatible format'}
+                {isRetryingWithTranscode && isLoading
+                  ? 'Unsupported codec detected. Switching to transcoding...'
+                  : isLoading
+                    ? 'Transcoding and loading stream...'
+                    : 'Live transcoding enabled - converting to browser-compatible format'}
               </span>
             </div>
           </div> : null}
 
-        {/* Error State */}
+        {/* Error State with Try Again button */}
         {error ? <div className="rounded-lg border border-error/50 bg-error/10 p-4">
             <div className="flex items-start gap-3">
               <svg
@@ -590,9 +612,29 @@ export function MediaPlayerModal({
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <div>
+              <div className="flex-1">
                 <h4 className="font-medium text-error">Playback Error</h4>
                 <p className="mt-1 text-sm text-text-muted">{error}</p>
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Try Again
+                </button>
               </div>
             </div>
           </div> : null}

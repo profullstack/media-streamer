@@ -42,6 +42,26 @@ describe('detectContentType', () => {
     it('should detect movie with extended edition', () => {
       expect(detectContentType('Lord of the Rings Extended 2001 BluRay')).toBe('movie');
     });
+
+    it('should detect movie trilogy', () => {
+      expect(detectContentType('The Lord of the Rings Trilogy 2002 1080p BluRay')).toBe('movie');
+    });
+
+    it('should detect movie collection with quality', () => {
+      expect(detectContentType('Mission Impossible Collection 1080p BluRay')).toBe('movie');
+    });
+
+    it('should detect movie series with complete', () => {
+      expect(detectContentType('The Bourne Series (complete) 2160p H.264')).toBe('movie');
+    });
+
+    it('should detect Pirates collection', () => {
+      expect(detectContentType('Pirates of the Caribbean 1-5 Collection 2003-2017 1080p BluRay')).toBe('movie');
+    });
+
+    it('should detect complete movie with quality', () => {
+      expect(detectContentType('The Hobbit Trilogy Complete 1080p BluRay')).toBe('movie');
+    });
   });
 
   describe('TV show detection', () => {

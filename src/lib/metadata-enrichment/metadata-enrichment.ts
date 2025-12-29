@@ -73,21 +73,26 @@ export interface EnrichmentResult {
  */
 const CONTENT_PATTERNS = {
   movie: [
-    // Year patterns (1900-2099)
-    /\b(19|20)\d{2}\b.*\b(1080p|720p|2160p|4k|bluray|brrip|dvdrip|webrip|hdtv)\b/i,
+    // Year patterns (1900-2099) with quality indicators
+    /\b(19|20)\d{2}\b.*\b(1080p|720p|2160p|4k|bluray|brrip|dvdrip|webrip)\b/i,
     // Common movie quality indicators
-    /\b(bluray|brrip|dvdrip|webrip|hdtv|hdrip|cam|ts|screener)\b.*\b(1080p|720p|2160p|4k)\b/i,
+    /\b(bluray|brrip|dvdrip|webrip|hdrip|cam|ts|screener)\b.*\b(1080p|720p|2160p|4k)\b/i,
     // IMAX, theatrical
     /\b(imax|theatrical|directors.?cut|extended)\b/i,
+    // Movie collections/series (but not TV series)
+    /\b(trilogy|duology|quadrilogy|pentalogy|hexalogy|saga)\b/i,
+    /\bcollection\b.*\b(1080p|720p|2160p|4k|bluray|h\.?264|h\.?265|hevc)\b/i,
+    /\bseries\b.*\b(complete|1080p|720p|2160p|4k|bluray)\b/i,
+    // Specific movie collection patterns
+    /\b(complete|full)\b.*\b(1080p|720p|2160p|4k|bluray)\b/i,
   ],
   tvshow: [
-    // Season/Episode patterns
+    // Season/Episode patterns - these are definitive TV show indicators
     /\bS\d{1,2}E\d{1,2}\b/i,
-    /\bS\d{1,2}\b/i,
+    /\bS\d{1,2}\b/i, // S01, S08, etc.
     /\bseason\s*\d+\b/i,
     /\bepisode\s*\d+\b/i,
     /\bcomplete\s*series\b/i,
-    /\b(hdtv|webrip|web-dl)\b.*\b(720p|1080p)\b/i,
   ],
   music: [
     // Artist - Album pattern with format in brackets
