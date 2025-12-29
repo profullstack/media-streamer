@@ -352,9 +352,10 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
   // Input from stdin (pipe) - FFmpeg auto-detects format
   args.push('-i', 'pipe:0');
 
-  // Use 2 threads to match typical VPS vCPU count
-  // More threads than vCPUs causes context switching overhead
-  args.push('-threads', '2');
+  // Use 1 thread per transcoding job to support multiple concurrent users
+  // With 8 CPUs, this allows up to 8 simultaneous transcoding sessions
+  // Each user gets dedicated CPU resources without contention
+  args.push('-threads', '1');
 
   // Audio codec
   if (profile.audioCodec) {

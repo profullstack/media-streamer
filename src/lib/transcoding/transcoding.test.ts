@@ -295,9 +295,10 @@ describe('Transcoding Service', () => {
       // Should use fragmented MP4 for streaming
       expect(args).toContain('-movflags');
       expect(args).toContain('frag_keyframe+empty_moov+default_base_moof');
-      // Should use threads for performance (2 to match typical VPS vCPU count)
+      // Should use 1 thread per job to support multiple concurrent users
+      // With 8 CPUs, this allows up to 8 simultaneous transcoding sessions
       expect(args).toContain('-threads');
-      expect(args).toContain('2');
+      expect(args).toContain('1');
       // Should use video codec
       expect(args).toContain('-vcodec');
       expect(args).toContain('libx264');

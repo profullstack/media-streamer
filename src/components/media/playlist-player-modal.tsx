@@ -201,6 +201,12 @@ export function PlaylistPlayerModal({
   // Track download status for each file in the playlist
   const [fileDownloadStatuses, setFileDownloadStatuses] = useState<Map<number, FileDownloadStatus>>(new Map());
   const fileEventSourcesRef = useRef<Map<number, EventSource>>(new Map());
+  
+  // Track playback progress for the currently playing track
+  const [playbackProgress, setPlaybackProgress] = useState<{ currentTime: number; duration: number }>({
+    currentTime: 0,
+    duration: 0,
+  });
 
   // Reset index when files change
   useEffect(() => {
@@ -272,6 +278,13 @@ export function PlaylistPlayerModal({
     setCurrentIndex(index);
     setIsPlayerReady(false);
     setError(null);
+    // Reset playback progress when changing tracks
+    setPlaybackProgress({ currentTime: 0, duration: 0 });
+  }, []);
+
+  // Handle playback time updates from AudioPlayer
+  const handleTimeUpdate = useCallback((currentTime: number, duration: number) => {
+    setPlaybackProgress({ currentTime, duration });
   }, []);
 
   // Handle close and cleanup
@@ -562,6 +575,7 @@ export function PlaylistPlayerModal({
               }}
               onError={handlePlayerError}
               onEnded={handleTrackEnded}
+              onTimeUpdate={handleTimeUpdate}
               showTranscodingNotice={false}
               autoplay
             />
@@ -623,6 +637,12 @@ export function PlaylistPlayerModal({
               const progress = downloadStatus?.progress ?? 0;
               const isDownloading = downloadStatus && !downloadStatus.ready && progress > 0;
               const isReady = downloadStatus?.ready ?? false;
+              const isCurrentTrack = index === currentIndex;
+              
+              // Calculate playback progress percentage for current track
+              const playbackPercent = isCurrentTrack && playbackProgress.duration > 0
+                ? (playbackProgress.currentTime / playbackProgress.duration) * 100
+                : 0;
               
               return (
                 <button
@@ -630,61 +650,74 @@ export function PlaylistPlayerModal({
                   type="button"
                   onClick={() => handleSelectTrack(index)}
                   className={cn(
-                    'relative flex w-full items-center gap-3 px-3 py-2 text-left transition-colors overflow-hidden',
-                    index === currentIndex
+                    'relative flex w-full flex-col text-left transition-colors overflow-hidden',
+                    isCurrentTrack
                       ? 'bg-accent-audio/10 text-accent-audio'
                       : 'hover:bg-bg-hover text-text-secondary'
                   )}
                 >
-                  {/* Download progress bar background */}
-                  {(isDownloading || isReady) && (
-                    <div
-                      className={cn(
-                        'absolute inset-y-0 left-0 transition-all duration-300',
-                        isReady
-                          ? 'bg-success/10'
-                          : 'bg-accent-primary/10'
-                      )}
-                      style={{ width: `${Math.round(progress * 100)}%` }}
-                    />
-                  )}
-                  
-                  {/* Track number / play icon */}
-                  <span className="relative z-10 w-6 text-center text-xs">
-                    {index === currentIndex ? (
-                      <PlayIcon size={14} className="inline" />
-                    ) : (
-                      index + 1
+                  {/* Main content row */}
+                  <div className="relative flex w-full items-center gap-3 px-3 py-2">
+                    {/* Download progress bar background */}
+                    {(isDownloading || isReady) && (
+                      <div
+                        className={cn(
+                          'absolute inset-y-0 left-0 transition-all duration-300',
+                          isReady
+                            ? 'bg-success/10'
+                            : 'bg-accent-primary/10'
+                        )}
+                        style={{ width: `${Math.round(progress * 100)}%` }}
+                      />
                     )}
-                  </span>
-                  
-                  {/* Track name */}
-                  <span className="relative z-10 flex-1 truncate text-sm">{file.name}</span>
-                  
-                  {/* Download status indicator */}
-                  {downloadStatus && (
-                    <span className="relative z-10 flex items-center gap-1 text-xs">
-                      {isDownloading ? (
-                        <>
-                          <DownloadIcon size={12} className="text-accent-primary animate-pulse" />
-                          <span className="text-text-muted">{Math.round(progress * 100)}%</span>
-                        </>
-                      ) : isReady ? (
-                        <svg
-                          className="h-3 w-3 text-success"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      ) : null}
+                    
+                    {/* Track number / play icon */}
+                    <span className="relative z-10 w-6 text-center text-xs">
+                      {isCurrentTrack ? (
+                        <PlayIcon size={14} className="inline" />
+                      ) : (
+                        index + 1
+                      )}
                     </span>
+                    
+                    {/* Track name */}
+                    <span className="relative z-10 flex-1 truncate text-sm">{file.name}</span>
+                    
+                    {/* Download status indicator */}
+                    {downloadStatus && (
+                      <span className="relative z-10 flex items-center gap-1 text-xs">
+                        {isDownloading ? (
+                          <>
+                            <DownloadIcon size={12} className="text-accent-primary animate-pulse" />
+                            <span className="text-text-muted">{Math.round(progress * 100)}%</span>
+                          </>
+                        ) : isReady ? (
+                          <svg
+                            className="h-3 w-3 text-success"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        ) : null}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Playback progress bar - only for currently playing track */}
+                  {isCurrentTrack && playbackProgress.duration > 0 && (
+                    <div className="h-1 w-full bg-bg-tertiary">
+                      <div
+                        className="h-full bg-accent-audio transition-all duration-100"
+                        style={{ width: `${playbackPercent}%` }}
+                      />
+                    </div>
                   )}
                 </button>
               );
