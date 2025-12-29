@@ -63,8 +63,8 @@ importers:
         specifier: ^1.6.15
         version: 1.6.15
       lucide-react:
-        specifier: ^0.468.0
-        version: 0.468.0(react@19.2.3)
+        specifier: ^0.562.0
+        version: 0.562.0(react@19.2.3)
       next:
         specifier: 16.1.1
         version: 16.1.1(@babel/core@7.28.5)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -109,8 +109,8 @@ importers:
         specifier: ^19.0.2
         version: 19.2.3(@types/react@19.2.7)
       '@types/webtorrent':
-        specifier: ^0.109.10
-        version: 0.109.10
+        specifier: ^0.110.1
+        version: 0.110.1
       '@vitejs/plugin-react':
         specifier: ^4.3.4
         version: 4.7.0(vite@5.4.21(@types/node@22.19.3))
@@ -1614,8 +1614,8 @@ packages:
   '@types/video.js@7.3.58':
     resolution: {integrity: sha512-1CQjuSrgbv1/dhmcfQ83eVyYbvGyqhTvb2Opxr0QCV+iJ4J6/J+XWQ3Om59WiwCd1MN3rDUHasx5XRrpUtewYQ==}
 
-  '@types/webtorrent@0.109.10':
-    resolution: {integrity: sha512-uYtVgJRRGigZZIGvYga3bT0wrB9y5K8+3byENdqI4JjC6nVNRp7CMHObH3Ijd8LwH/WRUX2jJ2uQgxvBNLGGCQ==}
+  '@types/webtorrent@0.110.1':
+    resolution: {integrity: sha512-fyW/LbaphpGWXdmmuXuerUb+dba/VlWAunMI7MLk44wbA27yIeSHZGuprf4FvXm9M9iqnLu1fmiPlMitg5nhJQ==}
 
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
@@ -3153,10 +3153,10 @@ packages:
     resolution: {integrity: sha512-ZVcaRbZpNB6ugwa5T9gUN0Jg9XGT9cyVjZJvdbN3V27rOQ170rEs//zaQXEQkTCBhh3i/JnCRF472KWHJu74Yg==}
     engines: {node: '>=12.20.0'}
 
-  lucide-react@0.468.0:
-    resolution: {integrity: sha512-6koYRhnM2N0GGZIdXzSeiNwguv1gt/FAjZOiPl76roBi3xKEXa4WmfpxgQwTTL4KipXjefrnf3oV4IsYhi4JFA==}
+  lucide-react@0.562.0:
+    resolution: {integrity: sha512-82hOAu7y0dbVuFfmO4bYF1XEwYk/mEbM5E+b1jgci/udUBEE/R7LF5Ip0CCEmXe8AybRM8L+04eP+LGZeDvkiw==}
     peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -5592,7 +5592,7 @@ snapshots:
 
   '@types/video.js@7.3.58': {}
 
-  '@types/webtorrent@0.109.10':
+  '@types/webtorrent@0.110.1':
     dependencies:
       '@types/bittorrent-protocol': 3.1.7
       '@types/node': 22.19.3
@@ -7433,7 +7433,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  lucide-react@0.468.0(react@19.2.3):
+  lucide-react@0.562.0(react@19.2.3):
     dependencies:
       react: 19.2.3
 
