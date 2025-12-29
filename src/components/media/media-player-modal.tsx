@@ -72,6 +72,33 @@ function needsTranscoding(filename: string): boolean {
 }
 
 /**
+ * Error messages that indicate codec issues requiring transcoding
+ * These are common error patterns from browsers when they can't decode the video
+ */
+const CODEC_ERROR_PATTERNS = [
+  'MEDIA_ERR_SRC_NOT_SUPPORTED',
+  'MEDIA_ERR_DECODE',
+  'NotSupportedError',
+  'The media could not be loaded',
+  'No compatible source was found',
+  'Failed to load because no supported source was found',
+  'codec',
+  'format',
+  'unsupported',
+  'decode',
+];
+
+/**
+ * Check if an error message indicates a codec/format issue
+ */
+function isCodecError(errorMessage: string): boolean {
+  const lowerMessage = errorMessage.toLowerCase();
+  return CODEC_ERROR_PATTERNS.some(pattern =>
+    lowerMessage.includes(pattern.toLowerCase())
+  );
+}
+
+/**
  * Swarm stats polling interval in milliseconds (30 seconds)
  */
 const SWARM_STATS_POLL_INTERVAL = 30000;
@@ -172,6 +199,10 @@ export function MediaPlayerModal({
   const [isLoadingSwarm, setIsLoadingSwarm] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [userClickedPlay, setUserClickedPlay] = useState(false);
+  /** Track if we've already tried transcoding to avoid infinite retry loops */
+  const [hasTriedTranscoding, setHasTriedTranscoding] = useState(false);
+  /** Track if we're retrying with transcoding after a codec error */
+  const [isRetryingWithTranscode, setIsRetryingWithTranscode] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -225,9 +256,11 @@ export function MediaPlayerModal({
 
   // Build stream URL when file changes
   // Add transcode=auto parameter for files that need transcoding
+  // Also handles retry with transcoding after codec errors
   useEffect(() => {
     if (file && infohash) {
-      const requiresTranscoding = needsTranscoding(file.name);
+      // Force transcoding if we're retrying after a codec error, or if the format requires it
+      const requiresTranscoding = isRetryingWithTranscode || needsTranscoding(file.name);
       setIsTranscoding(requiresTranscoding);
 
       let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
@@ -240,18 +273,22 @@ export function MediaPlayerModal({
         fileIndex: file.fileIndex,
         fileName: file.name,
         requiresTranscoding,
+        isRetryingWithTranscode,
         url,
       });
 
       setStreamUrl(url);
-      setError(null);
+      // Only clear error if we're not retrying (to show the retry message)
+      if (!isRetryingWithTranscode) {
+        setError(null);
+      }
       setIsPlayerReady(false);
     } else {
       setStreamUrl(null);
       setIsTranscoding(false);
       setIsPlayerReady(false);
     }
-  }, [file, infohash]);
+  }, [file, infohash, isRetryingWithTranscode]);
 
   // Handle player ready
   const handlePlayerReady = useCallback(() => {
@@ -260,11 +297,25 @@ export function MediaPlayerModal({
   }, []);
 
   // Handle player error
+  // If it's a codec error and we haven't tried transcoding yet, retry with transcoding
   const handlePlayerError = useCallback((err: Error) => {
     console.error('[MediaPlayerModal] Player error:', err);
+    
+    // Check if this is a codec/format error and we haven't tried transcoding yet
+    if (!hasTriedTranscoding && !isTranscoding && isCodecError(err.message)) {
+      console.log('[MediaPlayerModal] Detected codec error, retrying with transcoding...');
+      setHasTriedTranscoding(true);
+      setIsRetryingWithTranscode(true);
+      setError('Unsupported codec detected. Switching to transcoding...');
+      setIsPlayerReady(false);
+      // The useEffect will rebuild the URL with transcode=auto
+      return;
+    }
+    
+    // If we already tried transcoding or it's not a codec error, show the error
     setError(err.message);
     setIsPlayerReady(true); // Stop showing loading on error
-  }, []);
+  }, [hasTriedTranscoding, isTranscoding]);
 
   // Handle close and cleanup
   const handleClose = useCallback(() => {
@@ -274,6 +325,9 @@ export function MediaPlayerModal({
     setSwarmStats(null);
     setConnectionStatus(null);
     setUserClickedPlay(false);
+    // Reset transcoding retry state
+    setHasTriedTranscoding(false);
+    setIsRetryingWithTranscode(false);
     // Close SSE connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -281,6 +335,12 @@ export function MediaPlayerModal({
     }
     onClose();
   }, [onClose]);
+
+  // Reset transcoding retry state when file changes
+  useEffect(() => {
+    setHasTriedTranscoding(false);
+    setIsRetryingWithTranscode(false);
+  }, [file?.fileIndex, infohash]);
 
   // Handle manual play button click (for browsers that block autoplay)
   // This hides the overlay and lets the user interact with the player's native controls

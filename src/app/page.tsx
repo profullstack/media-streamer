@@ -1,14 +1,53 @@
 /**
  * Home Page
- * 
+ *
  * Main landing page showing recent activity and quick actions.
+ * Server component that fetches category counts from the database.
  */
 
 import { MainLayout } from '@/components/layout';
 import { MusicIcon, VideoIcon, BookIcon, MagnetIcon, SearchIcon, TvIcon } from '@/components/ui/icons';
 import Link from 'next/link';
+import { createServerClient } from '@/lib/supabase';
 
-export default function HomePage(): React.ReactElement {
+/**
+ * Fetch category counts from the database
+ */
+async function getCategoryCounts(): Promise<{
+  movies: number;
+  tvshows: number;
+  music: number;
+  books: number;
+  total: number;
+}> {
+  try {
+    const supabase = createServerClient();
+    
+    // Fetch counts for each content type
+    const [moviesResult, tvshowsResult, musicResult, booksResult, totalResult] = await Promise.all([
+      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'movie'),
+      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'tvshow'),
+      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'music'),
+      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'book'),
+      supabase.from('torrents').select('id', { count: 'exact', head: true }),
+    ]);
+
+    return {
+      movies: moviesResult.count ?? 0,
+      tvshows: tvshowsResult.count ?? 0,
+      music: musicResult.count ?? 0,
+      books: booksResult.count ?? 0,
+      total: totalResult.count ?? 0,
+    };
+  } catch (error) {
+    console.error('Failed to fetch category counts:', error);
+    return { movies: 0, tvshows: 0, music: 0, books: 0, total: 0 };
+  }
+}
+
+export default async function HomePage(): Promise<React.ReactElement> {
+  const counts = await getCategoryCounts();
+  
   return (
     <MainLayout>
       <div className="space-y-8">
@@ -57,41 +96,34 @@ export default function HomePage(): React.ReactElement {
         {/* Media Categories */}
         <section>
           <h2 className="mb-4 text-xl font-semibold text-text-primary">Browse by Category</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <CategoryCard
               href="/movies"
               icon={VideoIcon}
               title="Movies"
-              count={0}
+              count={counts.movies}
               color="accent-video"
             />
             <CategoryCard
               href="/tvshows"
               icon={TvIcon}
               title="TV Shows"
-              count={0}
+              count={counts.tvshows}
               color="accent-video"
             />
             <CategoryCard
               href="/music"
               icon={MusicIcon}
               title="Music"
-              count={0}
+              count={counts.music}
               color="accent-audio"
             />
             <CategoryCard
               href="/books"
               icon={BookIcon}
               title="Books"
-              count={0}
+              count={counts.books}
               color="accent-ebook"
-            />
-            <CategoryCard
-              href="/videos"
-              icon={VideoIcon}
-              title="All Videos"
-              count={0}
-              color="accent-secondary"
             />
             <CategoryCard
               href="/live-tv"
@@ -186,7 +218,7 @@ function CategoryCard({
       </div>
       <div>
         <h3 className="font-medium text-text-primary">{title}</h3>
-        <p className="text-sm text-text-muted">{count} files</p>
+        <p className="text-sm text-text-muted">{count} {count === 1 ? 'torrent' : 'torrents'}</p>
       </div>
     </Link>
   );

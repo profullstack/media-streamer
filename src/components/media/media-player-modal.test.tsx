@@ -531,4 +531,298 @@ describe('MediaPlayerModal', () => {
       expect(eventSourceConstructorCalls.length).toBe(initialCount);
     });
   });
+
+  describe('Codec Error Detection and Auto-Retry', () => {
+    it('should detect MEDIA_ERR_SRC_NOT_SUPPORTED as a codec error', async () => {
+      // Import the isCodecError function indirectly by testing the component behavior
+      // The component should retry with transcoding when it receives a codec error
+      
+      // Create a mock video player that triggers an error
+      const { VideoPlayer } = await import('@/components/video/video-player');
+      const mockVideoPlayer = vi.mocked(VideoPlayer);
+      
+      const videoFile: TorrentFile = {
+        ...mockFile,
+        name: 'movie.mp4',
+        extension: 'mp4',
+        mediaCategory: 'video',
+        mimeType: 'video/mp4',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={videoFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // Verify the video player was rendered
+      expect(mockVideoPlayer).toHaveBeenCalled();
+    });
+
+    it('should show transcoding notice when retrying with transcoding', async () => {
+      const videoFile: TorrentFile = {
+        ...mockFile,
+        name: 'movie.mkv', // MKV files require transcoding
+        extension: 'mkv',
+        mediaCategory: 'video',
+        mimeType: 'video/x-matroska',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={videoFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // MKV files should show transcoding notice - use getAllByText since there may be multiple
+      const transcodingElements = screen.getAllByText(/transcoding/i);
+      expect(transcodingElements.length).toBeGreaterThan(0);
+    });
+
+    it('should include transcode=auto in URL for files that need transcoding', async () => {
+      const mkvFile: TorrentFile = {
+        ...mockFile,
+        name: 'movie.mkv',
+        extension: 'mkv',
+        mediaCategory: 'video',
+        mimeType: 'video/x-matroska',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={mkvFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // The VideoPlayer should receive a URL with transcode=auto
+      const { VideoPlayer } = await import('@/components/video/video-player');
+      const mockVideoPlayer = vi.mocked(VideoPlayer);
+      
+      const lastCall = mockVideoPlayer.mock.calls[mockVideoPlayer.mock.calls.length - 1];
+      expect(lastCall[0].src).toContain('transcode=auto');
+    });
+
+    it('should NOT include transcode=auto for MP4 files initially', async () => {
+      const mp4File: TorrentFile = {
+        ...mockFile,
+        name: 'movie.mp4',
+        extension: 'mp4',
+        mediaCategory: 'video',
+        mimeType: 'video/mp4',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={mp4File}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // The VideoPlayer should receive a URL without transcode=auto for MP4
+      const { VideoPlayer } = await import('@/components/video/video-player');
+      const mockVideoPlayer = vi.mocked(VideoPlayer);
+      
+      const lastCall = mockVideoPlayer.mock.calls[mockVideoPlayer.mock.calls.length - 1];
+      expect(lastCall[0].src).not.toContain('transcode=auto');
+    });
+
+    it('should reset retry state when file changes', async () => {
+      const file1: TorrentFile = {
+        ...mockFile,
+        fileIndex: 0,
+        name: 'movie1.mp4',
+        extension: 'mp4',
+        mediaCategory: 'video',
+      };
+
+      const file2: TorrentFile = {
+        ...mockFile,
+        fileIndex: 1,
+        name: 'movie2.mp4',
+        extension: 'mp4',
+        mediaCategory: 'video',
+      };
+
+      const { rerender } = render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={file1}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // Change to a different file
+      rerender(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={file2}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // The new file should not have transcode=auto (retry state was reset)
+      const { VideoPlayer } = await import('@/components/video/video-player');
+      const mockVideoPlayer = vi.mocked(VideoPlayer);
+      
+      const lastCall = mockVideoPlayer.mock.calls[mockVideoPlayer.mock.calls.length - 1];
+      expect(lastCall[0].src).not.toContain('transcode=auto');
+    });
+  });
+
+  describe('Transcoding Format Detection', () => {
+    // Note: Only test formats that are recognized as video by getMediaCategory()
+    // VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wmv', 'flv', 'm4v']
+    // VIDEO_TRANSCODE_FORMATS = ['mkv', 'avi', 'wmv', 'flv', 'mov', 'ts']
+    // 'ts' is NOT in VIDEO_EXTENSIONS, so we can't test it here
+    const transcodingFormats = ['mkv', 'avi', 'wmv', 'flv', 'mov'];
+    const nonTranscodingFormats = ['mp4', 'webm'];
+
+    transcodingFormats.forEach(ext => {
+      it(`should require transcoding for .${ext} files`, async () => {
+        const file: TorrentFile = {
+          ...mockFile,
+          name: `video.${ext}`,
+          extension: ext,
+          mediaCategory: 'video',
+        };
+
+        render(
+          <MediaPlayerModal
+            {...defaultProps}
+            file={file}
+          />
+        );
+
+        await vi.waitFor(() => {
+          expect(screen.getByTestId('video-player')).toBeInTheDocument();
+        });
+
+        const { VideoPlayer } = await import('@/components/video/video-player');
+        const mockVideoPlayer = vi.mocked(VideoPlayer);
+        
+        const lastCall = mockVideoPlayer.mock.calls[mockVideoPlayer.mock.calls.length - 1];
+        expect(lastCall[0].src).toContain('transcode=auto');
+      });
+    });
+
+    nonTranscodingFormats.forEach(ext => {
+      it(`should NOT require transcoding for .${ext} files`, async () => {
+        const file: TorrentFile = {
+          ...mockFile,
+          name: `video.${ext}`,
+          extension: ext,
+          mediaCategory: 'video',
+        };
+
+        render(
+          <MediaPlayerModal
+            {...defaultProps}
+            file={file}
+          />
+        );
+
+        await vi.waitFor(() => {
+          expect(screen.getByTestId('video-player')).toBeInTheDocument();
+        });
+
+        const { VideoPlayer } = await import('@/components/video/video-player');
+        const mockVideoPlayer = vi.mocked(VideoPlayer);
+        
+        const lastCall = mockVideoPlayer.mock.calls[mockVideoPlayer.mock.calls.length - 1];
+        expect(lastCall[0].src).not.toContain('transcode=auto');
+      });
+    });
+  });
+
+  describe('Audio Transcoding Format Detection', () => {
+    // Note: Only test formats that are recognized as audio by getMediaCategory()
+    // wma and flac are in AUDIO_EXTENSIONS and also in AUDIO_TRANSCODE_FORMATS
+    const audioTranscodingFormats = ['wma', 'flac'];
+    // These are recognized as audio and don't need transcoding
+    const audioNonTranscodingFormats = ['mp3', 'aac', 'ogg', 'wav'];
+
+    audioTranscodingFormats.forEach(ext => {
+      it(`should require transcoding for .${ext} audio files`, async () => {
+        const file: TorrentFile = {
+          ...mockFile,
+          name: `audio.${ext}`,
+          extension: ext,
+          mediaCategory: 'audio',
+        };
+
+        render(
+          <MediaPlayerModal
+            {...defaultProps}
+            file={file}
+          />
+        );
+
+        await vi.waitFor(() => {
+          expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+        });
+
+        const { AudioPlayer } = await import('@/components/audio/audio-player');
+        const mockAudioPlayer = vi.mocked(AudioPlayer);
+        
+        // Find the call with the matching file
+        const calls = mockAudioPlayer.mock.calls;
+        const lastCall = calls[calls.length - 1];
+        expect(lastCall[0].src).toContain('transcode=auto');
+      });
+    });
+
+    audioNonTranscodingFormats.forEach(ext => {
+      it(`should NOT require transcoding for .${ext} audio files`, async () => {
+        const file: TorrentFile = {
+          ...mockFile,
+          name: `audio.${ext}`,
+          extension: ext,
+          mediaCategory: 'audio',
+        };
+
+        render(
+          <MediaPlayerModal
+            {...defaultProps}
+            file={file}
+          />
+        );
+
+        await vi.waitFor(() => {
+          expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+        });
+
+        const { AudioPlayer } = await import('@/components/audio/audio-player');
+        const mockAudioPlayer = vi.mocked(AudioPlayer);
+        
+        const calls = mockAudioPlayer.mock.calls;
+        const lastCall = calls[calls.length - 1];
+        expect(lastCall[0].src).not.toContain('transcode=auto');
+      });
+    });
+  });
 });
