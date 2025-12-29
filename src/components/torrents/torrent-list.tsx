@@ -2,12 +2,13 @@
 
 /**
  * Torrent List Component
- * 
- * Displays a list of indexed torrents with file counts and sizes.
+ *
+ * Displays a list of indexed torrents with file counts, sizes, and health indicators.
  */
 
 import Link from 'next/link';
 import { formatBytes } from '@/lib/utils';
+import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import { FolderIcon, ChevronRightIcon, MusicIcon, VideoIcon, BookIcon } from '@/components/ui/icons';
 
 interface TorrentFile {
@@ -24,6 +25,10 @@ interface Torrent {
   fileCount: number;
   createdAt: string;
   files?: TorrentFile[];
+  /** Number of seeders (peers with complete copies), null if unknown */
+  seeders?: number | null;
+  /** Number of leechers (peers downloading), null if unknown */
+  leechers?: number | null;
 }
 
 interface TorrentListProps {
@@ -69,6 +74,32 @@ interface TorrentCardProps {
   torrent: Torrent;
 }
 
+/**
+ * Health indicator component showing 5 bars colored based on seeder/leecher ratio.
+ * Green = healthy (many seeders), Red = unhealthy (few seeders)
+ */
+interface HealthIndicatorProps {
+  seeders: number | null | undefined;
+  leechers: number | null | undefined;
+}
+
+function HealthIndicator({ seeders, leechers }: HealthIndicatorProps): React.ReactElement {
+  const bars = calculateHealthBars(seeders ?? null, leechers ?? null);
+  const colors = getHealthBarColors(bars);
+
+  return (
+    <div className="flex items-center gap-0.5" title={`Health: ${bars}/5 (${seeders ?? '?'} seeders, ${leechers ?? '?'} leechers)`}>
+      {colors.map((color, index) => (
+        <div
+          key={index}
+          className={`h-3 w-1 rounded-sm ${color}`}
+          style={{ height: `${8 + index * 2}px` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const mediaStats = getMediaStats(torrent.files ?? []);
 
@@ -108,6 +139,9 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
           )}
         </div>
       </div>
+
+      {/* Health Indicator */}
+      <HealthIndicator seeders={torrent.seeders} leechers={torrent.leechers} />
 
       {/* Arrow */}
       <ChevronRightIcon className="shrink-0 text-text-muted" size={20} />

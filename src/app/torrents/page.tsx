@@ -18,6 +18,10 @@ interface Torrent {
   totalSize: number;
   fileCount: number;
   createdAt: string;
+  /** Number of seeders (peers with complete copies), null if unknown */
+  seeders?: number | null;
+  /** Number of leechers (peers downloading), null if unknown */
+  leechers?: number | null;
 }
 
 interface TorrentsResponse {
