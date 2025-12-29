@@ -4,17 +4,25 @@
  * Calculates torrent health based on seeders and leechers.
  * Health is displayed as a 1-5 bar indicator (green = healthy, red = unhealthy).
  *
- * Health calculation:
- * - More seeders = healthier (faster downloads)
- * - Seeder to leecher ratio matters (high ratio = less competition)
- * - 0 seeders = dead torrent (0 bars)
+ * Health calculation is based on ABSOLUTE seeder count:
+ * - 100+ seeders = 5 bars (excellent - very healthy swarm)
+ * - 50-99 seeders = 4 bars (good - healthy swarm)
+ * - 20-49 seeders = 3 bars (fair - moderate swarm)
+ * - 5-19 seeders = 2 bars (poor - small swarm)
+ * - 1-4 seeders = 1 bar (very poor - barely alive)
+ * - 0 seeders = 0 bars (dead torrent)
+ *
+ * This approach prioritizes absolute availability over ratio because:
+ * - A torrent with 700 seeders and 700 leechers is still very healthy
+ * - High seeder counts mean fast downloads regardless of leecher count
+ * - Users care about download speed, not competition metrics
  */
 
 /**
- * Calculate the number of health bars (0-5) based on seeders and leechers
+ * Calculate the number of health bars (0-5) based on seeders
  *
  * @param seeders - Number of seeders (peers with complete copies), null if unknown
- * @param leechers - Number of leechers (peers downloading), null if unknown
+ * @param leechers - Number of leechers (peers downloading), null if unknown (kept for API compatibility)
  * @returns Number of health bars (0-5)
  */
 export function calculateHealthBars(seeders: number | null, leechers: number | null): number {
@@ -28,26 +36,22 @@ export function calculateHealthBars(seeders: number | null, leechers: number | n
     return 0;
   }
 
-  // Calculate seeder to leecher ratio
-  // If no leechers, ratio is effectively infinite (very healthy)
-  const ratio = leechers === 0 ? seeders : seeders / leechers;
-
-  // Map ratio to bars:
-  // ratio >= 5: 5 bars (excellent - many seeders per leecher)
-  // ratio >= 2: 4 bars (good)
-  // ratio >= 1: 3 bars (fair - equal seeders and leechers)
-  // ratio >= 0.5: 2 bars (poor - more leechers than seeders)
-  // ratio > 0: 1 bar (very poor - few seeders)
-  if (ratio >= 5) {
+  // Map absolute seeder count to bars:
+  // >= 100 seeders: 5 bars (excellent - very healthy swarm)
+  // >= 50 seeders: 4 bars (good - healthy swarm)
+  // >= 20 seeders: 3 bars (fair - moderate swarm)
+  // >= 5 seeders: 2 bars (poor - small swarm)
+  // >= 1 seeder: 1 bar (very poor - barely alive)
+  if (seeders >= 100) {
     return 5;
   }
-  if (ratio >= 2) {
+  if (seeders >= 50) {
     return 4;
   }
-  if (ratio >= 1) {
+  if (seeders >= 20) {
     return 3;
   }
-  if (ratio >= 0.5) {
+  if (seeders >= 5) {
     return 2;
   }
   return 1;

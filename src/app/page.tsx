@@ -57,7 +57,21 @@ export default function HomePage(): React.ReactElement {
         {/* Media Categories */}
         <section>
           <h2 className="mb-4 text-xl font-semibold text-text-primary">Browse by Category</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <CategoryCard
+              href="/movies"
+              icon={VideoIcon}
+              title="Movies"
+              count={0}
+              color="accent-video"
+            />
+            <CategoryCard
+              href="/tvshows"
+              icon={TvIcon}
+              title="TV Shows"
+              count={0}
+              color="accent-video"
+            />
             <CategoryCard
               href="/music"
               icon={MusicIcon}
@@ -66,18 +80,18 @@ export default function HomePage(): React.ReactElement {
               color="accent-audio"
             />
             <CategoryCard
-              href="/videos"
-              icon={VideoIcon}
-              title="Videos"
-              count={0}
-              color="accent-video"
-            />
-            <CategoryCard
               href="/books"
               icon={BookIcon}
               title="Books"
               count={0}
               color="accent-ebook"
+            />
+            <CategoryCard
+              href="/videos"
+              icon={VideoIcon}
+              title="All Videos"
+              count={0}
+              color="accent-secondary"
             />
             <CategoryCard
               href="/live-tv"
