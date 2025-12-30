@@ -280,6 +280,9 @@ export function MediaPlayerModal({
 
   // Pre-check codec info when modal opens for video files
   // This allows us to determine if transcoding is needed BEFORE attempting playback
+  // IMPORTANT: Only check CACHED codec info - do NOT trigger detection here
+  // Detection requires downloading data from the torrent which can be slow
+  // If codec info is not cached, let the player try to play and handle errors at runtime
   useEffect(() => {
     if (!isOpen || !infohash || !file) {
       setCodecInfo(null);
@@ -303,37 +306,23 @@ export function MediaPlayerModal({
       return;
     }
 
-    // For formats that might need transcoding (like MP4 with HEVC), check codec info
-    const checkCodecInfo = async (): Promise<void> => {
+    // For formats that might need transcoding (like MP4 with HEVC), check CACHED codec info only
+    // Do NOT trigger detection here - it requires downloading data which can be slow
+    // If not cached, let the player try to play and handle codec errors at runtime
+    const checkCachedCodecInfo = async (): Promise<void> => {
       setIsCheckingCodec(true);
       try {
-        // First try to get cached codec info
+        // Only try to get CACHED codec info - do not trigger detection
         const response = await fetch(`/api/codec-info/${infohash}?fileIndex=${file.fileIndex}`);
         if (response.ok) {
           const data = await response.json() as CodecInfo;
           console.log('[MediaPlayerModal] Codec info retrieved:', data);
           setCodecInfo(data);
           
-          // If codec info is cached and indicates transcoding is needed, we're done
-          if (data.cached && data.needsTranscoding !== null) {
-            setCodecCheckComplete(true);
-            return;
-          }
-          
-          // If not cached, trigger detection via POST (this will save to DB)
+          // If codec info is cached, use it
+          // If not cached, proceed without it - player will handle codec errors at runtime
           if (!data.cached) {
-            console.log('[MediaPlayerModal] Codec info not cached, triggering detection...');
-            const detectResponse = await fetch(`/api/codec-info/${infohash}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fileIndex: file.fileIndex }),
-            });
-            
-            if (detectResponse.ok) {
-              const detectData = await detectResponse.json() as CodecInfo;
-              console.log('[MediaPlayerModal] Codec detection complete:', detectData);
-              setCodecInfo(detectData);
-            }
+            console.log('[MediaPlayerModal] Codec info not cached, will detect at runtime if needed');
           }
         }
       } catch (err) {
@@ -345,7 +334,7 @@ export function MediaPlayerModal({
       }
     };
 
-    void checkCodecInfo();
+    void checkCachedCodecInfo();
   }, [isOpen, infohash, file]);
 
   // Build stream URL when file changes and codec check is complete
@@ -537,7 +526,8 @@ export function MediaPlayerModal({
   
   // Use extracted title for display
   const displayTitle = trackInfo.title;
-  const modalTitle = file.name;
+  // Use torrentName (which is clean_title) for modal title, fallback to file name
+  const modalTitle = torrentName ?? file.name;
   
   const isLoading = !isPlayerReady && !error;
   

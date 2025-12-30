@@ -195,7 +195,27 @@ function nodeStreamToWebStreamWithPreBuffer(
       // Set up timeout for pre-buffer
       preBufferTimeout = setTimeout(() => {
         if (!preBufferComplete) {
-          reqLogger.info('Pre-buffer timeout reached, starting playback', {
+          // Check if we have enough data to even start playback
+          // FFmpeg needs at least ~64KB to read file headers
+          const MIN_BYTES_FOR_PLAYBACK = 64 * 1024; // 64KB minimum
+          
+          if (preBufferSize < MIN_BYTES_FOR_PLAYBACK) {
+            reqLogger.error('Pre-buffer timeout with insufficient data - torrent may have no seeders', {
+              bufferedBytes: preBufferSize,
+              minimumRequired: MIN_BYTES_FOR_PLAYBACK,
+              targetBytes: preBufferBytes,
+              timeoutMs: preBufferTimeoutMs,
+            });
+            // Signal error by closing the stream
+            preBufferComplete = true;
+            if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
+              nodeStream.destroy(new Error('Insufficient data from torrent - no seeders available'));
+            }
+            preBufferResolver?.();
+            return;
+          }
+          
+          reqLogger.info('Pre-buffer timeout reached, starting playback with partial buffer', {
             bufferedBytes: preBufferSize,
             targetBytes: preBufferBytes,
             timeoutMs: preBufferTimeoutMs,
@@ -426,6 +446,7 @@ function createTranscodedStream(
 
     // Track bytes received by FFmpeg stdin
     let bytesReceivedByFFmpeg = 0;
+    let lastLoggedBytes = 0;
     sourceStream.on('data', (chunk: Buffer) => {
       bytesReceivedByFFmpeg += chunk.length;
       if (bytesReceivedByFFmpeg === chunk.length) {
@@ -433,6 +454,37 @@ function createTranscodedStream(
         reqLogger.info('First data chunk received by source stream', {
           chunkSize: chunk.length,
         });
+      }
+      // Log progress every 1MB
+      if (bytesReceivedByFFmpeg - lastLoggedBytes >= 1024 * 1024) {
+        reqLogger.info('Source stream progress', {
+          bytesReceived: bytesReceivedByFFmpeg,
+          bytesReceivedMB: (bytesReceivedByFFmpeg / (1024 * 1024)).toFixed(2),
+        });
+        lastLoggedBytes = bytesReceivedByFFmpeg;
+      }
+    });
+
+    // Track bytes output by FFmpeg
+    let bytesOutputByFFmpeg = 0;
+    let lastLoggedOutputBytes = 0;
+    ffmpeg.stdout.on('data', (chunk: Buffer) => {
+      bytesOutputByFFmpeg += chunk.length;
+      if (bytesOutputByFFmpeg === chunk.length) {
+        // First output chunk
+        reqLogger.info('First output chunk from FFmpeg', {
+          chunkSize: chunk.length,
+        });
+      }
+      // Log progress every 1MB
+      if (bytesOutputByFFmpeg - lastLoggedOutputBytes >= 1024 * 1024) {
+        reqLogger.info('FFmpeg output progress', {
+          bytesOutput: bytesOutputByFFmpeg,
+          bytesOutputMB: (bytesOutputByFFmpeg / (1024 * 1024)).toFixed(2),
+          bytesInput: bytesReceivedByFFmpeg,
+          bytesInputMB: (bytesReceivedByFFmpeg / (1024 * 1024)).toFixed(2),
+        });
+        lastLoggedOutputBytes = bytesOutputByFFmpeg;
       }
     });
 

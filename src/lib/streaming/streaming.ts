@@ -429,6 +429,20 @@ export class StreamingService {
     file.select();
     logger.debug('File selected for download priority');
 
+    // Log current download state
+    const fileProgress = (file as unknown as { progress: number }).progress ?? 0;
+    const downloadedBytes = fileProgress * file.length;
+    logger.info('File download state before streaming', {
+      fileName: file.name,
+      fileSize: file.length,
+      fileProgress: (fileProgress * 100).toFixed(2) + '%',
+      downloadedBytes,
+      downloadedMB: (downloadedBytes / (1024 * 1024)).toFixed(2),
+      numPeers: torrent.numPeers,
+      downloadSpeed: torrent.downloadSpeed,
+      skipWaitForData,
+    });
+
     // Wait for at least some data to be available before streaming
     // This prevents MEDIA_ELEMENT_ERROR when the browser receives empty data
     // Skip this for transcoding - FFmpeg handles buffering and can wait for data

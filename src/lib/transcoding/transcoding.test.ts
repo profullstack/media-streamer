@@ -295,16 +295,58 @@ describe('Transcoding Service', () => {
       // Should use fragmented MP4 for streaming
       expect(args).toContain('-movflags');
       expect(args).toContain('frag_keyframe+empty_moov+default_base_moof');
-      // Should use 1 thread per job to support multiple concurrent users
-      // With 8 CPUs, this allows up to 8 simultaneous transcoding sessions
+      // Should use auto threads (0) for optimal performance
+      // FFmpeg will use the optimal number of threads for the system
       expect(args).toContain('-threads');
-      expect(args).toContain('1');
+      expect(args).toContain('0');
       // Should use video codec
       expect(args).toContain('-vcodec');
       expect(args).toContain('libx264');
       // Should use audio codec
       expect(args).toContain('-acodec');
       expect(args).toContain('aac');
+    });
+
+    it('should NOT include input format even when provided (FFmpeg auto-detects better)', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      // Input format parameter is accepted for API compatibility but NOT used
+      // FFmpeg's auto-detection works better for most formats when streaming
+      // Specifying -f can cause issues (e.g., for MP4 with HEVC, the container is already MP4)
+      const args = buildStreamingFFmpegArgs(profile, 'mp4');
+
+      // The only -f should be for output format (mp4), not input
+      const inputIndex = args.indexOf('-i');
+      const firstFIndex = args.indexOf('-f');
+      // -f should be AFTER -i (for output format only)
+      expect(firstFIndex).toBeGreaterThan(inputIndex);
+    });
+
+    it('should not include input format when not provided', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      // When no input format is provided, FFmpeg should auto-detect
+      const args = buildStreamingFFmpegArgs(profile);
+
+      // The first -f should be for output format (mp4), not input
+      const firstFIndex = args.indexOf('-f');
+      const inputIndex = args.indexOf('-i');
+      // If -f exists, it should be after -i (for output format)
+      if (firstFIndex !== -1) {
+        expect(firstFIndex).toBeGreaterThan(inputIndex);
+      }
     });
 
     it('should include real-time streaming optimizations for video', () => {
@@ -332,12 +374,60 @@ describe('Transcoding Service', () => {
       // Should disable B-frames for lower latency
       expect(args).toContain('-bf');
       expect(args).toContain('0');
-      // Should use CRF 28 for faster encoding
+      // Should use CRF 30 for faster encoding (lower quality but faster)
       expect(args).toContain('-crf');
-      expect(args).toContain('28');
+      expect(args).toContain('30');
       // Should set keyframe interval
       expect(args).toContain('-g');
       expect(args).toContain('60');
+    });
+
+    it('should include video scaling to 480p for real-time transcoding of high-res HEVC content', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        videoBitrate: '2000k',
+        audioBitrate: '128k',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      const args = buildStreamingFFmpegArgs(profile);
+
+      // Should include video filter for scaling
+      // Scale to 480p height for real-time transcoding of 4K HEVC content
+      expect(args).toContain('-vf');
+      const vfIndex = args.indexOf('-vf');
+      expect(vfIndex).toBeGreaterThan(-1);
+      const vfValue = args[vfIndex + 1];
+      // Should scale to 480p max height while maintaining aspect ratio
+      expect(vfValue).toContain('scale=');
+      expect(vfValue).toContain('480');
+      // Should ensure even dimensions (required by H.264)
+      expect(vfValue).toContain('ceil');
+    });
+
+    it('should use auto threads for optimal performance', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        videoBitrate: '2000k',
+        audioBitrate: '128k',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      const args = buildStreamingFFmpegArgs(profile);
+
+      // Should use auto threads (0) for optimal performance
+      // FFmpeg will use the optimal number of threads for the system
+      expect(args).toContain('-threads');
+      const threadsIndex = args.indexOf('-threads');
+      expect(threadsIndex).toBeGreaterThan(-1);
+      const threadsValue = args[threadsIndex + 1];
+      expect(threadsValue).toBe('0');
     });
 
     it('should include bitrate limiting for streaming', () => {
@@ -353,12 +443,12 @@ describe('Transcoding Service', () => {
 
       const args = buildStreamingFFmpegArgs(profile);
 
-      // Should limit bitrate for streaming
+      // Should limit bitrate for 480p streaming
       expect(args).toContain('-maxrate');
-      expect(args).toContain('2M');
-      // Should have larger buffer for smoother output
+      expect(args).toContain('1M');
+      // Should have buffer for smoother output
       expect(args).toContain('-bufsize');
-      expect(args).toContain('4M');
+      expect(args).toContain('2M');
       // Should output as MP4 format
       expect(args).toContain('-f');
       expect(args).toContain('mp4');
@@ -395,12 +485,13 @@ describe('Transcoding Service', () => {
 
         const args = buildStreamingFFmpegArgs(profile);
 
-        // iOS Safari supports H.264 Baseline profile with level 3.1
+        // iOS Safari supports H.264 Baseline profile with level 3.0
         // Baseline is simpler (no B-frames, CABAC) = faster encoding for real-time streaming
+        // Level 3.0 supports up to 720x480@30fps which is sufficient for 480p output
         expect(args).toContain('-profile:v');
         expect(args).toContain('baseline');
         expect(args).toContain('-level:v');
-        expect(args).toContain('3.1');
+        expect(args).toContain('3.0');
       });
 
       it('should include yuv420p pixel format for iOS Safari video playback', () => {

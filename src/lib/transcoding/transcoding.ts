@@ -351,19 +351,27 @@ export function getStreamingTranscodeProfile(
  * - Disabled bit reservoir for consistent frame sizes
  *
  * @param profile - Transcoding profile
- * @param _inputFormat - Optional input format hint (currently unused, FFmpeg auto-detects)
+ * @param inputFormat - Optional input format hint for FFmpeg (e.g., 'mp4', 'mkv', 'flac')
+ *                      CRITICAL for pipe input - FFmpeg may not auto-detect correctly
  * @returns Array of FFmpeg arguments for streaming
  */
 export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat?: string): string[] {
   const args: string[] = [];
 
-  // Input from stdin (pipe) - FFmpeg auto-detects format
-  args.push('-i', 'pipe:0');
+  // CRITICAL: Set thread count BEFORE input for decoder threads
+  // This affects both decoding and encoding performance
+  // Use 0 (auto) to let FFmpeg use optimal thread count for the system
+  args.push('-threads', '0');
 
-  // Use 1 thread per transcoding job to support multiple concurrent users
-  // With 8 CPUs, this allows up to 8 simultaneous transcoding sessions
-  // Each user gets dedicated CPU resources without contention
-  args.push('-threads', '1');
+  // NOTE: We do NOT specify -f (input format) for pipe input
+  // FFmpeg's auto-detection works well for most formats when streaming
+  // Specifying -f can actually cause issues:
+  // - For MP4 with HEVC, -f mp4 is redundant (container is already MP4)
+  // - For MKV, FFmpeg auto-detects the Matroska container correctly
+  // The _inputFormat parameter is kept for API compatibility but not used
+
+  // Input from stdin (pipe)
+  args.push('-i', 'pipe:0');
 
   // Audio codec
   if (profile.audioCodec) {
@@ -377,6 +385,15 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
 
   // MP4 specific: iOS/Safari-compatible H.264 settings optimized for real-time streaming
   if (profile.outputFormat === 'mp4') {
+    // CRITICAL: Scale video to 480p max for real-time transcoding of HEVC content
+    // 4K HEVC decoding is extremely CPU-intensive, even with software decoding
+    // 480p is the maximum that can be reliably transcoded in real-time from 4K HEVC
+    // The filter: scale=-2:min(480,ih) means:
+    // - Width: -2 = auto-calculate to maintain aspect ratio, ensure even number
+    // - Height: min(480,ih) = 480p max, or original height if smaller
+    // - flags=fast_bilinear = fastest scaling algorithm
+    args.push('-vf', 'scale=-2:\'min(480,ceil(ih/2)*2)\':flags=fast_bilinear');
+    
     // Use ultrafast preset for real-time transcoding
     // This is critical - without it, encoding can't keep up with playback
     args.push('-preset', 'ultrafast');
@@ -387,9 +404,9 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
     
     // H.264 Baseline profile for maximum compatibility and faster encoding
     // Baseline is simpler than Main (no B-frames, CABAC) = faster encoding
-    // Level 3.1 supports up to 1280x720@30fps which is sufficient
+    // Level 3.0 supports up to 720x480@30fps which is sufficient for 480p
     args.push('-profile:v', 'baseline');
-    args.push('-level:v', '3.1');
+    args.push('-level:v', '3.0');
     
     // Pixel format required by iOS Safari
     args.push('-pix_fmt', 'yuv420p');
@@ -402,8 +419,9 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
     args.push('-bf', '0');
     
     // Use CRF for quality-based encoding (faster than bitrate targeting)
-    // CRF 28 is lower quality but much faster to encode
-    args.push('-crf', '28');
+    // CRF 30 is lower quality but much faster to encode
+    // For 480p output, this is acceptable quality
+    args.push('-crf', '30');
     
     // Fragmented MP4 for streaming (allows playback before complete)
     // frag_keyframe+empty_moov puts moov atom at start
@@ -411,9 +429,9 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
     args.push('-movflags', 'frag_keyframe+empty_moov+default_base_moof');
     
     // Rate control for consistent streaming
-    // Increased buffer size for smoother output
-    args.push('-maxrate', '2M');
-    args.push('-bufsize', '4M');
+    // Lower bitrate for 480p content
+    args.push('-maxrate', '1M');
+    args.push('-bufsize', '2M');
     args.push('-f', 'mp4');
   }
 

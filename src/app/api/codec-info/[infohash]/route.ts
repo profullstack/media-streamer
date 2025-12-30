@@ -347,9 +347,9 @@ export async function POST(
       }
     }
 
-    // Also update torrent-level codec info (for collection-level detection)
-    if (saved && body.fileIndex === undefined) {
-      // Only update torrent level if this was auto-detected (no specific file requested)
+    // Also update torrent-level codec info for video files
+    // This ensures the torrent details page shows codec info regardless of how detection was triggered
+    if (saved && file.media_category === 'video') {
       const { error: torrentUpdateError } = await supabase
         .from('torrents')
         .update({
