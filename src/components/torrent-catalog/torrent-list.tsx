@@ -14,20 +14,31 @@ export interface TorrentItem {
   id: string;
   infohash: string;
   name: string;
-  clean_title: string | null;
-  total_size: number;
-  file_count: number;
-  status: string;
-  created_at: string;
+  // camelCase fields from API transform
+  cleanTitle?: string | null;
+  totalSize: number;
+  fileCount: number;
+  status?: string;
+  createdAt?: string;
+  posterUrl?: string | null;
+  coverUrl?: string | null;
+  contentType?: string | null;
+  year?: number | null;
+  // Music-specific fields
+  artistImageUrl?: string | null;
+  albumCoverUrl?: string | null;
+  artist?: string | null;
+  album?: string | null;
+  // Legacy snake_case fields for backwards compatibility with direct DB queries
+  clean_title?: string | null;
+  total_size?: number;
+  file_count?: number;
+  created_at?: string;
   poster_url?: string | null;
   cover_url?: string | null;
   content_type?: string | null;
-  year?: number | null;
-  // Music-specific fields
   artist_image_url?: string | null;
   album_cover_url?: string | null;
-  artist?: string | null;
-  album?: string | null;
 }
 
 export interface TorrentListProps {
@@ -54,6 +65,7 @@ function getContentTypeIcon(contentType: string | null | undefined): string {
   switch (contentType) {
     case 'movie':
       return '🎬';
+    case 'tvshow':
     case 'tv':
       return '📺';
     case 'music':
@@ -64,6 +76,8 @@ function getContentTypeIcon(contentType: string | null | undefined): string {
       return '🎮';
     case 'software':
       return '💿';
+    case 'xxx':
+      return '🔞';
     default:
       return '📁';
   }
@@ -71,10 +85,45 @@ function getContentTypeIcon(contentType: string | null | undefined): string {
 
 /**
  * Get the best available image URL for a torrent
- * Priority: poster_url > album_cover_url > artist_image_url > cover_url
+ * Supports both camelCase (from API transform) and snake_case (from direct DB queries)
+ * Priority: posterUrl > albumCoverUrl > artistImageUrl > coverUrl
  */
 function getImageUrl(torrent: TorrentItem): string | null {
-  return torrent.poster_url ?? torrent.album_cover_url ?? torrent.artist_image_url ?? torrent.cover_url ?? null;
+  return (
+    torrent.posterUrl ?? torrent.poster_url ??
+    torrent.albumCoverUrl ?? torrent.album_cover_url ??
+    torrent.artistImageUrl ?? torrent.artist_image_url ??
+    torrent.coverUrl ?? torrent.cover_url ??
+    null
+  );
+}
+
+/**
+ * Get content type from torrent (supports both camelCase and snake_case)
+ */
+function getContentType(torrent: TorrentItem): string | null | undefined {
+  return torrent.contentType ?? torrent.content_type;
+}
+
+/**
+ * Get clean title from torrent (supports both camelCase and snake_case)
+ */
+function getCleanTitle(torrent: TorrentItem): string | null | undefined {
+  return torrent.cleanTitle ?? torrent.clean_title;
+}
+
+/**
+ * Get total size from torrent (supports both camelCase and snake_case)
+ */
+function getTotalSize(torrent: TorrentItem): number {
+  return torrent.totalSize ?? torrent.total_size ?? 0;
+}
+
+/**
+ * Get file count from torrent (supports both camelCase and snake_case)
+ */
+function getFileCount(torrent: TorrentItem): number {
+  return torrent.fileCount ?? torrent.file_count ?? 0;
 }
 
 export function TorrentList({ torrents, onSelect, selectedId, onExpand }: TorrentListProps): React.ReactElement {
@@ -82,8 +131,13 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
     <div className="space-y-2">
       {torrents.map((torrent) => {
         const imageUrl = getImageUrl(torrent);
+        const contentType = getContentType(torrent);
+        const cleanTitle = getCleanTitle(torrent);
+        const totalSize = getTotalSize(torrent);
+        const fileCount = getFileCount(torrent);
+        const status = torrent.status ?? 'pending';
         // For music, use square aspect ratio for album covers
-        const isMusic = torrent.content_type === 'music';
+        const isMusic = contentType === 'music';
         
         return (
           <div
@@ -105,7 +159,7 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
                   }`}>
                     <Image
                       src={imageUrl}
-                      alt={torrent.clean_title ?? torrent.name}
+                      alt={cleanTitle ?? torrent.name}
                       fill
                       sizes={isMusic ? '64px' : '56px'}
                       className="object-cover"
@@ -116,7 +170,7 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
                   <div className={`flex items-center justify-center rounded-md bg-gray-100 text-2xl dark:bg-gray-800 ${
                     isMusic ? 'h-16 w-16' : 'h-20 w-14'
                   }`}>
-                    {getContentTypeIcon(torrent.content_type)}
+                    {getContentTypeIcon(contentType)}
                   </div>
                 )}
               </div>
@@ -124,7 +178,7 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
               {/* Torrent Info */}
               <div className="flex-1 min-w-0">
                 <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white" title={torrent.name}>
-                  {torrent.clean_title ?? torrent.name}
+                  {cleanTitle ?? torrent.name}
                   {torrent.year && (
                     <span className="ml-2 text-gray-500 dark:text-gray-400">({torrent.year})</span>
                   )}
@@ -138,18 +192,18 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
                   </p>
                 )}
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  {torrent.content_type && (
+                  {contentType && (
                     <>
-                      <span className="capitalize">{torrent.content_type}</span>
+                      <span className="capitalize">{contentType}</span>
                       <span>•</span>
                     </>
                   )}
-                  <span>{torrent.file_count} files</span>
+                  <span>{fileCount} files</span>
                   <span>•</span>
-                  <span>{formatBytes(torrent.total_size)}</span>
+                  <span>{formatBytes(totalSize)}</span>
                   <span>•</span>
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(torrent.status)}`}>
-                    {torrent.status}
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(status)}`}>
+                    {status}
                   </span>
                 </div>
               </div>

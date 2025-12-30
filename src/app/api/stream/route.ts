@@ -7,15 +7,18 @@
  *
  * FREE - No authentication required to encourage usage.
  *
+ * GET /api/stream?infohash=...&fileIndex=...&transcode=auto
  * GET /api/stream?infohash=...&fileIndex=...&demuxer=matroska
  * HEAD /api/stream?infohash=...&fileIndex=...
  *
  * Query params:
  * - infohash: torrent infohash (required)
  * - fileIndex: file index in torrent (required)
+ * - transcode: 'auto' to enable transcoding with auto-detected demuxer from file extension
  * - demuxer: FFmpeg demuxer name for transcoding (e.g., 'matroska', 'mov', 'flac')
  *            This should come from codec detection stored in the database.
  *            When provided, transcoding will be enabled with the specified input format.
+ *            Takes precedence over transcode=auto.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -38,6 +41,7 @@ import {
   getPreBufferSize,
   TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
 } from '@/lib/transcoding';
+import { getFFmpegDemuxerForExtension } from '@/lib/codec-detection';
 
 const logger = createLogger('API:stream');
 
@@ -89,10 +93,11 @@ function parseRangeHeader(
  */
 function validateParams(
   searchParams: URLSearchParams
-): { infohash: string; fileIndex: number; demuxer: string | null } | { error: string; status: number } {
+): { infohash: string; fileIndex: number; demuxer: string | null; transcode: string | null } | { error: string; status: number } {
   const infohash = searchParams.get('infohash');
   const fileIndexStr = searchParams.get('fileIndex');
   const demuxer = searchParams.get('demuxer');
+  const transcode = searchParams.get('transcode');
 
   if (!infohash) {
     return { error: 'Missing required parameter: infohash', status: 400 };
@@ -107,7 +112,7 @@ function validateParams(
     return { error: 'fileIndex must be a non-negative integer', status: 400 };
   }
 
-  return { infohash, fileIndex, demuxer };
+  return { infohash, fileIndex, demuxer, transcode };
 }
 
 /**
@@ -606,6 +611,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   reqLogger.info('Request parameters', {
     infohash: searchParams.get('infohash'),
     fileIndex: searchParams.get('fileIndex'),
+    transcode: searchParams.get('transcode'),
     demuxer: searchParams.get('demuxer'),
     allParams: Object.fromEntries(searchParams.entries()),
   });
@@ -620,11 +626,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
-  const { infohash, fileIndex, demuxer } = validation;
+  const { infohash, fileIndex, demuxer, transcode } = validation;
   
   reqLogger.info('Stream request validated', {
     infohash,
     fileIndex,
+    transcode,
     demuxer,
   });
   
@@ -669,25 +676,44 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
 
     // Check if transcoding is requested
-    // When demuxer parameter is provided, transcoding is enabled with the specified input format
-    // The demuxer should come from codec detection stored in the database
+    // Transcoding can be requested in two ways:
+    // 1. demuxer=<format> - explicit demuxer from codec detection DB (takes precedence)
+    // 2. transcode=auto - derive demuxer from file extension
     // This handles cases where:
     // 1. The file extension requires transcoding (e.g., .mkv, .avi)
     // 2. The file extension is "supported" (e.g., .mp4) but the codec isn't (e.g., HEVC/H.265)
     const formatNeedsTranscoding = needsTranscoding(info.fileName);
-    const shouldTranscode = demuxer !== null;
+    
+    // Determine the effective demuxer to use
+    // Priority: explicit demuxer > auto-detect from extension
+    let effectiveDemuxer: string | null = demuxer;
+    if (!effectiveDemuxer && transcode === 'auto') {
+      // Derive demuxer from file extension
+      const ext = info.fileName.split('.').pop()?.toLowerCase();
+      if (ext) {
+        effectiveDemuxer = getFFmpegDemuxerForExtension(ext);
+        reqLogger.info('Auto-detected demuxer from file extension', {
+          extension: ext,
+          demuxer: effectiveDemuxer,
+        });
+      }
+    }
+    
+    const shouldTranscode = effectiveDemuxer !== null;
     
     reqLogger.info('Transcoding decision', {
+      transcode,
       demuxer,
+      effectiveDemuxer,
       fileName: info.fileName,
       formatNeedsTranscoding,
       shouldTranscode,
       reason: shouldTranscode
-        ? `Transcoding with demuxer: ${demuxer}`
-        : 'No transcoding requested (no demuxer parameter)',
+        ? `Transcoding with demuxer: ${effectiveDemuxer}`
+        : 'No transcoding requested (no demuxer or transcode=auto parameter)',
     });
     
-    if (shouldTranscode) {
+    if (shouldTranscode && effectiveDemuxer) {
       reqLogger.info('=== STARTING TRANSCODING PATH ===', {
         fileName: info.fileName,
         originalMimeType: info.mimeType,
@@ -768,13 +794,13 @@ export async function GET(request: NextRequest): Promise<Response> {
         );
       }
 
-      // Pass the demuxer from the client to tell FFmpeg the input format
+      // Pass the demuxer to tell FFmpeg the input format
       // This is required for pipe input since FFmpeg cannot auto-detect format
       const transcoded = createTranscodedStream(
         result.stream as NodeJS.ReadableStream,
         info.fileName,
         reqLogger,
-        demuxer // FFmpeg demuxer name from codec detection DB
+        effectiveDemuxer // FFmpeg demuxer name (from DB or auto-detected from extension)
       );
 
       if (!transcoded) {
