@@ -16,6 +16,7 @@ import {
   enrichTorrentMetadata,
   cleanTorrentNameForDisplay,
 } from '@/lib/metadata-enrichment';
+import { detectCodecFromUrl, formatCodecInfoForDb } from '@/lib/codec-detection';
 import type { Torrent as DbTorrent } from '@/lib/supabase/types';
 
 const logger = createLogger('API:torrents');
@@ -309,6 +310,111 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           cleanTitle,
           contentType: enrichmentResult.contentType,
         });
+      }
+      
+      // Auto-detect codec for video/audio files
+      // Find the first video or audio file
+      const { data: mediaFiles } = await supabase
+        .from('torrent_files')
+        .select('id, file_index, media_category')
+        .eq('torrent_id', result.torrentId)
+        .in('media_category', ['video', 'audio'])
+        .order('file_index', { ascending: true })
+        .limit(1);
+      
+      if (mediaFiles && mediaFiles.length > 0) {
+        const mediaFile = mediaFiles[0];
+        reqLogger.info('Auto-detecting codec for first media file', {
+          fileIndex: mediaFile.file_index,
+          mediaCategory: mediaFile.media_category,
+        });
+        
+        try {
+          // Build stream URL and detect codec
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+          const streamUrl = `${baseUrl}/api/stream?infohash=${result.infohash}&fileIndex=${mediaFile.file_index}`;
+          
+          reqLogger.info('Detecting codec from stream URL', { streamUrl });
+          const codecInfo = await detectCodecFromUrl(streamUrl, 60);
+          const dbData = formatCodecInfoForDb(codecInfo);
+          const now = new Date().toISOString();
+          
+          reqLogger.info('Codec detection result', {
+            videoCodec: codecInfo.videoCodec,
+            audioCodec: codecInfo.audioCodec,
+            container: codecInfo.container,
+            needsTranscoding: codecInfo.needsTranscoding,
+          });
+          
+          // Update torrent-level codec info
+          const { error: codecUpdateError } = await supabase
+            .from('torrents')
+            .update({
+              video_codec: dbData.video_codec,
+              audio_codec: dbData.audio_codec,
+              container: dbData.container,
+              needs_transcoding: dbData.needs_transcoding,
+              codec_detected_at: now,
+            })
+            .eq('id', result.torrentId);
+          
+          if (codecUpdateError) {
+            reqLogger.warn('Failed to update torrent with codec info', { error: codecUpdateError.message });
+          } else {
+            reqLogger.info('Codec info saved to torrent', {
+              torrentId: result.torrentId,
+              videoCodec: dbData.video_codec,
+              audioCodec: dbData.audio_codec,
+              needsTranscoding: dbData.needs_transcoding,
+            });
+          }
+          
+          // Also update the file-level metadata
+          if (mediaFile.media_category === 'video') {
+            const { error: videoMetaError } = await supabase
+              .from('video_metadata')
+              .upsert({
+                file_id: mediaFile.id,
+                codec: dbData.video_codec,
+                audio_codec: dbData.audio_codec,
+                container: dbData.container,
+                duration_seconds: dbData.duration_seconds,
+                bitrate: dbData.bit_rate,
+                needs_transcoding: dbData.needs_transcoding,
+                codec_detected_at: now,
+              }, {
+                onConflict: 'file_id',
+              });
+            
+            if (videoMetaError) {
+              reqLogger.warn('Failed to update video metadata', { error: videoMetaError.message });
+            }
+          } else if (mediaFile.media_category === 'audio') {
+            const { error: audioMetaError } = await supabase
+              .from('audio_metadata')
+              .upsert({
+                file_id: mediaFile.id,
+                codec: dbData.audio_codec,
+                container: dbData.container,
+                duration_seconds: dbData.duration_seconds,
+                bitrate: dbData.bit_rate,
+                codec_detected_at: now,
+              }, {
+                onConflict: 'file_id',
+              });
+            
+            if (audioMetaError) {
+              reqLogger.warn('Failed to update audio metadata', { error: audioMetaError.message });
+            }
+          }
+        } catch (codecError) {
+          // Don't fail the request - codec detection is optional
+          reqLogger.warn('Codec detection failed', {
+            error: codecError instanceof Error ? codecError.message : String(codecError),
+          });
+        }
+      } else {
+        reqLogger.info('No video/audio files found for codec detection');
       }
     }
 

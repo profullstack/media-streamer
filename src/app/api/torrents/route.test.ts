@@ -27,13 +27,48 @@ const mockSupabaseUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockResolvedValue({ error: null }),
 });
 
+const mockSupabaseSelect = vi.fn().mockReturnValue({
+  eq: vi.fn().mockReturnValue({
+    in: vi.fn().mockReturnValue({
+      order: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }),
+    }),
+  }),
+});
+
+const mockSupabaseUpsert = vi.fn().mockResolvedValue({ error: null });
+
 vi.mock('@/lib/supabase/client', () => ({
   getServerClient: vi.fn(() => ({
     from: vi.fn(() => ({
       update: mockSupabaseUpdate,
+      select: mockSupabaseSelect,
+      upsert: mockSupabaseUpsert,
     })),
   })),
   resetServerClient: vi.fn(),
+}));
+
+// Mock codec detection
+vi.mock('@/lib/codec-detection', () => ({
+  detectCodecFromUrl: vi.fn().mockResolvedValue({
+    videoCodec: 'h264',
+    audioCodec: 'aac',
+    container: 'mp4',
+    needsTranscoding: false,
+    duration: 120,
+    bitRate: 5000000,
+  }),
+  formatCodecInfoForDb: vi.fn().mockReturnValue({
+    video_codec: 'h264',
+    audio_codec: 'aac',
+    container: 'mp4',
+    needs_transcoding: false,
+    duration_seconds: 120,
+    bit_rate: 5000000,
+    resolution: '1920x1080',
+  }),
 }));
 
 // Mock metadata enrichment
