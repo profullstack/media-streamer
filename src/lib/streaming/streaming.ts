@@ -1,6 +1,6 @@
  /**
  * Multi-media Streaming Service
- * 
+ *
  * Provides streaming capabilities for audio, video, and ebook files from torrents.
  * Supports HTTP range requests for seeking and prioritizes only needed pieces.
  * This is a SERVER-SIDE ONLY service.
@@ -13,6 +13,7 @@ import { validateMagnetUri, extractInfohash } from '../magnet';
 import { getMediaCategory, getMimeType } from '../utils';
 import type { MediaCategory } from '../utils';
 import { createLogger } from '../logger';
+import { getWebTorrentDir, ensureDir } from '../config';
 
 const logger = createLogger('StreamingService');
 
@@ -250,10 +251,15 @@ export class StreamingService {
   private dhtNodeCount: number = 0;
 
   constructor(options: StreamingServiceOptions = {}) {
+    // Get and ensure WebTorrent download directory exists
+    const downloadPath = getWebTorrentDir();
+    ensureDir(downloadPath);
+
     logger.info('Initializing StreamingService', {
       maxConcurrentStreams: options.maxConcurrentStreams ?? 10,
       streamTimeout: options.streamTimeout ?? 90000,
       torrentCleanupDelay: options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY,
+      downloadPath,
     });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
@@ -270,6 +276,8 @@ export class StreamingService {
       webSeeds: true,
       // Increase max connections for better peer discovery
       maxConns: 100,
+      // Use configured download path instead of /tmp/webtorrent
+      path: downloadPath,
     } as WebTorrent.Options);
     
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;

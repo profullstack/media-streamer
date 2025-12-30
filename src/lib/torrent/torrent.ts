@@ -1,6 +1,6 @@
 /**
  * WebTorrent Metadata Service
- * 
+ *
  * Fetches torrent metadata (file list, sizes, piece info) without downloading content.
  * This is a SERVER-SIDE ONLY service.
  */
@@ -9,6 +9,7 @@ import WebTorrent from 'webtorrent';
 import { validateMagnetUri, parseMagnetUri } from '../magnet';
 import { getMediaCategory, getMimeType } from '../utils';
 import { createLogger } from '../logger';
+import { getWebTorrentDir, ensureDir } from '../config';
 
 const logger = createLogger('TorrentService');
 
@@ -196,10 +197,15 @@ export class TorrentService {
   constructor(options: TorrentServiceOptions = {}) {
     const timeout = options.metadataTimeout ?? DEFAULT_METADATA_TIMEOUT;
     
+    // Get and ensure WebTorrent download directory exists
+    const downloadPath = getWebTorrentDir();
+    ensureDir(downloadPath);
+    
     logger.info('Initializing TorrentService', {
       timeout,
       defaultTimeout: DEFAULT_METADATA_TIMEOUT,
       dhtBootstrapNodes: DHT_BOOTSTRAP_NODES,
+      downloadPath,
     });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
@@ -211,6 +217,8 @@ export class TorrentService {
       tracker: true,
       lsd: true, // Local Service Discovery
       webSeeds: true,
+      // Use configured download path instead of /tmp/webtorrent
+      path: downloadPath,
     } as WebTorrent.Options);
     
     this.metadataTimeout = timeout;

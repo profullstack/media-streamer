@@ -11,9 +11,8 @@
  * 4. Clean up temp files after streaming completes
  *
  * Temp Directory Configuration:
- * - Set TRANSCODE_TEMP_DIR environment variable to customize the temp directory
- * - Default: /home/ubuntu/tmp/media-torrent-transcoding (production)
- * - Fallback: {os.tmpdir()}/media-torrent-transcoding (development)
+ * - Set TEMP_DIR environment variable to customize the base temp directory
+ * - Default: $HOME/tmp (production) or system temp dir (development)
  *
  * Cleanup:
  * - Files are cleaned up immediately after transcoding completes
@@ -22,29 +21,20 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { mkdir, rm, readdir, stat } from 'node:fs/promises';
+import { rm, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { PassThrough, type Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '../logger';
+import { getTranscodingDir, ensureDir } from '../config';
 
 const logger = createLogger('FileTranscoding');
 
 /**
- * Default temp directory base path
- * Uses /home/ubuntu/tmp on production (larger disk), falls back to OS temp dir
- */
-const DEFAULT_TEMP_BASE = process.env.NODE_ENV === 'production'
-  ? '/home/ubuntu/tmp'
-  : tmpdir();
-
-/**
  * Temp directory for downloaded files
- * Configurable via TRANSCODE_TEMP_DIR environment variable
+ * Uses the centralized config from ../config
  */
-export const TEMP_DIR = process.env.TRANSCODE_TEMP_DIR
-  ?? join(DEFAULT_TEMP_BASE, 'media-torrent-transcoding');
+export const TEMP_DIR = getTranscodingDir();
 
 /**
  * Maximum age of temp files before cleanup (in milliseconds)
@@ -148,7 +138,7 @@ export async function cleanupTempFile(filePath: string): Promise<void> {
  * Ensure temp directory exists
  */
 async function ensureTempDir(): Promise<void> {
-  await mkdir(TEMP_DIR, { recursive: true });
+  ensureDir(TEMP_DIR);
 }
 
 /**
