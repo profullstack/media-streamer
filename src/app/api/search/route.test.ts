@@ -50,6 +50,9 @@ describe('Search API Route', () => {
           torrent_id: 'torrent-1',
           torrent_name: 'Music Archive',
           torrent_infohash: 'abc123',
+          torrent_poster_url: null,
+          torrent_cover_url: null,
+          torrent_clean_title: null,
           rank: 0.9,
         },
         {
@@ -62,6 +65,9 @@ describe('Search API Route', () => {
           torrent_id: 'torrent-1',
           torrent_name: 'Music Archive',
           torrent_infohash: 'abc123',
+          torrent_poster_url: null,
+          torrent_cover_url: null,
+          torrent_clean_title: null,
           rank: 0.85,
         },
       ];
@@ -199,6 +205,9 @@ describe('Search API Route', () => {
         torrent_id: 'torrent-1',
         torrent_name: 'Music',
         torrent_infohash: 'abc123',
+        torrent_poster_url: null,
+        torrent_cover_url: null,
+        torrent_clean_title: null,
         rank: 0.9 - i * 0.01,
       }));
 
@@ -229,6 +238,9 @@ describe('Search API Route', () => {
           torrent_id: 'torrent-1',
           torrent_name: 'Music',
           torrent_infohash: 'abc123',
+          torrent_poster_url: null,
+          torrent_cover_url: null,
+          torrent_clean_title: null,
           rank: 0.9,
         },
       ];
@@ -410,6 +422,9 @@ describe('Search API Route', () => {
         torrent_id: `torrent-${Math.floor(i / 10)}`,
         torrent_name: `Album ${Math.floor(i / 10)}`,
         torrent_infohash: `hash${Math.floor(i / 10)}`,
+        torrent_poster_url: null,
+        torrent_cover_url: null,
+        torrent_clean_title: null,
         rank: 1 - i * 0.001,
       }));
 
@@ -457,6 +472,9 @@ describe('Search API Route', () => {
         torrent_id: `torrent-${i}`, // Each file from different torrent
         torrent_name: `Artist ${i} Discography`,
         torrent_infohash: `hash${i.toString().padStart(40, '0')}`,
+        torrent_poster_url: null,
+        torrent_cover_url: null,
+        torrent_clean_title: null,
         rank: 0.9 - i * 0.01,
       }));
 
@@ -486,6 +504,9 @@ describe('Search API Route', () => {
           torrent_id: 'torrent-1',
           torrent_name: 'Mixed',
           torrent_infohash: 'hash1',
+          torrent_poster_url: null,
+          torrent_cover_url: null,
+          torrent_clean_title: null,
           rank: 0.9,
         },
         {
@@ -498,6 +519,9 @@ describe('Search API Route', () => {
           torrent_id: 'torrent-1',
           torrent_name: 'Mixed',
           torrent_infohash: 'hash1',
+          torrent_poster_url: null,
+          torrent_cover_url: null,
+          torrent_clean_title: null,
           rank: 0.8,
         },
         {
@@ -510,6 +534,9 @@ describe('Search API Route', () => {
           torrent_id: 'torrent-2',
           torrent_name: 'Archive',
           torrent_infohash: 'hash2',
+          torrent_poster_url: null,
+          torrent_cover_url: null,
+          torrent_clean_title: null,
           rank: 0.7,
         },
       ];
@@ -552,6 +579,9 @@ describe('Search API Route', () => {
         torrent_id: 'torrent-1',
         torrent_name: 'Deep Archive',
         torrent_infohash: 'hash1',
+        torrent_poster_url: null,
+        torrent_cover_url: null,
+        torrent_clean_title: null,
         rank: 0.9,
       }];
 
