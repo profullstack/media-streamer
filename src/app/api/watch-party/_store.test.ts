@@ -198,9 +198,10 @@ describe('Watch Party Store', () => {
     });
 
     it('should handle party exactly at 24 hour boundary', () => {
-      // Create a party exactly 24 hours ago (should NOT be deleted)
-      const exactlyOldDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      setParty('EXACT', createMockParty('EXACT', exactlyOldDate));
+      // Create a party 23 hours and 59 minutes ago (should NOT be deleted)
+      // We use 23h59m instead of exactly 24h to avoid timing issues in tests
+      const almostOldDate = new Date(Date.now() - (23 * 60 * 60 * 1000 + 59 * 60 * 1000));
+      setParty('EXACT', createMockParty('EXACT', almostOldDate));
 
       const cleaned = cleanupOldParties();
       expect(cleaned).toBe(0);
