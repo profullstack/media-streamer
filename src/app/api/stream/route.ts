@@ -3,12 +3,19 @@
  *
  * Provides HTTP streaming for audio, video, and ebook files from torrents.
  * Supports HTTP range requests for seeking.
- * Supports automatic transcoding for non-browser-supported formats.
+ * Supports transcoding for non-browser-supported formats.
  *
  * FREE - No authentication required to encourage usage.
  *
- * GET /api/stream?infohash=...&fileIndex=...&transcode=auto
+ * GET /api/stream?infohash=...&fileIndex=...&demuxer=matroska
  * HEAD /api/stream?infohash=...&fileIndex=...
+ *
+ * Query params:
+ * - infohash: torrent infohash (required)
+ * - fileIndex: file index in torrent (required)
+ * - demuxer: FFmpeg demuxer name for transcoding (e.g., 'matroska', 'mov', 'flac')
+ *            This should come from codec detection stored in the database.
+ *            When provided, transcoding will be enabled with the specified input format.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -82,10 +89,10 @@ function parseRangeHeader(
  */
 function validateParams(
   searchParams: URLSearchParams
-): { infohash: string; fileIndex: number; transcode: string | null } | { error: string; status: number } {
+): { infohash: string; fileIndex: number; demuxer: string | null } | { error: string; status: number } {
   const infohash = searchParams.get('infohash');
   const fileIndexStr = searchParams.get('fileIndex');
-  const transcode = searchParams.get('transcode');
+  const demuxer = searchParams.get('demuxer');
 
   if (!infohash) {
     return { error: 'Missing required parameter: infohash', status: 400 };
@@ -100,7 +107,7 @@ function validateParams(
     return { error: 'fileIndex must be a non-negative integer', status: 400 };
   }
 
-  return { infohash, fileIndex, transcode };
+  return { infohash, fileIndex, demuxer };
 }
 
 /**
@@ -335,14 +342,14 @@ function nodeStreamToWebStreamWithPreBuffer(
  * @param sourceStream - The source stream to transcode
  * @param fileName - The original filename for format detection
  * @param reqLogger - Logger instance for this request
- * @param forceTranscode - If true, always transcode even for "supported" formats
- *                         This is used when the client detects codec issues at runtime
+ * @param inputDemuxer - FFmpeg demuxer name for the input format (e.g., 'matroska', 'mov')
+ *                       This is required for pipe input since FFmpeg cannot auto-detect format
  */
 function createTranscodedStream(
   sourceStream: NodeJS.ReadableStream,
   fileName: string,
   reqLogger: ReturnType<typeof logger.child>,
-  forceTranscode = false
+  inputDemuxer: string
 ): { stream: NodeJS.ReadableStream; mimeType: string } | null {
   try {
     const mediaType = detectMediaType(fileName);
@@ -351,25 +358,25 @@ function createTranscodedStream(
       return null;
     }
 
-    // Extract format from filename
+    // Extract format from filename for profile selection
     const format = fileName.split('.').pop()?.toLowerCase() ?? '';
     if (!format) {
       reqLogger.warn('Cannot extract format from filename', { fileName });
       return null;
     }
 
-    // Pass forceTranscode to get a profile even for "supported" formats like MP4
+    // Always force transcoding since demuxer was explicitly provided
     // This handles cases where the container is supported but the codec isn't (e.g., HEVC in MP4)
-    const profile = getStreamingTranscodeProfile(mediaType, format, forceTranscode);
+    const profile = getStreamingTranscodeProfile(mediaType, format, true);
     if (!profile) {
-      reqLogger.warn('No transcoding profile available', { fileName, mediaType, format, forceTranscode });
+      reqLogger.warn('No transcoding profile available', { fileName, mediaType, format, inputDemuxer });
       return null;
     }
 
-    // Pass the input format to FFmpeg args builder for proper container detection
-    // This is critical for non-seekable streams like MKV where metadata is at the end
-    const ffmpegArgs = buildStreamingFFmpegArgs(profile, format);
-    const outputMimeType = getTranscodedMimeType(mediaType, format, forceTranscode);
+    // Pass the input demuxer to FFmpeg args builder
+    // This is critical for non-seekable pipe streams where FFmpeg cannot auto-detect format
+    const ffmpegArgs = buildStreamingFFmpegArgs(profile, inputDemuxer);
+    const outputMimeType = getTranscodedMimeType(mediaType, format, true);
     if (!outputMimeType) {
       reqLogger.warn('Cannot determine output MIME type', { fileName, mediaType, format });
       return null;
@@ -577,7 +584,9 @@ function createTranscodedStream(
  * Query params:
  * - infohash: torrent infohash (required)
  * - fileIndex: file index in torrent (required)
- * - transcode: 'auto' to automatically transcode non-browser formats (optional)
+ * - demuxer: FFmpeg demuxer name for transcoding (e.g., 'matroska', 'mov', 'flac')
+ *            When provided, transcoding is enabled with the specified input format.
+ *            This should come from codec detection stored in the database.
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const requestId = generateRequestId();
@@ -597,7 +606,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   reqLogger.info('Request parameters', {
     infohash: searchParams.get('infohash'),
     fileIndex: searchParams.get('fileIndex'),
-    transcode: searchParams.get('transcode'),
+    demuxer: searchParams.get('demuxer'),
     allParams: Object.fromEntries(searchParams.entries()),
   });
   
@@ -611,12 +620,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
-  const { infohash, fileIndex, transcode } = validation;
+  const { infohash, fileIndex, demuxer } = validation;
   
   reqLogger.info('Stream request validated', {
     infohash,
     fileIndex,
-    transcode,
+    demuxer,
   });
   
   const magnetUri = await getMagnetUri(infohash);
@@ -627,7 +636,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     fileIndex,
     hasRange: !!rangeHeader,
     rangeHeader,
-    transcode,
+    demuxer,
     magnetUri: magnetUri.substring(0, 100) + '...',
   });
 
@@ -660,22 +669,22 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
 
     // Check if transcoding is requested
-    // When transcode=auto is explicitly requested, ALWAYS transcode regardless of file extension
+    // When demuxer parameter is provided, transcoding is enabled with the specified input format
+    // The demuxer should come from codec detection stored in the database
     // This handles cases where:
     // 1. The file extension requires transcoding (e.g., .mkv, .avi)
     // 2. The file extension is "supported" (e.g., .mp4) but the codec isn't (e.g., HEVC/H.265)
-    // The client only sets transcode=auto when it encounters a playback error (codec not supported)
     const formatNeedsTranscoding = needsTranscoding(info.fileName);
-    const shouldTranscode = transcode === 'auto';
+    const shouldTranscode = demuxer !== null;
     
     reqLogger.info('Transcoding decision', {
-      transcode,
+      demuxer,
       fileName: info.fileName,
       formatNeedsTranscoding,
       shouldTranscode,
       reason: shouldTranscode
-        ? 'Client requested transcoding (codec error detected)'
-        : 'No transcoding requested',
+        ? `Transcoding with demuxer: ${demuxer}`
+        : 'No transcoding requested (no demuxer parameter)',
     });
     
     if (shouldTranscode) {
@@ -759,14 +768,13 @@ export async function GET(request: NextRequest): Promise<Response> {
         );
       }
 
-      // Pass forceTranscode=true since transcode=auto was explicitly requested
-      // This ensures we get a transcoding profile even for "supported" formats like MP4
-      // that may have unsupported codecs (e.g., HEVC/H.265)
+      // Pass the demuxer from the client to tell FFmpeg the input format
+      // This is required for pipe input since FFmpeg cannot auto-detect format
       const transcoded = createTranscodedStream(
         result.stream as NodeJS.ReadableStream,
         info.fileName,
         reqLogger,
-        true // forceTranscode - client detected codec error
+        demuxer // FFmpeg demuxer name from codec detection DB
       );
 
       if (!transcoded) {

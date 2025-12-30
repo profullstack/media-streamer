@@ -249,14 +249,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Auto-enrich new torrents with clean_title and metadata
     if (result.isNew) {
-      reqLogger.debug('Auto-enriching new torrent with metadata');
+      reqLogger.info('Auto-enriching new torrent with metadata', {
+        torrentName: result.name,
+      });
       
       // Generate clean title
       const cleanTitle = cleanTorrentNameForDisplay(result.name);
+      reqLogger.info('Generated clean title', { cleanTitle });
       
       // Fetch external metadata (poster, content_type, etc.)
       const omdbApiKey = process.env.OMDB_API_KEY;
       const fanartTvApiKey = process.env.FANART_TV_API_KEY;
+      
+      reqLogger.info('API keys status', {
+        hasOmdbApiKey: !!omdbApiKey,
+        hasFanartTvApiKey: !!fanartTvApiKey,
+      });
       
       const enrichmentResult = await enrichTorrentMetadata(result.name, {
         omdbApiKey,
@@ -264,11 +272,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         musicbrainzUserAgent: 'BitTorrented/1.0.0 (https://bittorrented.com)',
       });
       
-      reqLogger.debug('Enrichment result', {
+      reqLogger.info('Enrichment result', {
         contentType: enrichmentResult.contentType,
-        hasPoster: !!enrichmentResult.posterUrl,
-        hasCover: !!enrichmentResult.coverUrl,
-        hasError: !!enrichmentResult.error,
+        posterUrl: enrichmentResult.posterUrl,
+        coverUrl: enrichmentResult.coverUrl,
+        year: enrichmentResult.year,
+        title: enrichmentResult.title,
+        externalId: enrichmentResult.externalId,
+        externalSource: enrichmentResult.externalSource,
+        error: enrichmentResult.error,
       });
       
       // Update torrent with enrichment data

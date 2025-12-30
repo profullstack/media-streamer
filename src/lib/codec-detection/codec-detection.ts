@@ -303,6 +303,94 @@ export async function detectCodecFromUrl(
 }
 
 /**
+ * Map FFprobe container/format names to FFmpeg demuxer names
+ * FFprobe returns format names like "matroska,webm" which need to be mapped
+ * to the correct FFmpeg demuxer name for pipe input
+ */
+const CONTAINER_TO_DEMUXER: Record<string, string> = {
+  'matroska': 'matroska',
+  'matroska,webm': 'matroska',
+  'webm': 'matroska',
+  'mov,mp4,m4a,3gp,3g2,mj2': 'mov',
+  'mov': 'mov',
+  'mp4': 'mov',
+  'm4a': 'mov',
+  'avi': 'avi',
+  'flv': 'flv',
+  'mpegts': 'mpegts',
+  'asf': 'asf',
+  'asf_o': 'asf',
+  'ogg': 'ogg',
+  'wav': 'wav',
+  'flac': 'flac',
+  'mp3': 'mp3',
+  'aac': 'aac',
+  'aiff': 'aiff',
+  'ape': 'ape',
+};
+
+/**
+ * Get the FFmpeg demuxer name for a container format
+ * This is used when piping data to FFmpeg - it needs to know the input format
+ * @param container - The container format from FFprobe (e.g., "matroska,webm")
+ * @returns The FFmpeg demuxer name or null if unknown
+ */
+export function getFFmpegDemuxerForContainer(container: string): string | null {
+  const normalizedContainer = container.toLowerCase();
+  
+  // Direct match
+  if (CONTAINER_TO_DEMUXER[normalizedContainer]) {
+    return CONTAINER_TO_DEMUXER[normalizedContainer];
+  }
+  
+  // Try matching the first part (e.g., "matroska" from "matroska,webm")
+  const firstPart = normalizedContainer.split(',')[0];
+  if (CONTAINER_TO_DEMUXER[firstPart]) {
+    return CONTAINER_TO_DEMUXER[firstPart];
+  }
+  
+  return null;
+}
+
+/**
+ * Get the FFmpeg demuxer name for a file extension
+ * This is a fallback when codec detection hasn't been performed
+ * @param extension - The file extension (e.g., "mkv", "mp4")
+ * @returns The FFmpeg demuxer name or null if unknown
+ */
+export function getFFmpegDemuxerForExtension(extension: string): string | null {
+  const extensionToDemuxer: Record<string, string> = {
+    mkv: 'matroska',
+    webm: 'matroska',
+    mp4: 'mov',
+    m4v: 'mov',
+    mov: 'mov',
+    m4a: 'mov',
+    avi: 'avi',
+    flv: 'flv',
+    ts: 'mpegts',
+    mts: 'mpegts',
+    m2ts: 'mpegts',
+    wmv: 'asf',
+    wma: 'asf',
+    asf: 'asf',
+    ogg: 'ogg',
+    ogv: 'ogg',
+    oga: 'ogg',
+    wav: 'wav',
+    flac: 'flac',
+    mp3: 'mp3',
+    aac: 'aac',
+    aiff: 'aiff',
+    aif: 'aiff',
+    ape: 'ape',
+  };
+  
+  const normalizedExt = extension.toLowerCase().replace(/^\./, '');
+  return extensionToDemuxer[normalizedExt] ?? null;
+}
+
+/**
  * Format codec info for database storage
  * @param codecInfo - The codec information
  * @returns Object suitable for database storage

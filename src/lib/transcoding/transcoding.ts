@@ -5,6 +5,8 @@
  * converting unsupported media formats to web-compatible formats.
  */
 
+import { getFFmpegDemuxerForExtension } from '../codec-detection';
+
 /**
  * Media type for transcoding
  */
@@ -351,11 +353,19 @@ export function getStreamingTranscodeProfile(
  * - Disabled bit reservoir for consistent frame sizes
  *
  * @param profile - Transcoding profile
- * @param inputFormat - Optional input format hint for FFmpeg (e.g., 'mp4', 'mkv', 'flac')
- *                      CRITICAL for pipe input - FFmpeg may not auto-detect correctly
+ * @param inputDemuxer - FFmpeg demuxer name (e.g., 'matroska', 'mov', 'flac')
+ *                       This should come from codec detection stored in the database.
+ *                       CRITICAL for pipe input - FFmpeg cannot auto-detect from pipes reliably.
+ *                       If not provided, falls back to extension-based lookup.
+ * @param inputExtension - File extension as fallback (e.g., 'mkv', 'mp4', 'flac')
+ *                         Only used if inputDemuxer is not provided.
  * @returns Array of FFmpeg arguments for streaming
  */
-export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat?: string): string[] {
+export function buildStreamingFFmpegArgs(
+  profile: TranscodeProfile,
+  inputDemuxer?: string,
+  inputExtension?: string
+): string[] {
   const args: string[] = [];
 
   // CRITICAL: Set thread count BEFORE input for decoder threads
@@ -363,12 +373,28 @@ export function buildStreamingFFmpegArgs(profile: TranscodeProfile, _inputFormat
   // Use 0 (auto) to let FFmpeg use optimal thread count for the system
   args.push('-threads', '0');
 
-  // NOTE: We do NOT specify -f (input format) for pipe input
-  // FFmpeg's auto-detection works well for most formats when streaming
-  // Specifying -f can actually cause issues:
-  // - For MP4 with HEVC, -f mp4 is redundant (container is already MP4)
-  // - For MKV, FFmpeg auto-detects the Matroska container correctly
-  // The _inputFormat parameter is kept for API compatibility but not used
+  // CRITICAL: Specify input format for pipe input
+  // FFmpeg cannot reliably auto-detect format from pipes because:
+  // 1. Pipes are not seekable - FFmpeg can't seek back to re-read headers
+  // 2. Some formats (like MKV) need format hints for proper demuxing
+  // 3. Without -f, FFmpeg may misinterpret the stream and fail with "Invalid data"
+  //
+  // Priority:
+  // 1. Use inputDemuxer if provided (from codec detection in database)
+  // 2. Fall back to extension-based lookup if inputDemuxer not provided
+  let demuxer: string | null = null;
+  
+  if (inputDemuxer) {
+    // Use the demuxer directly - it should already be in FFmpeg format
+    demuxer = inputDemuxer;
+  } else if (inputExtension) {
+    // Fall back to extension-based lookup
+    demuxer = getFFmpegDemuxerForExtension(inputExtension);
+  }
+  
+  if (demuxer) {
+    args.push('-f', demuxer);
+  }
 
   // Input from stdin (pipe)
   args.push('-i', 'pipe:0');

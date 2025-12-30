@@ -307,7 +307,7 @@ describe('Transcoding Service', () => {
       expect(args).toContain('aac');
     });
 
-    it('should NOT include input format even when provided (FFmpeg auto-detects better)', () => {
+    it('should include input format when demuxer is provided directly', () => {
       const profile: TranscodeProfile = {
         outputFormat: 'mp4',
         videoCodec: 'libx264',
@@ -316,16 +316,49 @@ describe('Transcoding Service', () => {
         crf: 23,
       };
 
-      // Input format parameter is accepted for API compatibility but NOT used
-      // FFmpeg's auto-detection works better for most formats when streaming
-      // Specifying -f can cause issues (e.g., for MP4 with HEVC, the container is already MP4)
-      const args = buildStreamingFFmpegArgs(profile, 'mp4');
+      // Input format is CRITICAL for pipe input - FFmpeg cannot auto-detect from pipes reliably
+      // Without -f, FFmpeg may fail with "Invalid data found when processing input"
+      // First param is the demuxer name directly (e.g., 'matroska' not 'mkv')
+      const args = buildStreamingFFmpegArgs(profile, 'matroska');
 
-      // The only -f should be for output format (mp4), not input
+      // Should have -f matroska BEFORE -i for input format
       const inputIndex = args.indexOf('-i');
       const firstFIndex = args.indexOf('-f');
-      // -f should be AFTER -i (for output format only)
-      expect(firstFIndex).toBeGreaterThan(inputIndex);
+      // First -f should be BEFORE -i (for input format)
+      expect(firstFIndex).toBeLessThan(inputIndex);
+      // The value after first -f should be the demuxer name
+      expect(args[firstFIndex + 1]).toBe('matroska');
+    });
+
+    it('should map file extensions to correct FFmpeg demuxer names when using inputExtension fallback', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      // Test various format mappings using the second parameter (inputExtension)
+      // This is the fallback path when demuxer is not provided directly
+      const testCases = [
+        { ext: 'mkv', demuxer: 'matroska' },
+        { ext: 'webm', demuxer: 'matroska' },
+        { ext: 'mp4', demuxer: 'mov' },
+        { ext: 'mov', demuxer: 'mov' },
+        { ext: 'avi', demuxer: 'avi' },
+        { ext: 'flv', demuxer: 'flv' },
+        { ext: 'ts', demuxer: 'mpegts' },
+        { ext: 'wmv', demuxer: 'asf' },
+      ];
+
+      for (const { ext, demuxer } of testCases) {
+        // Pass undefined for inputDemuxer, use inputExtension for fallback lookup
+        const args = buildStreamingFFmpegArgs(profile, undefined, ext);
+        const fIndex = args.indexOf('-f');
+        expect(fIndex).toBeGreaterThan(-1);
+        expect(args[fIndex + 1]).toBe(demuxer);
+      }
     });
 
     it('should not include input format when not provided', () => {
@@ -337,16 +370,36 @@ describe('Transcoding Service', () => {
         crf: 23,
       };
 
-      // When no input format is provided, FFmpeg should auto-detect
+      // When no input format is provided, no input -f should be added
       const args = buildStreamingFFmpegArgs(profile);
 
       // The first -f should be for output format (mp4), not input
       const firstFIndex = args.indexOf('-f');
       const inputIndex = args.indexOf('-i');
-      // If -f exists, it should be after -i (for output format)
+      // If -f exists, it should be after -i (for output format only)
       if (firstFIndex !== -1) {
         expect(firstFIndex).toBeGreaterThan(inputIndex);
       }
+    });
+
+    it('should not include input format for unknown extensions when using inputExtension fallback', () => {
+      const profile: TranscodeProfile = {
+        outputFormat: 'mp4',
+        videoCodec: 'libx264',
+        audioCodec: 'aac',
+        preset: 'ultrafast',
+        crf: 23,
+      };
+
+      // Unknown extension should not add input format when using the fallback path
+      // Pass undefined for inputDemuxer, use unknown extension for inputExtension
+      const args = buildStreamingFFmpegArgs(profile, undefined, 'xyz');
+
+      // The first -f should be for output format (mp4), not input
+      const firstFIndex = args.indexOf('-f');
+      const inputIndex = args.indexOf('-i');
+      // -f should be after -i (for output format only)
+      expect(firstFIndex).toBeGreaterThan(inputIndex);
     });
 
     it('should include real-time streaming optimizations for video', () => {

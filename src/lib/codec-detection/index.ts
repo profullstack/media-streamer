@@ -13,6 +13,8 @@ export {
   isCodecBrowserCompatible,
   needsTranscoding,
   formatCodecInfoForDb,
+  getFFmpegDemuxerForContainer,
+  getFFmpegDemuxerForExtension,
   BROWSER_COMPATIBLE_VIDEO_CODECS,
   BROWSER_COMPATIBLE_AUDIO_CODECS,
 } from './codec-detection';
