@@ -24,6 +24,7 @@ import {
   CloseIcon,
   CreditCardIcon,
   LibraryIcon,
+  ExternalLinkIcon,
 } from '@/components/ui/icons';
 
 interface NavItem {
@@ -46,6 +47,18 @@ const mainNavItems: NavItem[] = [
 const accountNavItems: NavItem[] = [
   { href: '/pricing', label: 'Pricing', icon: CreditCardIcon },
   { href: '/settings', label: 'Settings', icon: SettingsIcon, requiresAuth: true },
+];
+
+interface TorrentIndexSite {
+  url: string;
+  label: string;
+}
+
+const torrentIndexSites: TorrentIndexSite[] = [
+  { url: 'https://uflix.to/', label: 'uFlix' },
+  { url: 'https://www.limetorrents.fun/', label: 'LimeTorrents' },
+  { url: 'https://torrentz9.org/', label: 'Torrentz9' },
+  { url: 'https://x1337x.cc/', label: '1337x' },
 ];
 
 interface SidebarProps {
@@ -134,6 +147,28 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
               </div>
             )}
           </nav>
+
+          {/* Footer - Torrent Index Sites */}
+          <div className="border-t border-bg-tertiary px-3 py-4">
+            <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Find Magnets
+            </h3>
+            <ul className="space-y-1">
+              {torrentIndexSites.map((site) => (
+                <li key={site.url}>
+                  <a
+                    href={site.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  >
+                    <ExternalLinkIcon size={16} />
+                    <span>{site.label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </aside>
     </>
