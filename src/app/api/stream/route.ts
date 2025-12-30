@@ -841,14 +841,17 @@ export async function GET(request: NextRequest): Promise<Response> {
       });
 
       // For transcoding, we don't support range requests (transcoded output has unknown size)
-      // We need to wait for initial data because FFmpeg needs the file headers to start transcoding
-      // Without waiting, FFmpeg may receive empty data and fail to detect the input format
-      reqLogger.debug('Creating stream for transcoding (waiting for initial data)');
+      // IMPORTANT: We skip waiting for data because FFmpeg handles buffering internally.
+      // FFmpeg will wait for data from the pipe and start transcoding as soon as it has enough
+      // to read the file headers. This allows streaming to start immediately without waiting
+      // for a minimum buffer size, which is especially important for formats like FLAC that
+      // can be transcoded in real-time as data arrives.
+      reqLogger.debug('Creating stream for transcoding (FFmpeg handles buffering)');
       const result = await service.createStream({
         magnetUri,
         fileIndex,
         range: undefined,
-      }, false); // skipWaitForData = false - wait for data before creating stream
+      }, true); // skipWaitForData = true - FFmpeg handles buffering internally
 
       // Log stream state before transcoding
       const nodeStream = result.stream as NodeJS.ReadableStream;

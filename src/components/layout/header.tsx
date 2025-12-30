@@ -83,14 +83,14 @@ export function Header({ className, isLoggedIn = false }: HeaderProps): React.Re
 
       {/* Search Bar with Category Filter */}
       <form onSubmit={handleSearch} className="flex flex-1 items-center justify-center">
-        <div className="relative flex w-full max-w-xl">
+        <div className="relative flex w-full max-w-xl items-stretch">
           {/* Category Dropdown */}
-          <div className="relative">
+          <div className="relative flex">
             <button
               type="button"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className={cn(
-                'flex items-center gap-1 rounded-l-full border border-r-0 border-border-default bg-bg-secondary px-3 py-2',
+                'flex h-10 items-center gap-1 rounded-l-full border border-r-0 border-border-default bg-bg-secondary px-3',
                 'text-sm text-text-secondary',
                 'hover:bg-bg-hover hover:text-text-primary',
                 'focus:outline-none focus:ring-1 focus:ring-accent-primary',
@@ -132,7 +132,7 @@ export function Header({ className, isLoggedIn = false }: HeaderProps): React.Re
           </div>
 
           {/* Search Input */}
-          <div className="relative flex-1">
+          <div className="relative flex flex-1">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
               {isSearching ? (
                 <LoadingSpinner className="text-text-muted" size={18} />
@@ -146,7 +146,7 @@ export function Header({ className, isLoggedIn = false }: HeaderProps): React.Re
               onChange={handleInputChange}
               placeholder="Search torrents..."
               className={cn(
-                'w-full border border-r-0 border-border-default bg-bg-secondary py-2 pl-10 pr-4',
+                'h-10 w-full border border-r-0 border-border-default bg-bg-secondary pl-10 pr-4',
                 'text-sm text-text-primary placeholder:text-text-muted',
                 'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                 'transition-colors'
@@ -159,7 +159,7 @@ export function Header({ className, isLoggedIn = false }: HeaderProps): React.Re
             type="submit"
             disabled={isSearching || !searchQuery.trim()}
             className={cn(
-              'flex items-center justify-center rounded-r-full border border-border-default bg-accent-primary px-4 py-2',
+              'flex h-10 items-center justify-center rounded-r-full border border-l-0 border-border-default bg-accent-primary px-4',
               'text-sm font-medium text-white',
               'hover:bg-accent-primary/90',
               'focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
