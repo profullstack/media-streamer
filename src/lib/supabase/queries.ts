@@ -223,7 +223,7 @@ export async function getTorrentFilesWithCodec(torrentId: string): Promise<Torre
     .map(f => f.id);
 
   // Fetch video metadata
-  let videoMetadataMap = new Map<string, { codec: string | null; audio_codec: string | null; container: string | null; needs_transcoding: boolean }>();
+  const videoMetadataMap = new Map<string, { codec: string | null; audio_codec: string | null; container: string | null; needs_transcoding: boolean }>();
   if (videoFileIds.length > 0) {
     const { data: videoMeta } = await client
       .from('video_metadata')
@@ -243,7 +243,7 @@ export async function getTorrentFilesWithCodec(torrentId: string): Promise<Torre
   }
 
   // Fetch audio metadata (audio files don't need transcoding check - browsers support most audio codecs)
-  let audioMetadataMap = new Map<string, { codec: string | null; container: string | null }>();
+  const audioMetadataMap = new Map<string, { codec: string | null; container: string | null }>();
   if (audioFileIds.length > 0) {
     const { data: audioMeta } = await client
       .from('audio_metadata')
@@ -589,7 +589,7 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
   const searchPattern = `%${query.toLowerCase()}%`;
 
   // Build the query - include poster_url and cover_url for thumbnails
-  let queryBuilder = client
+  const queryBuilder = client
     .from('torrents')
     .select('id, name, clean_title, infohash, total_size, file_count, seeders, leechers, created_at, poster_url, cover_url')
     .ilike('name', searchPattern)

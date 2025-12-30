@@ -12,7 +12,7 @@
  * - Default: $HOME/tmp (both production and development)
  */
 
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync, existsSync } from 'node:fs';
 import { createLogger } from '../logger';
