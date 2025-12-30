@@ -42,6 +42,10 @@ import {
   TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
 } from '@/lib/transcoding';
 import { getFFmpegDemuxerForExtension } from '@/lib/codec-detection';
+import {
+  getFileTranscodingService,
+  isFileBasedTranscodingRequired,
+} from '@/lib/file-transcoding';
 
 const logger = createLogger('API:stream');
 
@@ -699,17 +703,21 @@ export async function GET(request: NextRequest): Promise<Response> {
     // Determine the effective demuxer to use
     // Priority: explicit demuxer > auto-detect from extension (excluding pipe-incompatible formats)
     let effectiveDemuxer: string | null = demuxer;
+    let useFileBasedTranscoding = false;
+    
     if (!effectiveDemuxer && transcode === 'auto') {
       // Derive demuxer from file extension
       const ext = info.fileName.split('.').pop()?.toLowerCase();
       if (ext) {
-        // Skip auto-transcoding for MP4/MOV formats - they can't be transcoded via pipe
+        // Check if this format requires file-based transcoding (MP4/MOV with moov atom at end)
         if (PIPE_INCOMPATIBLE_FORMATS.has(ext)) {
-          reqLogger.info('Skipping auto-transcoding for pipe-incompatible format', {
+          reqLogger.info('Format requires file-based transcoding', {
             extension: ext,
-            reason: 'MP4/MOV formats have moov atom at end, cannot be transcoded via pipe',
+            reason: 'MP4/MOV formats have moov atom at end, will download first then transcode',
           });
-          effectiveDemuxer = null;
+          // For file-based transcoding, we use 'mov' demuxer (works for mp4/m4v/mov)
+          effectiveDemuxer = 'mov';
+          useFileBasedTranscoding = true;
         } else {
           effectiveDemuxer = getFFmpegDemuxerForExtension(ext);
           reqLogger.info('Auto-detected demuxer from file extension', {
@@ -717,6 +725,16 @@ export async function GET(request: NextRequest): Promise<Response> {
             demuxer: effectiveDemuxer,
           });
         }
+      }
+    } else if (effectiveDemuxer) {
+      // Check if explicit demuxer is for a pipe-incompatible format
+      const ext = info.fileName.split('.').pop()?.toLowerCase();
+      if (ext && PIPE_INCOMPATIBLE_FORMATS.has(ext)) {
+        useFileBasedTranscoding = true;
+        reqLogger.info('Explicit demuxer for pipe-incompatible format, using file-based transcoding', {
+          extension: ext,
+          demuxer: effectiveDemuxer,
+        });
       }
     }
     
