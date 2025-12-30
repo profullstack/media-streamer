@@ -51,6 +51,45 @@ function formatSSE(event: SSEEvent): string {
 }
 
 /**
+ * Safely enqueue data to the stream controller
+ * Handles cases where the connection may have been closed
+ */
+function safeEnqueue(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  encoder: TextEncoder,
+  event: SSEEvent,
+  reqLogger: ReturnType<typeof logger.child>
+): void {
+  try {
+    controller.enqueue(encoder.encode(formatSSE(event)));
+  } catch (enqueueError) {
+    // Connection was likely closed by the client
+    reqLogger.warn('Failed to enqueue SSE event (connection may be closed)', {
+      eventType: event.type,
+      error: enqueueError instanceof Error ? enqueueError.message : String(enqueueError),
+    });
+  }
+}
+
+/**
+ * Safely close the stream controller
+ * Handles cases where the controller may already be closed
+ */
+function safeClose(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  reqLogger: ReturnType<typeof logger.child>
+): void {
+  try {
+    controller.close();
+  } catch (closeError) {
+    // Controller may already be closed
+    reqLogger.warn('Failed to close stream controller (may already be closed)', {
+      error: closeError instanceof Error ? closeError.message : String(closeError),
+    });
+  }
+}
+
+/**
  * POST /api/torrents/index
  *
  * Index a torrent with real-time progress updates via SSE.
@@ -134,7 +173,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             infohash: existingTorrent.infohash,
           });
 
-          controller.enqueue(encoder.encode(formatSSE({
+          safeEnqueue(controller, encoder, {
             type: 'existing',
             data: {
               torrentId: existingTorrent.id,
@@ -144,18 +183,18 @@ export async function POST(request: NextRequest): Promise<Response> {
               totalSize: existingTorrent.total_size,
               isNew: false,
             },
-          })));
-          controller.close();
+          }, reqLogger);
+          safeClose(controller, reqLogger);
           return;
         }
 
         // Fetch metadata with progress callback
         const metadata = await torrentService.fetchMetadata(magnetUri, (event) => {
           reqLogger.debug('Progress event', event);
-          controller.enqueue(encoder.encode(formatSSE({
+          safeEnqueue(controller, encoder, {
             type: 'progress',
             data: event,
-          })));
+          }, reqLogger);
         });
 
         // Scrape trackers for seeders/leechers (non-blocking, best effort)
@@ -231,7 +270,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         });
 
         // Send complete event with swarm stats
-        controller.enqueue(encoder.encode(formatSSE({
+        safeEnqueue(controller, encoder, {
           type: 'complete',
           data: {
             torrentId: torrent.id,
@@ -243,18 +282,24 @@ export async function POST(request: NextRequest): Promise<Response> {
             leechers,
             isNew: true,
           },
-        })));
+        }, reqLogger);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         reqLogger.error('Indexing error', error);
 
-        controller.enqueue(encoder.encode(formatSSE({
+        safeEnqueue(controller, encoder, {
           type: 'error',
           data: { error: errorMessage },
-        })));
+        }, reqLogger);
       } finally {
-        await torrentService.destroy();
-        controller.close();
+        try {
+          await torrentService.destroy();
+        } catch (destroyError) {
+          reqLogger.warn('Failed to destroy torrent service', {
+            error: destroyError instanceof Error ? destroyError.message : String(destroyError),
+          });
+        }
+        safeClose(controller, reqLogger);
       }
     },
   });

@@ -498,13 +498,15 @@ export class TorrentService {
             peerAddress: wire.remoteAddress,
             numPeers: t.numPeers
           });
-          // Emit progress when peer connects
-          emitProgress(
-            'downloading',
-            10 + Math.min(t.numPeers * 10, 40),
-            t.numPeers,
-            `Connected to ${t.numPeers} peer${t.numPeers > 1 ? 's' : ''}, downloading metadata...`
-          );
+          // Only emit progress if metadata hasn't been received yet
+          if (!metadataReceived) {
+            emitProgress(
+              'downloading',
+              10 + Math.min(t.numPeers * 10, 40),
+              t.numPeers,
+              `Connected to ${t.numPeers} peer${t.numPeers > 1 ? 's' : ''}, downloading metadata...`
+            );
+          }
         });
 
         torrent.on('warning', (warn) => {
