@@ -5,15 +5,24 @@
  * because the moov atom (metadata) is at the end of the file.
  *
  * Strategy:
- * 1. Download the file to /tmp/{infohash}_{fileIndex}.{ext}
+ * 1. Download the file to {TEMP_DIR}/{infohash}_{fileIndex}.{ext}
  * 2. Once the file is complete (or has enough data), start FFmpeg transcoding from the file
  * 3. Stream the transcoded output back to the client
  * 4. Clean up temp files after streaming completes
+ *
+ * Temp Directory Configuration:
+ * - Set TRANSCODE_TEMP_DIR environment variable to customize the temp directory
+ * - Default: /home/ubuntu/tmp/media-torrent-transcoding (production)
+ * - Fallback: {os.tmpdir()}/media-torrent-transcoding (development)
+ *
+ * Cleanup:
+ * - Files are cleaned up immediately after transcoding completes
+ * - Periodic cleanup runs every hour to remove orphaned files older than 1 hour
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createWriteStream, createReadStream } from 'node:fs';
-import { mkdir, rm, stat, access } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { mkdir, rm, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { PassThrough, type Readable } from 'node:stream';
@@ -23,9 +32,31 @@ import { createLogger } from '../logger';
 const logger = createLogger('FileTranscoding');
 
 /**
- * Temp directory for downloaded files
+ * Default temp directory base path
+ * Uses /home/ubuntu/tmp on production (larger disk), falls back to OS temp dir
  */
-export const TEMP_DIR = join(tmpdir(), 'media-torrent-transcoding');
+const DEFAULT_TEMP_BASE = process.env.NODE_ENV === 'production'
+  ? '/home/ubuntu/tmp'
+  : tmpdir();
+
+/**
+ * Temp directory for downloaded files
+ * Configurable via TRANSCODE_TEMP_DIR environment variable
+ */
+export const TEMP_DIR = process.env.TRANSCODE_TEMP_DIR
+  ?? join(DEFAULT_TEMP_BASE, 'media-torrent-transcoding');
+
+/**
+ * Maximum age of temp files before cleanup (in milliseconds)
+ * Default: 1 hour
+ */
+const MAX_TEMP_FILE_AGE_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Cleanup interval (in milliseconds)
+ * Default: 1 hour
+ */
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * Formats that require file-based transcoding (moov atom at end)
@@ -121,6 +152,61 @@ async function ensureTempDir(): Promise<void> {
 }
 
 /**
+ * Clean up old temp files that may have been orphaned
+ * This runs periodically to prevent disk space from filling up
+ */
+async function cleanupOldTempFiles(): Promise<void> {
+  try {
+    // Ensure directory exists first
+    await ensureTempDir();
+    
+    const files = await readdir(TEMP_DIR);
+    const now = Date.now();
+    let cleanedCount = 0;
+    let cleanedBytes = 0;
+    
+    for (const file of files) {
+      const filePath = join(TEMP_DIR, file);
+      try {
+        const fileStat = await stat(filePath);
+        const fileAge = now - fileStat.mtimeMs;
+        
+        if (fileAge > MAX_TEMP_FILE_AGE_MS) {
+          const fileSize = fileStat.size;
+          await rm(filePath, { force: true });
+          cleanedCount++;
+          cleanedBytes += fileSize;
+          logger.debug('Cleaned up old temp file', {
+            filePath,
+            ageMinutes: Math.round(fileAge / 60000),
+            sizeMB: (fileSize / (1024 * 1024)).toFixed(2),
+          });
+        }
+      } catch (fileError) {
+        // File may have been deleted by another process
+        logger.debug('Could not stat/delete temp file', {
+          filePath,
+          error: String(fileError),
+        });
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      logger.info('Periodic temp file cleanup completed', {
+        cleanedCount,
+        cleanedMB: (cleanedBytes / (1024 * 1024)).toFixed(2),
+        tempDir: TEMP_DIR,
+      });
+    }
+  } catch (error) {
+    logger.warn('Failed to run periodic temp file cleanup', {
+      error: String(error),
+      tempDir: TEMP_DIR,
+    });
+  }
+}
+
+/**
  * File-based Transcoding Service
  *
  * Downloads MP4/MOV files to disk before transcoding to handle
@@ -132,6 +218,7 @@ export class FileTranscodingService {
   private minBytesBeforeTranscode: number;
   private activeDownloads: Map<string, ActiveDownload>;
   private activeTranscodes: Map<string, ActiveTranscode>;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: FileTranscodingServiceOptions = {}) {
     this.maxConcurrentDownloads = options.maxConcurrentDownloads ?? 3;
@@ -145,7 +232,49 @@ export class FileTranscodingService {
       downloadTimeout: this.downloadTimeout,
       minBytesBeforeTranscode: this.minBytesBeforeTranscode,
       tempDir: TEMP_DIR,
+      maxTempFileAgeMinutes: MAX_TEMP_FILE_AGE_MS / 60000,
+      cleanupIntervalMinutes: CLEANUP_INTERVAL_MS / 60000,
     });
+
+    // Start periodic cleanup
+    this.startPeriodicCleanup();
+  }
+
+  /**
+   * Start periodic cleanup of old temp files
+   */
+  private startPeriodicCleanup(): void {
+    // Run cleanup immediately on startup
+    cleanupOldTempFiles().catch((err) => {
+      logger.warn('Initial temp file cleanup failed', { error: String(err) });
+    });
+
+    // Schedule periodic cleanup
+    this.cleanupInterval = setInterval(() => {
+      cleanupOldTempFiles().catch((err) => {
+        logger.warn('Periodic temp file cleanup failed', { error: String(err) });
+      });
+    }, CLEANUP_INTERVAL_MS);
+
+    // Don't prevent process from exiting
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
+
+    logger.debug('Periodic temp file cleanup scheduled', {
+      intervalMinutes: CLEANUP_INTERVAL_MS / 60000,
+    });
+  }
+
+  /**
+   * Stop periodic cleanup
+   */
+  private stopPeriodicCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      logger.debug('Periodic temp file cleanup stopped');
+    }
   }
 
   /**
@@ -571,15 +700,18 @@ export class FileTranscodingService {
       activeTranscodes: this.activeTranscodes.size,
     });
 
+    // Stop periodic cleanup
+    this.stopPeriodicCleanup();
+
     // Abort all downloads
-    for (const [key, download] of this.activeDownloads) {
+    for (const [, download] of this.activeDownloads) {
       download.abortController.abort();
       await cleanupTempFile(download.filePath);
     }
     this.activeDownloads.clear();
 
     // Kill all transcodes
-    for (const [key, transcode] of this.activeTranscodes) {
+    for (const [, transcode] of this.activeTranscodes) {
       transcode.ffmpegProcess.kill('SIGTERM');
       await cleanupTempFile(transcode.filePath);
     }
