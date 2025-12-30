@@ -1,21 +1,24 @@
 #!/usr/bin/env npx tsx
 
 /**
- * Codec Detection Backfill Script
+ * Torrent Backfill Script
  *
- * Detects video/audio codecs for existing torrents that don't have codec info.
- * This is needed because codec detection during indexing may fail if the torrent
- * isn't fully available yet.
+ * Backfills missing data for existing torrents:
+ * - Codec detection (video/audio codecs, container, transcoding needs)
+ * - Swarm stats (seeders/leechers from tracker scraping)
+ * - Health status (calculated from seeders)
  *
  * Usage:
  *   pnpm tsx scripts/backfill-codec-info.ts
  *
  * Options:
  *   --dry-run       Show what would be updated without making changes
- *   --force         Re-detect codecs even for torrents that already have codec info
+ *   --force         Re-detect all data even for torrents that already have it
  *   --limit=N       Process only N torrents (default: all)
  *   --infohash=X    Process only a specific torrent by infohash
  *   --timeout=N     FFprobe timeout in seconds (default: 60)
+ *   --skip-codec    Skip codec detection (only update swarm stats)
+ *   --skip-swarm    Skip swarm stats (only update codec info)
  *
  * Required environment variables:
  *   - SUPABASE_URL: Your Supabase project URL
@@ -34,6 +37,10 @@ import {
   detectCodecFromUrl,
   formatCodecInfoForDb,
 } from '../src/lib/codec-detection';
+import {
+  scrapeMultipleTrackers,
+  SCRAPE_TRACKERS,
+} from '../src/lib/tracker-scrape';
 
 // ============================================================================
 // Types
@@ -48,6 +55,9 @@ interface Torrent {
   container: string | null;
   needs_transcoding: boolean | null;
   codec_detected_at: string | null;
+  seeders: number | null;
+  leechers: number | null;
+  swarm_updated_at: string | null;
 }
 
 interface TorrentFile {
@@ -64,12 +74,15 @@ interface ScriptOptions {
   limit: number | null;
   infohash: string | null;
   timeout: number;
+  skipCodec: boolean;
+  skipSwarm: boolean;
 }
 
 interface Stats {
   total: number;
   processed: number;
-  updated: number;
+  codecUpdated: number;
+  swarmUpdated: number;
   skipped: number;
   errors: number;
 }
@@ -93,6 +106,8 @@ function parseArgs(): ScriptOptions {
     limit: null,
     infohash: null,
     timeout: 60,
+    skipCodec: false,
+    skipSwarm: false,
   };
 
   for (const arg of args) {
@@ -100,6 +115,10 @@ function parseArgs(): ScriptOptions {
       options.dryRun = true;
     } else if (arg === '--force') {
       options.force = true;
+    } else if (arg === '--skip-codec') {
+      options.skipCodec = true;
+    } else if (arg === '--skip-swarm') {
+      options.skipSwarm = true;
     } else if (arg.startsWith('--limit=')) {
       const value = parseInt(arg.split('=')[1], 10);
       if (!isNaN(value) && value > 0) {
@@ -159,7 +178,7 @@ async function fetchTorrentsToProcess(
 
   let query = supabase
     .from('torrents')
-    .select('id, infohash, name, video_codec, audio_codec, container, needs_transcoding, codec_detected_at');
+    .select('id, infohash, name, video_codec, audio_codec, container, needs_transcoding, codec_detected_at, seeders, leechers, swarm_updated_at');
 
   // Filter by specific infohash if provided
   if (options.infohash) {
@@ -167,8 +186,11 @@ async function fetchTorrentsToProcess(
   }
 
   // Only process torrents without codec info unless --force is used
+  // When --force is used, process all torrents
   if (!options.force && !options.infohash) {
-    query = query.is('codec_detected_at', null);
+    // Process torrents that need either codec detection OR swarm update
+    // We'll filter more specifically in processTorrent
+    query = query.or('codec_detected_at.is.null,swarm_updated_at.is.null');
   }
 
   // Apply limit if specified
@@ -208,29 +230,83 @@ async function fetchFirstMediaFile(
   return (data?.[0] as TorrentFile) ?? null;
 }
 
-async function processTorrent(
+async function updateSwarmStats(
+  supabase: SupabaseClient<Database>,
+  torrent: Torrent,
+  options: ScriptOptions,
+  stats: Stats
+): Promise<void> {
+  // Check if already has swarm info
+  if (torrent.swarm_updated_at && !options.force) {
+    console.log(`  ⏭️  Skipping swarm: Already has swarm info`);
+    console.log(`     Seeders: ${torrent.seeders ?? 'unknown'}, Leechers: ${torrent.leechers ?? 'unknown'}`);
+    return;
+  }
+
+  if (options.dryRun) {
+    console.log(`  [DRY RUN] Would scrape trackers for swarm stats`);
+    stats.swarmUpdated++;
+    return;
+  }
+
+  try {
+    console.log(`  🔍 Scraping trackers for swarm stats...`);
+    
+    // Use default trackers for scraping
+    const swarmStats = await scrapeMultipleTrackers(SCRAPE_TRACKERS, torrent.infohash, {
+      timeout: 15000,
+      maxConcurrent: 5,
+    });
+
+    const now = new Date().toISOString();
+
+    console.log(`  ✓ Swarm stats retrieved:`);
+    console.log(`    Seeders: ${swarmStats.seeders ?? 'unknown'}`);
+    console.log(`    Leechers: ${swarmStats.leechers ?? 'unknown'}`);
+    console.log(`    Trackers responded: ${swarmStats.trackersResponded}/${swarmStats.trackersQueried}`);
+
+    // Update torrent with swarm stats
+    const { error: updateError } = await supabase
+      .from('torrents')
+      .update({
+        seeders: swarmStats.seeders,
+        leechers: swarmStats.leechers,
+        swarm_updated_at: now,
+      })
+      .eq('id', torrent.id);
+
+    if (updateError) {
+      console.error(`  ❌ Failed to update swarm stats: ${updateError.message}`);
+      stats.errors++;
+      return;
+    }
+
+    console.log(`  ✅ Swarm stats updated successfully`);
+    stats.swarmUpdated++;
+  } catch (error) {
+    console.error(`  ❌ Swarm scraping failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    stats.errors++;
+  }
+}
+
+async function updateCodecInfo(
   supabase: SupabaseClient<Database>,
   torrent: Torrent,
   options: ScriptOptions,
   stats: Stats,
   baseUrl: string
 ): Promise<void> {
-  console.log(`\n📦 Processing: ${torrent.name}`);
-  console.log(`   Infohash: ${torrent.infohash}`);
-
   // Check if already has codec info
   if (torrent.codec_detected_at && !options.force) {
-    console.log(`  ⏭️  Skipping: Already has codec info`);
+    console.log(`  ⏭️  Skipping codec: Already has codec info`);
     console.log(`     Video: ${torrent.video_codec ?? 'none'}, Audio: ${torrent.audio_codec ?? 'none'}`);
-    stats.skipped++;
     return;
   }
 
   // Find first media file
   const mediaFile = await fetchFirstMediaFile(supabase, torrent.id);
   if (!mediaFile) {
-    console.log(`  ⏭️  Skipping: No video/audio files found`);
-    stats.skipped++;
+    console.log(`  ⏭️  Skipping codec: No video/audio files found`);
     return;
   }
 
@@ -242,7 +318,7 @@ async function processTorrent(
 
   if (options.dryRun) {
     console.log(`  [DRY RUN] Would detect codec from stream`);
-    stats.updated++;
+    stats.codecUpdated++;
     return;
   }
 
@@ -315,16 +391,47 @@ async function processTorrent(
       }
     }
 
-    console.log(`  ✅ Updated successfully`);
-    stats.updated++;
+    console.log(`  ✅ Codec info updated successfully`);
+    stats.codecUpdated++;
   } catch (error) {
     console.error(`  ❌ Codec detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     stats.errors++;
   }
 }
 
+async function processTorrent(
+  supabase: SupabaseClient<Database>,
+  torrent: Torrent,
+  options: ScriptOptions,
+  stats: Stats,
+  baseUrl: string
+): Promise<void> {
+  console.log(`\n📦 Processing: ${torrent.name}`);
+  console.log(`   Infohash: ${torrent.infohash}`);
+
+  // Determine what needs to be done
+  const needsCodec = !options.skipCodec && (!torrent.codec_detected_at || options.force);
+  const needsSwarm = !options.skipSwarm && (!torrent.swarm_updated_at || options.force);
+
+  if (!needsCodec && !needsSwarm) {
+    console.log(`  ⏭️  Skipping: Already has all data`);
+    stats.skipped++;
+    return;
+  }
+
+  // Update swarm stats first (faster, doesn't require streaming)
+  if (needsSwarm) {
+    await updateSwarmStats(supabase, torrent, options, stats);
+  }
+
+  // Update codec info (requires streaming the file)
+  if (needsCodec) {
+    await updateCodecInfo(supabase, torrent, options, stats, baseUrl);
+  }
+}
+
 async function main(): Promise<void> {
-  console.log('🚀 Codec Detection Backfill Script\n');
+  console.log('🚀 Torrent Backfill Script\n');
 
   const options = parseArgs();
 
@@ -333,7 +440,7 @@ async function main(): Promise<void> {
   }
 
   if (options.force) {
-    console.log('⚠️  FORCE MODE - Re-detecting all codecs\n');
+    console.log('⚠️  FORCE MODE - Re-detecting all data\n');
   }
 
   if (options.infohash) {
@@ -344,14 +451,24 @@ async function main(): Promise<void> {
     console.log(`📊 Limiting to ${options.limit} torrents\n`);
   }
 
+  if (options.skipCodec) {
+    console.log('⏭️  Skipping codec detection\n');
+  }
+
+  if (options.skipSwarm) {
+    console.log('⏭️  Skipping swarm stats\n');
+  }
+
   console.log(`⏱️  FFprobe timeout: ${options.timeout} seconds\n`);
 
   // Check for required environment variables
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!baseUrl) {
-    throw new Error('Missing NEXT_PUBLIC_APP_URL environment variable');
+  if (!baseUrl && !options.skipCodec) {
+    throw new Error('Missing NEXT_PUBLIC_APP_URL environment variable (required for codec detection)');
   }
-  console.log(`🌐 Base URL: ${baseUrl}\n`);
+  if (baseUrl) {
+    console.log(`🌐 Base URL: ${baseUrl}\n`);
+  }
 
   // Initialize Supabase client
   const supabase = getSupabaseClient();
@@ -362,7 +479,7 @@ async function main(): Promise<void> {
   console.log(`Found ${torrents.length} torrents to process`);
 
   if (torrents.length === 0) {
-    console.log('\n✅ No torrents need codec detection');
+    console.log('\n✅ No torrents need processing');
     return;
   }
 
@@ -370,13 +487,14 @@ async function main(): Promise<void> {
   const stats: Stats = {
     total: torrents.length,
     processed: 0,
-    updated: 0,
+    codecUpdated: 0,
+    swarmUpdated: 0,
     skipped: 0,
     errors: 0,
   };
 
   for (const torrent of torrents) {
-    await processTorrent(supabase, torrent, options, stats, baseUrl);
+    await processTorrent(supabase, torrent, options, stats, baseUrl ?? '');
     stats.processed++;
 
     // Progress indicator
@@ -393,7 +511,8 @@ async function main(): Promise<void> {
   console.log('\n' + '='.repeat(50));
   console.log('📈 Summary:');
   console.log(`  Total processed: ${stats.processed}`);
-  console.log(`  Updated: ${stats.updated}`);
+  console.log(`  Codec updated: ${stats.codecUpdated}`);
+  console.log(`  Swarm updated: ${stats.swarmUpdated}`);
   console.log(`  Skipped: ${stats.skipped}`);
   console.log(`  Errors: ${stats.errors}`);
   console.log('='.repeat(50));
