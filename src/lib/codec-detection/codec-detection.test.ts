@@ -11,6 +11,8 @@ import {
   isCodecBrowserCompatible,
   needsTranscoding,
   formatCodecInfoForDb,
+  getFFmpegDemuxerForExtension,
+  getFFmpegDemuxerForContainer,
   BROWSER_COMPATIBLE_VIDEO_CODECS,
   BROWSER_COMPATIBLE_AUDIO_CODECS,
 } from './codec-detection';
@@ -307,6 +309,102 @@ describe('codec-detection', () => {
       expect(codecInfo.container).toBe('mp4');
       expect(codecInfo.duration).toBe(120.5);
       expect(codecInfo.streams).toHaveLength(2);
+    });
+  });
+
+  describe('getFFmpegDemuxerForExtension', () => {
+    it('should return matroska for mkv files', () => {
+      expect(getFFmpegDemuxerForExtension('mkv')).toBe('matroska');
+    });
+
+    it('should return matroska for webm files', () => {
+      expect(getFFmpegDemuxerForExtension('webm')).toBe('matroska');
+    });
+
+    it('should return mov for mp4 files', () => {
+      expect(getFFmpegDemuxerForExtension('mp4')).toBe('mov');
+    });
+
+    it('should return mov for m4v files', () => {
+      expect(getFFmpegDemuxerForExtension('m4v')).toBe('mov');
+    });
+
+    it('should return mov for mov files', () => {
+      expect(getFFmpegDemuxerForExtension('mov')).toBe('mov');
+    });
+
+    it('should return avi for avi files', () => {
+      expect(getFFmpegDemuxerForExtension('avi')).toBe('avi');
+    });
+
+    it('should return flv for flv files', () => {
+      expect(getFFmpegDemuxerForExtension('flv')).toBe('flv');
+    });
+
+    it('should return mpegts for ts files', () => {
+      expect(getFFmpegDemuxerForExtension('ts')).toBe('mpegts');
+    });
+
+    it('should return asf for wmv files', () => {
+      expect(getFFmpegDemuxerForExtension('wmv')).toBe('asf');
+    });
+
+    it('should return flac for flac files', () => {
+      expect(getFFmpegDemuxerForExtension('flac')).toBe('flac');
+    });
+
+    it('should return mp3 for mp3 files', () => {
+      expect(getFFmpegDemuxerForExtension('mp3')).toBe('mp3');
+    });
+
+    it('should handle case-insensitive extensions', () => {
+      expect(getFFmpegDemuxerForExtension('MKV')).toBe('matroska');
+      expect(getFFmpegDemuxerForExtension('MP4')).toBe('mov');
+    });
+
+    it('should handle extensions with leading dot', () => {
+      expect(getFFmpegDemuxerForExtension('.mkv')).toBe('matroska');
+      expect(getFFmpegDemuxerForExtension('.mp4')).toBe('mov');
+    });
+
+    it('should return null for unknown extensions', () => {
+      expect(getFFmpegDemuxerForExtension('xyz')).toBeNull();
+      expect(getFFmpegDemuxerForExtension('unknown')).toBeNull();
+    });
+  });
+
+  describe('getFFmpegDemuxerForContainer', () => {
+    it('should return matroska for matroska container', () => {
+      expect(getFFmpegDemuxerForContainer('matroska')).toBe('matroska');
+    });
+
+    it('should return matroska for matroska,webm container', () => {
+      expect(getFFmpegDemuxerForContainer('matroska,webm')).toBe('matroska');
+    });
+
+    it('should return mov for mov,mp4,m4a,3gp,3g2,mj2 container', () => {
+      expect(getFFmpegDemuxerForContainer('mov,mp4,m4a,3gp,3g2,mj2')).toBe('mov');
+    });
+
+    it('should return mov for mp4 container', () => {
+      expect(getFFmpegDemuxerForContainer('mp4')).toBe('mov');
+    });
+
+    it('should return avi for avi container', () => {
+      expect(getFFmpegDemuxerForContainer('avi')).toBe('avi');
+    });
+
+    it('should return flac for flac container', () => {
+      expect(getFFmpegDemuxerForContainer('flac')).toBe('flac');
+    });
+
+    it('should handle case-insensitive container names', () => {
+      expect(getFFmpegDemuxerForContainer('MATROSKA')).toBe('matroska');
+      expect(getFFmpegDemuxerForContainer('MP4')).toBe('mov');
+    });
+
+    it('should return null for unknown containers', () => {
+      expect(getFFmpegDemuxerForContainer('unknown')).toBeNull();
     });
   });
 });

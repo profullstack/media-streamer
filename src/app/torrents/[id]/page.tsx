@@ -34,6 +34,17 @@ interface TorrentDetailResponse {
 }
 
 /**
+ * Swarm stats response from the API
+ */
+interface SwarmStatsResponse {
+  seeders: number | null;
+  leechers: number | null;
+  fetchedAt: string;
+  trackersResponded: number;
+  trackersQueried: number;
+}
+
+/**
  * Folder metadata from the API
  */
 interface FolderMetadata {
