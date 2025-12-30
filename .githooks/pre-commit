@@ -1,8 +1,38 @@
 #!/bin/sh
 # BitTorrented.com Pre-commit Hook
-# Enforces TDD by running build and tests before every commit
+# Enforces TDD by running lint, TypeScript check, build, and tests before every commit
 
 echo "🔨 Running pre-commit checks..."
+echo ""
+
+# Run lint
+echo "🔍 Running lint..."
+pnpm lint
+LINT_EXIT_CODE=$?
+
+if [ $LINT_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ Lint failed! Please fix lint errors before committing."
+    exit 1
+fi
+
+echo ""
+echo "✅ Lint passed!"
+echo ""
+
+# Run TypeScript check
+echo "📝 Running TypeScript check..."
+pnpm tsc --noEmit
+TSC_EXIT_CODE=$?
+
+if [ $TSC_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ TypeScript check failed! Please fix type errors before committing."
+    exit 1
+fi
+
+echo ""
+echo "✅ TypeScript check passed!"
 echo ""
 
 # Run build
