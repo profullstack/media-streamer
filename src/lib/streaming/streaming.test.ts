@@ -95,7 +95,7 @@ describe('StreamingService', () => {
       };
 
       mockGet.mockReturnValue(null);
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+      mockAdd.mockImplementation((_magnetUri: string, _options: unknown, callback: (torrent: typeof mockTorrent) => void) => {
         callback(mockTorrent);
         return mockTorrent;
       });
@@ -153,7 +153,7 @@ describe('StreamingService', () => {
       };
 
       mockGet.mockReturnValue(null);
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+      mockAdd.mockImplementation((_magnetUri: string, _options: unknown, callback: (torrent: typeof mockTorrent) => void) => {
         callback(mockTorrent);
         return mockTorrent;
       });
@@ -187,7 +187,7 @@ describe('StreamingService', () => {
       };
 
       mockGet.mockReturnValue(null);
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+      mockAdd.mockImplementation((_magnetUri: string, _options: unknown, callback: (torrent: typeof mockTorrent) => void) => {
         callback(mockTorrent);
         return mockTorrent;
       });
@@ -229,7 +229,7 @@ describe('StreamingService', () => {
       };
 
       mockGet.mockReturnValue(null);
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+      mockAdd.mockImplementation((_magnetUri: string, _options: unknown, callback: (torrent: typeof mockTorrent) => void) => {
         callback(mockTorrent);
         return mockTorrent;
       });
@@ -1192,7 +1192,7 @@ describe('StreamingService', () => {
       };
 
       mockGet.mockReturnValue(null); // Force new torrent add
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrent) => void) => {
+      mockAdd.mockImplementation((_magnetUri: string, _options: unknown, callback: (torrent: typeof mockTorrent) => void) => {
         callback(mockTorrent);
         return mockTorrent;
       });
@@ -1544,7 +1544,7 @@ describe('StreamingService', () => {
 
       let addCallCount = 0;
       mockGet.mockReturnValue(null);
-      mockAdd.mockImplementation((_magnetUri: string, callback: (torrent: typeof mockTorrentReady) => void) => {
+      mockAdd.mockImplementation((_magnetUri: string, _options: unknown, callback: (torrent: typeof mockTorrentReady) => void) => {
         addCallCount++;
         if (addCallCount === 1) {
           // First call: don't call callback (timeout)

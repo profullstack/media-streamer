@@ -545,14 +545,14 @@ export function MediaPlayerModal({
       onClose={handleClose}
       title={modalTitle}
       size="3xl"
-      className="max-w-[90vw] lg:max-w-3xl"
+      className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-3xl"
     >
-      <div className="space-y-3 sm:space-y-4">
-        {/* Metadata Header - Artist → Album → Song with Cover Art */}
-        <div className="flex items-start gap-4" data-testid="metadata-header">
-          {/* Cover Art */}
+      <div className="space-y-2 sm:space-y-3">
+        {/* Metadata Header - Artist → Album → Song with Cover Art - compact for TV */}
+        <div className="flex items-start gap-2 sm:gap-3 md:gap-4" data-testid="metadata-header">
+          {/* Cover Art - smaller on TV/mobile */}
           {coverArt ? (
-            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg shadow-md">
+            <div className="h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20 flex-shrink-0 overflow-hidden rounded-md sm:rounded-lg shadow-md">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={coverArt}
@@ -563,11 +563,11 @@ export function MediaPlayerModal({
             </div>
           ) : (
             <div
-              className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-bg-tertiary shadow-md"
+              className="flex h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20 flex-shrink-0 items-center justify-center rounded-md sm:rounded-lg bg-bg-tertiary shadow-md"
               data-testid="cover-art-placeholder"
             >
               <svg
-                className="h-10 w-10 text-text-muted"
+                className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 text-text-muted"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -582,51 +582,51 @@ export function MediaPlayerModal({
             </div>
           )}
           
-          {/* Track Info */}
+          {/* Track Info - compact text sizes */}
           <div className="min-w-0 flex-1">
             {/* Artist → Album breadcrumb */}
             {(artist || album) ? (
-              <p className="text-sm text-text-secondary truncate">
+              <p className="text-xs sm:text-sm text-text-secondary truncate">
                 {artist}
                 {artist && album ? (
-                  <span className="mx-1.5 text-text-muted">→</span>
+                  <span className="mx-1 sm:mx-1.5 text-text-muted">→</span>
                 ) : null}
                 {album}
               </p>
             ) : null}
             
             {/* Song Title */}
-            <h3 className="mt-1 text-lg font-semibold text-text-primary truncate">
+            <h3 className="mt-0.5 sm:mt-1 text-sm sm:text-base md:text-lg font-semibold text-text-primary truncate">
               {displayTitle}
             </h3>
             
             {/* Track Number if available */}
             {trackInfo.trackNumber ? (
-              <p className="mt-0.5 text-xs text-text-muted">
+              <p className="mt-0.5 text-[10px] sm:text-xs text-text-muted">
                 Track {trackInfo.trackNumber}
               </p>
             ) : null}
           </div>
         </div>
 
-        {/* Swarm Stats Row */}
-        <div className="flex items-center justify-between gap-4">
-          {/* Torrent Name */}
-          {torrentName ? <p className="text-sm text-text-muted truncate flex-1">From: {torrentName}</p> : null}
+        {/* Swarm Stats Row - compact for TV */}
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          {/* Torrent Name - hidden on very small screens */}
+          {torrentName ? <p className="hidden sm:block text-xs sm:text-sm text-text-muted truncate flex-1">From: {torrentName}</p> : null}
 
-          {/* Swarm Stats Badge */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Swarm Stats Badge - always visible, compact */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {isLoadingSwarm && !swarmStats ? (
-              <div className="flex items-center gap-2 text-xs text-text-muted">
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
-                <span>Loading swarm...</span>
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-text-muted">
+                <div className="h-2.5 w-2.5 sm:h-3 sm:w-3 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                <span className="hidden sm:inline">Loading swarm...</span>
               </div>
             ) : swarmStats ? (
               <>
                 {/* Seeders */}
-                <div className="flex items-center gap-1.5" title="Seeders (peers with complete file)">
+                <div className="flex items-center gap-1" title="Seeders (peers with complete file)">
                   <svg
-                    className="h-4 w-4 text-green-500"
+                    className="h-3 w-3 sm:h-4 sm:w-4 text-green-500"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -636,15 +636,15 @@ export function MediaPlayerModal({
                       clipRule="evenodd"
                     />
                   </svg>
-                  <span className="text-sm font-medium text-green-500">
+                  <span className="text-xs sm:text-sm font-medium text-green-500">
                     {swarmStats.seeders ?? '?'}
                   </span>
                 </div>
 
                 {/* Leechers */}
-                <div className="flex items-center gap-1.5" title="Leechers (peers downloading)">
+                <div className="flex items-center gap-1" title="Leechers (peers downloading)">
                   <svg
-                    className="h-4 w-4 text-orange-500"
+                    className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -654,38 +654,38 @@ export function MediaPlayerModal({
                       clipRule="evenodd"
                     />
                   </svg>
-                  <span className="text-sm font-medium text-orange-500">
+                  <span className="text-xs sm:text-sm font-medium text-orange-500">
                     {swarmStats.leechers ?? '?'}
                   </span>
                 </div>
 
                 {/* Refresh indicator */}
-                {isLoadingSwarm ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-text-muted border-t-transparent" /> : null}
+                {isLoadingSwarm ? <div className="h-2.5 w-2.5 sm:h-3 sm:w-3 animate-spin rounded-full border-2 border-text-muted border-t-transparent" /> : null}
               </>
             ) : null}
           </div>
         </div>
 
-        {/* Codec Check Notice - show while checking codec info */}
-        {isCheckingCodec && !error ? <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
-            <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-              <span className="text-sm text-blue-500">
-                Checking video codec compatibility...
+        {/* Codec Check Notice - compact for TV */}
+        {isCheckingCodec && !error ? <div className="rounded-md sm:rounded-lg border border-blue-500/30 bg-blue-500/10 p-2 sm:p-3">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent flex-shrink-0" />
+              <span className="text-xs sm:text-sm text-blue-500">
+                Checking codec...
               </span>
             </div>
           </div> : null}
 
-        {/* Codec Info Display - show detected codec info */}
-        {codecInfo && !isCheckingCodec && !error ? <div className={`rounded-lg border p-3 ${
+        {/* Codec Info Display - compact for TV */}
+        {codecInfo && !isCheckingCodec && !error ? <div className={`rounded-md sm:rounded-lg border p-2 sm:p-3 ${
           codecInfo.needsTranscoding
             ? 'border-orange-500/30 bg-orange-500/10'
             : 'border-green-500/30 bg-green-500/10'
         }`}>
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <svg
-                  className={`h-4 w-4 ${codecInfo.needsTranscoding ? 'text-orange-500' : 'text-green-500'}`}
+                  className={`h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 ${codecInfo.needsTranscoding ? 'text-orange-500' : 'text-green-500'}`}
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -697,28 +697,26 @@ export function MediaPlayerModal({
                     d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <span className={`text-sm ${codecInfo.needsTranscoding ? 'text-orange-500' : 'text-green-500'}`}>
-                  {codecInfo.needsTranscoding
-                    ? 'Codec requires transcoding'
-                    : 'Codec is browser-compatible'}
+                <span className={`text-xs sm:text-sm ${codecInfo.needsTranscoding ? 'text-orange-500' : 'text-green-500'}`}>
+                  {codecInfo.needsTranscoding ? 'Transcoding' : 'Compatible'}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-text-muted">
-                {codecInfo.videoCodec ? <span className="rounded bg-bg-tertiary px-1.5 py-0.5">{codecInfo.videoCodec}</span> : null}
-                {codecInfo.audioCodec ? <span className="rounded bg-bg-tertiary px-1.5 py-0.5">{codecInfo.audioCodec}</span> : null}
-                {codecInfo.resolution ? <span className="rounded bg-bg-tertiary px-1.5 py-0.5">{codecInfo.resolution}</span> : null}
+              <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-text-muted">
+                {codecInfo.videoCodec ? <span className="rounded bg-bg-tertiary px-1 sm:px-1.5 py-0.5">{codecInfo.videoCodec}</span> : null}
+                {codecInfo.audioCodec ? <span className="hidden sm:inline rounded bg-bg-tertiary px-1.5 py-0.5">{codecInfo.audioCodec}</span> : null}
+                {codecInfo.resolution ? <span className="rounded bg-bg-tertiary px-1 sm:px-1.5 py-0.5">{codecInfo.resolution}</span> : null}
               </div>
             </div>
           </div> : null}
 
-        {/* Transcoding Notice - show when transcoding is active */}
-        {isTranscoding && !error ? <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-3">
-            <div className="flex items-center gap-2">
+        {/* Transcoding Notice - compact for TV */}
+        {isTranscoding && !error ? <div className="rounded-md sm:rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-2 sm:p-3">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {isRetryingWithTranscode && isLoading ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
               ) : (
                 <svg
-                  className="h-4 w-4 text-accent-primary"
+                  className="h-3 w-3 sm:h-4 sm:w-4 text-accent-primary flex-shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -731,21 +729,21 @@ export function MediaPlayerModal({
                   />
                 </svg>
               )}
-              <span className="text-sm text-accent-primary">
+              <span className="text-xs sm:text-sm text-accent-primary truncate">
                 {isRetryingWithTranscode && isLoading
-                  ? 'Unsupported codec detected. Switching to transcoding...'
+                  ? 'Switching to transcoding...'
                   : isLoading
-                    ? 'Transcoding and loading stream...'
-                    : 'Live transcoding enabled - converting to browser-compatible format'}
+                    ? 'Transcoding...'
+                    : 'Live transcoding'}
               </span>
             </div>
           </div> : null}
 
-        {/* Error State with Try Again button */}
-        {error ? <div className="rounded-lg border border-error/50 bg-error/10 p-4">
-            <div className="flex items-start gap-3">
+        {/* Error State with Try Again button - compact for TV */}
+        {error ? <div className="rounded-md sm:rounded-lg border border-error/50 bg-error/10 p-2 sm:p-4">
+            <div className="flex items-start gap-2 sm:gap-3">
               <svg
-                className="h-5 w-5 flex-shrink-0 text-error"
+                className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 text-error"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -757,16 +755,16 @@ export function MediaPlayerModal({
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <div className="flex-1">
-                <h4 className="font-medium text-error">Playback Error</h4>
-                <p className="mt-1 text-sm text-text-muted">{error}</p>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm sm:text-base font-medium text-error">Playback Error</h4>
+                <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-text-muted truncate">{error}</p>
                 <button
                   type="button"
                   onClick={handleRetry}
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90"
+                  className="mt-2 sm:mt-3 inline-flex items-center gap-1.5 sm:gap-2 rounded-md sm:rounded-lg bg-accent-primary px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white transition-colors hover:bg-accent-primary/90 focus:ring-2 focus:ring-accent-primary focus:outline-none"
                 >
                   <svg
-                    className="h-4 w-4"
+                    className="h-3 w-3 sm:h-4 sm:w-4"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -778,20 +776,20 @@ export function MediaPlayerModal({
                       d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                     />
                   </svg>
-                  Try Again
+                  Retry
                 </button>
               </div>
             </div>
           </div> : null}
 
-        {/* Video Player - always render when we have a URL and it's video */}
-        {streamUrl && mediaCategory === 'video' && !error ? <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+        {/* Video Player - always render when we have a URL and it's video - compact for TV */}
+        {streamUrl && mediaCategory === 'video' && !error ? <div className="relative aspect-video w-full overflow-hidden rounded-md sm:rounded-lg bg-black">
             {/* Loading spinner overlay - shown while stream is initializing */}
             {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
-                  <span className="text-xs sm:text-sm text-white">
-                    {isTranscoding ? 'Starting transcoding...' : 'Loading stream...'}
+                <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+                  <div className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 animate-spin rounded-full border-3 sm:border-4 border-accent-primary border-t-transparent" />
+                  <span className="text-[10px] sm:text-xs md:text-sm text-white">
+                    {isTranscoding ? 'Transcoding...' : 'Loading...'}
                   </span>
                 </div>
               </div> : null}
@@ -799,16 +797,16 @@ export function MediaPlayerModal({
             {showPlayButton ? <button
                 type="button"
                 onClick={handleManualPlay}
-                className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 transition-colors hover:bg-black/50"
+                className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 transition-colors hover:bg-black/50 focus:ring-2 focus:ring-accent-primary focus:outline-none"
                 aria-label="Play video"
               >
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-accent-primary text-white shadow-lg transition-transform hover:scale-110">
-                    <svg className="h-8 w-8 sm:h-10 sm:w-10 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+                  <div className="flex h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20 items-center justify-center rounded-full bg-accent-primary text-white shadow-lg transition-transform hover:scale-110">
+                    <svg className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 ml-0.5 sm:ml-1" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>
-                  <span className="text-sm sm:text-base text-white font-medium">Click to Play</span>
+                  <span className="text-xs sm:text-sm md:text-base text-white font-medium">Play</span>
                 </div>
               </button> : null}
             <VideoPlayer
@@ -822,14 +820,14 @@ export function MediaPlayerModal({
             />
           </div> : null}
 
-        {/* Audio Player - always render when we have a URL and it's audio */}
+        {/* Audio Player - always render when we have a URL and it's audio - compact for TV */}
         {streamUrl && mediaCategory === 'audio' && !error ? <div className="relative w-full">
             {/* Loading spinner overlay - shown while stream is initializing */}
-            {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
-                  <span className="text-sm text-text-muted">
-                    {isTranscoding ? 'Starting transcoding...' : 'Loading stream...'}
+            {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md sm:rounded-lg bg-bg-tertiary">
+                <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+                  <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-3 sm:border-4 border-accent-primary border-t-transparent" />
+                  <span className="text-xs sm:text-sm text-text-muted">
+                    {isTranscoding ? 'Transcoding...' : 'Loading...'}
                   </span>
                 </div>
               </div> : null}
@@ -837,16 +835,16 @@ export function MediaPlayerModal({
             {showPlayButton ? <button
                 type="button"
                 onClick={handleManualPlay}
-                className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary/90 transition-colors hover:bg-bg-tertiary/80"
+                className="absolute inset-0 z-10 flex items-center justify-center rounded-md sm:rounded-lg bg-bg-tertiary/90 transition-colors hover:bg-bg-tertiary/80 focus:ring-2 focus:ring-accent-primary focus:outline-none"
                 aria-label="Play audio"
               >
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-accent-primary text-white shadow-lg transition-transform hover:scale-110">
-                    <svg className="h-7 w-7 sm:h-8 sm:w-8 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+                  <div className="flex h-10 w-10 sm:h-14 sm:w-14 md:h-16 md:w-16 items-center justify-center rounded-full bg-accent-primary text-white shadow-lg transition-transform hover:scale-110">
+                    <svg className="h-5 w-5 sm:h-7 sm:w-7 md:h-8 md:w-8 ml-0.5 sm:ml-1" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>
-                  <span className="text-sm text-text-primary font-medium">Click to Play</span>
+                  <span className="text-xs sm:text-sm text-text-primary font-medium">Play</span>
                 </div>
               </button> : null}
             <AudioPlayer
@@ -866,44 +864,44 @@ export function MediaPlayerModal({
             />
           </div> : null}
 
-        {/* Unsupported Media Type */}
-        {streamUrl && mediaCategory !== 'video' && mediaCategory !== 'audio' ? <div className="rounded-lg border border-border-subtle bg-bg-tertiary p-6 text-center">
-            <p className="text-text-secondary">
-              This file type ({mediaCategory}) cannot be played in the browser.
+        {/* Unsupported Media Type - compact for TV */}
+        {streamUrl && mediaCategory !== 'video' && mediaCategory !== 'audio' ? <div className="rounded-md sm:rounded-lg border border-border-subtle bg-bg-tertiary p-3 sm:p-6 text-center">
+            <p className="text-xs sm:text-sm text-text-secondary">
+              Cannot play {mediaCategory} in browser.
             </p>
             <a
               href={streamUrl}
               download={file.name}
-              className="mt-4 inline-block rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90"
+              className="mt-2 sm:mt-4 inline-block rounded-md sm:rounded-lg bg-accent-primary px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-accent-primary/90 focus:ring-2 focus:ring-accent-primary focus:outline-none"
             >
-              Download File
+              Download
             </a>
           </div> : null}
 
-        {/* Connection Status Footer - shown during loading and as health stats after ready */}
-        {connectionStatus ? <div className={`rounded-lg border p-2 sm:p-3 ${
+        {/* Connection Status Footer - compact for TV */}
+        {connectionStatus ? <div className={`rounded-md sm:rounded-lg border p-1.5 sm:p-2 md:p-3 ${
           isLoading
             ? 'border-border-subtle bg-bg-secondary'
             : 'border-green-500/30 bg-green-500/5'
         }`}>
-            <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-4">
               {/* Status message with spinner or health indicator */}
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
                 {isLoading ? (
-                  <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
+                  <div className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
                 ) : (
-                  <div className="h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="Stream active" />
+                  <div className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="Stream active" />
                 )}
-                <span className="text-xs sm:text-sm text-text-secondary truncate">
+                <span className="text-[10px] sm:text-xs md:text-sm text-text-secondary truncate">
                   {isLoading ? connectionStatus.message : 'Streaming'}
                 </span>
               </div>
               
-              {/* Stats - always visible */}
-              <div className="flex items-center gap-2 sm:gap-3 text-xs text-text-muted flex-shrink-0">
+              {/* Stats - compact for TV */}
+              <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 text-[10px] sm:text-xs text-text-muted flex-shrink-0">
                 {/* Peers */}
-                <span title="Connected peers" className="flex items-center gap-1">
-                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                <span title="Connected peers" className="flex items-center gap-0.5 sm:gap-1">
+                  <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                   </svg>
                   <span className={connectionStatus.numPeers > 0 ? 'text-green-500' : 'text-orange-500'}>
@@ -915,8 +913,8 @@ export function MediaPlayerModal({
                 {(() => {
                   const displayProgress = connectionStatus.fileProgress ?? connectionStatus.progress;
                   return displayProgress < 1 && (
-                    <span title="File download progress" className="flex items-center gap-1">
-                      <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                    <span title="File download progress" className="flex items-center gap-0.5 sm:gap-1">
+                      <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
                       <span className={displayProgress > 0.5 ? 'text-green-500' : 'text-yellow-500'}>
@@ -926,36 +924,33 @@ export function MediaPlayerModal({
                   );
                 })()}
                 
-                {/* Download speed - always visible when active */}
+                {/* Download speed - compact for TV */}
                 {connectionStatus.downloadSpeed > 0 && (
-                  <span className="flex items-center gap-1 text-green-500" title="Download speed">
-                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                  <span className="flex items-center gap-0.5 sm:gap-1 text-green-500" title="Download speed">
+                    <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    <span className="hidden sm:inline">{formatSpeed(connectionStatus.downloadSpeed)}</span>
-                    <span className="sm:hidden">{formatSpeedCompact(connectionStatus.downloadSpeed)}</span>
+                    <span>{formatSpeedCompact(connectionStatus.downloadSpeed)}</span>
                   </span>
                 )}
                 
-                {/* Upload speed - always visible when active */}
+                {/* Upload speed - hidden on very small screens */}
                 {connectionStatus.uploadSpeed > 0 && (
-                  <span className="flex items-center gap-1 text-blue-500" title="Upload speed">
-                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                  <span className="hidden sm:flex items-center gap-0.5 sm:gap-1 text-blue-500" title="Upload speed">
+                    <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
-                    <span className="hidden sm:inline">{formatSpeed(connectionStatus.uploadSpeed)}</span>
-                    <span className="sm:hidden">{formatSpeedCompact(connectionStatus.uploadSpeed)}</span>
+                    <span>{formatSpeedCompact(connectionStatus.uploadSpeed)}</span>
                   </span>
                 )}
               </div>
             </div>
             
-            {/* Progress bar - show during loading or when not complete */}
-            {/* Use fileProgress when available (more accurate for streaming individual files) */}
+            {/* Progress bar - compact for TV */}
             {(() => {
               const displayProgress = connectionStatus.fileProgress ?? connectionStatus.progress;
               return displayProgress > 0 && displayProgress < 1 && (
-                <div className="mt-1.5 sm:mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
+                <div className="mt-1 sm:mt-1.5 md:mt-2 h-0.5 sm:h-1 w-full overflow-hidden rounded-full bg-bg-tertiary">
                   <div
                     className={`h-full transition-all duration-300 ${
                       isLoading ? 'bg-accent-primary' : 'bg-green-500'

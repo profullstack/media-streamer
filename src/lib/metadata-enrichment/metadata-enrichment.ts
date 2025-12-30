@@ -23,6 +23,53 @@ import {
   fetchMoviePosterByImdb,
   type MusicBrainzSearchType,
 } from '@/lib/metadata';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('metadata-enrichment');
+
+// ============================================================================
+// Safe Fetch Helper
+// ============================================================================
+
+/**
+ * Safely fetch a URL with proper error logging
+ * Logs the URL and any error details for debugging
+ */
+async function safeFetch(
+  url: string,
+  options?: RequestInit,
+  context?: string
+): Promise<Response> {
+  const contextStr = context ? `[${context}] ` : '';
+  
+  try {
+    logger.debug(`${contextStr}Fetching URL`, { url: url.replace(/apikey=[^&]+/, 'apikey=***') });
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      logger.warn(`${contextStr}HTTP error`, {
+        url: url.replace(/apikey=[^&]+/, 'apikey=***'),
+        status: response.status,
+        statusText: response.statusText,
+      });
+    }
+    
+    return response;
+  } catch (error) {
+    // Log the full error details for debugging
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCause = error instanceof Error && 'cause' in error ? String(error.cause) : undefined;
+    
+    logger.error(`${contextStr}Fetch failed`, {
+      url: url.replace(/apikey=[^&]+/, 'apikey=***'),
+      error: errorMessage,
+      cause: errorCause,
+      headers: options?.headers ? Object.keys(options.headers) : undefined,
+    });
+    
+    throw error;
+  }
+}
 
 // ============================================================================
 // Types
@@ -411,7 +458,7 @@ async function fetchMovieMetadata(
 ): Promise<Partial<EnrichmentResult>> {
   const url = buildOMDbUrl(query, apiKey, year, 'movie');
   
-  const response = await fetch(url);
+  const response = await safeFetch(url, undefined, 'OMDb-movie');
   if (!response.ok) {
     throw new Error(`OMDb API error: ${response.status}`);
   }
@@ -435,9 +482,17 @@ async function fetchMovieMetadata(
   // Try to get better poster from Fanart.tv using IMDB ID
   // Fanart.tv provides higher quality posters than OMDb
   if (fanartTvApiKey && movie.id) {
-    const fanartPoster = await fetchMoviePosterByImdb(movie.id, { fanartTvApiKey });
-    if (fanartPoster) {
-      result.posterUrl = fanartPoster;
+    try {
+      const fanartPoster = await fetchMoviePosterByImdb(movie.id, { fanartTvApiKey });
+      if (fanartPoster) {
+        result.posterUrl = fanartPoster;
+      }
+    } catch (error) {
+      // Log but don't fail - Fanart.tv is optional enhancement
+      logger.warn('Failed to fetch Fanart.tv movie poster', {
+        imdbId: movie.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -456,7 +511,7 @@ async function fetchTVShowMetadata(
   // OMDb supports TV shows via type='series'
   const url = buildOMDbUrl(query, apiKey, undefined, 'series');
   
-  const response = await fetch(url);
+  const response = await safeFetch(url, undefined, 'OMDb-tvshow');
 
   if (!response.ok) {
     throw new Error(`OMDb API error: ${response.status}`);
@@ -481,9 +536,17 @@ async function fetchTVShowMetadata(
   // Try to get better poster from Fanart.tv using IMDB ID
   // Fanart.tv supports TV shows via IMDB ID as well
   if (fanartTvApiKey && show.id) {
-    const fanartPoster = await fetchMoviePosterByImdb(show.id, { fanartTvApiKey });
-    if (fanartPoster) {
-      result.posterUrl = fanartPoster;
+    try {
+      const fanartPoster = await fetchMoviePosterByImdb(show.id, { fanartTvApiKey });
+      if (fanartPoster) {
+        result.posterUrl = fanartPoster;
+      }
+    } catch (error) {
+      // Log but don't fail - Fanart.tv is optional enhancement
+      logger.warn('Failed to fetch Fanart.tv TV show poster', {
+        imdbId: show.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -568,11 +631,11 @@ async function fetchMusicMetadata(
   
   const url = buildMusicBrainzUrl(searchType, query, 5);
   
-  const response = await fetch(url, {
+  const response = await safeFetch(url, {
     headers: {
       'User-Agent': userAgent,
     },
-  });
+  }, 'MusicBrainz');
 
   if (!response.ok) {
     throw new Error(`MusicBrainz API error: ${response.status}`);
@@ -600,27 +663,44 @@ async function fetchMusicMetadata(
   // For discographies, fetch artist image from Fanart.tv
   // This provides a band photo/artist image for the top-level torrent
   if (isDiscography(torrentName) && fanartTvApiKey && artistName) {
-    const artistImageUrl = await fetchArtistImage(artistName, {
-      fanartTvApiKey,
-      userAgent,
-    });
-    if (artistImageUrl) {
-      enrichmentResult.artistImageUrl = artistImageUrl;
-      // For discographies, use artist image as the poster (top-level image)
-      // since there's no single album cover that represents the whole collection
-      enrichmentResult.posterUrl = artistImageUrl;
+    try {
+      const artistImageUrl = await fetchArtistImage(artistName, {
+        fanartTvApiKey,
+        userAgent,
+      });
+      if (artistImageUrl) {
+        enrichmentResult.artistImageUrl = artistImageUrl;
+        // For discographies, use artist image as the poster (top-level image)
+        // since there's no single album cover that represents the whole collection
+        enrichmentResult.posterUrl = artistImageUrl;
+      }
+    } catch (error) {
+      // Log but don't fail - Fanart.tv is optional enhancement
+      logger.warn('Failed to fetch Fanart.tv artist image', {
+        artistName,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
   // For single albums (release-groups), fetch album cover from Fanart.tv
   if (searchType === 'release-group' && !isDiscography(torrentName) && fanartTvApiKey && artistName) {
-    // Pass the MusicBrainz release-group ID to get the specific album cover
-    const coverUrl = await fetchAlbumCover(artistName, {
-      fanartTvApiKey,
-      userAgent,
-    }, result.id);
-    if (coverUrl) {
-      enrichmentResult.coverUrl = coverUrl;
+    try {
+      // Pass the MusicBrainz release-group ID to get the specific album cover
+      const coverUrl = await fetchAlbumCover(artistName, {
+        fanartTvApiKey,
+        userAgent,
+      }, result.id);
+      if (coverUrl) {
+        enrichmentResult.coverUrl = coverUrl;
+      }
+    } catch (error) {
+      // Log but don't fail - Fanart.tv is optional enhancement
+      logger.warn('Failed to fetch Fanart.tv album cover', {
+        artistName,
+        releaseGroupId: result.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -635,7 +715,7 @@ async function fetchBookMetadata(
 ): Promise<Partial<EnrichmentResult>> {
   const url = buildOpenLibraryUrl(query, 5);
   
-  const response = await fetch(url);
+  const response = await safeFetch(url, undefined, 'OpenLibrary');
   if (!response.ok) {
     throw new Error(`Open Library API error: ${response.status}`);
   }

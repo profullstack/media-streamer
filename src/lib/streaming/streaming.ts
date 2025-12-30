@@ -249,17 +249,18 @@ export class StreamingService {
   private torrentWatchers: Map<string, TorrentWatchers>;
   private dhtReady: boolean = false;
   private dhtNodeCount: number = 0;
+  private downloadPath: string;
 
   constructor(options: StreamingServiceOptions = {}) {
     // Get and ensure WebTorrent download directory exists
-    const downloadPath = getWebTorrentDir();
-    ensureDir(downloadPath);
+    this.downloadPath = getWebTorrentDir();
+    ensureDir(this.downloadPath);
 
     logger.info('Initializing StreamingService', {
       maxConcurrentStreams: options.maxConcurrentStreams ?? 10,
       streamTimeout: options.streamTimeout ?? 90000,
       torrentCleanupDelay: options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY,
-      downloadPath,
+      downloadPath: this.downloadPath,
     });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
@@ -277,7 +278,7 @@ export class StreamingService {
       // Increase max connections for better peer discovery
       maxConns: 100,
       // Use configured download path instead of /tmp/webtorrent
-      path: downloadPath,
+      path: this.downloadPath,
     } as WebTorrent.Options);
     
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
@@ -675,7 +676,9 @@ export class StreamingService {
     // Add the torrent (don't wait for ready - status endpoint will poll)
     return new Promise((resolve, reject) => {
       try {
-        const torrent = this.client.add(enhancedMagnetUri);
+        // Pass path option to ensure downloads go to configured directory
+        // Type assertion needed because WebTorrent types are incomplete
+        const torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
         
         // Log peer connections (debug level to avoid log spam)
         torrent.on('wire', (wire) => {
@@ -1170,7 +1173,9 @@ export class StreamingService {
         removeTorrentAndReject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
       }, this.streamTimeout);
 
-      torrent = this.client.add(enhancedMagnetUri, (t) => {
+      // Pass path option to ensure downloads go to configured directory
+      // Type assertion needed because WebTorrent types are incomplete
+      torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions, (t) => {
         logger.debug('Torrent add callback fired', {
           infohash: t.infoHash,
           ready: t.ready,

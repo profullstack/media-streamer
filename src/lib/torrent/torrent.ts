@@ -193,19 +193,20 @@ const UDP_TRACKERS = [
 export class TorrentService {
   private client: WebTorrent.Instance;
   private metadataTimeout: number;
+  private downloadPath: string;
 
   constructor(options: TorrentServiceOptions = {}) {
     const timeout = options.metadataTimeout ?? DEFAULT_METADATA_TIMEOUT;
     
     // Get and ensure WebTorrent download directory exists
-    const downloadPath = getWebTorrentDir();
-    ensureDir(downloadPath);
+    this.downloadPath = getWebTorrentDir();
+    ensureDir(this.downloadPath);
     
     logger.info('Initializing TorrentService', {
       timeout,
       defaultTimeout: DEFAULT_METADATA_TIMEOUT,
       dhtBootstrapNodes: DHT_BOOTSTRAP_NODES,
-      downloadPath,
+      downloadPath: this.downloadPath,
     });
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
@@ -218,7 +219,7 @@ export class TorrentService {
       lsd: true, // Local Service Discovery
       webSeeds: true,
       // Use configured download path instead of /tmp/webtorrent
-      path: downloadPath,
+      path: this.downloadPath,
     } as WebTorrent.Options);
     
     this.metadataTimeout = timeout;
@@ -453,7 +454,9 @@ export class TorrentService {
 
       // Add torrent and wait for metadata
       try {
-        torrent = this.client.add(enhancedMagnetUri);
+        // Pass path option to ensure downloads go to configured directory
+        // Type assertion needed because WebTorrent types are incomplete
+        torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
         
         logger.debug('Torrent object created', {
           infohash: torrent.infoHash,

@@ -146,13 +146,34 @@ export function Header({ className, isLoggedIn = false }: HeaderProps): React.Re
               onChange={handleInputChange}
               placeholder="Search torrents..."
               className={cn(
-                'w-full rounded-r-full border border-border-default bg-bg-secondary py-2 pl-10 pr-4',
+                'w-full border border-r-0 border-border-default bg-bg-secondary py-2 pl-10 pr-4',
                 'text-sm text-text-primary placeholder:text-text-muted',
                 'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                 'transition-colors'
               )}
             />
           </div>
+
+          {/* Submit Button - for TV/remote navigation */}
+          <button
+            type="submit"
+            disabled={isSearching || !searchQuery.trim()}
+            className={cn(
+              'flex items-center justify-center rounded-r-full border border-border-default bg-accent-primary px-4 py-2',
+              'text-sm font-medium text-white',
+              'hover:bg-accent-primary/90',
+              'focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              'transition-colors'
+            )}
+            aria-label="Search"
+          >
+            {isSearching ? (
+              <LoadingSpinner className="text-white" size={18} />
+            ) : (
+              <SearchIcon className="text-white" size={18} />
+            )}
+          </button>
         </div>
       </form>
 
