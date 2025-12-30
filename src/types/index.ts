@@ -14,6 +14,8 @@ export interface Torrent {
   infohash: string;
   magnetUri: string;
   name: string;
+  /** Clean title for display (without quality indicators, codecs, etc.) */
+  cleanTitle: string | null;
   totalSize: number;
   fileCount: number;
   pieceLength: number;
@@ -117,6 +119,8 @@ export interface SearchResult {
     id: string;
     infohash: string;
     name: string;
+    /** Clean title for display (without quality indicators, codecs, etc.) */
+    cleanTitle?: string | null;
   };
   file?: {
     id: string;

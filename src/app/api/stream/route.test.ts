@@ -60,6 +60,7 @@ vi.mock('@/lib/supabase', () => ({
     infohash: '1234567890abcdef1234567890abcdef12345678',
     magnet_uri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce',
     name: 'Test Torrent',
+        clean_title: null,
     total_size: 1000000,
     file_count: 1,
   }),

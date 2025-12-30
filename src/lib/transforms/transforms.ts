@@ -18,6 +18,7 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     infohash: dbTorrent.infohash,
     magnetUri: dbTorrent.magnet_uri,
     name: dbTorrent.name,
+    cleanTitle: dbTorrent.clean_title,
     totalSize: dbTorrent.total_size,
     fileCount: dbTorrent.file_count,
     pieceLength: dbTorrent.piece_length ?? 0,

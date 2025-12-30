@@ -37,6 +37,7 @@ function createMockTorrent(overrides: Partial<{
   infohash: string;
   magnet_uri: string;
   name: string;
+  clean_title: string | null;
   total_size: number;
   file_count: number;
   piece_length: number | null;
@@ -45,6 +46,7 @@ function createMockTorrent(overrides: Partial<{
     id: 'torrent-uuid-123',
     infohash: '1234567890abcdef1234567890abcdef12345678',
     magnet_uri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678',
+        clean_title: null,
     name: 'Test Torrent',
     total_size: 1000000,
     file_count: 2,
@@ -140,6 +142,7 @@ describe('IndexerService', () => {
       mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
+        clean_title: null,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
@@ -164,6 +167,7 @@ describe('IndexerService', () => {
         id: 'existing-torrent-uuid',
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
+        clean_title: null,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
@@ -185,6 +189,7 @@ describe('IndexerService', () => {
         id: 'existing-torrent-uuid',
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
+        clean_title: null,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
@@ -212,6 +217,7 @@ describe('IndexerService', () => {
       mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
+        clean_title: null,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
@@ -238,6 +244,7 @@ describe('IndexerService', () => {
       mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: mockMetadata.infohash,
         magnet_uri: mockMetadata.magnetUri,
+        clean_title: null,
         name: mockMetadata.name,
         total_size: mockMetadata.totalSize,
         file_count: 2,
@@ -315,6 +322,7 @@ describe('IndexerService', () => {
       mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: emptyMetadata.infohash,
         magnet_uri: emptyMetadata.magnetUri,
+        clean_title: null,
         name: emptyMetadata.name,
         total_size: 0,
         file_count: 0,
@@ -359,6 +367,7 @@ describe('IndexerService', () => {
       mockCreateTorrent.mockResolvedValue(createMockTorrent({
         infohash: metadataWithNullExt.infohash,
         magnet_uri: metadataWithNullExt.magnetUri,
+        clean_title: null,
         name: metadataWithNullExt.name,
         total_size: 1000,
         file_count: 1,

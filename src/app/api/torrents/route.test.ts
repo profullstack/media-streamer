@@ -22,6 +22,30 @@ vi.mock('@/lib/subscription', () => ({
   getSubscriptionRepository: vi.fn(() => mockSubscriptionRepository),
 }));
 
+// Mock Supabase client
+const mockSupabaseUpdate = vi.fn().mockReturnValue({
+  eq: vi.fn().mockResolvedValue({ error: null }),
+});
+
+vi.mock('@/lib/supabase/client', () => ({
+  getServerClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      update: mockSupabaseUpdate,
+    })),
+  })),
+  resetServerClient: vi.fn(),
+}));
+
+// Mock metadata enrichment
+vi.mock('@/lib/metadata-enrichment', () => ({
+  enrichTorrentMetadata: vi.fn().mockResolvedValue({
+    contentType: 'movie',
+    posterUrl: 'https://example.com/poster.jpg',
+    year: 2024,
+  }),
+  cleanTorrentNameForDisplay: vi.fn((name: string) => name),
+}));
+
 // Mock the indexer module
 vi.mock('@/lib/indexer', () => ({
   IndexerService: vi.fn(() => ({

@@ -106,6 +106,7 @@ describe('Torrent Search API', () => {
         {
           torrent_id: 'torrent-1',
           torrent_name: 'Pennywise - Full Album',
+          torrent_clean_title: null,
           torrent_infohash: 'abc123',
           torrent_total_size: 500000000,
           torrent_file_count: 12,
@@ -165,6 +166,7 @@ describe('Torrent Search API', () => {
       const mockResults = Array(50).fill({
         torrent_id: 'torrent-1',
         torrent_name: 'Test',
+          torrent_clean_title: null,
         torrent_infohash: 'abc123',
         torrent_total_size: 100,
         torrent_file_count: 1,

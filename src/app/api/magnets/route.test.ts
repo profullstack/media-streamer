@@ -203,6 +203,7 @@ describe('Magnet Ingestion API', () => {
         id: 'torrent-123',
         infohash: 'abc123def456789012345678901234567890abcd',
         name: 'Test Torrent',
+        clean_title: null,
         magnet_uri: 'magnet:?xt=urn:btih:abc123def456789012345678901234567890abcd',
         total_size: 1000000,
         file_count: 5,

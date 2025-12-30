@@ -185,24 +185,138 @@ export function detectContentType(name: string): ContentType {
 // ============================================================================
 
 /**
- * Clean up torrent name artifacts
+ * Clean up torrent name for display purposes
+ * Less aggressive than cleanTorrentName - keeps year and some formatting
+ *
+ * @param name - The raw torrent name
+ * @returns A cleaned title suitable for display in the UI
  */
-function cleanTorrentName(name: string): string {
-  return name
+export function cleanTorrentNameForDisplay(name: string): string {
+  let cleaned = name
+    // Remove file extensions first (before replacing dots)
+    .replace(/\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|ts|mpg|mpeg)$/i, '')
+    // Remove website prefixes (www.site.org, site.com, etc.)
+    .replace(/^(www\.)?[a-z0-9-]+\.(org|com|net|io|tv|cc|to)\s*[-–—]\s*/i, '')
+    // Remove release group at end (pattern: -GROUP at end, typically short alphanumeric)
+    .replace(/[-.]([a-z]{2,}[0-9]*|[0-9]+[a-z]+)$/i, (match) => {
+      const group = match.slice(1);
+      if (group.length <= 10 && /^[a-z0-9]+$/i.test(group)) {
+        return '';
+      }
+      return match;
+    })
     // Replace dots and underscores with spaces
     .replace(/[._]/g, ' ')
-    // Remove common release group tags
+    // Remove common release group tags in brackets (but keep year in parentheses)
+    .replace(/\[[^\]]*\]/g, '')
+    // Remove quality indicators
+    .replace(/\b(1080p|720p|2160p|4k|bluray|blu-ray|brrip|dvdrip|webrip|web-?dl|hdtv|hdrip|x264|x265|hevc|aac|dts|ac3|atmos|truehd|remux|uhd|hdr|hdr10\+?|dv|dolby\s*vision)\b/gi, '')
+    // Remove codec/format indicators
+    .replace(/\b(h\s*264|h\s*265|h265|h264|10\s*bit|dd\s*5\s*1|dd\s*2\s*0|ddp\s*5\s*1|ddp\s*2\s*0|5\s*1|7\s*1|2\s*0)\b/gi, '')
+    // Remove standalone codec numbers
+    .replace(/\b(264|265)\b/gi, '')
+    // Remove streaming service names
+    .replace(/\b(amzn|amazon|nf|netflix|hulu|dsnp|disney\+?|hmax|hbo\s*max|atvp|apple\s*tv\+?|pbs|starz|starzplay)\b/gi, '')
+    // Remove audio format indicators for music
+    .replace(/\b(mp3|flac|wav|aac|ogg|lossless|320kbps|v0|v2)\b/gi, '')
+    // Remove file size indicators
+    .replace(/\b\d+(\.\d+)?\s*(mb|gb|tb)\b/gi, '')
+    // Remove release group names at end (after dash)
+    .replace(/\s+-\s*[a-z0-9]{2,10}\s*$/i, '')
+    // Remove common torrent suffixes
+    .replace(/\b(proper|repack|internal|limited|extended|unrated|directors?\s*cut|theatrical|imax|remastered)\b/gi, '')
+    // Remove standalone "WEB" that might remain
+    .replace(/\bWEB\b/gi, '')
+    // Remove standalone "MP4" or other container formats
+    .replace(/\b(mp4|mkv|avi|mov)\b/gi, '')
+    // Remove stray plus signs (from HDR10+)
+    .replace(/\s*\+\s*/g, ' ')
+    // Remove standalone "H" only if at word boundary
+    .replace(/\bH\b(?=\s|$)/gi, '')
+    // Remove stray numbers at the end (like "88" from bitrate)
+    .replace(/\s+\d{1,3}\s*$/g, '')
+    // Clean up multiple spaces
+    .replace(/\s+/g, ' ')
+    // Clean up parentheses with only whitespace or empty
+    .replace(/\(\s*\)/g, '')
+    .trim();
+
+  return cleaned;
+}
+
+/**
+ * Clean up torrent name artifacts for search queries
+ * This is aggressive cleaning to extract just the title
+ *
+ * @param name - The raw torrent name
+ * @returns A cleaned title suitable for API searches
+ */
+export function cleanTorrentName(name: string): string {
+  let cleaned = name
+    // Remove file extensions first (before replacing dots)
+    .replace(/\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|ts|mpg|mpeg)$/i, '')
+    // Remove website prefixes (www.site.org, site.com, etc.)
+    .replace(/^(www\.)?[a-z0-9-]+\.(org|com|net|io|tv|cc|to)\s*[-–—]\s*/i, '')
+    // Remove release group at end BEFORE replacing dots
+    // Only match if preceded by quality/codec indicators (e.g., x264-GROUP, H.264-GROUP)
+    .replace(/[-.]([a-z]{2,}[0-9]*|[0-9]+[a-z]+)$/i, (match) => {
+      // Don't remove if it looks like part of a title (e.g., ".Shining", ".Moon")
+      // Release groups are typically short alphanumeric (FLUX, SPARKS, YTS, etc.)
+      const group = match.slice(1); // Remove the leading - or .
+      if (group.length <= 10 && /^[a-z0-9]+$/i.test(group)) {
+        return '';
+      }
+      return match;
+    })
+    // Replace dots and underscores with spaces
+    .replace(/[._]/g, ' ')
+    // Remove common release group tags in brackets
     .replace(/\[.*?\]/g, '')
     .replace(/\(.*?\)/g, '')
     // Remove quality indicators (including WEB-DL, WEB DL variants)
-    .replace(/\b(1080p|720p|2160p|4k|bluray|brrip|dvdrip|webrip|web-?dl|hdtv|hdrip|x264|x265|hevc|aac|dts|ac3)\b/gi, '')
-    // Remove release group names (usually at end after dash)
-    .replace(/-[a-z0-9]+$/i, '')
+    // Note: After dots become spaces, patterns like "H.264" become "H 264"
+    .replace(/\b(1080p|720p|2160p|4k|bluray|blu-ray|brrip|dvdrip|webrip|web-?dl|hdtv|hdrip|x264|x265|hevc|aac|dts|ac3|atmos|truehd|remux|uhd|hdr|hdr10\+?|dv|dolby\s*vision)\b/gi, '')
+    // Remove codec/format indicators (handle both dotted and spaced versions)
+    .replace(/\b(h\s*264|h\s*265|h265|h264|10\s*bit|dd\s*5\s*1|dd\s*2\s*0|ddp\s*5\s*1|ddp\s*2\s*0|5\s*1|7\s*1|2\s*0)\b/gi, '')
+    // Remove standalone H or numbers that might remain from codec patterns
+    .replace(/\b(264|265)\b/gi, '')
+    // Remove streaming service names
+    .replace(/\b(amzn|amazon|nf|netflix|hulu|dsnp|disney\+?|hmax|hbo\s*max|atvp|apple\s*tv\+?|pbs|starz|starzplay|it|web)\b/gi, '')
+    // Remove file size indicators
+    .replace(/\b\d+(\.\d+)?\s*(mb|gb|tb)\b/gi, '')
+    // Remove release group names at end (after dash, typically short alphanumeric)
+    // Be careful not to remove parts of titles like "Spider-Man"
+    .replace(/\s+-\s*[a-z0-9]{2,10}\s*$/i, '')
+    // Remove common torrent suffixes
+    .replace(/\b(complete|proper|repack|internal|limited|extended|unrated|directors?\s*cut|theatrical|imax|remastered)\b/gi, '')
+    // Remove language indicators
+    .replace(/\b(eng|english|multi|dual|latino|spanish|french|german|italian|portuguese|russian|japanese|korean|chinese|hindi|arabic|turkish|polish|dutch|swedish|norwegian|danish|finnish|greek|hebrew|czech|hungarian|romanian|bulgarian|ukrainian|vietnamese|thai|indonesian|malay|filipino|tagalog)\b/gi, '')
+    // Remove subtitle indicators
+    .replace(/\b(subs?|subtitles?|subbed|dubbed|hardcoded|hc)\b/gi, '')
+    // Remove common scene tags
+    .replace(/\b(proper|real|rerip|nfofix|dirfix|samplefix|syncfix|readnfo|nuked|internal)\b/gi, '')
     // Remove standalone "WEB" that might remain
     .replace(/\bWEB\b/gi, '')
+    // Remove standalone "MP4" or other container formats
+    .replace(/\b(mp4|mkv|avi|mov)\b/gi, '')
+    // Remove stray plus signs (from HDR10+)
+    .replace(/\s*\+\s*/g, ' ')
+    // Remove standalone "H" only if at word boundary and followed by space/end
+    .replace(/\bH\b(?=\s|$)/gi, '')
     // Clean up multiple spaces
     .replace(/\s+/g, ' ')
     .trim();
+
+  // If the result is too short or empty, try a simpler approach
+  // Just take everything before the year
+  if (cleaned.length < 3) {
+    const yearMatch = name.match(/^(.+?)\s*(19|20)\d{2}/);
+    if (yearMatch) {
+      cleaned = yearMatch[1].replace(/[._]/g, ' ').trim();
+    }
+  }
+
+  return cleaned;
 }
 
 /**

@@ -12,6 +12,10 @@ import { getServerClient, resetServerClient } from '@/lib/supabase/client';
 import { IndexerService, IndexerError } from '@/lib/indexer';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import { transformTorrents } from '@/lib/transforms';
+import {
+  enrichTorrentMetadata,
+  cleanTorrentNameForDisplay,
+} from '@/lib/metadata-enrichment';
 import type { Torrent as DbTorrent } from '@/lib/supabase/types';
 
 const logger = createLogger('API:torrents');
@@ -136,19 +140,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    reqLogger.info('Torrents fetched successfully', { 
-      count: torrents?.length ?? 0, 
-      total: count ?? 0 
+    reqLogger.info('Torrents fetched successfully', {
+      count: torrents?.length ?? 0,
+      total: count ?? 0
     });
 
     // Transform to camelCase for frontend
     const transformedTorrents = transformTorrents((torrents ?? []) as DbTorrent[]);
 
+    // Calculate pagination info
+    const totalCount = count ?? 0;
+    const currentPage = Math.floor(offset / limit) + 1;
+    const hasMore = offset + transformedTorrents.length < totalCount;
+
     return NextResponse.json({
       torrents: transformedTorrents,
-      total: count ?? 0,
+      total: totalCount,
       limit,
       offset,
+      // Include pagination object for frontend compatibility
+      pagination: {
+        page: currentPage,
+        limit,
+        total: totalCount,
+        hasMore,
+      },
     });
   } catch (error) {
     reqLogger.error('Torrents API error', error);
@@ -230,6 +246,59 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       isNew: result.isNew,
       status
     });
+
+    // Auto-enrich new torrents with clean_title and metadata
+    if (result.isNew) {
+      reqLogger.debug('Auto-enriching new torrent with metadata');
+      
+      // Generate clean title
+      const cleanTitle = cleanTorrentNameForDisplay(result.name);
+      
+      // Fetch external metadata (poster, content_type, etc.)
+      const omdbApiKey = process.env.OMDB_API_KEY;
+      const fanartTvApiKey = process.env.FANART_TV_API_KEY;
+      
+      const enrichmentResult = await enrichTorrentMetadata(result.name, {
+        omdbApiKey,
+        fanartTvApiKey,
+        musicbrainzUserAgent: 'BitTorrented/1.0.0 (https://bittorrented.com)',
+      });
+      
+      reqLogger.debug('Enrichment result', {
+        contentType: enrichmentResult.contentType,
+        hasPoster: !!enrichmentResult.posterUrl,
+        hasCover: !!enrichmentResult.coverUrl,
+        hasError: !!enrichmentResult.error,
+      });
+      
+      // Update torrent with enrichment data
+      const supabase = getServerClient();
+      const { error: updateError } = await supabase
+        .from('torrents')
+        .update({
+          clean_title: cleanTitle,
+          content_type: enrichmentResult.contentType !== 'other' ? enrichmentResult.contentType : null,
+          poster_url: enrichmentResult.posterUrl ?? null,
+          cover_url: enrichmentResult.coverUrl ?? null,
+          year: enrichmentResult.year ?? null,
+          description: enrichmentResult.description ?? null,
+          external_id: enrichmentResult.externalId ?? null,
+          external_source: enrichmentResult.externalSource ?? null,
+          metadata_fetched_at: new Date().toISOString(),
+        })
+        .eq('id', result.torrentId);
+      
+      if (updateError) {
+        reqLogger.warn('Failed to update torrent with enrichment data', { error: updateError.message });
+        // Don't fail the request - the torrent was indexed successfully
+      } else {
+        reqLogger.info('Torrent enriched successfully', {
+          torrentId: result.torrentId,
+          cleanTitle,
+          contentType: enrichmentResult.contentType,
+        });
+      }
+    }
 
     return NextResponse.json({
       torrentId: result.torrentId,

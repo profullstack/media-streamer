@@ -528,6 +528,7 @@ export async function searchFiles(options: SearchOptions): Promise<SearchResult[
 export interface TorrentSearchResult {
   torrent_id: string;
   torrent_name: string;
+  torrent_clean_title: string | null;
   torrent_infohash: string;
   torrent_total_size: number;
   torrent_file_count: number;
@@ -565,7 +566,7 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
   // Build the query
   let queryBuilder = client
     .from('torrents')
-    .select('id, name, infohash, total_size, file_count, seeders, leechers, created_at')
+    .select('id, name, clean_title, infohash, total_size, file_count, seeders, leechers, created_at')
     .ilike('name', searchPattern)
     .order('seeders', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
@@ -599,6 +600,7 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
   return results.map(t => ({
     torrent_id: t.id,
     torrent_name: t.name,
+    torrent_clean_title: t.clean_title,
     torrent_infohash: t.infohash,
     torrent_total_size: t.total_size,
     torrent_file_count: t.file_count,

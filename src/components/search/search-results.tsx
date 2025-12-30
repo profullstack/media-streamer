@@ -172,7 +172,7 @@ function SearchResultItem({
       <div className="min-w-0 flex-1">
         {/* File/Torrent name */}
         <h3 className="truncate font-medium text-text-primary">
-          {isFile ? result.file!.name : result.torrent.name}
+          {isFile ? result.file!.name : (result.torrent.cleanTitle ?? result.torrent.name)}
         </h3>
 
         {/* Path or torrent info */}
@@ -181,9 +181,17 @@ function SearchResultItem({
             {result.file!.path}
           </p>
         ) : (
-          <p className="mt-0.5 text-sm text-text-muted">
-            Torrent
-          </p>
+          <>
+            {/* Show raw name in grey if different from clean title */}
+            {result.torrent.cleanTitle && result.torrent.cleanTitle !== result.torrent.name && (
+              <p className="truncate text-xs text-text-muted" title={result.torrent.name}>
+                {result.torrent.name}
+              </p>
+            )}
+            <p className="mt-0.5 text-sm text-text-muted">
+              Torrent
+            </p>
+          </>
         )}
 
         {/* Metadata */}
@@ -197,9 +205,10 @@ function SearchResultItem({
         {isFile ? <Link
             href={`/torrents/${result.torrent.id}`}
             className="mt-1 inline-flex items-center gap-1 text-xs text-accent-primary hover:underline"
+            title={result.torrent.name}
           >
             <MagnetIcon size={12} />
-            {result.torrent.name}
+            {result.torrent.cleanTitle ?? result.torrent.name}
           </Link> : null}
       </div>
 

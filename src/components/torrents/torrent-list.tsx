@@ -21,6 +21,8 @@ interface Torrent {
   id: string;
   infohash: string;
   name: string;
+  /** Clean title for display (without quality indicators, codecs, etc.) */
+  cleanTitle?: string | null;
   totalSize: number;
   fileCount: number;
   createdAt: string;
@@ -115,7 +117,15 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
 
       {/* Info */}
       <div className="min-w-0 flex-1">
-        <h3 className="truncate font-medium text-text-primary">{torrent.name}</h3>
+        <h3 className="truncate font-medium text-text-primary">
+          {torrent.cleanTitle ?? torrent.name}
+        </h3>
+        {/* Show raw name in grey if different from clean title */}
+        {torrent.cleanTitle && torrent.cleanTitle !== torrent.name && (
+          <p className="truncate text-xs text-text-muted" title={torrent.name}>
+            {torrent.name}
+          </p>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary">
           <span>{formatBytes(torrent.totalSize)}</span>
           <span>{torrent.fileCount} files</span>

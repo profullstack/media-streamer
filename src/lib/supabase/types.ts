@@ -21,6 +21,7 @@ export type Database = {
           infohash: string;
           magnet_uri: string;
           name: string;
+          clean_title: string | null;
           total_size: number;
           file_count: number;
           piece_length: number | null;
@@ -54,6 +55,7 @@ export type Database = {
           infohash: string;
           magnet_uri: string;
           name: string;
+          clean_title?: string | null;
           total_size?: number;
           file_count?: number;
           piece_length?: number | null;
@@ -87,6 +89,7 @@ export type Database = {
           infohash?: string;
           magnet_uri?: string;
           name?: string;
+          clean_title?: string | null;
           total_size?: number;
           file_count?: number;
           piece_length?: number | null;

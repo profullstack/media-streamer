@@ -12,6 +12,8 @@
  * Options:
  *   --dry-run       Show what would be updated without making changes
  *   --force         Re-fetch metadata even for torrents that already have it
+ *   --missing-only  Only process torrents that don't have metadata_fetched_at set
+ *   --no-poster     Re-fetch metadata for torrents that were enriched but have no poster
  *   --limit=N       Process only N torrents (default: all)
  *   --type=TYPE     Only process torrents of specific type (movie, tvshow, music, book)
  *   --all-status    Process torrents regardless of status (default: only 'ready' torrents)
@@ -78,6 +80,7 @@ const EBOOK_EXTENSIONS = new Set([
 interface ScriptOptions {
   dryRun: boolean;
   force: boolean;
+  noPoster: boolean;
   limit: number | null;
   type: ContentType | null;
   allStatus: boolean;
@@ -113,6 +116,7 @@ function parseArgs(): ScriptOptions {
   const options: ScriptOptions = {
     dryRun: false,
     force: false,
+    noPoster: false,
     limit: null,
     type: null,
     allStatus: false,
@@ -123,6 +127,8 @@ function parseArgs(): ScriptOptions {
       options.dryRun = true;
     } else if (arg === '--force') {
       options.force = true;
+    } else if (arg === '--no-poster') {
+      options.noPoster = true;
     } else if (arg === '--all-status') {
       options.allStatus = true;
     } else if (arg.startsWith('--limit=')) {
@@ -305,8 +311,15 @@ async function fetchTorrentsToEnrich(
     query = query.eq('content_type', options.type);
   }
 
-  // Only fetch torrents without metadata unless --force is used
-  if (!options.force) {
+  // Handle different modes:
+  // --no-poster: fetch torrents that were enriched but have no poster
+  // --force: fetch all torrents regardless of metadata status
+  // default: fetch only torrents without metadata_fetched_at
+  if (options.noPoster) {
+    // Torrents that have been enriched but don't have a poster
+    query = query.not('metadata_fetched_at', 'is', null);
+    query = query.is('poster_url', null);
+  } else if (!options.force) {
     query = query.is('metadata_fetched_at', null);
   }
 
@@ -425,7 +438,10 @@ async function processTorrent(
 
   // Fetch metadata
   try {
-    console.log(`  🔍 Searching for: "${torrent.name}" (as ${contentType})`);
+    // Import extractSearchQuery to show the cleaned query
+    const { extractSearchQuery } = await import('../src/lib/metadata-enrichment/metadata-enrichment');
+    const { query: cleanedQuery, year: extractedYear } = extractSearchQuery(torrent.name, contentType);
+    console.log(`  🔍 Searching for: "${cleanedQuery}" (year: ${extractedYear ?? 'unknown'}) (as ${contentType})`);
     
     const result = await enrichTorrentMetadata(torrent.name, {
       omdbApiKey,
@@ -505,6 +521,10 @@ async function main(): Promise<void> {
 
   if (options.force) {
     console.log('⚠️  FORCE MODE - Re-fetching all metadata\n');
+  }
+
+  if (options.noPoster) {
+    console.log('🖼️  NO-POSTER MODE - Re-enriching torrents that have no poster\n');
   }
 
   if (options.type) {
