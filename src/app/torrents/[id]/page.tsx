@@ -14,7 +14,6 @@ import { FileTree } from '@/components/files';
 import { SearchBar, type SearchFilters } from '@/components/search';
 import { MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
 import {
-  MagnetIcon,
   ChevronRightIcon,
   LoadingSpinner,
   MusicIcon,
@@ -23,6 +22,7 @@ import {
   FileIcon,
   PlayIcon,
 } from '@/components/ui/icons';
+import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeholder';
 import { formatBytes } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
@@ -304,21 +304,13 @@ export default function TorrentDetailPage(): React.ReactElement {
         {/* Header */}
         <div className="card p-6">
           <div className="flex items-start gap-4">
-            {/* Poster/Cover Art or Fallback Icon */}
-            {torrent.posterUrl || torrent.coverUrl ? (
-              <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg shadow-lg sm:h-32 sm:w-32">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={torrent.posterUrl ?? torrent.coverUrl ?? ''}
-                  alt={torrent.cleanTitle ?? torrent.name}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-primary/20">
-                <MagnetIcon className="text-accent-primary" size={24} />
-              </div>
-            )}
+            {/* Poster/Cover Art with Placeholder */}
+            <MediaPoster
+              src={torrent.posterUrl ?? torrent.coverUrl}
+              alt={torrent.cleanTitle ?? torrent.name}
+              contentType={torrent.contentType as MediaContentType}
+              className="shadow-lg"
+            />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xl font-bold text-text-primary" title={torrent.name}>
                 {torrent.cleanTitle ?? torrent.name}
