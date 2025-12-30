@@ -149,10 +149,17 @@ async function fetchTorrentsToProcess(
   supabase: SupabaseClient<Database>,
   options: ScriptOptions
 ): Promise<Torrent[]> {
+  // First, let's see what statuses exist in the database
+  const { data: statusData } = await supabase
+    .from('torrents')
+    .select('id')
+    .limit(1);
+  
+  console.log(`  Debug: Found ${statusData?.length ?? 0} torrents in database`);
+
   let query = supabase
     .from('torrents')
-    .select('id, infohash, name, video_codec, audio_codec, container, needs_transcoding, codec_detected_at')
-    .eq('status', 'ready');
+    .select('id, infohash, name, video_codec, audio_codec, container, needs_transcoding, codec_detected_at');
 
   // Filter by specific infohash if provided
   if (options.infohash) {
