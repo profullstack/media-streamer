@@ -678,24 +678,45 @@ export async function GET(request: NextRequest): Promise<Response> {
     // Check if transcoding is requested
     // Transcoding can be requested in two ways:
     // 1. demuxer=<format> - explicit demuxer from codec detection DB (takes precedence)
-    // 2. transcode=auto - derive demuxer from file extension
+    // 2. transcode=auto - derive demuxer from file extension (only for formats that support pipe transcoding)
     // This handles cases where:
     // 1. The file extension requires transcoding (e.g., .mkv, .avi)
     // 2. The file extension is "supported" (e.g., .mp4) but the codec isn't (e.g., HEVC/H.265)
+    //
+    // IMPORTANT: MP4/MOV/M4V files CANNOT be transcoded via pipe because:
+    // - The moov atom (file metadata) is at the END of the file
+    // - FFmpeg needs the moov atom to decode the file
+    // - When streaming from a torrent, data comes sequentially from the beginning
+    // - This causes "moov atom not found" errors
+    // For MP4 files with incompatible codecs (HEVC), the client should use demuxer=mov explicitly
+    // after codec detection confirms the file needs transcoding.
     const formatNeedsTranscoding = needsTranscoding(info.fileName);
     
+    // Formats that CANNOT be transcoded via pipe (moov atom at end)
+    // These should only be transcoded when explicitly requested via demuxer parameter
+    const PIPE_INCOMPATIBLE_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2']);
+    
     // Determine the effective demuxer to use
-    // Priority: explicit demuxer > auto-detect from extension
+    // Priority: explicit demuxer > auto-detect from extension (excluding pipe-incompatible formats)
     let effectiveDemuxer: string | null = demuxer;
     if (!effectiveDemuxer && transcode === 'auto') {
       // Derive demuxer from file extension
       const ext = info.fileName.split('.').pop()?.toLowerCase();
       if (ext) {
-        effectiveDemuxer = getFFmpegDemuxerForExtension(ext);
-        reqLogger.info('Auto-detected demuxer from file extension', {
-          extension: ext,
-          demuxer: effectiveDemuxer,
-        });
+        // Skip auto-transcoding for MP4/MOV formats - they can't be transcoded via pipe
+        if (PIPE_INCOMPATIBLE_FORMATS.has(ext)) {
+          reqLogger.info('Skipping auto-transcoding for pipe-incompatible format', {
+            extension: ext,
+            reason: 'MP4/MOV formats have moov atom at end, cannot be transcoded via pipe',
+          });
+          effectiveDemuxer = null;
+        } else {
+          effectiveDemuxer = getFFmpegDemuxerForExtension(ext);
+          reqLogger.info('Auto-detected demuxer from file extension', {
+            extension: ext,
+            demuxer: effectiveDemuxer,
+          });
+        }
       }
     }
     
