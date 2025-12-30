@@ -128,7 +128,7 @@ function SearchResultsList({
       {results.map((result) => (
         <Link
           key={result.torrent_id}
-          href={`/torrent/${result.torrent_infohash}`}
+          href={`/torrents/${result.torrent_id}`}
           className={cn(
             'flex items-center gap-3 rounded border border-transparent px-3 py-2',
             'hover:border-accent-primary/30 hover:bg-bg-hover',
