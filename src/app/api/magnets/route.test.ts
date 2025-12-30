@@ -13,6 +13,17 @@ vi.mock('@/lib/torrent-index', () => ({
   ingestMagnet: vi.fn(),
   validateMagnetUri: vi.fn(),
   getTorrentByInfohash: vi.fn(),
+  parseMagnetUri: vi.fn((uri: string) => ({
+    infohash: 'abc123def456789012345678901234567890abcd',
+    name: 'Test Torrent',
+    magnetUri: uri,
+    trackers: [],
+  })),
+  triggerPostIngestionEnrichment: vi.fn(() => Promise.resolve({
+    success: true,
+    enrichmentTriggered: true,
+    contentType: 'movie',
+  })),
 }));
 
 // Mock rate limiting

@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { AddMagnetModal } from '@/components/torrents';
 import { PlusIcon, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { MediaThumbnail } from '@/components/ui/media-placeholder';
 import { cn, formatBytes } from '@/lib/utils';
 
 interface Torrent {
@@ -24,6 +25,9 @@ interface Torrent {
   createdAt: string;
   seeders?: number | null;
   leechers?: number | null;
+  posterUrl?: string | null;
+  coverUrl?: string | null;
+  contentType?: string | null;
 }
 
 interface TorrentsResponse {
@@ -223,9 +227,10 @@ export default function TorrentsPage(): React.ReactElement {
 
         {/* Loading */}
         {isLoading && (
-          <div className="space-y-1">
+          <div className="space-y-2">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2 animate-pulse">
+                <div className="w-12 h-16 bg-bg-tertiary rounded shrink-0" />
                 <div className="flex-1 h-4 bg-bg-tertiary rounded" />
                 <div className="w-16 h-4 bg-bg-tertiary rounded" />
                 <div className="w-12 h-4 bg-bg-tertiary rounded" />
@@ -234,49 +239,69 @@ export default function TorrentsPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Torrent list - compact */}
+        {/* Torrent list with thumbnails */}
         {!isLoading && torrents.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-2">
             {torrents.map((torrent) => (
-              <Link
-                key={torrent.id}
-                href={`/torrents/${torrent.id}`}
-                className={cn(
-                  'flex items-center gap-3 rounded border border-transparent px-3 py-2',
-                  'hover:border-accent-primary/30 hover:bg-bg-hover',
-                  'transition-colors'
-                )}
-              >
-                {/* Name */}
-                <div className="min-w-0 flex-1">
-                  <span className="truncate text-sm text-text-primary" title={torrent.name}>
-                    {torrent.cleanTitle ?? torrent.name}
-                  </span>
-                </div>
-                
-                {/* Stats */}
-                <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
-                  <span className="w-16 text-right">{formatBytes(torrent.totalSize)}</span>
-                  <span className="w-12 text-right">{torrent.fileCount} files</span>
-                  {torrent.seeders !== null && torrent.seeders !== undefined && (
-                    <span className={cn(
-                      'w-12 text-right',
-                      torrent.seeders > 10 ? 'text-green-400' : 
-                      torrent.seeders > 0 ? 'text-yellow-400' : 'text-red-400'
-                    )}>
-                      {torrent.seeders} S
-                    </span>
+                <Link
+                  key={torrent.id}
+                  href={`/torrents/${torrent.id}`}
+                  className={cn(
+                    'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+                    'hover:border-accent-primary/30 hover:bg-bg-hover',
+                    'transition-colors'
                   )}
-                  {torrent.leechers !== null && torrent.leechers !== undefined && (
-                    <span className="w-10 text-right">
-                      {torrent.leechers} L
+                >
+                  {/* Thumbnail */}
+                  <MediaThumbnail
+                    src={torrent.posterUrl ?? torrent.coverUrl ?? undefined}
+                    alt={torrent.cleanTitle ?? torrent.name}
+                    contentType={
+                      torrent.contentType === 'music' ? 'music' :
+                      torrent.contentType === 'movie' ? 'movie' :
+                      torrent.contentType === 'tvshow' ? 'tvshow' :
+                      torrent.contentType === 'book' ? 'book' :
+                      torrent.contentType === 'ebook' ? 'ebook' :
+                      torrent.contentType === 'video' ? 'video' :
+                      torrent.contentType === 'audio' ? 'audio' :
+                      'other'
+                    }
+                    className="w-12 h-16 shrink-0"
+                  />
+                  
+                  {/* Name */}
+                  <div className="min-w-0 flex-1">
+                    <span className="truncate text-sm text-text-primary block" title={torrent.name}>
+                      {torrent.cleanTitle ?? torrent.name}
                     </span>
-                  )}
-                  <span className="w-20 text-right hidden sm:block">
-                    {formatDate(torrent.createdAt)}
-                  </span>
-                </div>
-              </Link>
+                    {torrent.contentType && (
+                      <span className="text-xs text-text-muted capitalize">{torrent.contentType}</span>
+                    )}
+                  </div>
+                  
+                  {/* Stats */}
+                  <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
+                    <span className="w-16 text-right">{formatBytes(torrent.totalSize)}</span>
+                    <span className="w-12 text-right hidden md:block">{torrent.fileCount} files</span>
+                    {torrent.seeders !== null && torrent.seeders !== undefined && (
+                      <span className={cn(
+                        'w-12 text-right',
+                        torrent.seeders > 10 ? 'text-green-400' :
+                        torrent.seeders > 0 ? 'text-yellow-400' : 'text-red-400'
+                      )}>
+                        {torrent.seeders} S
+                      </span>
+                    )}
+                    {torrent.leechers !== null && torrent.leechers !== undefined && (
+                      <span className="w-10 text-right hidden sm:block">
+                        {torrent.leechers} L
+                      </span>
+                    )}
+                    <span className="w-20 text-right hidden lg:block">
+                      {formatDate(torrent.createdAt)}
+                    </span>
+                  </div>
+                </Link>
             ))}
           </div>
         )}

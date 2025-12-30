@@ -503,6 +503,7 @@ export default function TorrentDetailPage(): React.ReactElement {
             {filteredFiles.length > 0 ? (
               <FileTree
                 files={filteredFiles}
+                folders={folders}
                 onFilePlay={handleFilePlay}
                 onFileDownload={handleFileDownload}
                 onPlayAll={handlePlayAll}

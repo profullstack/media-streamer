@@ -1,8 +1,12 @@
 /**
  * Torrent Indexer Service
- * 
+ *
  * Combines torrent metadata fetching with Supabase storage.
  * This is a SERVER-SIDE ONLY service.
+ *
+ * After indexing:
+ * - Triggers metadata enrichment (posters, covers, descriptions)
+ * - Triggers codec detection for video/audio files
  */
 
 import { TorrentService, type TorrentMetadata, type TorrentFileInfo } from '../torrent';
@@ -13,6 +17,10 @@ import {
   type TorrentFileInsert,
 } from '../supabase';
 import { createLogger } from '../logger';
+import {
+  triggerPostIngestionEnrichment,
+  triggerCodecDetection,
+} from '../torrent-index';
 
 const logger = createLogger('IndexerService');
 
@@ -221,7 +229,68 @@ export class IndexerService {
       elapsed: `${Date.now() - startTime}ms`
     });
 
+    // Trigger post-indexing enrichment and codec detection asynchronously
+    // These are fire-and-forget operations that don't block the response
+    this.triggerPostIndexingHooks(torrentId, metadata.infohash, metadata.name);
+
     return result;
+  }
+
+  /**
+   * Trigger post-indexing hooks asynchronously
+   *
+   * This includes:
+   * - Metadata enrichment (posters, covers, descriptions from external APIs)
+   * - Codec detection for video/audio files
+   */
+  private triggerPostIndexingHooks(
+    torrentId: string,
+    infohash: string,
+    torrentName: string
+  ): void {
+    // Trigger metadata enrichment (fire and forget)
+    void triggerPostIngestionEnrichment(torrentId, {
+      torrentName,
+      infohash,
+      isDuplicate: false,
+    }).then((enrichmentResult) => {
+      if (enrichmentResult.success) {
+        logger.info('Post-indexing enrichment completed', {
+          torrentId,
+          contentType: enrichmentResult.contentType,
+          enrichmentTriggered: enrichmentResult.enrichmentTriggered,
+        });
+      } else {
+        logger.warn('Post-indexing enrichment failed', {
+          torrentId,
+          error: enrichmentResult.error,
+        });
+      }
+    }).catch((error) => {
+      logger.error('Post-indexing enrichment error', error instanceof Error ? error : undefined, {
+        torrentId,
+      });
+    });
+
+    // Trigger codec detection (fire and forget)
+    // This will detect codecs for video/audio files
+    void triggerCodecDetection(torrentId, infohash).then((codecResult) => {
+      if (codecResult.success) {
+        logger.info('Post-indexing codec detection queued', {
+          torrentId,
+          filesProcessed: codecResult.filesProcessed,
+        });
+      } else {
+        logger.warn('Post-indexing codec detection failed', {
+          torrentId,
+          error: codecResult.error,
+        });
+      }
+    }).catch((error) => {
+      logger.error('Post-indexing codec detection error', error instanceof Error ? error : undefined, {
+        torrentId,
+      });
+    });
   }
 
   /**

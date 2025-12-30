@@ -50,3 +50,12 @@ export {
   type SearchFilesResponse,
   type SearchTorrentsResponse,
 } from './search';
+
+export {
+  triggerPostIngestionEnrichment,
+  triggerCodecDetection,
+  type PostIngestionOptions,
+  type PostIngestionResult,
+  type CodecDetectionOptions,
+  type CodecDetectionResult,
+} from './post-ingestion';

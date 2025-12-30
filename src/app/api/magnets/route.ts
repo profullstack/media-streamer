@@ -6,6 +6,10 @@
  *
  * These endpoints are free to encourage torrent database growth.
  * Rate limiting is applied to prevent abuse.
+ *
+ * On successful ingestion of a new torrent:
+ * - Metadata enrichment is triggered (posters, covers, descriptions)
+ * - Codec detection is NOT triggered here (requires files to be indexed first)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,6 +17,8 @@ import {
   ingestMagnet,
   validateMagnetUri,
   getTorrentByInfohash,
+  parseMagnetUri,
+  triggerPostIngestionEnrichment,
 } from '@/lib/torrent-index';
 import {
   createRateLimiter,
@@ -141,7 +147,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const result = await ingestMagnet(magnetUri, null);
 
   if (!result.success) {
-    reqLogger.error('Failed to ingest magnet', undefined, { 
+    reqLogger.error('Failed to ingest magnet', undefined, {
       error: result.error,
       magnetUri: magnetUri.substring(0, 100)
     });
@@ -160,6 +166,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     isDuplicate: result.isDuplicate,
     status
   });
+
+  // Trigger post-ingestion enrichment asynchronously (fire and forget)
+  // This fetches metadata from external APIs (OMDb, MusicBrainz, etc.)
+  // We don't await this to avoid blocking the response
+  if (result.torrentId && result.infohash) {
+    const parsed = parseMagnetUri(magnetUri);
+    void triggerPostIngestionEnrichment(result.torrentId, {
+      torrentName: parsed.name,
+      infohash: result.infohash,
+      isDuplicate: result.isDuplicate,
+    }).then((enrichmentResult) => {
+      if (enrichmentResult.success) {
+        reqLogger.info('Post-ingestion enrichment completed', {
+          torrentId: result.torrentId,
+          contentType: enrichmentResult.contentType,
+          enrichmentTriggered: enrichmentResult.enrichmentTriggered,
+        });
+      } else {
+        reqLogger.warn('Post-ingestion enrichment failed', {
+          torrentId: result.torrentId,
+          error: enrichmentResult.error,
+        });
+      }
+    }).catch((error) => {
+      reqLogger.error('Post-ingestion enrichment error', error instanceof Error ? error : undefined, {
+        torrentId: result.torrentId,
+      });
+    });
+  }
 
   return NextResponse.json(
     {

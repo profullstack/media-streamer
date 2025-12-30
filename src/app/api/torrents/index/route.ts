@@ -4,6 +4,9 @@
  * POST /api/torrents/index - Index a torrent with real-time progress updates
  *
  * This endpoint streams progress events during torrent metadata fetch.
+ * After successful indexing:
+ * - Triggers metadata enrichment (posters, covers, descriptions)
+ * - Triggers codec detection for video/audio files
  */
 
 import { NextRequest } from 'next/server';
@@ -17,6 +20,10 @@ import {
   type TorrentFileInsert,
 } from '@/lib/supabase';
 import { parseMagnetUri, validateMagnetUri } from '@/lib/magnet';
+import {
+  triggerPostIngestionEnrichment,
+  triggerCodecDetection,
+} from '@/lib/torrent-index';
 
 const logger = createLogger('API:torrents/index');
 
@@ -267,6 +274,52 @@ export async function POST(request: NextRequest): Promise<Response> {
           torrentId: torrent.id,
           infohash: metadata.infohash,
           name: metadata.name,
+        });
+
+        // Trigger post-indexing hooks asynchronously (fire and forget)
+        // These don't block the SSE response
+        
+        // 1. Metadata enrichment (posters, covers, descriptions from external APIs)
+        void triggerPostIngestionEnrichment(torrent.id, {
+          torrentName: metadata.name,
+          infohash: metadata.infohash,
+          isDuplicate: false,
+        }).then((enrichmentResult) => {
+          if (enrichmentResult.success) {
+            reqLogger.info('Post-indexing enrichment completed', {
+              torrentId: torrent.id,
+              contentType: enrichmentResult.contentType,
+              enrichmentTriggered: enrichmentResult.enrichmentTriggered,
+            });
+          } else {
+            reqLogger.warn('Post-indexing enrichment failed', {
+              torrentId: torrent.id,
+              error: enrichmentResult.error,
+            });
+          }
+        }).catch((error) => {
+          reqLogger.error('Post-indexing enrichment error', error instanceof Error ? error : undefined, {
+            torrentId: torrent.id,
+          });
+        });
+
+        // 2. Codec detection for video/audio files
+        void triggerCodecDetection(torrent.id, metadata.infohash).then((codecResult) => {
+          if (codecResult.success) {
+            reqLogger.info('Post-indexing codec detection queued', {
+              torrentId: torrent.id,
+              filesProcessed: codecResult.filesProcessed,
+            });
+          } else {
+            reqLogger.warn('Post-indexing codec detection failed', {
+              torrentId: torrent.id,
+              error: codecResult.error,
+            });
+          }
+        }).catch((error) => {
+          reqLogger.error('Post-indexing codec detection error', error instanceof Error ? error : undefined, {
+            torrentId: torrent.id,
+          });
         });
 
         // Send complete event with swarm stats

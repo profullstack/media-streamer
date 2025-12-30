@@ -6,10 +6,10 @@
  */
 
 import { MainLayout } from '@/components/layout';
-import { MusicIcon, VideoIcon, BookIcon, MagnetIcon, SearchIcon, TvIcon, HeartIcon } from '@/components/ui/icons';
+import { MusicIcon, VideoIcon, BookIcon, TvIcon, HeartIcon } from '@/components/ui/icons';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
-import { cookies } from 'next/headers';
+import { QuickActions } from '@/components/home';
 
 /**
  * Check if user has an active paid subscription (premium or family)
@@ -127,36 +127,7 @@ export default async function HomePage(): Promise<React.ReactElement> {
         </section>
 
         {/* Quick Actions */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <QuickActionCard
-            href="/torrents"
-            icon={MagnetIcon}
-            title="Add Torrent"
-            description="Add a magnet link to start streaming"
-            color="accent-primary"
-          />
-          <QuickActionCard
-            href="/search"
-            icon={SearchIcon}
-            title="Search"
-            description="Search across all your media"
-            color="accent-secondary"
-          />
-          <QuickActionCard
-            href="/music"
-            icon={MusicIcon}
-            title="Music"
-            description="Browse your music collection"
-            color="accent-audio"
-          />
-          <QuickActionCard
-            href="/videos"
-            icon={VideoIcon}
-            title="Videos"
-            description="Watch movies and shows"
-            color="accent-video"
-          />
-        </section>
+        <QuickActions />
 
         {/* Media Categories */}
         <section>
@@ -236,35 +207,6 @@ export default async function HomePage(): Promise<React.ReactElement> {
         </section>
       </div>
     </MainLayout>
-  );
-}
-
-interface QuickActionCardProps {
-  href: string;
-  icon: React.ComponentType<{ className?: string; size?: number }>;
-  title: string;
-  description: string;
-  color: string;
-}
-
-function QuickActionCard({
-  href,
-  icon: Icon,
-  title,
-  description,
-  color,
-}: QuickActionCardProps): React.ReactElement {
-  return (
-    <Link
-      href={href}
-      className="card-hover flex flex-col items-center p-6 text-center transition-transform hover:scale-[1.02]"
-    >
-      <div className={`mb-3 rounded-full bg-${color}/20 p-3`}>
-        <Icon className={`text-${color}`} size={24} />
-      </div>
-      <h3 className="font-medium text-text-primary">{title}</h3>
-      <p className="mt-1 text-sm text-text-secondary">{description}</p>
-    </Link>
   );
 }
 

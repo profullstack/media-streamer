@@ -2,12 +2,13 @@
 
 /**
  * File Tree Component
- * 
+ *
  * Displays a hierarchical tree view of files within a torrent.
- * Supports expand/collapse, file type icons, and click actions.
+ * Supports expand/collapse, file type icons, click actions, and album cover thumbnails.
  */
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import {
   ChevronRightIcon,
@@ -24,6 +25,21 @@ import {
 import type { TorrentFile, MediaCategory } from '@/types';
 import { formatBytes } from '@/lib/utils';
 
+/**
+ * Folder metadata for album cover display
+ */
+export interface FolderMetadata {
+  id: string;
+  torrentId: string;
+  path: string;
+  artist: string | null;
+  album: string | null;
+  year: number | null;
+  coverUrl: string | null;
+  externalId: string | null;
+  externalSource: string | null;
+}
+
 interface FileTreeNode {
   name: string;
   path: string;
@@ -34,6 +50,8 @@ interface FileTreeNode {
 
 interface FileTreeProps {
   files: TorrentFile[];
+  /** Folder metadata for album cover display */
+  folders?: FolderMetadata[];
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
@@ -146,8 +164,20 @@ function getMediaColor(category: MediaCategory): string {
   }
 }
 
+/**
+ * Create a map of folder paths to their metadata for quick lookup
+ */
+function createFolderMetadataMap(folders: FolderMetadata[]): Map<string, FolderMetadata> {
+  const map = new Map<string, FolderMetadata>();
+  for (const folder of folders) {
+    map.set(folder.path, folder);
+  }
+  return map;
+}
+
 export function FileTree({
   files,
+  folders = [],
   onFileSelect,
   onFilePlay,
   onFileDownload,
@@ -155,6 +185,7 @@ export function FileTree({
   className,
 }: FileTreeProps): React.ReactElement {
   const tree = useMemo(() => buildFileTree(files), [files]);
+  const folderMetadataMap = useMemo(() => createFolderMetadataMap(folders), [folders]);
 
   return (
     <div className={cn('text-sm overflow-hidden', className)}>
@@ -163,6 +194,7 @@ export function FileTree({
           key={node.path}
           node={node}
           depth={0}
+          folderMetadataMap={folderMetadataMap}
           onFileSelect={onFileSelect}
           onFilePlay={onFilePlay}
           onFileDownload={onFileDownload}
@@ -176,6 +208,7 @@ export function FileTree({
 interface FileTreeNodeComponentProps {
   node: FileTreeNode;
   depth: number;
+  folderMetadataMap: Map<string, FolderMetadata>;
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
@@ -185,12 +218,16 @@ interface FileTreeNodeComponentProps {
 function FileTreeNodeComponent({
   node,
   depth,
+  folderMetadataMap,
   onFileSelect,
   onFilePlay,
   onFileDownload,
   onPlayAll,
 }: FileTreeNodeComponentProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(depth < 2);
+
+  // Get folder metadata for this directory (if available)
+  const folderMetadata = node.isDirectory ? folderMetadataMap.get(node.path) : undefined;
 
   // Count audio files in this directory for "Play All" button
   const audioFileCount = useMemo(() => {
@@ -337,11 +374,35 @@ function FileTreeNodeComponent({
           )}
         </div>
 
-        {/* Icon */}
-        <Icon className={cn(iconColor, 'flex-shrink-0')} size={18} />
+        {/* Album cover thumbnail for folders with cover art */}
+        {node.isDirectory && folderMetadata?.coverUrl ? (
+          <div className="relative w-10 h-10 flex-shrink-0 rounded overflow-hidden bg-bg-tertiary">
+            <Image
+              src={folderMetadata.coverUrl}
+              alt={folderMetadata.album ?? node.name}
+              fill
+              sizes="40px"
+              className="object-cover"
+              unoptimized
+            />
+          </div>
+        ) : (
+          /* Icon (only show if no cover art) */
+          <Icon className={cn(iconColor, 'flex-shrink-0')} size={18} />
+        )}
 
-        {/* Name - min-w-0 is required for truncate to work in flex container */}
-        <span className="flex-1 min-w-0 truncate text-text-primary">{node.name}</span>
+        {/* Name and album info - min-w-0 is required for truncate to work in flex container */}
+        <div className="flex-1 min-w-0">
+          <span className="truncate text-text-primary block">{node.name}</span>
+          {/* Show album/artist info for folders with metadata */}
+          {node.isDirectory && folderMetadata && (folderMetadata.artist || folderMetadata.year) ? (
+            <span className="text-xs text-text-muted truncate block">
+              {folderMetadata.artist}
+              {folderMetadata.artist && folderMetadata.year ? ' • ' : ''}
+              {folderMetadata.year}
+            </span>
+          ) : null}
+        </div>
 
         {/* File size */}
         {node.file ? <span className="text-xs text-text-muted flex-shrink-0 ml-2">{formatBytes(node.file.size)}</span> : null}
@@ -354,6 +415,7 @@ function FileTreeNodeComponent({
               key={child.path}
               node={child}
               depth={depth + 1}
+              folderMetadataMap={folderMetadataMap}
               onFileSelect={onFileSelect}
               onFilePlay={onFilePlay}
               onFileDownload={onFileDownload}
