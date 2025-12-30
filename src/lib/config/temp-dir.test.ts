@@ -39,18 +39,20 @@ describe('Temp Directory Configuration', () => {
       expect(getTempDir()).toBe(join(homedir(), 'tmp'));
     });
 
-    it('should return system tmpdir in development', async () => {
+    it('should return $HOME/tmp in development (consistent with production)', async () => {
       delete (process.env as Record<string, string | undefined>).TEMP_DIR;
       (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
       const { getTempDir } = await import('./temp-dir');
-      expect(getTempDir()).toBe(tmpdir());
+      // Always use $HOME/tmp for consistency across environments
+      expect(getTempDir()).toBe(join(homedir(), 'tmp'));
     });
 
-    it('should return system tmpdir when NODE_ENV is not set', async () => {
+    it('should return $HOME/tmp when NODE_ENV is not set', async () => {
       delete (process.env as Record<string, string | undefined>).TEMP_DIR;
       delete (process.env as Record<string, string | undefined>).NODE_ENV;
       const { getTempDir } = await import('./temp-dir');
-      expect(getTempDir()).toBe(tmpdir());
+      // Always use $HOME/tmp for consistency across environments
+      expect(getTempDir()).toBe(join(homedir(), 'tmp'));
     });
   });
 

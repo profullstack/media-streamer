@@ -2,18 +2,20 @@
 
 /**
  * Search Page
- * 
+ *
  * Unified search across all torrents.
  * Uses the torrent search API with category filtering.
- * Features: sorting, load more pagination, compact results.
+ * Features: sorting, load more pagination, compact results with thumbnails.
  */
 
 import { useState, useCallback, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
 import { cn, formatBytes } from '@/lib/utils';
 import { LoadingSpinner, MusicIcon, VideoIcon, BookIcon, FileIcon, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { MediaPlaceholder } from '@/components/ui/media-placeholder';
 
 /**
  * Torrent search result from API
@@ -21,12 +23,15 @@ import { LoadingSpinner, MusicIcon, VideoIcon, BookIcon, FileIcon, SortIcon, Che
 interface TorrentSearchResult {
   torrent_id: string;
   torrent_name: string;
+  torrent_clean_title?: string | null;
   torrent_infohash: string;
   torrent_total_size: number;
   torrent_file_count: number;
   torrent_seeders: number | null;
   torrent_leechers: number | null;
   torrent_created_at: string;
+  torrent_poster_url?: string | null;
+  torrent_cover_url?: string | null;
   match_type: string;
   rank: number;
 }
@@ -125,47 +130,74 @@ function SearchResultsList({
 
   return (
     <div className="space-y-1">
-      {results.map((result) => (
-        <Link
-          key={result.torrent_id}
-          href={`/torrents/${result.torrent_id}`}
-          className={cn(
-            'flex items-center gap-3 rounded border border-transparent px-3 py-2',
-            'hover:border-accent-primary/30 hover:bg-bg-hover',
-            'transition-colors'
-          )}
-        >
-          {/* Name - takes most space */}
-          <div className="min-w-0 flex-1">
-            <span className="truncate text-sm text-text-primary">
-              {result.torrent_name}
-            </span>
-          </div>
-          
-          {/* Stats - compact */}
-          <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
-            <span className="w-16 text-right">{formatBytes(result.torrent_total_size)}</span>
-            <span className="w-12 text-right">{result.torrent_file_count} files</span>
-            {result.torrent_seeders !== null && (
-              <span className={cn(
-                'w-16 text-right',
-                result.torrent_seeders > 10 ? 'text-green-400' : 
-                result.torrent_seeders > 0 ? 'text-yellow-400' : 'text-red-400'
-              )}>
-                {result.torrent_seeders} S
-              </span>
+      {results.map((result) => {
+        const imageUrl = result.torrent_poster_url ?? result.torrent_cover_url;
+        const displayName = result.torrent_clean_title ?? result.torrent_name;
+        
+        return (
+          <Link
+            key={result.torrent_id}
+            href={`/torrents/${result.torrent_id}`}
+            className={cn(
+              'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+              'hover:border-accent-primary/30 hover:bg-bg-hover',
+              'transition-colors'
             )}
-            {result.torrent_leechers !== null && (
-              <span className="w-12 text-right text-text-muted">
-                {result.torrent_leechers} L
+          >
+            {/* Thumbnail */}
+            <div className="relative h-10 w-7 shrink-0 overflow-hidden rounded bg-bg-tertiary">
+              {imageUrl ? (
+                <Image
+                  src={imageUrl}
+                  alt={displayName}
+                  fill
+                  sizes="28px"
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <MediaPlaceholder alt={displayName} contentType="video" size="sm" className="h-full w-full" />
+              )}
+            </div>
+            
+            {/* Name - takes most space */}
+            <div className="min-w-0 flex-1">
+              <span className="truncate text-sm text-text-primary">
+                {displayName}
               </span>
-            )}
-            <span className="w-20 text-right hidden sm:block">
-              {formatDate(result.torrent_created_at)}
-            </span>
-          </div>
-        </Link>
-      ))}
+              {/* Show raw name if different from clean title */}
+              {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name && (
+                <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>
+                  {result.torrent_name}
+                </span>
+              )}
+            </div>
+            
+            {/* Stats - compact */}
+            <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
+              <span className="w-16 text-right">{formatBytes(result.torrent_total_size)}</span>
+              <span className="w-12 text-right">{result.torrent_file_count} files</span>
+              {result.torrent_seeders !== null && (
+                <span className={cn(
+                  'w-16 text-right',
+                  result.torrent_seeders > 10 ? 'text-green-400' :
+                  result.torrent_seeders > 0 ? 'text-yellow-400' : 'text-red-400'
+                )}>
+                  {result.torrent_seeders} S
+                </span>
+              )}
+              {result.torrent_leechers !== null && (
+                <span className="w-12 text-right text-text-muted">
+                  {result.torrent_leechers} L
+                </span>
+              )}
+              <span className="w-20 text-right hidden sm:block">
+                {formatDate(result.torrent_created_at)}
+              </span>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }

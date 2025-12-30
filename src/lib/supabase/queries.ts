@@ -26,6 +26,9 @@ export interface SearchResult {
   torrent_id: string;
   torrent_name: string;
   torrent_infohash: string;
+  torrent_poster_url: string | null;
+  torrent_cover_url: string | null;
+  torrent_clean_title: string | null;
   rank: number;
 }
 
@@ -519,7 +522,27 @@ export async function searchFiles(options: SearchOptions): Promise<SearchResult[
     throw new Error(error.message);
   }
 
-  return data ?? [];
+  // Map the RPC result to SearchResult, handling cases where new fields might not exist
+  // (for backwards compatibility with older database versions)
+  if (!data) {
+    return [];
+  }
+
+  return (data as Array<Record<string, unknown>>).map((row) => ({
+    file_id: row.file_id as string,
+    file_name: row.file_name as string,
+    file_path: row.file_path as string,
+    file_size: row.file_size as number,
+    file_media_category: row.file_media_category as string,
+    file_index: row.file_index as number,
+    torrent_id: row.torrent_id as string,
+    torrent_name: row.torrent_name as string,
+    torrent_infohash: row.torrent_infohash as string,
+    torrent_poster_url: (row.torrent_poster_url as string | null) ?? null,
+    torrent_cover_url: (row.torrent_cover_url as string | null) ?? null,
+    torrent_clean_title: (row.torrent_clean_title as string | null) ?? null,
+    rank: row.rank as number,
+  }));
 }
 
 /**
@@ -535,6 +558,8 @@ export interface TorrentSearchResult {
   torrent_seeders: number | null;
   torrent_leechers: number | null;
   torrent_created_at: string;
+  torrent_poster_url: string | null;
+  torrent_cover_url: string | null;
   match_type: string;
   rank: number;
 }
@@ -563,10 +588,10 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
   // Build the search pattern - split query into words and search for each
   const searchPattern = `%${query.toLowerCase()}%`;
 
-  // Build the query
+  // Build the query - include poster_url and cover_url for thumbnails
   let queryBuilder = client
     .from('torrents')
-    .select('id, name, clean_title, infohash, total_size, file_count, seeders, leechers, created_at')
+    .select('id, name, clean_title, infohash, total_size, file_count, seeders, leechers, created_at, poster_url, cover_url')
     .ilike('name', searchPattern)
     .order('seeders', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
@@ -607,6 +632,8 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
     torrent_seeders: t.seeders,
     torrent_leechers: t.leechers,
     torrent_created_at: t.created_at,
+    torrent_poster_url: t.poster_url,
+    torrent_cover_url: t.cover_url,
     match_type: 'torrent_name',
     rank: 1.0, // Simple ranking - all matches are equal
   }));

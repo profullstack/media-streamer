@@ -4,12 +4,12 @@
  * Centralizes temp directory configuration for all services that need to write
  * temporary files (WebTorrent, FFmpeg transcoding, etc.)
  *
- * On production servers, we use $HOME/tmp to avoid filling up the root partition.
+ * We always use $HOME/tmp to avoid filling up the root partition.
  * The /tmp directory is typically on the root partition which may be small.
  *
  * Configuration:
  * - Set TEMP_DIR environment variable to customize the temp directory
- * - Default: $HOME/tmp (production) or system temp dir (development)
+ * - Default: $HOME/tmp (both production and development)
  */
 
 import { homedir, tmpdir } from 'node:os';
@@ -30,16 +30,19 @@ const logger = createLogger('TempDir');
 export function getTempDir(): string {
   // Check for explicit environment variable
   if (process.env.TEMP_DIR) {
+    logger.info('Using TEMP_DIR from environment', { tempDir: process.env.TEMP_DIR });
     return process.env.TEMP_DIR;
   }
 
-  // On production, use $HOME/tmp to avoid filling up root partition
-  if (process.env.NODE_ENV === 'production') {
-    return join(homedir(), 'tmp');
-  }
-
-  // Development: use system temp dir
-  return tmpdir();
+  // Always use $HOME/tmp to avoid filling up root partition
+  // This applies to both production and development
+  const tempDir = join(homedir(), 'tmp');
+  logger.info('Using $HOME/tmp as temp directory', {
+    tempDir,
+    homedir: homedir(),
+    nodeEnv: process.env.NODE_ENV,
+  });
+  return tempDir;
 }
 
 /**

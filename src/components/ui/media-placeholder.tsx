@@ -251,6 +251,8 @@ export function MediaThumbnail({
 
 /**
  * Detail page variant with larger size
+ * Always uses poster (rectangular) aspect ratio for all content types
+ * including music discographies which have artist images
  */
 export function MediaPoster({
   src,
@@ -258,16 +260,14 @@ export function MediaPoster({
   contentType,
   className,
 }: Omit<MediaPlaceholderProps, 'size' | 'aspectRatio'>): React.ReactElement {
-  // Use square aspect ratio for music, poster for everything else
-  const aspectRatio: MediaAspectRatio = 
-    contentType === 'music' || contentType === 'audio' ? 'square' : 'poster';
-  
+  // Always use poster (rectangular) aspect ratio for detail pages
+  // Music discographies have artist images which look better in poster format
   return (
     <MediaPlaceholder
       src={src}
       alt={alt}
       contentType={contentType}
-      aspectRatio={aspectRatio}
+      aspectRatio="poster"
       size="lg"
       className={className}
     />

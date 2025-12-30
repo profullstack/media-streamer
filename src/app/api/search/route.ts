@@ -40,6 +40,9 @@ interface SearchResponse {
     torrent_id: string;
     torrent_name: string;
     torrent_infohash: string;
+    torrent_poster_url: string | null;
+    torrent_cover_url: string | null;
+    torrent_clean_title: string | null;
     rank: number;
   }>;
   pagination: {

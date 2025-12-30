@@ -404,6 +404,9 @@ describe('Supabase Queries', () => {
           torrent_id: 'torrent-1',
           torrent_name: 'Music Archive',
           torrent_infohash: 'abc123',
+          torrent_poster_url: null,
+          torrent_cover_url: null,
+          torrent_clean_title: null,
           rank: 0.9,
         },
       ];

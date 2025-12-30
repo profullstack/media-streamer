@@ -279,45 +279,47 @@ export async function POST(request: NextRequest): Promise<Response> {
         // Trigger post-indexing hooks asynchronously (fire and forget)
         // These don't block the SSE response
         
+        reqLogger.info('=== TRIGGERING POST-INDEXING HOOKS ===', {
+          torrentId: torrent.id,
+          torrentName: metadata.name,
+          infohash: metadata.infohash,
+        });
+        
         // 1. Metadata enrichment (posters, covers, descriptions from external APIs)
+        reqLogger.info('Calling triggerPostIngestionEnrichment NOW', { torrentId: torrent.id });
         void triggerPostIngestionEnrichment(torrent.id, {
           torrentName: metadata.name,
           infohash: metadata.infohash,
           isDuplicate: false,
         }).then((enrichmentResult) => {
-          if (enrichmentResult.success) {
-            reqLogger.info('Post-indexing enrichment completed', {
-              torrentId: torrent.id,
-              contentType: enrichmentResult.contentType,
-              enrichmentTriggered: enrichmentResult.enrichmentTriggered,
-            });
-          } else {
-            reqLogger.warn('Post-indexing enrichment failed', {
-              torrentId: torrent.id,
-              error: enrichmentResult.error,
-            });
-          }
+          reqLogger.info('=== ENRICHMENT PROMISE RESOLVED ===', {
+            torrentId: torrent.id,
+            success: enrichmentResult.success,
+            contentType: enrichmentResult.contentType,
+            enrichmentTriggered: enrichmentResult.enrichmentTriggered,
+            skippedReason: enrichmentResult.skippedReason,
+            error: enrichmentResult.error,
+            hasPoster: !!enrichmentResult.enrichment?.posterUrl,
+            hasCover: !!enrichmentResult.enrichment?.coverUrl,
+          });
         }).catch((error) => {
-          reqLogger.error('Post-indexing enrichment error', error instanceof Error ? error : undefined, {
+          reqLogger.error('=== ENRICHMENT PROMISE REJECTED ===', error instanceof Error ? error : undefined, {
             torrentId: torrent.id,
           });
         });
 
         // 2. Codec detection for video/audio files
+        reqLogger.info('Calling triggerCodecDetection NOW', { torrentId: torrent.id, infohash: metadata.infohash });
         void triggerCodecDetection(torrent.id, metadata.infohash).then((codecResult) => {
-          if (codecResult.success) {
-            reqLogger.info('Post-indexing codec detection queued', {
-              torrentId: torrent.id,
-              filesProcessed: codecResult.filesProcessed,
-            });
-          } else {
-            reqLogger.warn('Post-indexing codec detection failed', {
-              torrentId: torrent.id,
-              error: codecResult.error,
-            });
-          }
+          reqLogger.info('=== CODEC DETECTION PROMISE RESOLVED ===', {
+            torrentId: torrent.id,
+            success: codecResult.success,
+            filesProcessed: codecResult.filesProcessed,
+            skippedReason: codecResult.skippedReason,
+            error: codecResult.error,
+          });
         }).catch((error) => {
-          reqLogger.error('Post-indexing codec detection error', error instanceof Error ? error : undefined, {
+          reqLogger.error('=== CODEC DETECTION PROMISE REJECTED ===', error instanceof Error ? error : undefined, {
             torrentId: torrent.id,
           });
         });

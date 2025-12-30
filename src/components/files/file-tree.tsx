@@ -374,9 +374,9 @@ function FileTreeNodeComponent({
           )}
         </div>
 
-        {/* Album cover thumbnail for folders with cover art */}
+        {/* Album cover thumbnail for folders with cover art - rectangular poster format */}
         {node.isDirectory && folderMetadata?.coverUrl ? (
-          <div className="relative w-10 h-10 flex-shrink-0 rounded overflow-hidden bg-bg-tertiary">
+          <div className="relative w-10 h-14 flex-shrink-0 rounded overflow-hidden bg-bg-tertiary">
             <Image
               src={folderMetadata.coverUrl}
               alt={folderMetadata.album ?? node.name}

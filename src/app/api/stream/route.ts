@@ -23,7 +23,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'node:child_process';
-import { PassThrough } from 'node:stream';
+import { PassThrough, type Readable } from 'node:stream';
 import {
   getStreamingService,
   StreamingError,
@@ -757,6 +757,87 @@ export async function GET(request: NextRequest): Promise<Response> {
         fileName: info.fileName,
         originalMimeType: info.mimeType,
         fileSize: info.size,
+        useFileBasedTranscoding,
+      });
+
+      // For MP4/MOV files, use file-based transcoding because the moov atom is at the end
+      // This requires downloading the entire file first before transcoding
+      if (useFileBasedTranscoding) {
+        reqLogger.info('Using FILE-BASED transcoding (moov atom at end)', {
+          fileName: info.fileName,
+          fileSize: info.size,
+          fileSizeMB: (info.size / (1024 * 1024)).toFixed(2),
+        });
+
+        // Create stream without waiting for data - we'll download the entire file
+        const result = await service.createStream({
+          magnetUri,
+          fileIndex,
+          range: undefined,
+        }, true); // skipWaitForData = true - we'll handle buffering ourselves
+
+        const fileTranscodingService = getFileTranscodingService();
+
+        try {
+          // Download the entire file first, then transcode
+          const transcoded = await fileTranscodingService.downloadAndTranscode(
+            result.stream as Readable,
+            infohash,
+            fileIndex,
+            info.fileName,
+            info.size
+          );
+
+          reqLogger.info('File-based transcoding started', {
+            infohash,
+            fileIndex,
+            mimeType: transcoded.mimeType,
+          });
+
+          // Get appropriate pre-buffer size based on media type
+          const preBufferBytes = getPreBufferSize(info.fileName);
+
+          // CORS headers for cross-origin audio/video playback
+          const headers: HeadersInit = {
+            'Content-Type': transcoded.mimeType,
+            'Cache-Control': 'no-cache',
+            'X-Stream-Id': result.streamId,
+            'X-Transcoded': 'true',
+            'X-File-Based-Transcode': 'true',
+            'X-Original-Mime-Type': info.mimeType,
+            'X-Pre-Buffer-Bytes': preBufferBytes.toString(),
+            'Transfer-Encoding': 'chunked',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+            'Access-Control-Allow-Headers': 'Range, Content-Type',
+            'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, X-Transcoded, X-File-Based-Transcode, X-Pre-Buffer-Bytes',
+          };
+
+          return new Response(
+            nodeStreamToWebStreamWithPreBuffer(
+              transcoded.stream,
+              preBufferBytes,
+              TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
+              reqLogger
+            ),
+            {
+              status: 200,
+              headers,
+            }
+          );
+        } catch (downloadError) {
+          reqLogger.error('File-based transcoding failed', downloadError);
+          return NextResponse.json(
+            { error: 'Failed to download and transcode file. The torrent may not have enough seeders.' },
+            { status: 503 }
+          );
+        }
+      }
+
+      // For non-MP4/MOV files, use pipe-based transcoding (faster, no download required)
+      reqLogger.info('Using PIPE-BASED transcoding', {
+        fileName: info.fileName,
+        demuxer: effectiveDemuxer,
       });
 
       // For transcoding, we don't support range requests (transcoded output has unknown size)

@@ -98,11 +98,25 @@ export async function triggerPostIngestionEnrichment(
 ): Promise<PostIngestionResult> {
   const { torrentName, infohash, isDuplicate } = options;
 
-  logger.info('Starting post-ingestion enrichment', {
+  // Console.log for immediate visibility in terminal
+  console.log('\n========================================');
+  console.log('POST-INGESTION ENRICHMENT TRIGGERED');
+  console.log('========================================');
+  console.log('Torrent ID:', torrentId);
+  console.log('Torrent Name:', torrentName.substring(0, 100));
+  console.log('Infohash:', infohash);
+  console.log('Is Duplicate:', isDuplicate);
+  console.log('OMDB_API_KEY set:', !!process.env.OMDB_API_KEY);
+  console.log('FANART_TV_API_KEY set:', !!process.env.FANART_TV_API_KEY);
+  console.log('========================================\n');
+
+  logger.info('=== triggerPostIngestionEnrichment CALLED ===', {
     torrentId,
     torrentName: torrentName.substring(0, 100),
     infohash,
     isDuplicate,
+    hasOmdbKey: !!process.env.OMDB_API_KEY,
+    hasFanartKey: !!process.env.FANART_TV_API_KEY,
   });
 
   // Skip enrichment for duplicates
@@ -138,6 +152,11 @@ export async function triggerPostIngestionEnrichment(
   const fanartTvApiKey = process.env.FANART_TV_API_KEY;
 
   try {
+    logger.info('=== CALLING enrichTorrentMetadata ===', {
+      torrentId,
+      torrentName: torrentName.substring(0, 100),
+    });
+    
     // Enrich metadata
     const enrichment = await enrichTorrentMetadata(torrentName, {
       omdbApiKey,
@@ -145,7 +164,18 @@ export async function triggerPostIngestionEnrichment(
       musicbrainzUserAgent: MUSICBRAINZ_USER_AGENT,
     });
 
-    logger.info('Enrichment completed', {
+    // Console.log enrichment result for visibility
+    console.log('\n--- ENRICHMENT RESULT ---');
+    console.log('Content Type:', enrichment.contentType);
+    console.log('Has Poster:', !!enrichment.posterUrl);
+    console.log('Has Cover:', !!enrichment.coverUrl);
+    console.log('Has External ID:', !!enrichment.externalId);
+    console.log('Poster URL:', enrichment.posterUrl ?? 'none');
+    console.log('Cover URL:', enrichment.coverUrl ?? 'none');
+    console.log('Error:', enrichment.error ?? 'none');
+    console.log('-------------------------\n');
+
+    logger.info('=== enrichTorrentMetadata RETURNED ===', {
       torrentId,
       contentType: enrichment.contentType,
       hasPoster: !!enrichment.posterUrl,
@@ -155,7 +185,18 @@ export async function triggerPostIngestionEnrichment(
     });
 
     // Update the database with enrichment results
+    logger.info('=== UPDATING DATABASE WITH ENRICHMENT ===', {
+      torrentId,
+      hasPoster: !!enrichment.posterUrl,
+      hasCover: !!enrichment.coverUrl,
+      hasExternalId: !!enrichment.externalId,
+    });
     const updateResult = await updateTorrentWithEnrichment(torrentId, enrichment);
+    logger.info('=== DATABASE UPDATE RESULT ===', {
+      torrentId,
+      success: updateResult.success,
+      error: updateResult.error,
+    });
 
     if (!updateResult.success) {
       return {
@@ -277,10 +318,21 @@ export async function triggerCodecDetection(
 ): Promise<CodecDetectionResult> {
   const { maxFiles = DEFAULT_MAX_CODEC_FILES } = options;
 
-  logger.info('Starting codec detection', {
+  // Console.log for immediate visibility in terminal
+  console.log('\n========================================');
+  console.log('CODEC DETECTION TRIGGERED');
+  console.log('========================================');
+  console.log('Torrent ID:', torrentId);
+  console.log('Infohash:', infohash);
+  console.log('Max Files:', maxFiles);
+  console.log('Base URL:', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000');
+  console.log('========================================\n');
+
+  logger.info('=== triggerCodecDetection CALLED ===', {
     torrentId,
     infohash,
     maxFiles,
+    baseUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
   });
 
   try {
