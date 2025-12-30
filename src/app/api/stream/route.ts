@@ -760,15 +760,18 @@ export async function GET(request: NextRequest): Promise<Response> {
         readableLength: (nodeStream as { readableLength?: number }).readableLength,
       });
 
-      // CRITICAL: Ensure the stream is in flowing mode before piping to FFmpeg
-      // WebTorrent streams may be in paused mode initially
+      // CRITICAL: Create a PassThrough stream to buffer the first chunk
       // We need to wait for the first data chunk to ensure the stream is actually flowing
+      // and has valid data before piping to FFmpeg.
+      // Using a PassThrough stream ensures no data is lost (unshift doesn't work reliably in flowing mode)
+      const bufferedStream = new PassThrough();
+      let firstChunkReceived = false;
+
       const streamFlowingPromise = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Stream did not start flowing within 30 seconds'));
         }, 30000);
 
-        let firstChunkReceived = false;
         const onData = (chunk: Buffer): void => {
           if (!firstChunkReceived) {
             firstChunkReceived = true;
@@ -777,30 +780,28 @@ export async function GET(request: NextRequest): Promise<Response> {
               chunkSize: chunk.length,
               streamId: result.streamId,
             });
-            // Put the chunk back by unshifting it
-            // This is safe because we're in paused mode after removing the listener
-            nodeStream.removeListener('data', onData);
-            (nodeStream as NodeJS.ReadableStream & { unshift: (chunk: Buffer) => void }).unshift(chunk);
             resolve();
           }
+          // Write all chunks to the buffered stream
+          bufferedStream.write(chunk);
         };
 
         const onError = (err: Error): void => {
           clearTimeout(timeout);
-          nodeStream.removeListener('data', onData);
+          bufferedStream.destroy(err);
           reject(err);
         };
 
         const onEnd = (): void => {
           clearTimeout(timeout);
-          nodeStream.removeListener('data', onData);
           if (!firstChunkReceived) {
             reject(new Error('Stream ended without emitting any data'));
           }
+          bufferedStream.end();
         };
 
-        nodeStream.once('error', onError);
-        nodeStream.once('end', onEnd);
+        nodeStream.on('error', onError);
+        nodeStream.on('end', onEnd);
         nodeStream.on('data', onData);
       });
 
@@ -817,8 +818,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 
       // Pass the demuxer to tell FFmpeg the input format
       // This is required for pipe input since FFmpeg cannot auto-detect format
+      // Use the bufferedStream which contains all data including the first chunk
       const transcoded = createTranscodedStream(
-        result.stream as NodeJS.ReadableStream,
+        bufferedStream,
         info.fileName,
         reqLogger,
         effectiveDemuxer // FFmpeg demuxer name (from DB or auto-detected from extension)
