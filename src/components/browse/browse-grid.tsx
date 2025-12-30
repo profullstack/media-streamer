@@ -26,6 +26,7 @@ interface BrowseTorrent {
   id: string;
   infohash: string;
   name: string;
+  cleanTitle: string | null;
   totalSize: number;
   fileCount: number;
   posterUrl: string | null;
@@ -435,7 +436,7 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
         {imageUrl ? (
           <img
             src={imageUrl}
-            alt={torrent.name}
+            alt={torrent.cleanTitle ?? torrent.name}
             className="h-full w-full object-cover"
             loading="lazy"
           />
@@ -455,8 +456,8 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
 
       {/* Info - compact */}
       <div className="p-2">
-        <h3 className="text-xs font-medium text-text-primary line-clamp-2 group-hover:text-accent-primary transition-colors leading-tight">
-          {torrent.name}
+        <h3 className="text-xs font-medium text-text-primary line-clamp-2 group-hover:text-accent-primary transition-colors leading-tight" title={torrent.name}>
+          {torrent.cleanTitle ?? torrent.name}
         </h3>
         <div className="mt-1 flex items-center gap-1 text-[10px] text-text-muted">
           {torrent.year && <span>{torrent.year}</span>}

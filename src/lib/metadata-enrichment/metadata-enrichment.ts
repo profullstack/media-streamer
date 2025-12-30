@@ -87,9 +87,12 @@ const CONTENT_PATTERNS = {
     // Season/Episode patterns - these are definitive TV show indicators
     /\bS\d{1,2}E\d{1,2}\b/i,
     /\bS\d{1,2}\b/i, // S01, S08, etc.
-    /\bseason\s*\d+\b/i,
-    /\bepisode\s*\d+\b/i,
-    /\bcomplete\s*series\b/i,
+    // "Season" followed by a reasonable season number (1-99, not a year like 2024)
+    // The number must be 1-2 digits and NOT followed by more digits (to avoid matching years)
+    // e.g., "Season.1", "Season 1", "Season.01" but NOT "Season.2024"
+    /\bseason[\s.]+([1-9]|[1-9]\d)(?!\d)/i,
+    /\bepisode[\s.]*\d+\b/i,
+    /\bcomplete[\s.]*series\b/i,
   ],
   music: [
     // Artist - Album pattern with format in brackets
@@ -257,6 +260,9 @@ export function cleanTorrentName(name: string): string {
     .replace(/\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|ts|mpg|mpeg)$/i, '')
     // Remove website prefixes (www.site.org, site.com, etc.)
     .replace(/^(www\.)?[a-z0-9-]+\.(org|com|net|io|tv|cc|to)\s*[-–—]\s*/i, '')
+    // Remove release group with dots at end (e.g., MP4-BEN.THE.MEN, H265-RELEASE.GROUP)
+    // This pattern matches: codec/format followed by dash and dotted words at the end
+    .replace(/\.(mp4|mkv|avi|h264|h265|x264|x265|hevc|avc)-[a-z0-9]+(\.[a-z0-9]+)*$/i, '')
     // Remove release group at end BEFORE replacing dots
     // Only match if preceded by quality/codec indicators (e.g., x264-GROUP, H.264-GROUP)
     .replace(/[-.]([a-z]{2,}[0-9]*|[0-9]+[a-z]+)$/i, (match) => {
@@ -273,9 +279,13 @@ export function cleanTorrentName(name: string): string {
     // Remove common release group tags in brackets
     .replace(/\[.*?\]/g, '')
     .replace(/\(.*?\)/g, '')
+    // Remove DTS-HD, DTS-HD MA, etc. BEFORE removing DTS (to avoid leaving -HD)
+    .replace(/\bDTS-?HD(\s*MA)?\b/gi, '')
     // Remove quality indicators (including WEB-DL, WEB DL variants)
     // Note: After dots become spaces, patterns like "H.264" become "H 264"
     .replace(/\b(1080p|720p|2160p|4k|bluray|blu-ray|brrip|dvdrip|webrip|web-?dl|hdtv|hdrip|x264|x265|hevc|aac|dts|ac3|atmos|truehd|remux|uhd|hdr|hdr10\+?|dv|dolby\s*vision)\b/gi, '')
+    // Remove video source indicators (TS=telesync, CAM, HDCAM, etc.)
+    .replace(/\b(ts|telesync|cam|hdcam|hdts|dvdscr|screener|scr|r5|r6)\b/gi, '')
     // Remove codec/format indicators (handle both dotted and spaced versions)
     .replace(/\b(h\s*264|h\s*265|h265|h264|10\s*bit|dd\s*5\s*1|dd\s*2\s*0|ddp\s*5\s*1|ddp\s*2\s*0|5\s*1|7\s*1|2\s*0)\b/gi, '')
     // Remove standalone H or numbers that might remain from codec patterns
@@ -289,8 +299,8 @@ export function cleanTorrentName(name: string): string {
     .replace(/\s+-\s*[a-z0-9]{2,10}\s*$/i, '')
     // Remove common torrent suffixes
     .replace(/\b(complete|proper|repack|internal|limited|extended|unrated|directors?\s*cut|theatrical|imax|remastered)\b/gi, '')
-    // Remove language indicators
-    .replace(/\b(eng|english|multi|dual|latino|spanish|french|german|italian|portuguese|russian|japanese|korean|chinese|hindi|arabic|turkish|polish|dutch|swedish|norwegian|danish|finnish|greek|hebrew|czech|hungarian|romanian|bulgarian|ukrainian|vietnamese|thai|indonesian|malay|filipino|tagalog)\b/gi, '')
+    // Remove language indicators (EN, ENG, etc.)
+    .replace(/\b(en|eng|english|multi|dual|latino|spanish|french|german|italian|portuguese|russian|japanese|korean|chinese|hindi|arabic|turkish|polish|dutch|swedish|norwegian|danish|finnish|greek|hebrew|czech|hungarian|romanian|bulgarian|ukrainian|vietnamese|thai|indonesian|malay|filipino|tagalog)\b/gi, '')
     // Remove subtitle indicators
     .replace(/\b(subs?|subtitles?|subbed|dubbed|hardcoded|hc)\b/gi, '')
     // Remove common scene tags
@@ -303,6 +313,10 @@ export function cleanTorrentName(name: string): string {
     .replace(/\s*\+\s*/g, ' ')
     // Remove standalone "H" only if at word boundary and followed by space/end
     .replace(/\bH\b(?=\s|$)/gi, '')
+    // Remove trailing dashes (with optional whitespace)
+    .replace(/\s*-\s*$/g, '')
+    // Remove leading dashes (with optional whitespace)
+    .replace(/^\s*-\s*/g, '')
     // Clean up multiple spaces
     .replace(/\s+/g, ' ')
     .trim();

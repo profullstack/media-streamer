@@ -287,7 +287,7 @@ export default function TorrentDetailPage(): React.ReactElement {
             Torrents
           </Link>
           <ChevronRightIcon size={14} />
-          <span className="text-text-primary">{torrent.name}</span>
+          <span className="text-text-primary" title={torrent.name}>{torrent.cleanTitle ?? torrent.name}</span>
         </nav>
 
         {/* Header */}
@@ -299,7 +299,7 @@ export default function TorrentDetailPage(): React.ReactElement {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={torrent.posterUrl ?? torrent.coverUrl ?? ''}
-                  alt={torrent.name}
+                  alt={torrent.cleanTitle ?? torrent.name}
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -309,8 +309,8 @@ export default function TorrentDetailPage(): React.ReactElement {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xl font-bold text-text-primary">
-                {torrent.name}
+              <h1 className="truncate text-xl font-bold text-text-primary" title={torrent.name}>
+                {torrent.cleanTitle ?? torrent.name}
               </h1>
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {torrent.infohash}
@@ -386,6 +386,61 @@ export default function TorrentDetailPage(): React.ReactElement {
               </p>
             </div>
           </div>
+
+          {/* Encoding Info - show if codec info is available */}
+          {torrent.videoCodec || torrent.audioCodec ? (
+            <div className="mt-6 rounded-lg border border-border-subtle bg-bg-secondary p-4">
+              <h3 className="text-sm font-medium text-text-primary mb-3">Encoding Details</h3>
+              <div className="flex flex-wrap items-center gap-3">
+                {torrent.videoCodec ? (
+                  <div className="flex items-center gap-2 rounded-full bg-accent-video/10 px-3 py-1 text-sm">
+                    <VideoIcon className="text-accent-video" size={14} />
+                    <span className="text-text-primary">{torrent.videoCodec.toUpperCase()}</span>
+                  </div>
+                ) : null}
+                {torrent.audioCodec ? (
+                  <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
+                    <MusicIcon className="text-accent-audio" size={14} />
+                    <span className="text-text-primary">{torrent.audioCodec.toUpperCase()}</span>
+                  </div>
+                ) : null}
+                {torrent.container ? (
+                  <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
+                    <FileIcon className="text-text-secondary" size={14} />
+                    <span className="text-text-primary">{torrent.container.toUpperCase()}</span>
+                  </div>
+                ) : null}
+                {torrent.needsTranscoding !== null ? (
+                  <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
+                    torrent.needsTranscoding
+                      ? 'bg-orange-500/10 text-orange-500'
+                      : 'bg-green-500/10 text-green-500'
+                  }`}>
+                    {torrent.needsTranscoding ? (
+                      <>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Needs Transcoding</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Browser Compatible</span>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              {torrent.codecDetectedAt ? (
+                <p className="mt-2 text-xs text-text-muted">
+                  Detected: {new Date(torrent.codecDetectedAt).toLocaleString()}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Media type breakdown */}
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -464,7 +519,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           onClose={handleModalClose}
           file={selectedFile}
           infohash={torrent.infohash}
-          torrentName={torrent.name}
+          torrentName={torrent.cleanTitle ?? torrent.name}
         /> : null}
 
       {/* Playlist Player Modal - uses folder-specific metadata when available */}
@@ -473,7 +528,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           onClose={handlePlaylistModalClose}
           files={playlistFiles}
           infohash={torrent.infohash}
-          torrentName={playlistFolderMetadata?.album ?? torrent.name}
+          torrentName={playlistFolderMetadata?.album ?? torrent.cleanTitle ?? torrent.name}
           coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
           artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
         /> : null}

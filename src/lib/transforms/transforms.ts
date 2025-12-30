@@ -31,6 +31,12 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     contentType: dbTorrent.content_type as ContentType | null,
     year: dbTorrent.year,
     description: dbTorrent.description,
+    // Codec fields
+    videoCodec: dbTorrent.video_codec,
+    audioCodec: dbTorrent.audio_codec,
+    container: dbTorrent.container,
+    needsTranscoding: dbTorrent.needs_transcoding,
+    codecDetectedAt: dbTorrent.codec_detected_at,
     createdAt: dbTorrent.created_at,
     updatedAt: dbTorrent.updated_at,
   };

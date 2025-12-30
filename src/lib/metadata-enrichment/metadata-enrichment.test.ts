@@ -324,6 +324,195 @@ describe('extractSearchQuery', () => {
       expect(result.year).toBeUndefined();
     });
   });
+
+  describe('problematic torrent names (real-world cases)', () => {
+    // These tests cover real torrent names that were failing to get posters
+    
+    describe('TV show cleaning', () => {
+      it('should clean All Creatures Great and Small with year and season', () => {
+        const result = extractSearchQuery('All Creatures Great and Small 2020 S06 720p WEB-DL HEVC x265', 'tvshow');
+        expect(result.query).toBe('All Creatures Great and Small');
+        expect(result.year).toBe(2020);
+      });
+
+      it('should clean dotted TV show name with season', () => {
+        const result = extractSearchQuery('All.Creatures.Great.And.Small.2020.S01.COMPLETE.720p.PBS.WEB', 'tvshow');
+        expect(result.query).toBe('All Creatures Great And Small');
+        expect(result.year).toBe(2020);
+      });
+
+      it('should clean The Copenhagen Test with season and release group', () => {
+        const result = extractSearchQuery('The.Copenhagen.Test.S01.1080p.WEB-DL-[Feranki1980]', 'tvshow');
+        expect(result.query).toBe('The Copenhagen Test');
+        // Should not have trailing dash or brackets
+        expect(result.query).not.toContain('-');
+        expect(result.query).not.toContain('[');
+      });
+
+      it('should clean Hunting Season with year', () => {
+        const result = extractSearchQuery('Hunting Season 2025 1080p WEB H264-RGB.mp4', 'tvshow');
+        expect(result.query).toBe('Hunting Season');
+        expect(result.year).toBe(2025);
+      });
+    });
+
+    describe('movie cleaning', () => {
+      it('should clean The Bourne Series with DTS-HD audio', () => {
+        const result = extractSearchQuery('The Bourne Series (complete) 2160p H.264 DTS-HD 7.1 AC3 ENG', 'movie');
+        expect(result.query).toBe('The Bourne Series');
+        // Should not have -HD leftover from DTS-HD
+        expect(result.query).not.toContain('-HD');
+        expect(result.query).not.toContain('HD');
+      });
+
+      it('should clean Avatar Fire and Ash with TS and EN', () => {
+        const result = extractSearchQuery('Avatar.Fire.and.Ash.2025.1080p.TS.EN-RGB', 'movie');
+        expect(result.query).toBe('Avatar Fire and Ash');
+        expect(result.year).toBe(2025);
+        // Should not have TS (telesync) or EN (language)
+        expect(result.query).not.toContain('TS');
+        expect(result.query).not.toContain('EN');
+      });
+
+      it('should clean Mission Impossible with hyphen in title', () => {
+        const result = extractSearchQuery('Mission-Impossible - Dead Reckoning Part One.2023.1080p.H264', 'movie');
+        // Should preserve the hyphen in Mission-Impossible but clean the rest
+        expect(result.query).toContain('Mission');
+        expect(result.query).toContain('Dead Reckoning Part One');
+        expect(result.year).toBe(2023);
+      });
+
+      it('should clean The Social Network with 4K UHD REMUX', () => {
+        const result = extractSearchQuery('The.Social.Network.2010.4K.UHD.2160p.REMUX.DV.TrueHD.7.1.DTS', 'movie');
+        expect(result.query).toBe('The Social Network');
+        expect(result.year).toBe(2010);
+      });
+
+      it('should clean movie with StarzPlay streaming service', () => {
+        const result = extractSearchQuery('Mission Impossible - The Final Reckoning.2025.1080p.StarzPlay', 'movie');
+        expect(result.query).toContain('Mission Impossible');
+        expect(result.query).toContain('Final Reckoning');
+        expect(result.year).toBe(2025);
+        // Should not have StarzPlay
+        expect(result.query).not.toContain('StarzPlay');
+      });
+    });
+
+    describe('audio format cleaning', () => {
+      it('should remove DTS-HD completely', () => {
+        const result = extractSearchQuery('Movie 2020 1080p DTS-HD 7.1', 'movie');
+        expect(result.query).not.toContain('DTS');
+        expect(result.query).not.toContain('HD');
+        expect(result.query).not.toContain('-HD');
+      });
+
+      it('should remove TrueHD', () => {
+        const result = extractSearchQuery('Movie 2020 1080p TrueHD 7.1', 'movie');
+        expect(result.query).not.toContain('TrueHD');
+      });
+
+      it('should remove AC3', () => {
+        const result = extractSearchQuery('Movie 2020 1080p AC3', 'movie');
+        expect(result.query).not.toContain('AC3');
+      });
+
+      it('should remove Dolby Vision (DV)', () => {
+        const result = extractSearchQuery('Movie 2020 1080p DV', 'movie');
+        expect(result.query).not.toContain('DV');
+      });
+    });
+
+    describe('video format cleaning', () => {
+      it('should remove TS (telesync)', () => {
+        const result = extractSearchQuery('Movie 2020 1080p TS', 'movie');
+        expect(result.query).not.toMatch(/\bTS\b/);
+      });
+
+      it('should remove CAM', () => {
+        const result = extractSearchQuery('Movie 2020 CAM', 'movie');
+        expect(result.query).not.toMatch(/\bCAM\b/);
+      });
+
+      it('should remove REMUX', () => {
+        const result = extractSearchQuery('Movie 2020 REMUX', 'movie');
+        expect(result.query).not.toContain('REMUX');
+      });
+
+      it('should remove UHD', () => {
+        const result = extractSearchQuery('Movie 2020 4K UHD', 'movie');
+        expect(result.query).not.toContain('UHD');
+      });
+    });
+
+    describe('trailing artifacts', () => {
+      it('should remove trailing dashes', () => {
+        const result = extractSearchQuery('Movie Name 2020 1080p -', 'movie');
+        expect(result.query).not.toMatch(/-\s*$/);
+        expect(result.query.trim()).toBe(result.query);
+      });
+
+      it('should remove trailing numbers from audio channels', () => {
+        const result = extractSearchQuery('Movie 2020 1080p 7 1', 'movie');
+        // Should not have standalone 7 1 at the end
+        expect(result.query).not.toMatch(/\b7\s*1\s*$/);
+      });
+
+      it('should remove release group with dots like MP4-BEN.THE.MEN', () => {
+        const result = extractSearchQuery('The.Running.Man.2025.2160p.AMZN.WEB-DL.DV.HDR10+.DDP5.1.H265.MP4-BEN.THE.MEN', 'movie');
+        expect(result.query).toBe('The Running Man');
+        expect(result.year).toBe(2025);
+        // Should not have -BEN THE or similar artifacts
+        expect(result.query).not.toContain('BEN');
+        expect(result.query).not.toContain('-');
+      });
+    });
+
+    describe('movie titles with "Season" in the name', () => {
+      it('should detect "Hunting Season" as a movie, not a TV show', () => {
+        // "Hunting Season" is a movie - the word "Season" should not trigger TV show detection
+        const contentType = detectContentType('Hunting.Season.2024.1080p.WEB-DL.x264-GROUP');
+        expect(contentType).toBe('movie');
+      });
+
+      it('should extract correct query for "Hunting Season"', () => {
+        const result = extractSearchQuery('Hunting.Season.2024.1080p.WEB-DL.x264-GROUP', 'movie');
+        expect(result.query).toBe('Hunting Season');
+        expect(result.year).toBe(2024);
+      });
+
+      it('should detect "Open Season" as a movie', () => {
+        const contentType = detectContentType('Open.Season.2006.1080p.BluRay.x264');
+        expect(contentType).toBe('movie');
+      });
+
+      it('should detect "Duck Season" as a movie', () => {
+        const contentType = detectContentType('Duck.Season.2004.720p.WEB-DL');
+        expect(contentType).toBe('movie');
+      });
+
+      it('should still detect actual TV shows with season numbers', () => {
+        // This should be detected as TV show because it has "Season 1"
+        const contentType = detectContentType('Breaking.Bad.Season.1.1080p.BluRay');
+        expect(contentType).toBe('tvshow');
+      });
+
+      it('should detect S01E01 pattern as TV show', () => {
+        const contentType = detectContentType('Game.of.Thrones.S01E01.1080p.BluRay');
+        expect(contentType).toBe('tvshow');
+      });
+
+      it('should detect S01 pattern (full season, no episode) as TV show', () => {
+        // Full season downloads often have just S01 without episode number
+        const contentType = detectContentType('Breaking.Bad.S01.COMPLETE.1080p.BluRay');
+        expect(contentType).toBe('tvshow');
+      });
+
+      it('should detect S08 pattern (full season, no episode) as TV show', () => {
+        const contentType = detectContentType('Game.of.Thrones.S08.1080p.WEB-DL');
+        expect(contentType).toBe('tvshow');
+      });
+    });
+  });
 });
 
 // ============================================================================

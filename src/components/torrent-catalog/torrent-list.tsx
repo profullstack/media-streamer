@@ -13,6 +13,7 @@ export interface TorrentItem {
   id: string;
   infohash: string;
   name: string;
+  clean_title: string | null;
   total_size: number;
   file_count: number;
   status: string;
@@ -55,8 +56,8 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
         >
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                {torrent.name}
+              <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white" title={torrent.name}>
+                {torrent.clean_title ?? torrent.name}
               </h3>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <span>{torrent.file_count} files</span>

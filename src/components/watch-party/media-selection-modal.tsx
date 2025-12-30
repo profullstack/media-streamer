@@ -14,6 +14,7 @@ import { formatBytes } from '@/lib/utils';
 interface TorrentItem {
   id: string;
   name: string;
+  cleanTitle: string | null;
   size: number;
   files_count: number;
   created_at: string;
@@ -213,8 +214,8 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
                         : 'bg-bg-tertiary border-border-subtle hover:border-accent-primary/50'
                     )}
                   >
-                    <p className="font-medium text-text-primary truncate">
-                      {torrent.name}
+                    <p className="font-medium text-text-primary truncate" title={torrent.name}>
+                      {torrent.cleanTitle ?? torrent.name}
                     </p>
                     <p className="text-sm text-text-muted mt-1">
                       {formatBytes(torrent.size)} · {torrent.files_count} files

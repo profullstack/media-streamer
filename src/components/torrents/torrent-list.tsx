@@ -3,10 +3,11 @@
 /**
  * Torrent List Component
  *
- * Displays a list of indexed torrents with file counts, sizes, and health indicators.
+ * Displays a list of indexed torrents with file counts, sizes, health indicators, and poster images.
  */
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { formatBytes } from '@/lib/utils';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import { FolderIcon, ChevronRightIcon, MusicIcon, VideoIcon, BookIcon } from '@/components/ui/icons';
@@ -31,6 +32,12 @@ interface Torrent {
   seeders?: number | null;
   /** Number of leechers (peers downloading), null if unknown */
   leechers?: number | null;
+  /** Poster URL for movies/TV shows */
+  posterUrl?: string | null;
+  /** Cover URL for music/books */
+  coverUrl?: string | null;
+  /** Content type (movie, tvshow, music, book, etc.) */
+  contentType?: string | null;
 }
 
 interface TorrentListProps {
@@ -104,16 +111,30 @@ function HealthIndicator({ seeders, leechers }: HealthIndicatorProps): React.Rea
 
 function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const mediaStats = getMediaStats(torrent.files ?? []);
+  const imageUrl = torrent.posterUrl ?? torrent.coverUrl;
 
   return (
     <Link
       href={`/torrents/${torrent.infohash}`}
       className="card-hover flex items-center gap-4 p-4 transition-transform hover:scale-[1.01]"
     >
-      {/* Icon */}
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-primary/20">
-        <FolderIcon className="text-accent-primary" size={24} />
-      </div>
+      {/* Poster/Cover Image or Icon */}
+      {imageUrl ? (
+        <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
+          <Image
+            src={imageUrl}
+            alt={torrent.cleanTitle ?? torrent.name}
+            fill
+            sizes="48px"
+            className="object-cover"
+            unoptimized
+          />
+        </div>
+      ) : (
+        <div className="flex h-16 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-primary/20">
+          <FolderIcon className="text-accent-primary" size={24} />
+        </div>
+      )}
 
       {/* Info */}
       <div className="min-w-0 flex-1">

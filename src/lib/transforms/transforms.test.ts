@@ -69,6 +69,12 @@ describe('transforms', () => {
         contentType: null,
         year: null,
         description: null,
+        // Codec fields
+        videoCodec: null,
+        audioCodec: null,
+        container: null,
+        needsTranscoding: false,
+        codecDetectedAt: null,
         createdAt: '2025-12-26T22:24:00.000Z',
         updatedAt: '2025-12-26T22:25:00.000Z',
       });

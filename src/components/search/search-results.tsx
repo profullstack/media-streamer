@@ -2,8 +2,8 @@
 
 /**
  * Search Results Component
- * 
- * Displays search results with file information and actions.
+ *
+ * Displays search results with file information, poster images, and actions.
  */
 
 import { cn } from '@/lib/utils';
@@ -20,6 +20,7 @@ import {
 import type { SearchResult, MediaCategory } from '@/types';
 import { formatBytes } from '@/lib/utils';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -142,6 +143,7 @@ function SearchResultItem({
   const Icon = isFile ? getMediaIcon(result.file!.mediaCategory) : MagnetIcon;
   const iconColor = isFile ? getMediaColor(result.file!.mediaCategory) : 'text-accent-primary';
   const bgColor = isFile ? getMediaBgColor(result.file!.mediaCategory) : 'bg-accent-primary/10';
+  const imageUrl = result.torrent.posterUrl ?? result.torrent.coverUrl;
 
   const isPlayable = isFile && (result.file!.mediaCategory === 'audio' || result.file!.mediaCategory === 'video');
 
@@ -163,10 +165,23 @@ function SearchResultItem({
 
   return (
     <div className="group card-hover flex items-start gap-4 p-4">
-      {/* Icon */}
-      <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', bgColor)}>
-        <Icon className={iconColor} size={20} />
-      </div>
+      {/* Poster/Cover Image or Icon */}
+      {imageUrl ? (
+        <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
+          <Image
+            src={imageUrl}
+            alt={result.torrent.cleanTitle ?? result.torrent.name}
+            fill
+            sizes="40px"
+            className="object-cover"
+            unoptimized
+          />
+        </div>
+      ) : (
+        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', bgColor)}>
+          <Icon className={iconColor} size={20} />
+        </div>
+      )}
 
       {/* Content */}
       <div className="min-w-0 flex-1">

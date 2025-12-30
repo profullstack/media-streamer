@@ -35,6 +35,16 @@ export interface Torrent {
   year: number | null;
   /** Description from external metadata source */
   description: string | null;
+  /** Video codec (e.g., h264, hevc) - detected from primary video file */
+  videoCodec: string | null;
+  /** Audio codec (e.g., aac, ac3, dts) - detected from primary video file */
+  audioCodec: string | null;
+  /** Container format (e.g., mp4, mkv) - detected from primary video file */
+  container: string | null;
+  /** Whether the torrent needs transcoding for browser playback */
+  needsTranscoding: boolean | null;
+  /** When codec info was detected */
+  codecDetectedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -121,6 +131,12 @@ export interface SearchResult {
     name: string;
     /** Clean title for display (without quality indicators, codecs, etc.) */
     cleanTitle?: string | null;
+    /** Poster URL for movies/TV shows */
+    posterUrl?: string | null;
+    /** Cover URL for music/books */
+    coverUrl?: string | null;
+    /** Content type (movie, tvshow, music, book, etc.) */
+    contentType?: string | null;
   };
   file?: {
     id: string;

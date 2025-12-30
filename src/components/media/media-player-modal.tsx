@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 /**
  * Media Player Modal Component
@@ -6,6 +6,7 @@
  * A modal dialog that displays a video/audio player for streaming torrent files.
  * Shows the file title and provides playback controls.
  * Supports automatic transcoding for non-browser-supported formats.
+ * Pre-checks codec info before playback to determine if transcoding is needed.
  * Displays realtime swarm statistics (seeders/leechers).
  * Shows real-time connection status and health stats via persistent SSE.
  */
@@ -16,6 +17,21 @@ import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { getMediaCategory } from '@/lib/utils';
 import type { TorrentFile } from '@/types';
+
+/**
+ * Codec information from the API
+ */
+interface CodecInfo {
+  videoCodec: string | null;
+  audioCodec: string | null;
+  container: string | null;
+  needsTranscoding: boolean | null;
+  cached: boolean;
+  detectedAt?: string;
+  duration?: number;
+  bitRate?: number;
+  resolution?: string;
+}
 
 /**
  * Swarm statistics from the API
@@ -205,6 +221,12 @@ export function MediaPlayerModal({
   const [isRetryingWithTranscode, setIsRetryingWithTranscode] = useState(false);
   /** Counter to force player reload on retry */
   const [retryCount, setRetryCount] = useState(0);
+  /** Codec info from pre-check */
+  const [codecInfo, setCodecInfo] = useState<CodecInfo | null>(null);
+  /** Whether we're currently checking codec info */
+  const [isCheckingCodec, setIsCheckingCodec] = useState(false);
+  /** Whether codec check has completed (success or failure) */
+  const [codecCheckComplete, setCodecCheckComplete] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -256,14 +278,89 @@ export function MediaPlayerModal({
     }
   }, [isOpen, infohash, fetchSwarmStats]);
 
-  // Build stream URL when file changes
+  // Pre-check codec info when modal opens for video files
+  // This allows us to determine if transcoding is needed BEFORE attempting playback
+  useEffect(() => {
+    if (!isOpen || !infohash || !file) {
+      setCodecInfo(null);
+      setCodecCheckComplete(false);
+      return;
+    }
+
+    const mediaCategory = getMediaCategory(file.name);
+    
+    // Only pre-check codec for video files (audio usually doesn't need transcoding)
+    if (mediaCategory !== 'video') {
+      setCodecCheckComplete(true);
+      return;
+    }
+
+    // Check if format obviously needs transcoding based on extension
+    // If so, skip the codec check and go straight to transcoding
+    if (needsTranscoding(file.name)) {
+      console.log('[MediaPlayerModal] Format requires transcoding based on extension:', file.name);
+      setCodecCheckComplete(true);
+      return;
+    }
+
+    // For formats that might need transcoding (like MP4 with HEVC), check codec info
+    const checkCodecInfo = async (): Promise<void> => {
+      setIsCheckingCodec(true);
+      try {
+        // First try to get cached codec info
+        const response = await fetch(`/api/codec-info/${infohash}?fileIndex=${file.fileIndex}`);
+        if (response.ok) {
+          const data = await response.json() as CodecInfo;
+          console.log('[MediaPlayerModal] Codec info retrieved:', data);
+          setCodecInfo(data);
+          
+          // If codec info is cached and indicates transcoding is needed, we're done
+          if (data.cached && data.needsTranscoding !== null) {
+            setCodecCheckComplete(true);
+            return;
+          }
+          
+          // If not cached, trigger detection via POST (this will save to DB)
+          if (!data.cached) {
+            console.log('[MediaPlayerModal] Codec info not cached, triggering detection...');
+            const detectResponse = await fetch(`/api/codec-info/${infohash}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fileIndex: file.fileIndex }),
+            });
+            
+            if (detectResponse.ok) {
+              const detectData = await detectResponse.json() as CodecInfo;
+              console.log('[MediaPlayerModal] Codec detection complete:', detectData);
+              setCodecInfo(detectData);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[MediaPlayerModal] Failed to check codec info:', err);
+        // On error, proceed without codec info - will fall back to runtime detection
+      } finally {
+        setIsCheckingCodec(false);
+        setCodecCheckComplete(true);
+      }
+    };
+
+    void checkCodecInfo();
+  }, [isOpen, infohash, file]);
+
+  // Build stream URL when file changes and codec check is complete
   // Add transcode=auto parameter for files that need transcoding
   // Also handles retry with transcoding after codec errors
   // retryCount is included to force URL rebuild on manual retry
   useEffect(() => {
-    if (file && infohash) {
-      // Force transcoding if we're retrying after a codec error, or if the format requires it
-      const requiresTranscoding = isRetryingWithTranscode || needsTranscoding(file.name);
+    if (file && infohash && codecCheckComplete) {
+      // Determine if transcoding is needed:
+      // 1. If we're retrying after a codec error
+      // 2. If the format requires it based on extension
+      // 3. If codec info indicates transcoding is needed
+      const formatNeedsTranscode = needsTranscoding(file.name);
+      const codecNeedsTranscode = codecInfo?.needsTranscoding === true;
+      const requiresTranscoding = isRetryingWithTranscode || formatNeedsTranscode || codecNeedsTranscode;
       setIsTranscoding(requiresTranscoding);
 
       // Add cache-busting parameter on retry to ensure fresh request
@@ -279,6 +376,14 @@ export function MediaPlayerModal({
         infohash,
         fileIndex: file.fileIndex,
         fileName: file.name,
+        formatNeedsTranscode,
+        codecNeedsTranscode,
+        codecInfo: codecInfo ? {
+          videoCodec: codecInfo.videoCodec,
+          audioCodec: codecInfo.audioCodec,
+          needsTranscoding: codecInfo.needsTranscoding,
+          cached: codecInfo.cached,
+        } : null,
         requiresTranscoding,
         isRetryingWithTranscode,
         retryCount,
@@ -289,12 +394,13 @@ export function MediaPlayerModal({
       // Always clear error when building a new URL (including when retrying with transcoding)
       setError(null);
       setIsPlayerReady(false);
-    } else {
+    } else if (!file || !infohash) {
       setStreamUrl(null);
       setIsTranscoding(false);
       setIsPlayerReady(false);
     }
-  }, [file, infohash, isRetryingWithTranscode, retryCount]);
+    // Don't clear stream URL while waiting for codec check - keep previous state
+  }, [file, infohash, isRetryingWithTranscode, retryCount, codecCheckComplete, codecInfo]);
 
   // Handle player ready
   const handlePlayerReady = useCallback(() => {
@@ -334,6 +440,10 @@ export function MediaPlayerModal({
     // Reset transcoding retry state
     setHasTriedTranscoding(false);
     setIsRetryingWithTranscode(false);
+    // Reset codec check state
+    setCodecInfo(null);
+    setIsCheckingCodec(false);
+    setCodecCheckComplete(false);
     // Close SSE connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -565,6 +675,51 @@ export function MediaPlayerModal({
             ) : null}
           </div>
         </div>
+
+        {/* Codec Check Notice - show while checking codec info */}
+        {isCheckingCodec && !error ? <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+              <span className="text-sm text-blue-500">
+                Checking video codec compatibility...
+              </span>
+            </div>
+          </div> : null}
+
+        {/* Codec Info Display - show detected codec info */}
+        {codecInfo && !isCheckingCodec && !error ? <div className={`rounded-lg border p-3 ${
+          codecInfo.needsTranscoding
+            ? 'border-orange-500/30 bg-orange-500/10'
+            : 'border-green-500/30 bg-green-500/10'
+        }`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <svg
+                  className={`h-4 w-4 ${codecInfo.needsTranscoding ? 'text-orange-500' : 'text-green-500'}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <span className={`text-sm ${codecInfo.needsTranscoding ? 'text-orange-500' : 'text-green-500'}`}>
+                  {codecInfo.needsTranscoding
+                    ? 'Codec requires transcoding'
+                    : 'Codec is browser-compatible'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                {codecInfo.videoCodec ? <span className="rounded bg-bg-tertiary px-1.5 py-0.5">{codecInfo.videoCodec}</span> : null}
+                {codecInfo.audioCodec ? <span className="rounded bg-bg-tertiary px-1.5 py-0.5">{codecInfo.audioCodec}</span> : null}
+                {codecInfo.resolution ? <span className="rounded bg-bg-tertiary px-1.5 py-0.5">{codecInfo.resolution}</span> : null}
+              </div>
+            </div>
+          </div> : null}
 
         {/* Transcoding Notice - show when transcoding is active */}
         {isTranscoding && !error ? <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/10 p-3">
@@ -840,6 +995,20 @@ export function MediaPlayerModal({
                   Trackers: {swarmStats.trackersResponded}/{swarmStats.trackersQueried}
                 </span> : null}
             </div>
+            {/* Codec Info */}
+            {codecInfo ? <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                <span className="text-text-secondary">Codec:</span>
+                {codecInfo.videoCodec ? <span>Video: {codecInfo.videoCodec}</span> : null}
+                {codecInfo.audioCodec ? <span>Audio: {codecInfo.audioCodec}</span> : null}
+                {codecInfo.container ? <span>Container: {codecInfo.container}</span> : null}
+                {codecInfo.resolution ? <span>Res: {codecInfo.resolution}</span> : null}
+                {codecInfo.bitRate ? <span>Bitrate: {formatBitrate(codecInfo.bitRate)}</span> : null}
+                {codecInfo.duration ? <span>Duration: {formatDuration(codecInfo.duration)}</span> : null}
+                <span className={codecInfo.needsTranscoding ? 'text-orange-500' : 'text-green-500'}>
+                  {codecInfo.needsTranscoding ? 'Needs Transcode' : 'Native'}
+                </span>
+                {codecInfo.cached ? <span className="text-blue-500">Cached</span> : null}
+              </div> : null}
             <div className="mt-1 break-all text-[10px]">
               <span className="text-text-secondary">Hash: </span>
               <span>{infohash}</span>
@@ -886,4 +1055,31 @@ function formatSpeedCompact(bytesPerSecond: number): string {
     return `${(bytesPerSecond / 1024).toFixed(0)}K`;
   }
   return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)}M`;
+}
+
+/**
+ * Format bitrate to human readable string
+ */
+function formatBitrate(bitsPerSecond: number): string {
+  if (bitsPerSecond < 1000) {
+    return `${bitsPerSecond.toFixed(0)} bps`;
+  }
+  if (bitsPerSecond < 1000000) {
+    return `${(bitsPerSecond / 1000).toFixed(0)} Kbps`;
+  }
+  return `${(bitsPerSecond / 1000000).toFixed(1)} Mbps`;
+}
+
+/**
+ * Format duration in seconds to human readable string
+ */
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }

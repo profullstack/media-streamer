@@ -18,6 +18,7 @@ interface Torrent {
   id: string;
   infohash: string;
   name: string;
+  cleanTitle?: string | null;
   totalSize: number;
   fileCount: number;
   createdAt: string;
@@ -248,8 +249,8 @@ export default function TorrentsPage(): React.ReactElement {
               >
                 {/* Name */}
                 <div className="min-w-0 flex-1">
-                  <span className="truncate text-sm text-text-primary">
-                    {torrent.name}
+                  <span className="truncate text-sm text-text-primary" title={torrent.name}>
+                    {torrent.cleanTitle ?? torrent.name}
                   </span>
                 </div>
                 

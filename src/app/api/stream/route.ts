@@ -407,14 +407,39 @@ function createTranscodedStream(
       }
     };
 
+    // Log source stream state before piping
+    reqLogger.info('Source stream state before piping to FFmpeg', {
+      readable: (sourceStream as { readable?: boolean }).readable,
+      readableFlowing: (sourceStream as { readableFlowing?: boolean | null }).readableFlowing,
+      readableLength: (sourceStream as { readableLength?: number }).readableLength,
+    });
+
     // Pipe source stream to FFmpeg stdin with error handling
     try {
       sourceStream.pipe(ffmpeg.stdin);
+      reqLogger.info('Successfully piped source stream to FFmpeg stdin');
     } catch (pipeError) {
       reqLogger.error('Failed to pipe source to FFmpeg stdin', pipeError);
       safeKillFFmpeg();
       return null;
     }
+
+    // Track bytes received by FFmpeg stdin
+    let bytesReceivedByFFmpeg = 0;
+    sourceStream.on('data', (chunk: Buffer) => {
+      bytesReceivedByFFmpeg += chunk.length;
+      if (bytesReceivedByFFmpeg === chunk.length) {
+        // First chunk received
+        reqLogger.info('First data chunk received by source stream', {
+          chunkSize: chunk.length,
+        });
+      }
+    });
+
+    // Log when FFmpeg stdin receives data
+    ffmpeg.stdin.on('drain', () => {
+      reqLogger.debug('FFmpeg stdin drained', { bytesReceivedByFFmpeg });
+    });
 
     // Pipe FFmpeg stdout to output stream with error handling
     try {
@@ -616,7 +641,71 @@ export async function GET(request: NextRequest): Promise<Response> {
         magnetUri,
         fileIndex,
         range: undefined,
-      }, false); // skipWaitForData = false - FFmpeg needs the beginning of the file
+      }, false); // skipWaitForData = false - wait for data before creating stream
+
+      // Log stream state before transcoding
+      const nodeStream = result.stream as NodeJS.ReadableStream;
+      reqLogger.info('Stream created for transcoding', {
+        streamId: result.streamId,
+        readable: (nodeStream as { readable?: boolean }).readable,
+        readableFlowing: (nodeStream as { readableFlowing?: boolean | null }).readableFlowing,
+        readableLength: (nodeStream as { readableLength?: number }).readableLength,
+      });
+
+      // CRITICAL: Ensure the stream is in flowing mode before piping to FFmpeg
+      // WebTorrent streams may be in paused mode initially
+      // We need to wait for the first data chunk to ensure the stream is actually flowing
+      const streamFlowingPromise = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Stream did not start flowing within 30 seconds'));
+        }, 30000);
+
+        let firstChunkReceived = false;
+        const onData = (chunk: Buffer): void => {
+          if (!firstChunkReceived) {
+            firstChunkReceived = true;
+            clearTimeout(timeout);
+            reqLogger.info('First data chunk received from WebTorrent stream', {
+              chunkSize: chunk.length,
+              streamId: result.streamId,
+            });
+            // Put the chunk back by unshifting it
+            // This is safe because we're in paused mode after removing the listener
+            nodeStream.removeListener('data', onData);
+            (nodeStream as NodeJS.ReadableStream & { unshift: (chunk: Buffer) => void }).unshift(chunk);
+            resolve();
+          }
+        };
+
+        const onError = (err: Error): void => {
+          clearTimeout(timeout);
+          nodeStream.removeListener('data', onData);
+          reject(err);
+        };
+
+        const onEnd = (): void => {
+          clearTimeout(timeout);
+          nodeStream.removeListener('data', onData);
+          if (!firstChunkReceived) {
+            reject(new Error('Stream ended without emitting any data'));
+          }
+        };
+
+        nodeStream.once('error', onError);
+        nodeStream.once('end', onEnd);
+        nodeStream.on('data', onData);
+      });
+
+      try {
+        await streamFlowingPromise;
+        reqLogger.info('Stream confirmed flowing, proceeding with transcoding');
+      } catch (flowError) {
+        reqLogger.error('Stream failed to start flowing', flowError);
+        return NextResponse.json(
+          { error: 'Failed to start streaming from torrent. The file may not be available.' },
+          { status: 503 }
+        );
+      }
 
       // Pass forceTranscode=true since transcode=auto was explicitly requested
       // This ensures we get a transcoding profile even for "supported" formats like MP4
