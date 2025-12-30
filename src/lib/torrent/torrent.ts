@@ -346,8 +346,18 @@ export class TorrentService {
         emitProgress('error', 0, torrent?.numPeers ?? 0, 'Metadata fetch timed out');
         
         if (torrent) {
-          logger.debug('Removing torrent after timeout', { infohash: parsed.infohash });
-          this.client.remove(torrent);
+          logger.debug('Destroying torrent and deleting files after timeout', { infohash: parsed.infohash });
+          // Use destroy() with destroyStore to delete downloaded files
+          (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+            { destroyStore: true },
+            (err: Error | null) => {
+              if (err) {
+                logger.warn('Error destroying torrent after timeout', { infohash: parsed.infohash, error: String(err) });
+              } else {
+                logger.debug('Torrent destroyed and files deleted after timeout', { infohash: parsed.infohash });
+              }
+            }
+          );
         }
         reject(new TorrentTimeoutError(`Metadata fetch timed out after ${this.metadataTimeout}ms`));
       }, this.metadataTimeout);
@@ -541,13 +551,29 @@ export class TorrentService {
   }
 
   /**
-   * Remove a torrent from the client
-   * 
+   * Remove a torrent from the client and delete downloaded files
+   *
    * @param infohash - The infohash of the torrent to remove
    */
   async removeTorrent(infohash: string): Promise<void> {
-    logger.debug('Removing torrent', { infohash });
-    this.client.remove(infohash);
+    logger.debug('Removing torrent and deleting files', { infohash });
+    const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+    if (torrent) {
+      // Use destroy() with destroyStore to delete downloaded files
+      return new Promise((resolve) => {
+        (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+          { destroyStore: true },
+          (err: Error | null) => {
+            if (err) {
+              logger.warn('Error destroying torrent', { infohash, error: String(err) });
+            } else {
+              logger.debug('Torrent destroyed and files deleted', { infohash });
+            }
+            resolve();
+          }
+        );
+      });
+    }
   }
 
   /**

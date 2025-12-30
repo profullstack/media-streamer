@@ -72,6 +72,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -89,6 +90,7 @@ describe('StreamingService', () => {
           }
         }),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -128,6 +130,7 @@ describe('StreamingService', () => {
         }),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -145,6 +148,7 @@ describe('StreamingService', () => {
           }
         }),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -178,6 +182,7 @@ describe('StreamingService', () => {
           }
         }),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -204,6 +209,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -218,6 +224,7 @@ describe('StreamingService', () => {
           }
         }),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -261,6 +268,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -275,6 +283,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -303,6 +312,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -314,6 +324,7 @@ describe('StreamingService', () => {
         ready: true,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -349,6 +360,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -363,6 +375,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -401,6 +414,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -415,6 +429,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -448,6 +463,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -462,6 +478,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -547,6 +564,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -558,6 +576,7 @@ describe('StreamingService', () => {
         ready: true,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -582,6 +601,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -593,6 +613,7 @@ describe('StreamingService', () => {
         ready: true,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -617,6 +638,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -628,6 +650,7 @@ describe('StreamingService', () => {
         ready: true,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -660,6 +683,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -674,6 +698,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -706,6 +731,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -720,6 +746,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -768,6 +795,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream1),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockFile2 = {
@@ -777,6 +805,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream2),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -791,6 +820,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -840,6 +870,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream1),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockFile2 = {
@@ -849,6 +880,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream2),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent1 = {
@@ -863,6 +895,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -878,6 +911,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -938,6 +972,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream1),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockFile2 = {
@@ -947,6 +982,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream2),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -961,6 +997,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1006,6 +1043,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => createMockStream()),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -1020,6 +1058,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1061,6 +1100,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockFile2 = {
@@ -1070,6 +1110,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockFile3 = {
@@ -1079,6 +1120,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -1093,6 +1135,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1126,6 +1169,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockDeselect = vi.fn();
@@ -1183,6 +1227,7 @@ describe('StreamingService', () => {
         }),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -1197,6 +1242,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1235,6 +1281,7 @@ describe('StreamingService', () => {
         }),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -1249,6 +1296,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1300,6 +1348,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockTorrent = {
@@ -1314,6 +1363,7 @@ describe('StreamingService', () => {
         bitfield: { get: vi.fn(() => true) },
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1341,6 +1391,7 @@ describe('StreamingService', () => {
   describe('Torrent timeout and cleanup', () => {
     it('should remove torrent from client when metadata fetch times out', async () => {
       // Create a torrent that never becomes ready (simulating timeout)
+      const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); });
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: undefined,
@@ -1350,6 +1401,7 @@ describe('StreamingService', () => {
         ready: false,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: mockTorrentDestroy,
         select: vi.fn(),
       };
 
@@ -1369,8 +1421,8 @@ describe('StreamingService', () => {
         })
       ).rejects.toThrow(StreamingError);
 
-      // Torrent should be removed from client after timeout
-      expect(mockRemove).toHaveBeenCalledWith(mockTorrent, expect.any(Function));
+      // Torrent should be destroyed with destroyStore: true after timeout
+      expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
     });
 
     it('should wait for existing non-ready torrent instead of adding duplicate', async () => {
@@ -1387,6 +1439,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // Torrent that starts not ready but becomes ready
@@ -1407,6 +1460,7 @@ describe('StreamingService', () => {
           }
         }),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1449,9 +1503,11 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // First attempt: torrent never becomes ready
+      const mockTorrentNotReadyDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); });
       const mockTorrentNotReady = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: undefined,
@@ -1461,6 +1517,7 @@ describe('StreamingService', () => {
         ready: false,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: mockTorrentNotReadyDestroy,
         select: vi.fn(),
       };
 
@@ -1481,6 +1538,7 @@ describe('StreamingService', () => {
           }
         }),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1497,11 +1555,6 @@ describe('StreamingService', () => {
         return mockTorrentReady;
       });
 
-      // Mock remove to actually clear the torrent
-      mockRemove.mockImplementation((_torrent: unknown, callback?: () => void) => {
-        if (callback) callback();
-      });
-
       const service = new StreamingService({ streamTimeout: 100 });
 
       // First attempt should timeout
@@ -1512,8 +1565,8 @@ describe('StreamingService', () => {
         })
       ).rejects.toThrow(StreamingError);
 
-      // Verify torrent was removed after timeout
-      expect(mockRemove).toHaveBeenCalled();
+      // Verify torrent was destroyed with destroyStore: true after timeout
+      expect(mockTorrentNotReadyDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
 
       // Second attempt should succeed (torrent was cleaned up)
       const result = await service.createStream({
@@ -1526,6 +1579,7 @@ describe('StreamingService', () => {
     });
 
     it('should remove torrent from client when torrent error occurs', async () => {
+      const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); });
       const mockTorrent = {
         infoHash: '1234567890abcdef1234567890abcdef12345678',
         name: undefined,
@@ -1540,6 +1594,7 @@ describe('StreamingService', () => {
           }
         }),
         deselect: vi.fn(),
+        destroy: mockTorrentDestroy,
         select: vi.fn(),
       };
 
@@ -1557,8 +1612,8 @@ describe('StreamingService', () => {
         })
       ).rejects.toThrow(StreamingError);
 
-      // Torrent should be removed from client after error
-      expect(mockRemove).toHaveBeenCalledWith(mockTorrent, expect.any(Function));
+      // Torrent should be destroyed with destroyStore: true after error
+      expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
     });
   });
 
@@ -1578,6 +1633,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // Mock bitfield with piece 0 already downloaded
@@ -1597,6 +1653,7 @@ describe('StreamingService', () => {
         bitfield: mockBitfield,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1635,6 +1692,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // Mock bitfield that starts with no pieces, then gets piece 0
@@ -1661,6 +1719,7 @@ describe('StreamingService', () => {
         }),
         removeListener: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1697,6 +1756,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // Mock bitfield that never has the piece
@@ -1717,6 +1777,7 @@ describe('StreamingService', () => {
         on: vi.fn(),
         removeListener: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1749,6 +1810,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // pieceLength is 16384 (16KB)
@@ -1778,6 +1840,7 @@ describe('StreamingService', () => {
         bitfield: mockBitfield,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1813,6 +1876,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockBitfield = {
@@ -1831,6 +1895,7 @@ describe('StreamingService', () => {
         bitfield: mockBitfield,
         on: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1864,6 +1929,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // Torrent without bitfield - should wait for download event
@@ -1886,6 +1952,7 @@ describe('StreamingService', () => {
         }),
         removeListener: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1918,6 +1985,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       let pieceDownloaded = false;
@@ -1944,6 +2012,7 @@ describe('StreamingService', () => {
         }),
         removeListener: mockRemoveListener,
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -1978,6 +2047,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       const mockBitfield = {
@@ -1997,6 +2067,7 @@ describe('StreamingService', () => {
         on: vi.fn(),
         removeListener: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -2034,6 +2105,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(() => mockFileStream),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // Mock bitfield that has NO pieces downloaded
@@ -2054,6 +2126,7 @@ describe('StreamingService', () => {
         on: vi.fn(),
         removeListener: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -2086,6 +2159,7 @@ describe('StreamingService', () => {
         createReadStream: vi.fn(),
         select: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
       };
 
       // Mock bitfield that has NO pieces downloaded
@@ -2106,6 +2180,7 @@ describe('StreamingService', () => {
         on: vi.fn(),
         removeListener: vi.fn(),
         deselect: vi.fn(),
+        destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
         select: vi.fn(),
       };
 
@@ -2628,6 +2703,7 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
   });
 
   it('should schedule torrent removal when last watcher disconnects', () => {
+    const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); });
     const mockTorrent = {
       infoHash: '1234567890abcdef1234567890abcdef12345678',
       name: 'Album',
@@ -2638,6 +2714,7 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
       uploadSpeed: 100000,
       ready: true,
       on: vi.fn(),
+      destroy: mockTorrentDestroy,
     };
 
     mockTorrents = [mockTorrent];
@@ -2650,16 +2727,17 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
     service.unregisterWatcher(infohash, watcherId);
 
     // Torrent should still exist (grace period not elapsed)
-    expect(mockRemove).not.toHaveBeenCalled();
+    expect(mockTorrentDestroy).not.toHaveBeenCalled();
 
     // Advance time past cleanup delay
     vi.advanceTimersByTime(5001);
 
-    // Torrent should be removed
-    expect(mockRemove).toHaveBeenCalledWith(infohash, expect.any(Function));
+    // Torrent should be destroyed with destroyStore: true
+    expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
   });
 
   it('should cancel scheduled removal if new watcher connects during grace period', () => {
+    const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); });
     const mockTorrent = {
       infoHash: '1234567890abcdef1234567890abcdef12345678',
       name: 'Album',
@@ -2670,6 +2748,7 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
       uploadSpeed: 100000,
       ready: true,
       on: vi.fn(),
+      destroy: mockTorrentDestroy,
     };
 
     mockTorrents = [mockTorrent];
@@ -2691,8 +2770,8 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
     // Advance time past original cleanup time
     vi.advanceTimersByTime(3000);
 
-    // Torrent should NOT be removed (new watcher is active)
-    expect(mockRemove).not.toHaveBeenCalled();
+    // Torrent should NOT be destroyed (new watcher is active)
+    expect(mockTorrentDestroy).not.toHaveBeenCalled();
 
     // Unregister second watcher
     service.unregisterWatcher(infohash, watcher2);
@@ -2700,8 +2779,8 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
     // Advance time past new cleanup delay
     vi.advanceTimersByTime(5001);
 
-    // Now torrent should be removed
-    expect(mockRemove).toHaveBeenCalledWith(infohash, expect.any(Function));
+    // Now torrent should be destroyed with destroyStore: true
+    expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
   });
 
   it('should not remove torrent if watchers remain after one disconnects', () => {
@@ -2715,6 +2794,7 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
       uploadSpeed: 100000,
       ready: true,
       on: vi.fn(),
+      destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
     };
 
     mockTorrents = [mockTorrent];
@@ -2768,6 +2848,7 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
   });
 
   it('should use default cleanup delay of 30 seconds', () => {
+    const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); });
     const mockTorrent = {
       infoHash: '1234567890abcdef1234567890abcdef12345678',
       name: 'Album',
@@ -2778,6 +2859,7 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
       uploadSpeed: 100000,
       ready: true,
       on: vi.fn(),
+      destroy: mockTorrentDestroy,
     };
 
     mockTorrents = [mockTorrent];
@@ -2789,13 +2871,13 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
     const watcherId = service.registerWatcher(infohash);
     service.unregisterWatcher(infohash, watcherId);
 
-    // Advance time to 29 seconds - should not remove
+    // Advance time to 29 seconds - should not destroy
     vi.advanceTimersByTime(29000);
-    expect(mockRemove).not.toHaveBeenCalled();
+    expect(mockTorrentDestroy).not.toHaveBeenCalled();
 
-    // Advance time to 31 seconds - should remove
+    // Advance time to 31 seconds - should destroy
     vi.advanceTimersByTime(2000);
-    expect(mockRemove).toHaveBeenCalledWith(infohash, expect.any(Function));
+    expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
   });
 
   it('should clear all cleanup timers on destroy', async () => {
@@ -2809,6 +2891,7 @@ describe('Torrent auto-cleanup (DMCA protection)', () => {
       uploadSpeed: 100000,
       ready: true,
       on: vi.fn(),
+      destroy: vi.fn((opts: unknown, callback?: (err: Error | null) => void) => { if (callback) callback(null); }),
     };
 
     mockTorrents = [mockTorrent];

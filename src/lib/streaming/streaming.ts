@@ -897,17 +897,25 @@ export class StreamingService {
       if (currentInfo && currentInfo.watchers.size === 0) {
         logger.info('Removing torrent after cleanup delay (no active watchers)', { infohash });
         
-        // Remove the torrent from WebTorrent client
-        (this.client.remove as (torrentId: string, callback: (err: Error | null) => void) => void)(
-          infohash,
-          (err: Error | null) => {
-            if (err) {
-              logger.warn('Error removing torrent during cleanup', { infohash, error: String(err) });
-            } else {
-              logger.info('Torrent removed successfully (DMCA protection)', { infohash });
+        // Remove the torrent from WebTorrent client AND delete downloaded files
+        // destroyStore: true ensures the downloaded data is deleted from disk
+        // This is critical for disk space management and DMCA compliance
+        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        if (torrent) {
+          // Use destroy() with destroyStore option to delete files
+          (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+            { destroyStore: true },
+            (err: Error | null) => {
+              if (err) {
+                logger.warn('Error destroying torrent during cleanup', { infohash, error: String(err) });
+              } else {
+                logger.info('Torrent destroyed and files deleted (DMCA protection)', { infohash });
+              }
             }
-          }
-        );
+          );
+        } else {
+          logger.debug('Torrent not found in client during cleanup', { infohash });
+        }
         
         // Clean up watcher tracking
         this.torrentWatchers.delete(infohash);
@@ -968,37 +976,37 @@ export class StreamingService {
   }
 
   /**
-   * Safely remove a torrent from the client
+   * Safely remove a torrent from the client and delete downloaded files
    * Returns true if removal was successful or torrent didn't exist
    */
   private async safeRemoveTorrent(infohash: string): Promise<boolean> {
     return new Promise((resolve) => {
       try {
         // Check if torrent exists in the client's torrent list
-        const torrentInList = this.client.torrents.find(t => t.infoHash === infohash);
-        if (!torrentInList) {
+        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        if (!torrent) {
           logger.debug('Torrent not in client list, nothing to remove', { infohash });
           resolve(true);
           return;
         }
 
-        logger.debug('Removing torrent from client', { infohash });
-        // Use type assertion since WebTorrent types don't match runtime behavior
-        // At runtime, remove() accepts (torrentId, callback) but types say (torrentId, opts)
-        (this.client.remove as (torrentId: string, callback: (err: Error | null) => void) => void)(
-          infohash,
+        logger.debug('Removing torrent from client and deleting files', { infohash });
+        // Use destroy() with destroyStore option to delete downloaded files
+        // This is critical for disk space management
+        (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+          { destroyStore: true },
           (err: Error | null) => {
             if (err) {
-              logger.warn('Error removing torrent', { infohash, error: String(err) });
+              logger.warn('Error destroying torrent', { infohash, error: String(err) });
               resolve(false);
             } else {
-              logger.debug('Torrent removed successfully', { infohash });
+              logger.debug('Torrent destroyed and files deleted', { infohash });
               resolve(true);
             }
           }
         );
       } catch (err) {
-        logger.warn('Exception while removing torrent', { infohash, error: String(err) });
+        logger.warn('Exception while destroying torrent', { infohash, error: String(err) });
         resolve(false);
       }
     });
@@ -1137,12 +1145,18 @@ export class StreamingService {
       const removeTorrentAndReject = (error: StreamingError): void => {
         cleanup();
         if (torrent) {
-          logger.debug('Removing torrent after failure', { infohash });
-          // Use type assertion since WebTorrent types don't match runtime behavior
-          // The remove method accepts a callback as second argument at runtime
-          (this.client.remove as (torrent: WebTorrent.Torrent, callback?: () => void) => void)(torrent, () => {
-            logger.debug('Torrent removed after failure', { infohash });
-          });
+          logger.debug('Destroying torrent and deleting files after failure', { infohash });
+          // Use destroy() with destroyStore to delete downloaded files
+          (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+            { destroyStore: true },
+            (err: Error | null) => {
+              if (err) {
+                logger.warn('Error destroying torrent after failure', { infohash, error: String(err) });
+              } else {
+                logger.debug('Torrent destroyed and files deleted after failure', { infohash });
+              }
+            }
+          );
         }
         reject(error);
       };
@@ -1245,12 +1259,18 @@ export class StreamingService {
 
       const removeTorrentAndReject = (error: StreamingError): void => {
         cleanup();
-        logger.debug('Removing torrent after failure', { infohash });
-        // Use type assertion since WebTorrent types don't match runtime behavior
-        // The remove method accepts a callback as second argument at runtime
-        (this.client.remove as (torrent: WebTorrent.Torrent, callback?: () => void) => void)(torrent, () => {
-          logger.debug('Torrent removed after failure', { infohash });
-        });
+        logger.debug('Destroying torrent and deleting files after failure', { infohash });
+        // Use destroy() with destroyStore to delete downloaded files
+        (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+          { destroyStore: true },
+          (err: Error | null) => {
+            if (err) {
+              logger.warn('Error destroying torrent after failure', { infohash, error: String(err) });
+            } else {
+              logger.debug('Torrent destroyed and files deleted after failure', { infohash });
+            }
+          }
+        );
         reject(error);
       };
 

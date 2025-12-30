@@ -256,11 +256,17 @@ export async function detectCodecFromUrl(
   timeout = 30
 ): Promise<CodecInfo> {
   return new Promise((resolve, reject) => {
+    // CRITICAL: Use -analyzeduration and -probesize to limit how much data FFprobe reads
+    // Without these, FFprobe may try to read the entire file which causes timeouts
+    // 5M (5 million microseconds = 5 seconds) is enough to detect codecs
+    // 10M (10 megabytes) is enough data to read headers and codec info
     const ffprobe = spawn('ffprobe', [
       '-v', 'quiet',
       '-print_format', 'json',
       '-show_format',
       '-show_streams',
+      '-analyzeduration', '5000000',  // 5 seconds max analysis
+      '-probesize', '10000000',       // 10MB max probe size
       '-timeout', String(timeout * 1000000), // microseconds
       '-i', url,
     ]);
