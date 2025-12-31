@@ -16,6 +16,7 @@ import { Modal } from '@/components/ui/modal';
 import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { getMediaCategory } from '@/lib/utils';
+import { useAnalytics } from '@/hooks';
 import type { TorrentFile } from '@/types';
 
 /**
@@ -207,6 +208,7 @@ export function MediaPlayerModal({
   album: albumProp,
   coverArt,
 }: MediaPlayerModalProps): React.ReactElement | null {
+  const { trackPlayback } = useAnalytics();
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
@@ -395,7 +397,18 @@ export function MediaPlayerModal({
   const handlePlayerReady = useCallback(() => {
     console.log('[MediaPlayerModal] Player ready');
     setIsPlayerReady(true);
-  }, []);
+    
+    // Track playback start
+    if (file) {
+      const mediaType = getMediaCategory(file.name);
+      trackPlayback({
+        action: 'start',
+        media_type: mediaType === 'video' ? 'video' : mediaType === 'audio' ? 'audio' : 'video',
+        title: file.name,
+        infohash,
+      });
+    }
+  }, [file, infohash, trackPlayback]);
 
   // Handle player error
   // If it's a codec error and we haven't tried transcoding yet, retry with transcoding
@@ -413,10 +426,21 @@ export function MediaPlayerModal({
       return;
     }
     
+    // Track playback error
+    if (file) {
+      const mediaType = getMediaCategory(file.name);
+      trackPlayback({
+        action: 'error',
+        media_type: mediaType === 'video' ? 'video' : mediaType === 'audio' ? 'audio' : 'video',
+        title: file.name,
+        infohash,
+      });
+    }
+    
     // If we already tried transcoding or it's not a codec error, show the error
     setError(err.message);
     setIsPlayerReady(true); // Stop showing loading on error
-  }, [hasTriedTranscoding, isTranscoding]);
+  }, [hasTriedTranscoding, isTranscoding, file, infohash, trackPlayback]);
 
   // Handle close and cleanup
   const handleClose = useCallback(() => {

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 
 const inter = Inter({
@@ -90,9 +91,20 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         {/* Preconnect to external resources */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Preconnect to analytics */}
+        <link rel="preconnect" href="https://datafa.st" />
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
         {children}
+        
+        {/* Datafast Analytics */}
+        <Script
+          defer
+          data-website-id="dfid_tUS5tnJRx0ruOfjt5GwLm"
+          data-domain="bittorrented.com"
+          src="https://datafa.st/js/script.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
