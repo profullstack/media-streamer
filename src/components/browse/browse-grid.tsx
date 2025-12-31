@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { SearchIcon, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { MediaPlaceholder, type MediaContentType } from '@/components/ui/media-placeholder';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import type { ContentType } from '@/types';
 
@@ -425,6 +426,9 @@ interface TorrentCardProps {
 
 function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const imageUrl = torrent.posterUrl ?? torrent.coverUrl;
+  
+  // Map ContentType to MediaContentType for the placeholder
+  const mediaContentType: MediaContentType = torrent.contentType ?? 'other';
 
   return (
     <Link
@@ -432,7 +436,7 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
       className="card-hover group overflow-hidden transition-transform hover:scale-[1.01]"
     >
       {/* Image - more compact aspect ratio */}
-      <div className="aspect-[3/4] bg-bg-tertiary relative overflow-hidden">
+      <div className="aspect-[3/4] bg-bg-tertiary relative overflow-hidden rounded-t-lg">
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -441,9 +445,13 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full items-center justify-center">
-            <span className="text-2xl text-text-muted">🎬</span>
-          </div>
+          <MediaPlaceholder
+            src={null}
+            alt={torrent.cleanTitle ?? torrent.name}
+            contentType={mediaContentType}
+            aspectRatio="poster"
+            className="h-full w-full !rounded-none"
+          />
         )}
         {/* Overlay with health indicator and seeders - smaller */}
         <div className="absolute bottom-1 right-1 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5">

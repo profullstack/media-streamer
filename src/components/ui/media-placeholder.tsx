@@ -15,7 +15,7 @@ import { MusicIcon, VideoIcon, BookIcon, FolderIcon, TvIcon } from './icons';
 /**
  * Content types that determine the placeholder icon
  */
-export type MediaContentType = 'music' | 'movie' | 'tvshow' | 'book' | 'ebook' | 'video' | 'audio' | 'other' | null | undefined;
+export type MediaContentType = 'music' | 'movie' | 'tvshow' | 'book' | 'ebook' | 'video' | 'audio' | 'xxx' | 'other' | null | undefined;
 
 /**
  * Aspect ratio presets for different media types
