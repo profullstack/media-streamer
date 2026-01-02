@@ -331,23 +331,33 @@ export default function LiveTvPage(): React.ReactElement {
           </button>
         </div>
 
-        {/* Playlist Selector */}
+        {/* Playlist Selector - Dropdown */}
         {playlists.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {playlists.map((playlist, index) => (
-              <button
-                key={`${playlist.name}-${index}`}
-                onClick={() => handleSelectPlaylist(playlist)}
-                className={cn(
-                  'whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-                  activePlaylist === playlist
-                    ? 'bg-accent-primary text-white'
-                    : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'
-                )}
-              >
-                {playlist.name}
-              </button>
-            ))}
+          <div className="flex items-center gap-3">
+            <label htmlFor="playlist-select" className="text-sm font-medium text-text-secondary">
+              Playlist:
+            </label>
+            <select
+              id="playlist-select"
+              value={activePlaylist?.id ?? ''}
+              onChange={(e) => {
+                const selected = playlists.find(p => p.id === e.target.value);
+                if (selected) {
+                  handleSelectPlaylist(selected);
+                }
+              }}
+              className={cn(
+                'rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
+                'text-sm text-text-primary',
+                'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
+              )}
+            >
+              {playlists.map((playlist) => (
+                <option key={playlist.id} value={playlist.id}>
+                  {playlist.name}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -395,34 +405,29 @@ export default function LiveTvPage(): React.ReactElement {
             </p>
           )}
           
-          {/* Group Filters */}
+          {/* Group Filter - Dropdown */}
           {groups.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              <button
-                onClick={() => setSelectedGroup(null)}
+            <div className="flex items-center gap-3">
+              <label htmlFor="group-select" className="text-sm font-medium text-text-secondary">
+                Group:
+              </label>
+              <select
+                id="group-select"
+                value={selectedGroup ?? ''}
+                onChange={(e) => setSelectedGroup(e.target.value || null)}
                 className={cn(
-                  'whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-                  !selectedGroup
-                    ? 'bg-accent-primary text-white'
-                    : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'
+                  'rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
+                  'text-sm text-text-primary',
+                  'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
                 )}
               >
-                All Groups
-              </button>
-              {groups.map(group => (
-                <button
-                  key={group}
-                  onClick={() => setSelectedGroup(group)}
-                  className={cn(
-                    'whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-                    selectedGroup === group
-                      ? 'bg-accent-primary text-white'
-                      : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'
-                  )}
-                >
-                  {group}
-                </button>
-              ))}
+                <option value="">All Groups ({groups.length})</option>
+                {groups.map(group => (
+                  <option key={group} value={group}>
+                    {group}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>

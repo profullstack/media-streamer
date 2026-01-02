@@ -1,0 +1,40 @@
+# Docker Compose for local development
+# Includes Redis for IPTV playlist caching
+
+services:
+  # Redis for caching M3U playlists
+  redis:
+    image: redis:7-alpine
+    container_name: bittorrented-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Application (optional - for full local deployment)
+  # Uncomment to run the app in Docker
+  # app:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: bittorrented-app
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - REDIS_URL=redis://redis:6379
+  #     - NODE_ENV=production
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+volumes:
+  redis-data:
+    driver: local

@@ -1,6 +1,6 @@
 /**
  * Playlist Cache Tests
- * 
+ *
  * Tests for Redis-based M3U playlist caching.
  */
 
@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PlaylistCache, type CachedPlaylist } from './playlist-cache';
 import type { Channel } from './m3u-parser';
 
-// Mock ioredis
+// Mock ioredis with lazy connection support
 vi.mock('ioredis', () => {
   const mockRedis = {
     get: vi.fn(),
@@ -16,6 +16,8 @@ vi.mock('ioredis', () => {
     del: vi.fn(),
     keys: vi.fn(),
     quit: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
   };
   return {
     default: vi.fn(() => mockRedis),
@@ -30,6 +32,8 @@ describe('PlaylistCache', () => {
     del: ReturnType<typeof vi.fn>;
     keys: ReturnType<typeof vi.fn>;
     quit: ReturnType<typeof vi.fn>;
+    connect: ReturnType<typeof vi.fn>;
+    on: ReturnType<typeof vi.fn>;
   };
 
   const testChannels: Channel[] = [
