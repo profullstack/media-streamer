@@ -115,6 +115,8 @@ async function executeTorgeSearch(
         resolve(results);
       } catch (parseError) {
         console.error('[TorrentSearch] JSON parse error:', parseError);
+        console.error('[TorrentSearch] stdout:', stdout);
+        console.error('[TorrentSearch] stderr:', stderr);
         reject(new Error('Torrent search failed'));
       }
     });

@@ -147,6 +147,37 @@ if ! grep -q "PNPM_HOME" ~/.bashrc 2>/dev/null; then
     echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.bashrc
 fi
 
+# Install reliq (HTML parser required by torge)
+if ! command_exists reliq; then
+    echo "=== Installing reliq (HTML parser) ==="
+    RELIQ_TMP=$(mktemp -d)
+    cd "$RELIQ_TMP"
+    git clone https://github.com/TUVIMEN/reliq.git
+    cd reliq
+    make
+    sudo make install
+    cd /
+    rm -rf "$RELIQ_TMP"
+    echo "✓ reliq installed"
+else
+    echo "=== reliq already installed ==="
+fi
+
+# Install torge (torrent search CLI)
+if ! command_exists torge; then
+    echo "=== Installing torge (torrent search CLI) ==="
+    TORGE_TMP=$(mktemp -d)
+    cd "$TORGE_TMP"
+    git clone https://github.com/TUVIMEN/torge.git
+    cd torge
+    sudo install -m 755 torge /usr/bin/torge
+    cd /
+    rm -rf "$TORGE_TMP"
+    echo "✓ torge installed"
+else
+    echo "=== torge already installed ==="
+fi
+
 # Create deploy directory if not exists
 if [ ! -d "${DEPLOY_PATH}" ]; then
     echo "=== Creating deploy directory ==="

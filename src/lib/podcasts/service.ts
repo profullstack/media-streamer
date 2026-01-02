@@ -280,7 +280,8 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
             author?: string;
             description?: string;
             image?: string;
-            feed_url: string;
+            feed_url?: string;
+            feedUrl?: string;
             website?: string;
           }>;
         };
@@ -289,14 +290,21 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
           return [];
         }
 
-        return data.data.map(item => ({
-          title: item.title,
-          author: item.author ?? null,
-          description: item.description ?? null,
-          imageUrl: item.image ?? null,
-          feedUrl: item.feed_url,
-          websiteUrl: item.website ?? null,
-        }));
+        // Filter out results without a valid feed URL and map to our format
+        // Castos API may return feed_url or feedUrl depending on the endpoint
+        return data.data
+          .filter(item => {
+            const feedUrl = item.feed_url ?? item.feedUrl;
+            return typeof feedUrl === 'string' && feedUrl.length > 0;
+          })
+          .map(item => ({
+            title: item.title,
+            author: item.author ?? null,
+            description: item.description ?? null,
+            imageUrl: item.image ?? null,
+            feedUrl: (item.feed_url ?? item.feedUrl) as string,
+            websiteUrl: item.website ?? null,
+          }));
       } catch {
         return [];
       }

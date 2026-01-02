@@ -131,6 +131,75 @@ describe('PodcastService', () => {
       // Verify the FormData was created with sanitized input
       expect(mockFetch).toHaveBeenCalled();
     });
+
+    it('should filter out results without feed_url', async () => {
+      const mockCastosResponse = {
+        success: true,
+        data: [
+          {
+            title: 'Valid Podcast',
+            author: 'Author',
+            description: 'Description',
+            image: 'https://example.com/image.jpg',
+            feed_url: 'https://example.com/feed.xml',
+            website: 'https://example.com',
+          },
+          {
+            title: 'Invalid Podcast - No Feed URL',
+            author: 'Author',
+            description: 'Description',
+            image: 'https://example.com/image2.jpg',
+            // Missing feed_url
+            website: 'https://example.com/2',
+          },
+          {
+            title: 'Invalid Podcast - Empty Feed URL',
+            author: 'Author',
+            description: 'Description',
+            image: 'https://example.com/image3.jpg',
+            feed_url: '',
+            website: 'https://example.com/3',
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockCastosResponse),
+      });
+
+      const results = await service.searchPodcasts('test');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].title).toBe('Valid Podcast');
+      expect(results[0].feedUrl).toBe('https://example.com/feed.xml');
+    });
+
+    it('should handle feedUrl field name variant', async () => {
+      const mockCastosResponse = {
+        success: true,
+        data: [
+          {
+            title: 'Podcast with feedUrl',
+            author: 'Author',
+            description: 'Description',
+            image: 'https://example.com/image.jpg',
+            feedUrl: 'https://example.com/feed.xml', // camelCase variant
+            website: 'https://example.com',
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockCastosResponse),
+      });
+
+      const results = await service.searchPodcasts('test');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].feedUrl).toBe('https://example.com/feed.xml');
+    });
   });
 
   describe('parseFeed', () => {
