@@ -51,7 +51,8 @@ describe('PlaylistCache', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     const Redis = (await import('ioredis')).default;
-    cache = new PlaylistCache();
+    // Pass explicit Redis URL to enable caching in tests
+    cache = new PlaylistCache('redis://localhost:6379');
     mockRedis = new Redis() as unknown as typeof mockRedis;
   });
 

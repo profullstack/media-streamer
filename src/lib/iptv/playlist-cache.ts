@@ -43,18 +43,27 @@ const KEY_PREFIX = 'iptv:playlist:';
  */
 export class PlaylistCache {
   private redis: Redis | null = null;
-  private redisUrl: string;
+  private redisUrl: string | null;
   private isConnected = false;
   private connectionError: Error | null = null;
+  private redisExplicitlyConfigured: boolean;
 
   constructor(redisUrl?: string) {
-    this.redisUrl = redisUrl ?? process.env.REDIS_URL ?? 'redis://localhost:6379';
+    // Only use Redis if REDIS_URL is explicitly set
+    const envRedisUrl = process.env.REDIS_URL;
+    this.redisExplicitlyConfigured = redisUrl !== undefined || (envRedisUrl !== undefined && envRedisUrl !== '');
+    this.redisUrl = redisUrl ?? envRedisUrl ?? null;
   }
 
   /**
    * Initialize Redis connection lazily
    */
   private async ensureConnection(): Promise<Redis | null> {
+    // If Redis URL is not configured, silently skip caching
+    if (!this.redisUrl) {
+      return null;
+    }
+
     if (this.redis && this.isConnected) {
       return this.redis;
     }
@@ -80,7 +89,9 @@ export class PlaylistCache {
       // Handle connection errors
       this.redis.on('error', (err) => {
         if (!this.connectionError) {
-          console.warn('[PlaylistCache] Redis connection error - caching disabled:', err.message);
+          if (this.redisExplicitlyConfigured) {
+            console.warn('[PlaylistCache] Redis connection error - caching disabled:', err.message);
+          }
           this.connectionError = err;
           this.isConnected = false;
         }
@@ -102,7 +113,9 @@ export class PlaylistCache {
       return this.redis;
     } catch (error) {
       this.connectionError = error instanceof Error ? error : new Error(String(error));
-      console.warn('[PlaylistCache] Failed to connect to Redis - caching disabled:', this.connectionError.message);
+      if (this.redisExplicitlyConfigured) {
+        console.warn('[PlaylistCache] Failed to connect to Redis - caching disabled:', this.connectionError.message);
+      }
       return null;
     }
   }
