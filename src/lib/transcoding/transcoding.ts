@@ -411,28 +411,28 @@ export function buildStreamingFFmpegArgs(
 
   // MP4 specific: iOS/Safari-compatible H.264 settings optimized for real-time streaming
   if (profile.outputFormat === 'mp4') {
-    // CRITICAL: Scale video to 480p max for real-time transcoding of HEVC content
-    // 4K HEVC decoding is extremely CPU-intensive, even with software decoding
-    // 480p is the maximum that can be reliably transcoded in real-time from 4K HEVC
-    // The filter: scale=-2:min(480,ih) means:
+    // Scale video to 720p max for real-time transcoding
+    // 720p provides good quality while still being achievable in real-time
+    // The filter: scale=-2:min(720,ih) means:
     // - Width: -2 = auto-calculate to maintain aspect ratio, ensure even number
-    // - Height: min(480,ih) = 480p max, or original height if smaller
-    // - flags=fast_bilinear = fastest scaling algorithm
-    args.push('-vf', 'scale=-2:\'min(480,ceil(ih/2)*2)\':flags=fast_bilinear');
+    // - Height: min(720,ih) = 720p max, or original height if smaller
+    // - flags=bilinear = good balance of quality and speed
+    args.push('-vf', 'scale=-2:\'min(720,ceil(ih/2)*2)\':flags=bilinear');
     
-    // Use ultrafast preset for real-time transcoding
-    // This is critical - without it, encoding can't keep up with playback
-    args.push('-preset', 'ultrafast');
+    // Use "fast" preset for better quality while maintaining real-time capability
+    // "fast" is ~2x slower than "ultrafast" but produces significantly better quality
+    // On modern multi-core servers, this is achievable for 720p real-time transcoding
+    args.push('-preset', 'fast');
     
     // Zero latency tuning for real-time streaming
     // Disables features that add latency (B-frames, lookahead, etc.)
     args.push('-tune', 'zerolatency');
     
-    // H.264 Baseline profile for maximum compatibility and faster encoding
-    // Baseline is simpler than Main (no B-frames, CABAC) = faster encoding
-    // Level 3.0 supports up to 720x480@30fps which is sufficient for 480p
-    args.push('-profile:v', 'baseline');
-    args.push('-level:v', '3.0');
+    // H.264 Main profile for better quality with good compatibility
+    // Main profile supports CABAC entropy coding = better compression
+    // Level 3.1 supports up to 1280x720@30fps which is sufficient for 720p
+    args.push('-profile:v', 'main');
+    args.push('-level:v', '3.1');
     
     // Pixel format required by iOS Safari
     args.push('-pix_fmt', 'yuv420p');
@@ -441,13 +441,13 @@ export function buildStreamingFFmpegArgs(
     // More frequent keyframes = faster seeking and better streaming
     args.push('-g', '60');
     
-    // Disable B-frames for lower latency (baseline profile doesn't use them anyway)
+    // Disable B-frames for lower latency (zerolatency tune does this, but explicit is clearer)
     args.push('-bf', '0');
     
-    // Use CRF for quality-based encoding (faster than bitrate targeting)
-    // CRF 30 is lower quality but much faster to encode
-    // For 480p output, this is acceptable quality
-    args.push('-crf', '30');
+    // Use CRF for quality-based encoding
+    // CRF 26 provides good quality for 720p streaming
+    // Lower CRF = better quality (range 0-51, 23 is default, 18 is visually lossless)
+    args.push('-crf', '26');
     
     // Fragmented MP4 for streaming (allows playback before complete)
     // frag_keyframe+empty_moov puts moov atom at start
@@ -455,9 +455,10 @@ export function buildStreamingFFmpegArgs(
     args.push('-movflags', 'frag_keyframe+empty_moov+default_base_moof');
     
     // Rate control for consistent streaming
-    // Lower bitrate for 480p content
-    args.push('-maxrate', '1M');
-    args.push('-bufsize', '2M');
+    // 2.5M maxrate is appropriate for 720p content with CRF 26
+    // bufsize of 5M allows for some bitrate variation
+    args.push('-maxrate', '2.5M');
+    args.push('-bufsize', '5M');
     args.push('-f', 'mp4');
   }
 

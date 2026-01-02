@@ -415,27 +415,27 @@ describe('Transcoding Service', () => {
 
       const args = buildStreamingFFmpegArgs(profile);
 
-      // Should use ultrafast preset for real-time transcoding
+      // Should use fast preset for better quality while maintaining real-time capability
       expect(args).toContain('-preset');
-      expect(args).toContain('ultrafast');
+      expect(args).toContain('fast');
       // Should use zerolatency tuning for real-time streaming
       expect(args).toContain('-tune');
       expect(args).toContain('zerolatency');
-      // Should use baseline profile for faster encoding
+      // Should use main profile for better quality
       expect(args).toContain('-profile:v');
-      expect(args).toContain('baseline');
+      expect(args).toContain('main');
       // Should disable B-frames for lower latency
       expect(args).toContain('-bf');
       expect(args).toContain('0');
-      // Should use CRF 30 for faster encoding (lower quality but faster)
+      // Should use CRF 26 for good quality at 720p
       expect(args).toContain('-crf');
-      expect(args).toContain('30');
+      expect(args).toContain('26');
       // Should set keyframe interval
       expect(args).toContain('-g');
       expect(args).toContain('60');
     });
 
-    it('should include video scaling to 480p for real-time transcoding of high-res HEVC content', () => {
+    it('should include video scaling to 720p for real-time transcoding of high-res content', () => {
       const profile: TranscodeProfile = {
         outputFormat: 'mp4',
         videoCodec: 'libx264',
@@ -449,14 +449,14 @@ describe('Transcoding Service', () => {
       const args = buildStreamingFFmpegArgs(profile);
 
       // Should include video filter for scaling
-      // Scale to 480p height for real-time transcoding of 4K HEVC content
+      // Scale to 720p height for real-time transcoding while maintaining good quality
       expect(args).toContain('-vf');
       const vfIndex = args.indexOf('-vf');
       expect(vfIndex).toBeGreaterThan(-1);
       const vfValue = args[vfIndex + 1];
-      // Should scale to 480p max height while maintaining aspect ratio
+      // Should scale to 720p max height while maintaining aspect ratio
       expect(vfValue).toContain('scale=');
-      expect(vfValue).toContain('480');
+      expect(vfValue).toContain('720');
       // Should ensure even dimensions (required by H.264)
       expect(vfValue).toContain('ceil');
     });
@@ -496,12 +496,12 @@ describe('Transcoding Service', () => {
 
       const args = buildStreamingFFmpegArgs(profile);
 
-      // Should limit bitrate for 480p streaming
+      // Should limit bitrate for 720p streaming
       expect(args).toContain('-maxrate');
-      expect(args).toContain('1M');
+      expect(args).toContain('2.5M');
       // Should have buffer for smoother output
       expect(args).toContain('-bufsize');
-      expect(args).toContain('2M');
+      expect(args).toContain('5M');
       // Should output as MP4 format
       expect(args).toContain('-f');
       expect(args).toContain('mp4');
@@ -538,13 +538,13 @@ describe('Transcoding Service', () => {
 
         const args = buildStreamingFFmpegArgs(profile);
 
-        // iOS Safari supports H.264 Baseline profile with level 3.0
-        // Baseline is simpler (no B-frames, CABAC) = faster encoding for real-time streaming
-        // Level 3.0 supports up to 720x480@30fps which is sufficient for 480p output
+        // iOS Safari supports H.264 Main profile with level 3.1
+        // Main profile provides better compression with CABAC entropy coding
+        // Level 3.1 supports up to 1280x720@30fps which is sufficient for 720p output
         expect(args).toContain('-profile:v');
-        expect(args).toContain('baseline');
+        expect(args).toContain('main');
         expect(args).toContain('-level:v');
-        expect(args).toContain('3.0');
+        expect(args).toContain('3.1');
       });
 
       it('should include yuv420p pixel format for iOS Safari video playback', () => {
