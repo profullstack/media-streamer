@@ -61,6 +61,7 @@ interface ExternalSite {
 }
 
 const torrentIndexSites: ExternalSite[] = [
+  { url: 'https://thepiratebay.org/', label: 'The Pirate Bay' },
   { url: 'https://www.limetorrents.fun/', label: 'LimeTorrents' },
   { url: 'https://x1337x.cc/', label: '1337x' },
 ];
@@ -138,7 +139,7 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
             </Link>
           </div>
 
-          {/* Navigation */}
+          {/* Navigation - all content scrolls together */}
           <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
             {/* Main Navigation */}
             <div>
@@ -154,49 +155,51 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
                 <NavSection items={filteredAccountNavItems} pathname={pathname} onItemClick={closeMobile} />
               </div>
             )}
-          </nav>
 
-          {/* Footer - Torrent Index Sites */}
-          <div className="border-t border-bg-tertiary px-3 py-4">
-            <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Find Magnets
-            </h3>
-            <ul className="space-y-1">
-              {torrentIndexSites.map((site) => (
-                <li key={site.url}>
-                  <a
-                    href={site.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                  >
-                    <ExternalLinkIcon size={16} />
-                    <span>{site.label}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-            
-            {/* Media Info Sites */}
-            <h3 className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Media Info
-            </h3>
-            <ul className="space-y-1">
-              {mediaInfoSites.map((site) => (
-                <li key={site.url}>
-                  <a
-                    href={site.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                  >
-                    <ExternalLinkIcon size={16} />
-                    <span>{site.label}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+            {/* External Links - Find Magnets */}
+            <div>
+              <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                Find Magnets
+              </h3>
+              <ul className="space-y-1">
+                {torrentIndexSites.map((site) => (
+                  <li key={site.url}>
+                    <a
+                      href={site.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                    >
+                      <ExternalLinkIcon size={16} />
+                      <span>{site.label}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* External Links - Media Info */}
+            <div>
+              <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                Media Info
+              </h3>
+              <ul className="space-y-1">
+                {mediaInfoSites.map((site) => (
+                  <li key={site.url}>
+                    <a
+                      href={site.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                    >
+                      <ExternalLinkIcon size={16} />
+                      <span>{site.label}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </nav>
         </div>
       </aside>
     </>

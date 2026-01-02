@@ -35,7 +35,7 @@ describe('TvLayoutProvider', () => {
     tvClasses.forEach((cls) => document.documentElement.classList.remove(cls));
   });
 
-  it('should render children', () => {
+  it('should render children', async () => {
     mockUseTvDetection.mockReturnValue({
       isTv: false,
       isLoading: false,
@@ -48,7 +48,9 @@ describe('TvLayoutProvider', () => {
       </TvLayoutProvider>
     );
 
-    expect(screen.getByTestId('child')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('child')).toBeInTheDocument();
+    });
     expect(screen.getByText('Test Child')).toBeInTheDocument();
   });
 
