@@ -510,4 +510,125 @@ describe('HlsPlayerModal', () => {
       expect(mockMpegtsPlayer.destroy).toHaveBeenCalled();
     });
   });
+
+  describe('Auto-fullscreen', () => {
+    beforeEach(() => {
+      // Mock requestFullscreen on video element
+      HTMLVideoElement.prototype.requestFullscreen = vi.fn().mockResolvedValue(undefined);
+      // Mock document.fullscreenElement
+      Object.defineProperty(document, 'fullscreenElement', {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it('requests fullscreen when stream starts playing', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      // Get the video element
+      const video = screen.getByTestId('hls-video') as HTMLVideoElement;
+      
+      // Simulate the video starting to play
+      fireEvent.play(video);
+      
+      await waitFor(() => {
+        expect(video.requestFullscreen).toHaveBeenCalled();
+      });
+    });
+
+    it('does not request fullscreen if already in fullscreen', async () => {
+      // Set document.fullscreenElement to simulate already being in fullscreen
+      Object.defineProperty(document, 'fullscreenElement', {
+        value: document.createElement('video'),
+        writable: true,
+        configurable: true,
+      });
+      
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      const video = screen.getByTestId('hls-video') as HTMLVideoElement;
+      
+      // Simulate the video starting to play
+      fireEvent.play(video);
+      
+      // Should not request fullscreen since we're already in fullscreen
+      expect(video.requestFullscreen).not.toHaveBeenCalled();
+    });
+
+    it('handles fullscreen request failure gracefully', async () => {
+      // Mock requestFullscreen to reject
+      HTMLVideoElement.prototype.requestFullscreen = vi.fn().mockRejectedValue(new Error('Fullscreen not allowed'));
+      
+      // Spy on console.warn to verify error is logged
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      const video = screen.getByTestId('hls-video') as HTMLVideoElement;
+      
+      // Simulate the video starting to play
+      fireEvent.play(video);
+      
+      await waitFor(() => {
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[HLS Player] Could not enter fullscreen'),
+          expect.any(Error)
+        );
+      });
+      
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('exits fullscreen when modal closes', async () => {
+      // Mock document.exitFullscreen
+      document.exitFullscreen = vi.fn().mockResolvedValue(undefined);
+      
+      // Set fullscreenElement to simulate being in fullscreen
+      Object.defineProperty(document, 'fullscreenElement', {
+        value: document.createElement('video'),
+        writable: true,
+        configurable: true,
+      });
+      
+      const { rerender } = render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      // Close the modal
+      rerender(
+        <HlsPlayerModal
+          isOpen={false}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(document.exitFullscreen).toHaveBeenCalled();
+      });
+    });
+  });
 });

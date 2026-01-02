@@ -103,6 +103,28 @@ export function HlsPlayerModal({
     }
   }, [isOpen]);
 
+  // Exit fullscreen when modal closes
+  useEffect(() => {
+    if (!isOpen && document.fullscreenElement) {
+      document.exitFullscreen().catch((err: unknown) => {
+        console.warn('[HLS Player] Could not exit fullscreen:', err);
+      });
+    }
+  }, [isOpen]);
+
+  // Handle video play event to enter fullscreen
+  const handleVideoPlay = useCallback((): void => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    // Only request fullscreen if not already in fullscreen
+    if (!document.fullscreenElement && video.requestFullscreen) {
+      video.requestFullscreen().catch((err: unknown) => {
+        console.warn('[HLS Player] Could not enter fullscreen:', err);
+      });
+    }
+  }, []);
+
   // Initialize video player
   useEffect(() => {
     if (!isOpen || !videoRef.current || !streamUrl) {
@@ -425,6 +447,7 @@ export function HlsPlayerModal({
             controls
             playsInline
             autoPlay
+            onPlay={handleVideoPlay}
           />
         </div>
       </div>

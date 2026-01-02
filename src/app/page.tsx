@@ -9,6 +9,7 @@ import { MainLayout } from '@/components/layout';
 import { MusicIcon, VideoIcon, BookIcon, TvIcon, HeartIcon } from '@/components/ui/icons';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 import { QuickActions } from '@/components/home';
 
 /**
@@ -17,14 +18,14 @@ import { QuickActions } from '@/components/home';
  */
 async function hasActivePaidSubscription(): Promise<boolean> {
   try {
-    const supabase = createServerClient();
-    
-    // Get the current user from the session
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get the current user from the session cookie
+    const user = await getCurrentUser();
     
     if (!user) {
       return false;
     }
+    
+    const supabase = createServerClient();
     
     // Check subscription status
     const { data: subscription } = await supabase
@@ -75,8 +76,8 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
   try {
     const supabase = createServerClient();
     
-    // Get current user for IPTV playlist count
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get current user from session cookie for IPTV playlist count
+    const user = await getCurrentUser();
     
     // Fetch counts for each content type
     const queries = [
