@@ -196,10 +196,18 @@ export function HlsPlayerModal({
         if (mpegts.isSupported()) {
           console.log('[HLS Player] mpegts.js is supported, creating player');
           
+          // mpegts.js runs in a Web Worker which requires absolute URLs
+          // Convert relative URLs to absolute URLs
+          const absoluteUrl = streamUrl.startsWith('/')
+            ? `${window.location.origin}${streamUrl}`
+            : streamUrl;
+          
+          console.log('[HLS Player] Using absolute URL for mpegts.js:', absoluteUrl);
+          
           const player = mpegts.createPlayer({
             type: 'mpegts',
             isLive: true,
-            url: streamUrl,
+            url: absoluteUrl,
           }, {
             enableWorker: true,
             enableStashBuffer: false,
