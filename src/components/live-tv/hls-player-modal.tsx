@@ -5,14 +5,15 @@
  *
  * A modal component for playing live TV streams using HLS.js.
  * Displays channel information including logo and group.
- * Automatically proxies HTTP streams through /api/iptv-proxy for HTTPS compatibility.
+ *
+ * Note: HTTP streams are already proxied by the channels API via /api/iptv-proxy.
+ * This component uses the URL as-is from the channel data.
  */
 
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import Hls from 'hls.js';
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, TvIcon } from '@/components/ui/icons';
-import { shouldProxy, createProxyUrl } from '@/lib/iptv-proxy';
 
 export interface HlsPlayerModalProps {
   /** Whether the modal is open */
@@ -37,20 +38,9 @@ export function HlsPlayerModal({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Compute the stream URL, proxying HTTP URLs when on HTTPS
-  const streamUrl = useMemo(() => {
-    if (!channel.url) return null;
-    
-    // Check if we're on a secure page (HTTPS)
-    const isSecurePage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    
-    // Proxy HTTP URLs when on HTTPS to avoid mixed content errors
-    if (shouldProxy(channel.url, isSecurePage)) {
-      return createProxyUrl(channel.url, '/api/iptv-proxy');
-    }
-    
-    return channel.url;
-  }, [channel.url]);
+  // The stream URL is already proxied by the channels API if needed
+  // HTTP URLs are converted to /api/iptv-proxy?url=... by the server
+  const streamUrl = channel.url || null;
 
   // Handle escape key
   useEffect(() => {
