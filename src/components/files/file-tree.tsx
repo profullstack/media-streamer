@@ -188,7 +188,7 @@ export function FileTree({
   const folderMetadataMap = useMemo(() => createFolderMetadataMap(folders), [folders]);
 
   return (
-    <div className={cn('text-sm overflow-hidden', className)}>
+    <div className={cn('text-sm overflow-hidden w-full max-w-full', className)}>
       {Array.from(tree.children.values()).map((node) => (
         <FileTreeNodeComponent
           key={node.path}
@@ -298,10 +298,10 @@ function FileTreeNodeComponent({
   const isPlayable = node.file && (node.file.mediaCategory === 'audio' || node.file.mediaCategory === 'video');
 
   return (
-    <div className="overflow-hidden">
+    <div className="overflow-hidden w-full">
       <div
         className={cn(
-          'group flex items-center gap-2 rounded-md px-2 py-2 transition-colors',
+          'group flex items-center gap-2 rounded-md px-2 py-2 transition-colors w-full',
           'hover:bg-bg-hover cursor-pointer',
           !node.isDirectory && 'hover:bg-bg-tertiary'
         )}
@@ -391,12 +391,12 @@ function FileTreeNodeComponent({
           <Icon className={cn(iconColor, 'flex-shrink-0')} size={18} />
         )}
 
-        {/* Name and album info - min-w-0 is required for truncate to work in flex container */}
-        <div className="flex-1 min-w-0">
-          <span className="truncate text-text-primary block">{node.name}</span>
+        {/* Name and album info - min-w-0 and overflow-hidden are required for truncate to work in flex container */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <span className="truncate text-text-primary block break-all">{node.name}</span>
           {/* Show album/artist info for folders with metadata */}
           {node.isDirectory && folderMetadata && (folderMetadata.artist || folderMetadata.year) ? (
-            <span className="text-xs text-text-muted truncate block">
+            <span className="text-xs text-text-muted truncate block break-all">
               {folderMetadata.artist}
               {folderMetadata.artist && folderMetadata.year ? ' • ' : ''}
               {folderMetadata.year}

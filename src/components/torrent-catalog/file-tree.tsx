@@ -128,24 +128,24 @@ function TreeNodeComponent({ node, depth, onFileSelect, onStream }: TreeNodeComp
 
   if (node.isFolder) {
     return (
-      <div className="select-none">
+      <div className="select-none overflow-hidden w-full">
         <div
-          className="flex cursor-pointer items-center gap-1 rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="flex cursor-pointer items-center gap-1 rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 w-full"
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <svg
-            className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+            className={`h-4 w-4 flex-shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-          <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="h-4 w-4 flex-shrink-0 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
           </svg>
-          <span className="text-sm text-gray-700 dark:text-gray-300">{node.name}</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300 truncate break-all min-w-0 flex-1">{node.name}</span>
         </div>
         {isExpanded ? <div>
             {sortedChildren.map((child) => (
@@ -166,15 +166,15 @@ function TreeNodeComponent({ node, depth, onFileSelect, onStream }: TreeNodeComp
   const file = node.file!;
   return (
     <div
-      className="group flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800"
+      className="group flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 w-full overflow-hidden"
       style={{ paddingLeft: `${depth * 16 + 24}px` }}
       onClick={() => onFileSelect(file)}
     >
-      {getMediaIcon(file.media_type)}
-      <span className="flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+      <span className="flex-shrink-0">{getMediaIcon(file.media_type)}</span>
+      <span className="flex-1 truncate break-all text-sm text-gray-700 dark:text-gray-300 min-w-0 overflow-hidden">
         {node.name}
       </span>
-      <span className="text-xs text-gray-400">{formatBytes(file.size)}</span>
+      <span className="text-xs text-gray-400 flex-shrink-0">{formatBytes(file.size)}</span>
       {isStreamable(file.media_type) && onStream ? <button
           onClick={(e) => {
             e.stopPropagation();
@@ -193,7 +193,7 @@ export function FileTree({ files, onFileSelect, onStream }: FileTreeProps): Reac
   const tree = useMemo(() => buildTree(files), [files]);
 
   return (
-    <div data-testid="file-tree" className="overflow-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+    <div data-testid="file-tree" className="overflow-hidden rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900 w-full max-w-full">
       {Array.from(tree.children.values()).map((child) => (
         <TreeNodeComponent
           key={child.path}
