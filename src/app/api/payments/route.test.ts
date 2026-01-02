@@ -284,8 +284,8 @@ describe('Payment API Route', () => {
       expect(data.payment.coinPayId).toBe('coinpay-payment-123');
     });
 
-    it('should handle CoinPayPortal API errors', async () => {
-      mockCreatePayment.mockRejectedValueOnce(new Error('CoinPayPortal API error'));
+    it('should handle CoinPayPortal API errors with 502 status', async () => {
+      mockCreatePayment.mockRejectedValueOnce(new Error('CoinPayPortal API error: No BTC wallet configured'));
 
       const { POST } = await import('./route');
       
@@ -301,8 +301,32 @@ describe('Payment API Route', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(500);
+      // 502 Bad Gateway is returned for upstream service errors
+      expect(response.status).toBe(502);
       expect(data.error).toBeDefined();
+      expect(data.error).toContain('CoinPayPortal API error');
+    });
+
+    it('should return the actual error message from CoinPayPortal', async () => {
+      const errorMessage = 'CoinPayPortal API error: No ETH wallet configured for this business. Please add a wallet address in the business settings.';
+      mockCreatePayment.mockRejectedValueOnce(new Error(errorMessage));
+
+      const { POST } = await import('./route');
+      
+      const request = new Request('http://localhost:3000/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: 'premium',
+          cryptoType: 'ETH',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(502);
+      expect(data.error).toBe(errorMessage);
     });
   });
 

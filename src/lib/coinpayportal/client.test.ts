@@ -100,7 +100,21 @@ describe('CoinPayPortalClient', () => {
       expect(callBody.metadata).toEqual({ orderId: 'order-123', userId: 'user-456' });
     });
 
-    it('should throw error on API failure', async () => {
+    it('should throw error on HTTP failure with error field', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: () => Promise.resolve({ success: false, error: 'Invalid amount' }),
+      });
+
+      await expect(client.createPayment({
+        amount: -10,
+        blockchain: 'BTC',
+      })).rejects.toThrow('CoinPayPortal API error: 400 - Invalid amount');
+    });
+
+    it('should throw error on HTTP failure with message field', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -112,6 +126,22 @@ describe('CoinPayPortalClient', () => {
         amount: -10,
         blockchain: 'BTC',
       })).rejects.toThrow('CoinPayPortal API error: 400 - Invalid amount');
+    });
+
+    it('should throw error on API-level failure (success: false with 200 status)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          success: false,
+          error: 'No BTC wallet configured for this business. Please add a wallet address in the business settings.'
+        }),
+      });
+
+      await expect(client.createPayment({
+        amount: 10,
+        blockchain: 'BTC',
+      })).rejects.toThrow('CoinPayPortal API error: No BTC wallet configured for this business');
     });
 
     it('should handle network errors', async () => {

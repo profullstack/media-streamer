@@ -47,14 +47,23 @@ export class CoinPayPortalClient {
       headers,
     });
 
+    // Parse response body
+    const data = await response.json().catch(() => ({})) as { success?: boolean; error?: string; message?: string };
+
+    // Handle HTTP errors
     if (!response.ok) {
-      const error = await response.json().catch(() => ({})) as { message?: string };
+      const errorMessage = data.error || data.message || response.statusText;
       throw new Error(
-        `CoinPayPortal API error: ${response.status} - ${error.message || response.statusText}`
+        `CoinPayPortal API error: ${response.status} - ${errorMessage}`
       );
     }
 
-    return response.json() as Promise<T>;
+    // Handle API-level errors (success: false with 200 status)
+    if (data.success === false && data.error) {
+      throw new Error(`CoinPayPortal API error: ${data.error}`);
+    }
+
+    return data as T;
   }
 
   /**

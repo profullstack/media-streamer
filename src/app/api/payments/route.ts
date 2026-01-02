@@ -113,25 +113,35 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Create payment via CoinPayPortal API
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const coinPayResponse = await coinPayPortal.createPayment({
-      amount: price.usd,
-      blockchain,
-      description: `BitTorrented ${plan} subscription`,
-      metadata: {
-        orderId: payment.id,
-        userId: user.id,
-        plan,
-        userEmail: user.email,
-      },
-      webhookUrl: `${baseUrl}/api/payments/webhook`,
-      redirectUrl: `${baseUrl}/settings?payment=success`,
-    });
+    let coinPayResponse;
+    try {
+      coinPayResponse = await coinPayPortal.createPayment({
+        amount: price.usd,
+        blockchain,
+        description: `BitTorrented ${plan} subscription`,
+        metadata: {
+          orderId: payment.id,
+          userId: user.id,
+          plan,
+          userEmail: user.email,
+        },
+        webhookUrl: `${baseUrl}/api/payments/webhook`,
+        redirectUrl: `${baseUrl}/settings?payment=success`,
+      });
+    } catch (apiError) {
+      const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown payment provider error';
+      console.error('CoinPayPortal API error:', errorMessage);
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 502 }
+      );
+    }
 
     if (!coinPayResponse.success || !coinPayResponse.payment) {
-      console.error('CoinPayPortal API error:', coinPayResponse);
+      console.error('CoinPayPortal API returned unsuccessful response:', coinPayResponse);
       return NextResponse.json(
-        { error: 'Failed to create payment with payment provider' },
-        { status: 500 }
+        { error: 'Payment provider returned an invalid response' },
+        { status: 502 }
       );
     }
 
