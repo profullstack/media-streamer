@@ -216,23 +216,52 @@ export default function LiveTvPage(): React.ReactElement {
         )}
 
         {/* Search and Filters */}
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="relative flex-1">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
+        <div className="space-y-4">
+          {/* Search Input - Full Width */}
+          <div className="relative">
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={20} />
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search channels... (e.g., 'espn hd' or 'hd espn')"
               className={cn(
-                'w-full rounded-lg border border-border-default bg-bg-secondary py-2 pl-10 pr-4',
-                'text-sm text-text-primary placeholder:text-text-muted',
-                'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                'w-full rounded-xl border border-border-default bg-bg-secondary py-4 pl-12 pr-12',
+                'text-base text-text-primary placeholder:text-text-muted',
+                'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
               )}
             />
+            {/* Loading indicator while searching */}
+            {isLoading && searchQuery && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <LoadingSpinner size={20} className="text-accent-primary" />
+              </div>
+            )}
+            {/* Clear button when there's a query */}
+            {searchQuery && !isLoading && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                aria-label="Clear search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
           </div>
+          
+          {/* Search hint */}
+          {activePlaylist && (
+            <p className="text-xs text-text-muted">
+              Search is case-insensitive and matches words in any order. Results update automatically as you type.
+            </p>
+          )}
+          
+          {/* Group Filters */}
           {groups.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex gap-2 overflow-x-auto pb-2">
               <button
                 onClick={() => setSelectedGroup(null)}
                 className={cn(
@@ -242,7 +271,7 @@ export default function LiveTvPage(): React.ReactElement {
                     : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'
                 )}
               >
-                All
+                All Groups
               </button>
               {groups.map(group => (
                 <button
