@@ -359,6 +359,10 @@ export function MediaPlayerModal({
     void checkCachedCodecInfo();
   }, [isOpen, infohash, file]);
 
+  // Extract stable references from webTorrent hook to avoid infinite loops
+  // The webTorrent object changes on every render, but these functions are stable
+  const { startStream: webTorrentStartStream, stopStream: webTorrentStopStream } = webTorrent;
+
   // Build stream URL when file changes and codec check is complete
   // For native-compatible formats: use client-side WebTorrent P2P streaming
   // For non-native formats: use server-side streaming with transcoding
@@ -399,7 +403,7 @@ export function MediaPlayerModal({
         // Build magnet URI - we need to fetch it from the API or construct it
         const magnetUri = `magnet:?xt=urn:btih:${infohash}`;
         
-        webTorrent.startStream({
+        webTorrentStartStream({
           magnetUri,
           fileIndex: file.fileIndex,
           fileName: file.name,
@@ -412,7 +416,7 @@ export function MediaPlayerModal({
         console.log('[MediaPlayerModal] Using server-side streaming');
         
         // Stop any active P2P stream
-        webTorrent.stopStream();
+        webTorrentStopStream();
         
         // Build server-side stream URL
         let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
@@ -432,14 +436,15 @@ export function MediaPlayerModal({
       setIsPlayerReady(false);
     } else if (!file || !infohash) {
       // Cleanup when no file
-      webTorrent.stopStream();
+      webTorrentStopStream();
       setStreamUrl(null);
       setIsTranscoding(false);
       setIsP2PStreaming(false);
       setIsPlayerReady(false);
     }
     // Don't clear stream URL while waiting for codec check - keep previous state
-  }, [file, infohash, isRetryingWithTranscode, retryCount, codecCheckComplete, codecInfo, webTorrent]);
+    // Note: webTorrentStartStream and webTorrentStopStream are stable references from useCallback
+  }, [file, infohash, isRetryingWithTranscode, retryCount, codecCheckComplete, codecInfo, webTorrentStartStream, webTorrentStopStream]);
   
   // Update stream URL from WebTorrent when P2P streaming is ready
   useEffect(() => {
@@ -509,7 +514,7 @@ export function MediaPlayerModal({
   // Handle close and cleanup
   const handleClose = useCallback(() => {
     // Stop P2P streaming
-    webTorrent.stopStream();
+    webTorrentStopStream();
     
     setStreamUrl(null);
     setError(null);
@@ -531,7 +536,7 @@ export function MediaPlayerModal({
       eventSourceRef.current = null;
     }
     onClose();
-  }, [onClose, webTorrent]);
+  }, [onClose, webTorrentStopStream]);
 
   // Reset transcoding retry state when file changes
   useEffect(() => {

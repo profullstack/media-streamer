@@ -3,8 +3,8 @@
 /**
  * WebTorrent Browser Loader
  *
- * Loads the WebTorrent browser bundle from jsDelivr CDN.
- * The webtorrent.min.js file is a UMD bundle that sets window.WebTorrent.
+ * Loads the WebTorrent browser bundle from jsDelivr CDN using dynamic import.
+ * The webtorrent.min.js file is an ES module that exports the WebTorrent class as default.
  */
 
 // WebTorrent types for browser bundle
@@ -43,25 +43,26 @@ export interface WebTorrentConstructor {
   new (): WebTorrentClient;
 }
 
-// Extend Window interface for WebTorrent global
+// Extend Window interface for WebTorrent global (for backwards compatibility)
 declare global {
   interface Window {
     WebTorrent?: WebTorrentConstructor;
   }
 }
 
-// CDN URL for WebTorrent browser bundle - UMD version that sets window.WebTorrent
-const WEBTORRENT_CDN_URL = 'https://cdn.jsdelivr.net/npm/webtorrent@2.8.5/dist/webtorrent.min.js';
+// CDN URL for WebTorrent browser bundle - ES module version
+// Using jsDelivr's ESM endpoint which serves the file as an ES module
+const WEBTORRENT_CDN_URL = 'https://cdn.jsdelivr.net/npm/webtorrent@2.8.5/dist/webtorrent.min.js/+esm';
 
 // Loading state
 let loadPromise: Promise<WebTorrentConstructor> | null = null;
 let cachedConstructor: WebTorrentConstructor | null = null;
 
 /**
- * Load WebTorrent from CDN using script tag
+ * Load WebTorrent from CDN using dynamic import
  *
  * This function loads the WebTorrent browser bundle from jsDelivr CDN.
- * The UMD bundle sets window.WebTorrent which we then use.
+ * The bundle is an ES module that exports the WebTorrent class as default.
  *
  * @returns Promise that resolves to the WebTorrent constructor
  * @throws Error if loading fails
@@ -69,12 +70,6 @@ let cachedConstructor: WebTorrentConstructor | null = null;
 export function loadWebTorrent(): Promise<WebTorrentConstructor> {
   // Return cached constructor if already loaded
   if (cachedConstructor) {
-    return Promise.resolve(cachedConstructor);
-  }
-
-  // Check if already loaded on window
-  if (typeof window !== 'undefined' && window.WebTorrent) {
-    cachedConstructor = window.WebTorrent;
     return Promise.resolve(cachedConstructor);
   }
 
@@ -91,43 +86,24 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
       return;
     }
 
-    // Check if script is already in DOM
-    const existingScript = document.querySelector(`script[src="${WEBTORRENT_CDN_URL}"]`);
-    if (existingScript) {
-      // Wait for it to load
-      const checkLoaded = (): void => {
-        if (window.WebTorrent) {
-          cachedConstructor = window.WebTorrent;
+    // Use dynamic import with webpackIgnore to bypass Next.js bundling
+    // The jsDelivr +esm endpoint serves the file as a proper ES module
+    import(/* webpackIgnore: true */ WEBTORRENT_CDN_URL)
+      .then((module: { default: WebTorrentConstructor }) => {
+        if (module && module.default) {
+          cachedConstructor = module.default;
+          // Also set on window for debugging purposes
+          window.WebTorrent = cachedConstructor;
           resolve(cachedConstructor);
         } else {
-          setTimeout(checkLoaded, 50);
+          loadPromise = null;
+          reject(new Error('WebTorrent module loaded but default export not found'));
         }
-      };
-      checkLoaded();
-      return;
-    }
-
-    // Create and load script
-    const script = document.createElement('script');
-    script.src = WEBTORRENT_CDN_URL;
-    script.async = true;
-
-    script.onload = (): void => {
-      if (window.WebTorrent) {
-        cachedConstructor = window.WebTorrent;
-        resolve(cachedConstructor);
-      } else {
+      })
+      .catch((err: Error) => {
         loadPromise = null;
-        reject(new Error('WebTorrent script loaded but window.WebTorrent not available'));
-      }
-    };
-
-    script.onerror = (): void => {
-      loadPromise = null;
-      reject(new Error('Failed to load WebTorrent from CDN'));
-    };
-
-    document.head.appendChild(script);
+        reject(new Error(`Failed to load WebTorrent from CDN: ${err.message}`));
+      });
   });
 
   return loadPromise;
