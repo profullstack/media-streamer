@@ -3,7 +3,8 @@
 /**
  * HLS Player Modal Component
  *
- * A modal component for playing live TV streams using HLS.js.
+ * A modal component for playing live TV streams using HLS.js and mpegts.js.
+ * Supports both HLS (.m3u8) and MPEG-TS (.ts) streams.
  * Displays channel information including logo and group.
  *
  * Note: HTTP streams are already proxied by the channels API via /api/iptv-proxy.
@@ -12,8 +13,34 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import Hls from 'hls.js';
+// mpegts.js is dynamically imported to avoid SSR issues (it accesses window at module load)
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, TvIcon } from '@/components/ui/icons';
+
+// Type for mpegts.js player - dynamically imported
+type MpegtsPlayer = {
+  attachMediaElement: (element: HTMLVideoElement) => void;
+  load: () => void;
+  destroy: () => void;
+  on: (event: string, callback: (...args: unknown[]) => void) => void;
+  off: (event: string, callback: (...args: unknown[]) => void) => void;
+};
+
+type MpegtsModule = {
+  default: {
+    isSupported: () => boolean;
+    createPlayer: (config: {
+      type: string;
+      isLive: boolean;
+      url: string;
+    }, options?: Record<string, unknown>) => MpegtsPlayer;
+    Events: {
+      MEDIA_INFO: string;
+      ERROR: string;
+      LOADING_COMPLETE: string;
+    };
+  };
+};
 
 export interface HlsPlayerModalProps {
   /** Whether the modal is open */
@@ -34,6 +61,7 @@ export function HlsPlayerModal({
 }: HlsPlayerModalProps): React.ReactElement | null {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const mpegtsRef = useRef<MpegtsPlayer | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +117,7 @@ export function HlsPlayerModal({
     setError(null);
 
     const video = videoRef.current;
+    let isMounted = true;
 
     // For HLS streams (.m3u8), use HLS.js
     if (isHlsStream) {
@@ -109,15 +138,17 @@ export function HlsPlayerModal({
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           console.log('[HLS Player] HLS manifest parsed successfully');
-          setIsLoading(false);
-          video.play().catch((err: unknown) => {
-            console.error('[HLS Player] Autoplay failed:', err);
-          });
+          if (isMounted) {
+            setIsLoading(false);
+            video.play().catch((err: unknown) => {
+              console.error('[HLS Player] Autoplay failed:', err);
+            });
+          }
         });
 
         hls.on(Hls.Events.ERROR, (_event, data) => {
           console.error('[HLS Player] HLS Error:', data.type, data.details, data);
-          if (data.fatal) {
+          if (data.fatal && isMounted) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.error('[HLS Player] Fatal network error, attempting reload');
@@ -142,57 +173,90 @@ export function HlsPlayerModal({
         console.log('[HLS Player] Using native HLS support (Safari)');
         video.src = streamUrl;
         video.addEventListener('loadedmetadata', () => {
-          setIsLoading(false);
-          video.play().catch((err: unknown) => {
-            console.error('[HLS Player] Autoplay failed:', err);
-          });
+          if (isMounted) {
+            setIsLoading(false);
+            video.play().catch((err: unknown) => {
+              console.error('[HLS Player] Autoplay failed:', err);
+            });
+          }
         });
       } else {
         setError('HLS is not supported in this browser');
       }
     } else {
-      // For MPEG-TS streams (.ts) or other formats, try direct playback
-      console.log('[HLS Player] Non-HLS stream detected, trying direct playback');
+      // For MPEG-TS streams (.ts), use mpegts.js (dynamically imported)
+      console.log('[HLS Player] Non-HLS stream detected, using mpegts.js');
       
-      video.src = streamUrl;
-      
-      const handleLoadedData = (): void => {
-        console.log('[HLS Player] MPEG-TS stream loaded');
-        setIsLoading(false);
-        video.play().catch((err: unknown) => {
-          console.error('[HLS Player] Autoplay failed:', err);
-        });
-      };
-      
-      const handleError = (): void => {
-        console.error('[HLS Player] Direct playback failed for MPEG-TS stream');
-        setError('This stream format is not supported by your browser. Try a different channel.');
-      };
-      
-      const handleCanPlay = (): void => {
-        console.log('[HLS Player] MPEG-TS stream can play');
-        setIsLoading(false);
-      };
-      
-      video.addEventListener('loadeddata', handleLoadedData);
-      video.addEventListener('canplay', handleCanPlay);
-      video.addEventListener('error', handleError);
-      
-      // Start loading
-      video.load();
-      
-      return () => {
-        video.removeEventListener('loadeddata', handleLoadedData);
-        video.removeEventListener('canplay', handleCanPlay);
-        video.removeEventListener('error', handleError);
-        video.src = '';
-      };
+      // Dynamic import to avoid SSR issues
+      import('mpegts.js').then((mpegtsModule: MpegtsModule) => {
+        const mpegts = mpegtsModule.default;
+        
+        if (!isMounted) return;
+        
+        if (mpegts.isSupported()) {
+          console.log('[HLS Player] mpegts.js is supported, creating player');
+          
+          const player = mpegts.createPlayer({
+            type: 'mpegts',
+            isLive: true,
+            url: streamUrl,
+          }, {
+            enableWorker: true,
+            enableStashBuffer: false,
+            stashInitialSize: 128,
+            liveBufferLatencyChasing: true,
+            liveBufferLatencyMaxLatency: 1.5,
+            liveBufferLatencyMinRemain: 0.3,
+          });
+          
+          mpegtsRef.current = player;
+          
+          player.attachMediaElement(video);
+          player.load();
+          
+          player.on(mpegts.Events.MEDIA_INFO, () => {
+            console.log('[HLS Player] MPEG-TS media info received');
+            if (isMounted) {
+              setIsLoading(false);
+              video.play().catch((err: unknown) => {
+                console.error('[HLS Player] Autoplay failed:', err);
+              });
+            }
+          });
+          
+          player.on(mpegts.Events.ERROR, (errorType: unknown, errorDetail: unknown) => {
+            console.error('[HLS Player] MPEG-TS Error:', errorType, errorDetail);
+            if (isMounted) {
+              setError(`Stream error: ${String(errorDetail)}`);
+            }
+          });
+          
+          player.on(mpegts.Events.LOADING_COMPLETE, () => {
+            console.log('[HLS Player] MPEG-TS loading complete');
+          });
+        } else {
+          console.error('[HLS Player] mpegts.js is not supported in this browser');
+          if (isMounted) {
+            setError('MPEG-TS streams are not supported in this browser');
+          }
+        }
+      }).catch((err: unknown) => {
+        console.error('[HLS Player] Failed to load mpegts.js:', err);
+        if (isMounted) {
+          setError('Failed to load MPEG-TS player');
+        }
+      });
     }
 
     return () => {
+      isMounted = false;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
+      }
+      if (mpegtsRef.current) {
+        mpegtsRef.current.destroy();
+        mpegtsRef.current = null;
       }
     };
   }, [isOpen, streamUrl, isHlsStream, channel.url]);

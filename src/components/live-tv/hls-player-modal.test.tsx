@@ -1,12 +1,33 @@
 /**
  * HLS Player Modal Tests
- * 
+ *
  * Tests for the live TV HLS player modal component.
+ * Supports both HLS (.m3u8) and MPEG-TS (.ts) streams.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { Channel } from '@/lib/iptv';
+
+// Mock mpegts.js player instance
+const mockMpegtsPlayer = {
+  attachMediaElement: vi.fn(),
+  load: vi.fn(),
+  destroy: vi.fn(),
+  on: vi.fn(),
+  off: vi.fn(),
+};
+
+// Mock mpegts.js module
+const mockMpegts = {
+  isSupported: vi.fn(() => true),
+  createPlayer: vi.fn(() => mockMpegtsPlayer),
+  Events: {
+    MEDIA_INFO: 'media_info',
+    ERROR: 'error',
+    LOADING_COMPLETE: 'loading_complete',
+  },
+};
 
 // Mock HLS.js - must be defined inside the factory
 vi.mock('hls.js', () => {
@@ -38,7 +59,14 @@ vi.mock('hls.js', () => {
   };
 });
 
-// Import after mock is set up
+// Mock mpegts.js for MPEG-TS stream support (dynamic import)
+vi.mock('mpegts.js', () => {
+  return {
+    default: mockMpegts,
+  };
+});
+
+// Import after mocks are set up
 import { HlsPlayerModal } from './hls-player-modal';
 import Hls from 'hls.js';
 
@@ -372,6 +400,114 @@ describe('HlsPlayerModal', () => {
         const closeButton = screen.getByRole('button', { name: /close/i });
         expect(document.activeElement).toBe(closeButton);
       });
+    });
+  });
+
+  describe('MPEG-TS stream support', () => {
+    const mpegtsChannel: Channel = {
+      id: 'mpeg-ts-channel',
+      name: 'MPEG-TS Channel',
+      url: 'https://example.com/stream.ts',
+      group: 'Test',
+    };
+
+    const proxiedMpegtsChannel: Channel = {
+      id: 'proxied-mpeg-ts-channel',
+      name: 'Proxied MPEG-TS Channel',
+      url: '/api/iptv-proxy?url=https%3A%2F%2Fexample.com%2Fstream.ts',
+      group: 'Test',
+    };
+
+    it('uses mpegts.js for .ts stream URLs', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mpegtsChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+      });
+      
+      // HLS.js should NOT be used for .ts streams
+      expect(Hls).not.toHaveBeenCalled();
+    });
+
+    it('uses mpegts.js for proxied .ts stream URLs', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={proxiedMpegtsChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+      });
+    });
+
+    it('uses HLS.js for .m3u8 stream URLs', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(Hls).toHaveBeenCalled();
+      });
+      
+      // mpegts.js should NOT be used for .m3u8 streams
+      expect(mockMpegts.createPlayer).not.toHaveBeenCalled();
+    });
+
+    it('destroys mpegts.js player on unmount', async () => {
+      const { unmount } = render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mpegtsChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+      });
+      
+      unmount();
+      
+      // The destroy method should have been called
+      expect(mockMpegtsPlayer.destroy).toHaveBeenCalled();
+    });
+
+    it('destroys mpegts.js player when modal closes', async () => {
+      const { rerender } = render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mpegtsChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+      });
+      
+      rerender(
+        <HlsPlayerModal
+          isOpen={false}
+          onClose={mockOnClose}
+          channel={mpegtsChannel}
+        />
+      );
+      
+      // The destroy method should have been called
+      expect(mockMpegtsPlayer.destroy).toHaveBeenCalled();
     });
   });
 });
