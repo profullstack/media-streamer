@@ -154,8 +154,12 @@ export async function GET(request: NextRequest): Promise<Response> {
   const encodedUrl = searchParams.get('url');
   const encodedHeaders = searchParams.get('headers');
 
+  console.log('[IPTV Proxy] Request received');
+  console.log('[IPTV Proxy] Encoded URL:', encodedUrl?.substring(0, 100));
+
   // Validate URL parameter
   if (!encodedUrl) {
+    console.log('[IPTV Proxy] Missing URL parameter');
     return NextResponse.json(
       { error: 'Missing required parameter: url' },
       { status: 400 }
@@ -164,8 +168,10 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Decode the stream URL
   const streamUrl = decodeStreamUrl(encodedUrl);
+  console.log('[IPTV Proxy] Decoded URL:', streamUrl?.substring(0, 100));
 
   if (!streamUrl) {
+    console.log('[IPTV Proxy] Failed to decode URL');
     return NextResponse.json(
       { error: 'Invalid url parameter' },
       { status: 400 }
@@ -174,11 +180,14 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Validate the stream URL
   if (!validateStreamUrl(streamUrl, isProduction())) {
+    console.log('[IPTV Proxy] URL validation failed');
     return NextResponse.json(
       { error: 'Invalid stream URL' },
       { status: 400 }
     );
   }
+  
+  console.log('[IPTV Proxy] URL validated, fetching upstream');
 
   // Parse custom headers if provided
   let customHeaders: Record<string, string> = {};

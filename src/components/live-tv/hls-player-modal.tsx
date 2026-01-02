@@ -79,6 +79,9 @@ export function HlsPlayerModal({
       return;
     }
 
+    console.log('[HLS Player] Initializing with URL:', streamUrl);
+    console.log('[HLS Player] Original channel URL:', channel.url);
+    
     setIsLoading(true);
     setError(null);
 
@@ -86,17 +89,22 @@ export function HlsPlayerModal({
 
     // Check if HLS is supported
     if (Hls.isSupported()) {
+      console.log('[HLS Player] HLS.js is supported, creating instance');
+      
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
+        debug: true, // Enable debug logging
       });
 
       hlsRef.current = hls;
 
+      console.log('[HLS Player] Loading source:', streamUrl);
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('[HLS Player] Manifest parsed successfully');
         setIsLoading(false);
         video.play().catch((err: unknown) => {
           console.error('[HLS Player] Autoplay failed:', err);
@@ -104,17 +112,21 @@ export function HlsPlayerModal({
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
+        console.error('[HLS Player] HLS Error:', data.type, data.details, data);
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
+              console.error('[HLS Player] Fatal network error, attempting reload');
               setError('Network error - please check your connection');
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+              console.error('[HLS Player] Fatal media error, attempting recovery');
               setError('Media error - trying to recover');
               hls.recoverMediaError();
               break;
             default:
+              console.error('[HLS Player] Fatal error, destroying HLS instance');
               setError('An error occurred while playing the stream');
               hls.destroy();
               break;
