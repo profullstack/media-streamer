@@ -1,6 +1,6 @@
 /**
  * IPTV Playlists API Route Tests
- * 
+ *
  * Tests for GET and POST /api/iptv/playlists endpoints
  */
 
@@ -8,9 +8,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from './route';
 import { NextRequest } from 'next/server';
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// Mock undici fetch (used for M3U URL validation with SSL bypass)
+// Use vi.hoisted to ensure the mock function is available when vi.mock is hoisted
+const { mockUndici } = vi.hoisted(() => ({
+  mockUndici: vi.fn(),
+}));
+
+vi.mock('undici', () => ({
+  Agent: vi.fn().mockImplementation(() => ({})),
+  fetch: mockUndici,
+}));
 
 // Mock Supabase
 const mockSupabaseSelect = vi.fn();
@@ -133,8 +140,8 @@ describe('IPTV Playlists API', () => {
 
   describe('POST /api/iptv/playlists', () => {
     beforeEach(() => {
-      // Default: successful M3U URL validation
-      mockFetch.mockResolvedValue({
+      // Default: successful M3U URL validation (using undici fetch with SSL bypass)
+      mockUndici.mockResolvedValue({
         ok: true,
         status: 200,
       });
@@ -263,7 +270,7 @@ describe('IPTV Playlists API', () => {
     });
 
     it('should return 502 when M3U URL is not accessible', async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockUndici.mockResolvedValueOnce({
         ok: false,
         status: 404,
         statusText: 'Not Found',
@@ -291,7 +298,7 @@ describe('IPTV Playlists API', () => {
     it('should return 504 when M3U URL request times out', async () => {
       const abortError = new Error('Aborted');
       abortError.name = 'AbortError';
-      mockFetch.mockRejectedValueOnce(abortError);
+      mockUndici.mockRejectedValueOnce(abortError);
 
       const request = new NextRequest('http://localhost/api/iptv/playlists', {
         method: 'POST',
@@ -311,6 +318,10 @@ describe('IPTV Playlists API', () => {
       expect(response.status).toBe(504);
       expect(data.error).toBe('Request timeout while validating M3U URL');
     });
+
+    // Note: SSL certificate error tests removed because we now use undici with
+    // rejectUnauthorized: false to bypass SSL certificate validation.
+    // This is intentional to support IPTV providers with misconfigured certificates.
 
     it('should return 200 with playlist data on success', async () => {
       const request = new NextRequest('http://localhost/api/iptv/playlists', {
@@ -426,7 +437,7 @@ describe('IPTV Playlists API', () => {
     });
 
     it('should accept 206 Partial Content response from M3U server', async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockUndici.mockResolvedValueOnce({
         ok: false, // 206 is not considered "ok" by fetch
         status: 206,
       });

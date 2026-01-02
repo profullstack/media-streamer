@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { Agent } from 'undici';
 
 /**
  * Cookie name for auth token
@@ -58,6 +59,17 @@ interface RouteParams {
  * Request timeout for validating M3U URL
  */
 const VALIDATION_TIMEOUT = 10000;
+
+/**
+ * Custom undici Agent that skips SSL certificate validation.
+ * This is necessary because many IPTV providers have misconfigured SSL certificates.
+ * WARNING: This disables certificate validation for M3U URL validation requests only.
+ */
+const insecureAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+  },
+});
 
 /**
  * Validates if a string is a valid HTTP/HTTPS URL
@@ -315,17 +327,21 @@ export async function PUT(
     }
 
     // Validate that the M3U URL is accessible
+    // Use insecure agent to skip SSL certificate validation (many IPTV providers have misconfigured certs)
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT);
 
-      const response = await fetch(m3uUrl, {
+      // Use undici fetch with insecure agent to skip SSL certificate validation
+      const { fetch: undiciFetch } = await import('undici');
+      const response = await undiciFetch(m3uUrl, {
         method: 'GET',
         signal: controller.signal,
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; IPTV/1.0)',
           'Range': 'bytes=0-1023',
         },
+        dispatcher: insecureAgent,
       });
 
       clearTimeout(timeoutId);

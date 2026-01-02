@@ -8,6 +8,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, PUT, DELETE } from './route';
 
+// Mock undici fetch (used for M3U URL validation with SSL bypass)
+// Use vi.hoisted to ensure the mock function is available when vi.mock is hoisted
+const { mockUndici } = vi.hoisted(() => ({
+  mockUndici: vi.fn(),
+}));
+
+vi.mock('undici', () => ({
+  Agent: vi.fn().mockImplementation(() => ({})),
+  fetch: mockUndici,
+}));
+
 // Mock Supabase client
 const mockSupabaseClient = {
   auth: {
@@ -20,10 +31,6 @@ const mockSupabaseClient = {
 vi.mock('@/lib/supabase', () => ({
   createServerClient: () => mockSupabaseClient,
 }));
-
-// Mock fetch for URL validation
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 describe('IPTV Playlist Individual API', () => {
   const mockUserId = 'user-123';
@@ -168,7 +175,7 @@ describe('IPTV Playlist Individual API', () => {
     });
 
     it('returns 404 when playlist not found', async () => {
-      mockFetch.mockResolvedValue({ ok: true, status: 200 });
+      mockUndici.mockResolvedValue({ ok: true, status: 200 });
       
       mockSupabaseClient.from.mockReturnValue({
         update: vi.fn().mockReturnValue({
@@ -218,7 +225,8 @@ describe('IPTV Playlist Individual API', () => {
     });
 
     it('validates new m3uUrl before updating', async () => {
-      mockFetch.mockResolvedValue({ ok: true, status: 200 });
+      // Mock undici fetch (used for M3U URL validation with SSL bypass)
+      mockUndici.mockResolvedValue({ ok: true, status: 200 });
       
       const updatedPlaylist = { ...mockPlaylist, m3u_url: 'http://new.example.com/playlist.m3u' };
       
@@ -241,7 +249,7 @@ describe('IPTV Playlist Individual API', () => {
       const response = await PUT(request, { params: Promise.resolve({ id: mockPlaylistId }) });
       
       expect(response.status).toBe(200);
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockUndici).toHaveBeenCalledWith(
         'http://new.example.com/playlist.m3u',
         expect.objectContaining({ method: 'GET' })
       );

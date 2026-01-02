@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import type { IptvPlaylistInsert } from '@/lib/supabase/types';
+import { Agent } from 'undici';
 
 /**
  * Cookie name for auth token
@@ -50,6 +51,17 @@ interface PlaylistResponse {
  * Request timeout for validating M3U URL
  */
 const VALIDATION_TIMEOUT = 10000;
+
+/**
+ * Custom undici Agent that skips SSL certificate validation.
+ * This is necessary because many IPTV providers have misconfigured SSL certificates.
+ * WARNING: This disables certificate validation for M3U URL validation requests only.
+ */
+const insecureAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+  },
+});
 
 /**
  * Validates if a string is a valid HTTP/HTTPS URL
@@ -326,11 +338,14 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   // Validate that the M3U URL is accessible
   // Use GET instead of HEAD because many M3U servers don't support HEAD requests
+  // Use insecure agent to skip SSL certificate validation (many IPTV providers have misconfigured certs)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT);
 
-    const response = await fetch(m3uUrl, {
+    // Use undici fetch with insecure agent to skip SSL certificate validation
+    const { fetch: undiciFetch } = await import('undici');
+    const response = await undiciFetch(m3uUrl, {
       method: 'GET',
       signal: controller.signal,
       headers: {
@@ -338,6 +353,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         // Request only a small range to minimize data transfer
         'Range': 'bytes=0-1023',
       },
+      dispatcher: insecureAgent,
     });
 
     clearTimeout(timeoutId);
