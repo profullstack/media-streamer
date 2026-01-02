@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
+import { TvLayoutProvider } from '@/components/layout';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -95,7 +96,9 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         <link rel="preconnect" href="https://datafa.st" />
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
-        {children}
+        <TvLayoutProvider>
+          {children}
+        </TvLayoutProvider>
         
         {/* Datafast Analytics */}
         <Script

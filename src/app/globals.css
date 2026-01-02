@@ -173,3 +173,159 @@
     scroll-behavior: auto !important;
   }
 }
+
+/**
+ * TV Browser Styles
+ *
+ * Amazon Silk and other TV browsers apply aggressive zoom/scaling that cannot
+ * be overridden via CSS or viewport meta tags. These styles are applied when
+ * a TV browser is detected to provide a better viewing experience.
+ *
+ * Key optimizations:
+ * - Disable text autosizing (Silk applies aggressive text scaling)
+ * - Smaller base font sizes to counteract browser zoom
+ * - Fixed-width containers to prevent horizontal scrolling
+ * - Reduced padding/margins for more content density
+ * - Larger focus rings for remote navigation
+ */
+
+/* TV Layout - Applied via .tv class on html element */
+html.tv {
+  /* Disable text autosizing - critical for Silk browser */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html.tv body {
+  /* Smaller base font to counteract TV browser zoom */
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* TV-specific container constraints */
+html.tv .tv-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+
+/* TV-specific text sizes */
+html.tv h1 {
+  font-size: 1.5rem;
+}
+
+html.tv h2 {
+  font-size: 1.25rem;
+}
+
+html.tv h3 {
+  font-size: 1.125rem;
+}
+
+html.tv p,
+html.tv span,
+html.tv div {
+  font-size: inherit;
+}
+
+/* TV-specific spacing - more compact */
+html.tv .card {
+  padding: 0.5rem;
+}
+
+html.tv .card-hover {
+  padding: 0.5rem;
+}
+
+/* TV-specific button sizes */
+html.tv .btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+html.tv .btn-primary,
+html.tv .btn-secondary,
+html.tv .btn-ghost {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* TV-specific input sizes */
+html.tv .input {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Enhanced focus styles for TV remote navigation */
+html.tv :focus-visible {
+  outline: none;
+  ring: 3px;
+  ring-color: var(--accent-primary);
+  ring-offset: 2px;
+  ring-offset-color: var(--bg-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary);
+}
+
+html.tv a:focus-visible,
+html.tv button:focus-visible {
+  outline: 3px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* TV-specific sidebar adjustments */
+html.tv aside {
+  width: 200px;
+}
+
+/* TV-specific main content area */
+html.tv main {
+  padding: 0.75rem;
+}
+
+/* TV-specific modal adjustments */
+html.tv [role="dialog"] {
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+/* TV-specific grid layouts - fewer columns */
+html.tv .grid {
+  gap: 0.5rem;
+}
+
+/* TV-specific list items - more compact */
+html.tv .space-y-4 {
+  gap: 0.5rem;
+}
+
+html.tv .space-y-2 {
+  gap: 0.25rem;
+}
+
+/* TV-specific thumbnail sizes */
+html.tv .w-12 {
+  width: 2.5rem;
+}
+
+html.tv .h-16 {
+  height: 3.5rem;
+}
+
+/* Avoid vh/vw units on TV - use fixed heights where possible */
+html.tv .min-h-screen {
+  min-height: 720px;
+}
+
+/* TV-specific scrollbar - thinner */
+html.tv ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+/* TV badge sizes */
+html.tv .badge-audio,
+html.tv .badge-video,
+html.tv .badge-ebook {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.625rem;
+}
