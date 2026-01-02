@@ -6,39 +6,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Store original globals
 const originalWindow = globalThis.window;
-const originalDocument = globalThis.document;
-
-// Mock script element
-const createMockScript = () => ({
-  src: '',
-  async: false,
-  onload: null as (() => void) | null,
-  onerror: null as ((event: unknown) => void) | null,
-  remove: vi.fn(),
-});
 
 describe('webtorrent-loader', () => {
-  let mockScript: ReturnType<typeof createMockScript>;
-
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
 
-    mockScript = createMockScript();
-
     // Setup browser environment mocks using Object.defineProperty to avoid TS errors
     Object.defineProperty(globalThis, 'window', {
       value: {},
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'document', {
-      value: {
-        createElement: vi.fn(() => mockScript),
-        head: {
-          appendChild: vi.fn(),
-        },
-      },
       writable: true,
       configurable: true,
     });
@@ -48,11 +24,6 @@ describe('webtorrent-loader', () => {
     // Restore original globals
     Object.defineProperty(globalThis, 'window', {
       value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'document', {
-      value: originalDocument,
       writable: true,
       configurable: true,
     });
@@ -72,42 +43,26 @@ describe('webtorrent-loader', () => {
       result.catch(() => {});
     });
 
-    it('should create a script element and append to head', async () => {
-      const { loadWebTorrent } = await import('./webtorrent-loader');
-      loadWebTorrent().catch(() => {});
-
-      expect(globalThis.document.createElement).toHaveBeenCalledWith('script');
-      expect(globalThis.document.head.appendChild).toHaveBeenCalledWith(mockScript);
-      expect(mockScript.src).toContain('webtorrent');
-      expect(mockScript.async).toBe(true);
-    });
-
-    it('should resolve when script loads and WebTorrent is available', async () => {
+    it('should return cached constructor if already loaded on window', async () => {
       const mockWebTorrent = vi.fn();
       (globalThis.window as unknown as Record<string, unknown>).WebTorrent = mockWebTorrent;
 
       const { loadWebTorrent } = await import('./webtorrent-loader');
-      const promise = loadWebTorrent();
-
-      // Simulate script load
-      if (mockScript.onload) {
-        mockScript.onload();
-      }
-
-      const result = await promise;
+      const result = await loadWebTorrent();
+      
       expect(result).toBe(mockWebTorrent);
     });
 
-    it('should reject when script fails to load', async () => {
+    it('should return cached constructor on subsequent calls', async () => {
+      const mockWebTorrent = vi.fn();
+      (globalThis.window as unknown as Record<string, unknown>).WebTorrent = mockWebTorrent;
+
       const { loadWebTorrent } = await import('./webtorrent-loader');
-      const promise = loadWebTorrent();
-
-      // Simulate script error
-      if (mockScript.onerror) {
-        mockScript.onerror('Network error');
-      }
-
-      await expect(promise).rejects.toThrow('Failed to load WebTorrent from CDN');
+      const result1 = await loadWebTorrent();
+      const result2 = await loadWebTorrent();
+      
+      expect(result1).toBe(result2);
+      expect(result1).toBe(mockWebTorrent);
     });
   });
 
@@ -116,12 +71,32 @@ describe('webtorrent-loader', () => {
       const { isWebTorrentLoaded } = await import('./webtorrent-loader');
       expect(isWebTorrentLoaded()).toBe(false);
     });
+
+    it('should return true after loading from window', async () => {
+      const mockWebTorrent = vi.fn();
+      (globalThis.window as unknown as Record<string, unknown>).WebTorrent = mockWebTorrent;
+
+      const { loadWebTorrent, isWebTorrentLoaded } = await import('./webtorrent-loader');
+      await loadWebTorrent();
+      
+      expect(isWebTorrentLoaded()).toBe(true);
+    });
   });
 
   describe('getWebTorrent', () => {
     it('should return null when not loaded', async () => {
       const { getWebTorrent } = await import('./webtorrent-loader');
       expect(getWebTorrent()).toBeNull();
+    });
+
+    it('should return constructor after loading', async () => {
+      const mockWebTorrent = vi.fn();
+      (globalThis.window as unknown as Record<string, unknown>).WebTorrent = mockWebTorrent;
+
+      const { loadWebTorrent, getWebTorrent } = await import('./webtorrent-loader');
+      await loadWebTorrent();
+      
+      expect(getWebTorrent()).toBe(mockWebTorrent);
     });
   });
 

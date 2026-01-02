@@ -157,17 +157,22 @@ describe('Podcast API Routes', () => {
   });
 
   describe('POST /api/podcasts', () => {
-    it('should subscribe to a podcast', async () => {
+    it('should subscribe to a podcast and return full podcast details', async () => {
       mockAuthenticatedUser('user-123');
 
-      const mockSubscription = {
-        id: 'sub-123',
-        user_id: 'user-123',
-        podcast_id: 'podcast-456',
-        notify_new_episodes: true,
+      const mockSubscriptionResult = {
+        id: 'podcast-456',
+        title: 'Test Podcast',
+        author: 'Test Author',
+        description: 'A test podcast description',
+        imageUrl: 'https://example.com/image.jpg',
+        feedUrl: 'https://example.com/feed.xml',
+        website: 'https://example.com',
+        subscribedAt: '2026-01-01T00:00:00.000Z',
+        notificationsEnabled: true,
       };
 
-      mockService.subscribeToPodcast.mockResolvedValue(mockSubscription);
+      mockService.subscribeToPodcast.mockResolvedValue(mockSubscriptionResult);
 
       const request = createRequest(
         'POST',
@@ -179,7 +184,12 @@ describe('Podcast API Routes', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.subscription).toEqual(mockSubscription);
+      expect(data.subscription).toEqual(mockSubscriptionResult);
+      expect(data.subscription.id).toBe('podcast-456');
+      expect(data.subscription.title).toBe('Test Podcast');
+      expect(data.subscription.author).toBe('Test Author');
+      expect(data.subscription.feedUrl).toBe('https://example.com/feed.xml');
+      expect(data.subscription.notificationsEnabled).toBe(true);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
         'user-123',
         'https://example.com/feed.xml',
@@ -190,10 +200,19 @@ describe('Podcast API Routes', () => {
     it('should allow disabling notifications on subscribe', async () => {
       mockAuthenticatedUser('user-123');
 
-      mockService.subscribeToPodcast.mockResolvedValue({
-        id: 'sub-123',
-        notify_new_episodes: false,
-      });
+      const mockSubscriptionResult = {
+        id: 'podcast-456',
+        title: 'Test Podcast',
+        author: 'Test Author',
+        description: null,
+        imageUrl: null,
+        feedUrl: 'https://example.com/feed.xml',
+        website: null,
+        subscribedAt: '2026-01-01T00:00:00.000Z',
+        notificationsEnabled: false,
+      };
+
+      mockService.subscribeToPodcast.mockResolvedValue(mockSubscriptionResult);
 
       const request = createRequest(
         'POST',
@@ -202,8 +221,10 @@ describe('Podcast API Routes', () => {
         { Authorization: 'Bearer test-token' }
       );
       const response = await POST(request);
+      const data = await response.json();
 
       expect(response.status).toBe(200);
+      expect(data.subscription.notificationsEnabled).toBe(false);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
         'user-123',
         'https://example.com/feed.xml',

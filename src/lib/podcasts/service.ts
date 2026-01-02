@@ -1,6 +1,6 @@
 /**
  * Podcast Service
- * 
+ *
  * Server-side service for podcast operations including search, RSS parsing,
  * and subscription management.
  */
@@ -11,7 +11,6 @@ import type {
 } from './repository';
 import type {
   Podcast,
-  PodcastSubscription,
   PodcastEpisode,
   PodcastListenProgress,
 } from '../supabase/types';
@@ -30,6 +29,22 @@ export interface PodcastSearchResult {
   imageUrl: string | null;
   feedUrl: string;
   websiteUrl: string | null;
+}
+
+/**
+ * Subscribed podcast response - matches frontend SubscribedPodcast interface
+ * This is returned after subscribing to a podcast
+ */
+export interface SubscribedPodcastResponse {
+  id: string;
+  title: string;
+  author: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  feedUrl: string;
+  website: string | null;
+  subscribedAt: string;
+  notificationsEnabled: boolean;
 }
 
 /**
@@ -79,7 +94,7 @@ export interface ListenProgressInput {
 export interface PodcastService {
   searchPodcasts(query: string): Promise<PodcastSearchResult[]>;
   parseFeed(feedUrl: string): Promise<ParsedPodcastFeed | null>;
-  subscribeToPodcast(userId: string, feedUrl: string, notifyNewEpisodes?: boolean): Promise<PodcastSubscription | null>;
+  subscribeToPodcast(userId: string, feedUrl: string, notifyNewEpisodes?: boolean): Promise<SubscribedPodcastResponse | null>;
   unsubscribeFromPodcast(userId: string, podcastId: string): Promise<void>;
   getUserSubscriptions(userId: string): Promise<UserPodcastSubscription[]>;
   refreshPodcastFeed(podcastId: string): Promise<PodcastEpisode[]>;
@@ -336,12 +351,13 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
 
     /**
      * Subscribe user to podcast by feed URL
+     * Returns full podcast details for the frontend
      */
     async subscribeToPodcast(
       userId: string,
       feedUrl: string,
       notifyNewEpisodes: boolean = true
-    ): Promise<PodcastSubscription | null> {
+    ): Promise<SubscribedPodcastResponse | null> {
       // Check if podcast already exists
       let podcast = await repository.getPodcastByFeedUrl(feedUrl);
 
@@ -384,7 +400,20 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
       }
 
       // Subscribe user to podcast
-      return repository.subscribeToPodcast(userId, podcast.id, notifyNewEpisodes);
+      const subscription = await repository.subscribeToPodcast(userId, podcast.id, notifyNewEpisodes);
+
+      // Return full podcast details in the format expected by the frontend
+      return {
+        id: podcast.id,
+        title: podcast.title,
+        author: podcast.author ?? null,
+        description: podcast.description ?? null,
+        imageUrl: podcast.image_url ?? null,
+        feedUrl: podcast.feed_url,
+        website: podcast.website_url ?? null,
+        subscribedAt: subscription.created_at,
+        notificationsEnabled: subscription.notify_new_episodes,
+      };
     },
 
     /**

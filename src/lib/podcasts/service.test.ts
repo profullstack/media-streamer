@@ -317,7 +317,7 @@ describe('PodcastService', () => {
   });
 
   describe('subscribeToPodcast', () => {
-    it('should create podcast if not exists and subscribe user', async () => {
+    it('should create podcast if not exists and return full podcast details', async () => {
       const feedUrl = 'https://example.com/feed.xml';
       const userId = 'user-123';
 
@@ -325,8 +325,10 @@ describe('PodcastService', () => {
         <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
           <channel>
             <title>New Podcast</title>
-            <description>Description</description>
-            <itunes:author>Author</itunes:author>
+            <description>A great podcast description</description>
+            <itunes:author>Author Name</itunes:author>
+            <itunes:image href="https://example.com/image.jpg"/>
+            <link>https://example.com</link>
             <item>
               <title>Episode 1</title>
               <guid>ep1</guid>
@@ -341,12 +343,19 @@ describe('PodcastService', () => {
         text: () => Promise.resolve(mockRssFeed),
       });
 
-      (mockRepository.getPodcastByFeedUrl as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      (mockRepository.upsertPodcast as ReturnType<typeof vi.fn>).mockResolvedValue({
+      const mockPodcast = {
         id: 'podcast-123',
         feed_url: feedUrl,
         title: 'New Podcast',
-      });
+        description: 'A great podcast description',
+        author: 'Author Name',
+        image_url: 'https://example.com/image.jpg',
+        website_url: 'https://example.com',
+        created_at: '2026-01-01T00:00:00.000Z',
+      };
+
+      (mockRepository.getPodcastByFeedUrl as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (mockRepository.upsertPodcast as ReturnType<typeof vi.fn>).mockResolvedValue(mockPodcast);
       (mockRepository.createEpisode as ReturnType<typeof vi.fn>).mockResolvedValue({
         id: 'episode-123',
       });
@@ -355,34 +364,58 @@ describe('PodcastService', () => {
         user_id: userId,
         podcast_id: 'podcast-123',
         notify_new_episodes: true,
+        created_at: '2026-01-01T00:00:00.000Z',
       });
 
       const result = await service.subscribeToPodcast(userId, feedUrl);
 
       expect(result).not.toBeNull();
+      // Verify the result contains full podcast details for the frontend
+      expect(result!.id).toBe('podcast-123');
+      expect(result!.title).toBe('New Podcast');
+      expect(result!.author).toBe('Author Name');
+      expect(result!.description).toBe('A great podcast description');
+      expect(result!.imageUrl).toBe('https://example.com/image.jpg');
+      expect(result!.feedUrl).toBe(feedUrl);
+      expect(result!.website).toBe('https://example.com');
+      expect(result!.notificationsEnabled).toBe(true);
+      expect(result!.subscribedAt).toBeDefined();
       expect(mockRepository.upsertPodcast).toHaveBeenCalled();
       expect(mockRepository.subscribeToPodcast).toHaveBeenCalledWith(userId, 'podcast-123', true);
     });
 
-    it('should use existing podcast when subscribing', async () => {
+    it('should use existing podcast when subscribing and return full details', async () => {
       const feedUrl = 'https://example.com/feed.xml';
       const userId = 'user-123';
 
-      (mockRepository.getPodcastByFeedUrl as ReturnType<typeof vi.fn>).mockResolvedValue({
+      const mockPodcast = {
         id: 'existing-podcast',
         feed_url: feedUrl,
         title: 'Existing Podcast',
-      });
+        description: 'Existing description',
+        author: 'Existing Author',
+        image_url: 'https://example.com/existing.jpg',
+        website_url: 'https://existing.com',
+        created_at: '2025-12-01T00:00:00.000Z',
+      };
+
+      (mockRepository.getPodcastByFeedUrl as ReturnType<typeof vi.fn>).mockResolvedValue(mockPodcast);
       (mockRepository.subscribeToPodcast as ReturnType<typeof vi.fn>).mockResolvedValue({
         id: 'sub-123',
         user_id: userId,
         podcast_id: 'existing-podcast',
         notify_new_episodes: true,
+        created_at: '2026-01-01T00:00:00.000Z',
       });
 
       const result = await service.subscribeToPodcast(userId, feedUrl);
 
       expect(result).not.toBeNull();
+      expect(result!.id).toBe('existing-podcast');
+      expect(result!.title).toBe('Existing Podcast');
+      expect(result!.author).toBe('Existing Author');
+      expect(result!.feedUrl).toBe(feedUrl);
+      expect(result!.notificationsEnabled).toBe(true);
       expect(mockRepository.upsertPodcast).not.toHaveBeenCalled();
       expect(mockRepository.subscribeToPodcast).toHaveBeenCalledWith(userId, 'existing-podcast', true);
     });
@@ -398,6 +431,37 @@ describe('PodcastService', () => {
       const result = await service.subscribeToPodcast('user-123', 'https://invalid.com/feed.xml');
 
       expect(result).toBeNull();
+    });
+
+    it('should respect notifyNewEpisodes parameter', async () => {
+      const feedUrl = 'https://example.com/feed.xml';
+      const userId = 'user-123';
+
+      const mockPodcast = {
+        id: 'podcast-123',
+        feed_url: feedUrl,
+        title: 'Test Podcast',
+        description: null,
+        author: null,
+        image_url: null,
+        website_url: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+      };
+
+      (mockRepository.getPodcastByFeedUrl as ReturnType<typeof vi.fn>).mockResolvedValue(mockPodcast);
+      (mockRepository.subscribeToPodcast as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'sub-123',
+        user_id: userId,
+        podcast_id: 'podcast-123',
+        notify_new_episodes: false,
+        created_at: '2026-01-01T00:00:00.000Z',
+      });
+
+      const result = await service.subscribeToPodcast(userId, feedUrl, false);
+
+      expect(result).not.toBeNull();
+      expect(result!.notificationsEnabled).toBe(false);
+      expect(mockRepository.subscribeToPodcast).toHaveBeenCalledWith(userId, 'podcast-123', false);
     });
   });
 

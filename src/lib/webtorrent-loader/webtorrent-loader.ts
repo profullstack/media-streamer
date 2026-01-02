@@ -3,8 +3,8 @@
 /**
  * WebTorrent Browser Loader
  *
- * Loads the WebTorrent browser bundle from jsDelivr CDN using script tag injection.
- * jsDelivr serves files with correct MIME types (application/javascript).
+ * Loads the WebTorrent browser bundle from esm.sh CDN using dynamic import.
+ * esm.sh is designed for ESM modules and serves with correct MIME types.
  */
 
 // WebTorrent types for browser bundle
@@ -67,20 +67,18 @@ declare global {
 }
 
 // CDN URL for WebTorrent browser bundle
-// Using jsDelivr which serves files with correct MIME types (application/javascript)
-// The webtorrent.min.js is a UMD bundle that sets window.WebTorrent
-const WEBTORRENT_CDN_URL = 'https://cdn.jsdelivr.net/npm/webtorrent@2.5.1/webtorrent.min.js';
+// Using esm.sh which is designed for ESM modules and serves with correct MIME types
+const WEBTORRENT_CDN_URL = 'https://esm.sh/webtorrent';
 
 // Loading state
 let loadPromise: Promise<WebTorrentConstructor> | null = null;
 let cachedConstructor: WebTorrentConstructor | null = null;
 
 /**
- * Load WebTorrent from CDN using script tag injection
+ * Load WebTorrent from CDN using dynamic import
  *
- * This function loads the WebTorrent browser bundle from jsDelivr CDN.
- * The UMD bundle sets window.WebTorrent as the constructor.
- * jsDelivr serves files with correct Content-Type: application/javascript
+ * This function loads the WebTorrent browser bundle from esm.sh CDN.
+ * esm.sh serves ESM modules with correct Content-Type: application/javascript
  *
  * @returns Promise that resolves to the WebTorrent constructor
  * @throws Error if loading fails
@@ -102,8 +100,8 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
     return loadPromise;
   }
 
-  // Create loading promise using script tag injection
-  // This is more reliable than dynamic import for UMD bundles
+  // Create loading promise using dynamic import
+  // esm.sh serves proper ESM modules that work with dynamic import
   loadPromise = new Promise<WebTorrentConstructor>((resolve, reject) => {
     // Ensure we're in browser environment
     if (typeof window === 'undefined') {
@@ -112,43 +110,36 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
       return;
     }
 
-    // Create script element
-    const script = document.createElement('script');
-    script.src = WEBTORRENT_CDN_URL;
-    script.async = true;
-    // Explicitly set type to ensure browser treats it as JavaScript
-    script.type = 'text/javascript';
-
     // Set timeout for loading (30 seconds)
     const loadTimeout = setTimeout(() => {
       loadPromise = null;
-      script.remove();
       reject(new Error('WebTorrent CDN load timed out after 30s'));
     }, 30000);
 
-    script.onload = () => {
-      clearTimeout(loadTimeout);
-      
-      // Check if WebTorrent is now available on window
-      if (window.WebTorrent) {
-        cachedConstructor = window.WebTorrent;
-        console.log('[WebTorrent] Loaded successfully from jsDelivr CDN');
-        resolve(cachedConstructor);
-      } else {
+    // Use dynamic import for ESM module from esm.sh
+    import(/* webpackIgnore: true */ WEBTORRENT_CDN_URL)
+      .then((module: { default?: WebTorrentConstructor }) => {
+        clearTimeout(loadTimeout);
+        
+        // esm.sh exports the constructor as default
+        const WebTorrent = module.default;
+        
+        if (WebTorrent) {
+          cachedConstructor = WebTorrent;
+          // Also set on window for compatibility
+          window.WebTorrent = WebTorrent;
+          console.log('[WebTorrent] Loaded successfully from esm.sh CDN');
+          resolve(cachedConstructor);
+        } else {
+          loadPromise = null;
+          reject(new Error('WebTorrent module loaded but constructor not found'));
+        }
+      })
+      .catch((error: Error) => {
+        clearTimeout(loadTimeout);
         loadPromise = null;
-        reject(new Error('WebTorrent script loaded but constructor not found on window'));
-      }
-    };
-
-    script.onerror = (event) => {
-      clearTimeout(loadTimeout);
-      loadPromise = null;
-      script.remove();
-      reject(new Error(`Failed to load WebTorrent from CDN: ${event}`));
-    };
-
-    // Append script to document head
-    document.head.appendChild(script);
+        reject(new Error(`Failed to load WebTorrent from CDN: ${error.message}`));
+      });
   });
 
   return loadPromise;

@@ -20,6 +20,7 @@ export {
   resetPodcastService,
   type PodcastService,
   type PodcastSearchResult,
+  type SubscribedPodcastResponse,
   type ParsedPodcastFeed,
   type ParsedEpisode,
   type ListenProgressInput,
