@@ -53,9 +53,11 @@ const mockTorrent = {
 };
 
 const mockClient = {
-  add: vi.fn((_magnetUri: string, callback?: (torrent: typeof mockTorrent) => void) => {
-    if (callback) {
-      setTimeout(() => callback(mockTorrent), 10);
+  add: vi.fn((_magnetUri: string, _options?: { announce?: string[] }, callback?: (torrent: typeof mockTorrent) => void) => {
+    // Handle both signatures: (magnetUri, callback) and (magnetUri, options, callback)
+    const actualCallback = typeof _options === 'function' ? _options : callback;
+    if (actualCallback) {
+      setTimeout(() => actualCallback(mockTorrent), 10);
     }
     return mockTorrent;
   }),

@@ -8,6 +8,12 @@
  *
  * For formats that require transcoding (MKV, FLAC, etc.), the server-side
  * streaming endpoint should be used instead.
+ *
+ * IMPORTANT: Browser WebTorrent Peer Discovery
+ * - Browsers cannot use UDP trackers or traditional DHT (requires raw UDP sockets)
+ * - WebTorrent uses WebRTC for peer-to-peer connections
+ * - WebSocket trackers are required for initial peer discovery (signaling)
+ * - Once connected, WebTorrent can use WebRTC-based DHT and PEX for more peers
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -16,6 +22,18 @@ import {
   type WebTorrentClient,
   type WebTorrentTorrent,
 } from '../lib/webtorrent-loader';
+
+/**
+ * WebSocket trackers for browser WebTorrent peer discovery
+ * These are required because browsers cannot use UDP trackers
+ * They serve as signaling servers for WebRTC peer connections
+ */
+const WEBTORRENT_TRACKERS: readonly string[] = [
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
 
 /**
  * Native video formats that browsers can play without transcoding
@@ -177,10 +195,16 @@ export function useWebTorrent(): UseWebTorrentReturn {
       let torrent = infoHash ? client.get(infoHash) : null;
 
       if (!torrent) {
-        // Add new torrent
+        // Add new torrent with WebSocket trackers for browser peer discovery
+        // These trackers are essential because browsers cannot use UDP trackers
+        // They serve as signaling servers for WebRTC peer connections
         torrent = await new Promise<WebTorrentTorrent>((resolve, reject) => {
           try {
-            const t = client.add(magnetUri, (addedTorrent) => {
+            const t = client.add(magnetUri, {
+              // Add WebSocket trackers for peer discovery
+              // These will be used in addition to any trackers in the magnet URI
+              announce: [...WEBTORRENT_TRACKERS],
+            }, (addedTorrent) => {
               resolve(addedTorrent);
             });
 

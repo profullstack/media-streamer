@@ -132,6 +132,17 @@ function isCodecError(errorMessage: string): boolean {
 const SWARM_STATS_POLL_INTERVAL = 30000;
 
 /**
+ * WebSocket trackers for browser WebTorrent
+ * These are required for peer discovery in the browser since UDP trackers don't work
+ */
+const WEBTORRENT_TRACKERS = [
+  'wss://tracker.webtorrent.dev',
+  'wss://tracker.openwebtorrent.com',
+  'wss://tracker.btorrent.xyz',
+  'wss://tracker.files.fm:7073/announce',
+];
+
+/**
  * Extract track info from filename
  * Attempts to parse common naming patterns like:
  * - "01 - Track Name.mp3"
@@ -400,8 +411,12 @@ export function MediaPlayerModal({
         // Use client-side WebTorrent P2P streaming for native formats
         console.log('[MediaPlayerModal] Starting client-side P2P streaming');
         
-        // Build magnet URI - we need to fetch it from the API or construct it
-        const magnetUri = `magnet:?xt=urn:btih:${infohash}`;
+        // Build magnet URI with WebSocket trackers for browser peer discovery
+        // UDP trackers don't work in browsers, so we need WSS trackers
+        const trackerParams = WEBTORRENT_TRACKERS.map(t => `&tr=${encodeURIComponent(t)}`).join('');
+        const magnetUri = `magnet:?xt=urn:btih:${infohash}${trackerParams}`;
+        
+        console.log('[MediaPlayerModal] Magnet URI with trackers:', magnetUri);
         
         webTorrentStartStream({
           magnetUri,

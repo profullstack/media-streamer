@@ -30,8 +30,24 @@ export interface WebTorrentTorrent {
   destroy: (callback?: () => void) => void;
 }
 
+/**
+ * Options for adding a torrent
+ */
+export interface WebTorrentAddOptions {
+  /** Trackers to announce to (in addition to any in the magnet URI) */
+  announce?: string[];
+  /** Path to download the torrent to (Node.js only) */
+  path?: string;
+  /** Maximum number of peers to connect to */
+  maxWebConns?: number;
+}
+
 export interface WebTorrentClient {
-  add: (magnetUri: string, callback?: (torrent: WebTorrentTorrent) => void) => WebTorrentTorrent;
+  add: (
+    magnetUri: string,
+    options?: WebTorrentAddOptions | ((torrent: WebTorrentTorrent) => void),
+    callback?: (torrent: WebTorrentTorrent) => void
+  ) => WebTorrentTorrent;
   get: (infoHash: string) => WebTorrentTorrent | null;
   remove: (infoHash: string, callback?: () => void) => void;
   destroy: (callback?: () => void) => void;
