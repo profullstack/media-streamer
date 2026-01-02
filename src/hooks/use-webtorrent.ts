@@ -36,6 +36,36 @@ const WEBTORRENT_TRACKERS: readonly string[] = [
 ];
 
 /**
+ * ICE servers for WebRTC NAT traversal
+ * STUN servers help discover public IP addresses
+ * TURN servers relay traffic when direct connections fail
+ * Using public STUN servers that are privacy-friendly (not Google)
+ */
+const ICE_SERVERS: RTCIceServer[] = [
+  // Public STUN servers (free, no auth required)
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun.stunprotocol.org:3478' },
+  { urls: 'stun:stun.nextcloud.com:443' },
+  // OpenRelay TURN servers (free, public)
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
+
+/**
  * Timeout for adding a torrent (waiting for metadata from peers)
  * This is the time to wait for the torrent to be added and metadata to be received
  * 30 seconds should be enough for most torrents with active peers
@@ -143,9 +173,19 @@ export function useWebTorrent(): UseWebTorrentReturn {
       return clientRef.current;
     }
 
-    // Load WebTorrent from CDN to avoid Next.js/Turbopack chunk loading issues
+    // Load WebTorrent from local bundle to avoid Next.js/Turbopack chunk loading issues
     const WebTorrent = await loadWebTorrent();
-    const client = new WebTorrent();
+    
+    // Configure WebTorrent with ICE servers for WebRTC NAT traversal
+    // This is essential for browsers behind NAT/firewalls (most users)
+    // and for privacy-focused browsers like LibreWolf that may block default STUN servers
+    const client = new WebTorrent({
+      tracker: {
+        rtcConfig: {
+          iceServers: ICE_SERVERS,
+        },
+      },
+    });
     clientRef.current = client;
 
     client.on('error', (err: unknown) => {

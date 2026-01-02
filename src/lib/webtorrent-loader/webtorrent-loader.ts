@@ -62,8 +62,37 @@ export interface WebTorrentClient {
   torrents: WebTorrentTorrent[];
 }
 
+/**
+ * WebTorrent client options
+ */
+export interface WebTorrentClientOptions {
+  /** Maximum number of peers to connect to per torrent */
+  maxConns?: number;
+  /** Node ID (20 bytes) */
+  nodeId?: string | Buffer;
+  /** Peer ID (20 bytes) */
+  peerId?: string | Buffer;
+  /** Tracker options */
+  tracker?: {
+    /** RTCPeerConnection configuration for WebRTC */
+    rtcConfig?: RTCConfiguration;
+    /** Announce URL */
+    announce?: string[];
+    /** Get announce URLs */
+    getAnnounceOpts?: () => Record<string, unknown>;
+  };
+  /** DHT options (false to disable) */
+  dht?: boolean | Record<string, unknown>;
+  /** LSD options (false to disable) */
+  lsd?: boolean;
+  /** WebSeeds options (false to disable) */
+  webSeeds?: boolean;
+  /** uTP options (false to disable, Node.js only) */
+  utp?: boolean;
+}
+
 export interface WebTorrentConstructor {
-  new (): WebTorrentClient;
+  new (options?: WebTorrentClientOptions): WebTorrentClient;
 }
 
 // Extend Window interface for WebTorrent global
