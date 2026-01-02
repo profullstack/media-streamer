@@ -75,6 +75,7 @@ export default function LiveTvPage(): React.ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [pendingGroup, setPendingGroup] = useState<string | null>(null);
   const [isAddPlaylistModalOpen, setIsAddPlaylistModalOpen] = useState(false);
   const [playlists, setPlaylists] = useState<PlaylistData[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<PlaylistData | null>(null);
@@ -96,6 +97,9 @@ export default function LiveTvPage(): React.ReactElement {
   
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track if there are pending filter changes (for TV remote users)
+  const hasPendingFilters = searchQuery !== debouncedQuery || pendingGroup !== selectedGroup;
 
   // Load playlists from API (authenticated) or localStorage (guest)
   useEffect(() => {
@@ -270,6 +274,15 @@ export default function LiveTvPage(): React.ReactElement {
     setOffset(0);
   }, [selectedGroup]);
 
+  // Apply filters handler (for TV remote users)
+  const handleApplyFilters = useCallback((): void => {
+    // Apply pending group immediately
+    setSelectedGroup(pendingGroup);
+    // Apply search query immediately (bypass debounce)
+    setDebouncedQuery(searchQuery);
+    setOffset(0);
+  }, [pendingGroup, searchQuery]);
+
   const handleOpenAddPlaylistModal = useCallback((): void => {
     setIsAddPlaylistModalOpen(true);
   }, []);
@@ -289,7 +302,9 @@ export default function LiveTvPage(): React.ReactElement {
   const handleSelectPlaylist = useCallback((playlist: PlaylistData): void => {
     setActivePlaylist(playlist);
     setSelectedGroup(null);
+    setPendingGroup(null);
     setSearchQuery('');
+    setDebouncedQuery('');
     setOffset(0);
   }, []);
 
@@ -398,27 +413,52 @@ export default function LiveTvPage(): React.ReactElement {
             )}
           </div>
           
-          {/* Search hint */}
+          {/* Search hint and Apply button when no groups */}
           {activePlaylist && (
-            <p className="text-xs text-text-muted">
-              Search is case-insensitive and matches words in any order. Results update automatically as you type.
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs text-text-muted flex-1">
+                Search is case-insensitive and matches words in any order.
+                {groups.length === 0 && ' Press "Apply Filter" or wait for auto-search.'}
+              </p>
+              {/* Show Apply button here when no groups loaded yet */}
+              {groups.length === 0 && searchQuery !== debouncedQuery && (
+                <button
+                  onClick={handleApplyFilters}
+                  disabled={isLoading}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg px-4 py-1.5',
+                    'text-sm font-medium transition-colors',
+                    'bg-accent-primary text-white hover:bg-accent-primary/90',
+                    'disabled:opacity-50'
+                  )}
+                >
+                  {isLoading ? (
+                    <LoadingSpinner size={14} />
+                  ) : (
+                    <SearchIcon size={14} />
+                  )}
+                  <span>Apply</span>
+                </button>
+              )}
+            </div>
           )}
           
-          {/* Group Filter - Dropdown */}
+          {/* Group Filter - Dropdown and Apply Button */}
           {groups.length > 0 && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <label htmlFor="group-select" className="text-sm font-medium text-text-secondary">
                 Group:
               </label>
               <select
                 id="group-select"
-                value={selectedGroup ?? ''}
-                onChange={(e) => setSelectedGroup(e.target.value || null)}
+                value={pendingGroup ?? ''}
+                onChange={(e) => setPendingGroup(e.target.value || null)}
                 className={cn(
                   'rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
                   'text-sm text-text-primary',
-                  'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
+                  'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50',
+                  // Highlight when pending change
+                  pendingGroup !== selectedGroup && 'border-yellow-500/50 ring-1 ring-yellow-500/30'
                 )}
               >
                 <option value="">All Groups ({groups.length})</option>
@@ -428,6 +468,40 @@ export default function LiveTvPage(): React.ReactElement {
                   </option>
                 ))}
               </select>
+              
+              {/* Apply Filter Button - Essential for TV remote navigation */}
+              <button
+                onClick={handleApplyFilters}
+                disabled={!hasPendingFilters || isLoading}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-6 py-2',
+                  'text-sm font-medium transition-colors',
+                  hasPendingFilters
+                    ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
+                    : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
+                  'disabled:opacity-50'
+                )}
+                aria-label="Apply search and group filters"
+              >
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner size={16} />
+                    <span>Applying...</span>
+                  </>
+                ) : (
+                  <>
+                    <SearchIcon size={16} />
+                    <span>Apply Filter</span>
+                  </>
+                )}
+              </button>
+              
+              {/* Pending changes indicator */}
+              {hasPendingFilters && !isLoading && (
+                <span className="text-xs text-yellow-500">
+                  Press &quot;Apply Filter&quot; to search
+                </span>
+              )}
             </div>
           )}
         </div>

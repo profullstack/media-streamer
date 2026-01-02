@@ -2,15 +2,17 @@
 
 /**
  * HLS Player Modal Component
- * 
+ *
  * A modal component for playing live TV streams using HLS.js.
  * Displays channel information including logo and group.
+ * Automatically proxies HTTP streams through /api/iptv-proxy for HTTPS compatibility.
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import Hls from 'hls.js';
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, TvIcon } from '@/components/ui/icons';
+import { shouldProxy, createProxyUrl } from '@/lib/iptv-proxy';
 
 export interface HlsPlayerModalProps {
   /** Whether the modal is open */
@@ -35,6 +37,21 @@ export function HlsPlayerModal({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Compute the stream URL, proxying HTTP URLs when on HTTPS
+  const streamUrl = useMemo(() => {
+    if (!channel.url) return null;
+    
+    // Check if we're on a secure page (HTTPS)
+    const isSecurePage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    
+    // Proxy HTTP URLs when on HTTPS to avoid mixed content errors
+    if (shouldProxy(channel.url, isSecurePage)) {
+      return createProxyUrl(channel.url, '/api/iptv-proxy');
+    }
+    
+    return channel.url;
+  }, [channel.url]);
+
   // Handle escape key
   useEffect(() => {
     if (!isOpen) return;
@@ -58,7 +75,7 @@ export function HlsPlayerModal({
 
   // Initialize HLS.js
   useEffect(() => {
-    if (!isOpen || !videoRef.current || !channel.url) {
+    if (!isOpen || !videoRef.current || !streamUrl) {
       return;
     }
 
@@ -76,7 +93,7 @@ export function HlsPlayerModal({
 
       hlsRef.current = hls;
 
-      hls.loadSource(channel.url);
+      hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -106,7 +123,7 @@ export function HlsPlayerModal({
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Native HLS support (Safari)
-      video.src = channel.url;
+      video.src = streamUrl;
       video.addEventListener('loadedmetadata', () => {
         setIsLoading(false);
         video.play().catch((err: unknown) => {
@@ -123,7 +140,7 @@ export function HlsPlayerModal({
         hlsRef.current = null;
       }
     };
-  }, [isOpen, channel.url]);
+  }, [isOpen, streamUrl]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
