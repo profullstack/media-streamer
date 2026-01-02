@@ -242,6 +242,8 @@ describe('Magnet Ingestion API', () => {
         director: null,
         actors: null,
         genre: null,
+        upvotes: 0,
+        downvotes: 0,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         files: [],

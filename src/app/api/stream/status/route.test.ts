@@ -106,6 +106,8 @@ describe('Stream Status API - GET /api/stream/status', () => {
       director: null,
       actors: null,
       genre: null,
+      upvotes: 0,
+      downvotes: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -154,6 +156,8 @@ describe('Stream Status API - GET /api/stream/status', () => {
       director: null,
       actors: null,
       genre: null,
+      upvotes: 0,
+      downvotes: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -223,6 +227,8 @@ describe('Stream Status API - GET /api/stream/status', () => {
         director: null,
         actors: null,
         genre: null,
+        upvotes: 0,
+        downvotes: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -270,6 +276,8 @@ describe('Stream Status API - GET /api/stream/status', () => {
         director: null,
         actors: null,
         genre: null,
+        upvotes: 0,
+        downvotes: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -316,6 +324,8 @@ describe('Stream Status API - GET /api/stream/status', () => {
         director: null,
         actors: null,
         genre: null,
+        upvotes: 0,
+        downvotes: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

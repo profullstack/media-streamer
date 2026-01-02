@@ -51,6 +51,9 @@ export type Database = {
           container: string | null;
           needs_transcoding: boolean;
           codec_detected_at: string | null;
+          // Vote counts (denormalized for performance)
+          upvotes: number;
+          downvotes: number;
           created_at: string;
           updated_at: string;
         };
@@ -89,6 +92,9 @@ export type Database = {
           container?: string | null;
           needs_transcoding?: boolean;
           codec_detected_at?: string | null;
+          // Vote counts (denormalized for performance)
+          upvotes?: number;
+          downvotes?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -127,6 +133,9 @@ export type Database = {
           container?: string | null;
           needs_transcoding?: boolean;
           codec_detected_at?: string | null;
+          // Vote counts (denormalized for performance)
+          upvotes?: number;
+          downvotes?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1286,6 +1295,130 @@ export type Database = {
           }
         ];
       };
+      torrent_comments: {
+        Row: {
+          id: string;
+          torrent_id: string;
+          user_id: string;
+          content: string;
+          parent_id: string | null;
+          upvotes: number;
+          downvotes: number;
+          deleted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          torrent_id: string;
+          user_id: string;
+          content: string;
+          parent_id?: string | null;
+          upvotes?: number;
+          downvotes?: number;
+          deleted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          torrent_id?: string;
+          user_id?: string;
+          content?: string;
+          parent_id?: string | null;
+          upvotes?: number;
+          downvotes?: number;
+          deleted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'torrent_comments_torrent_id_fkey';
+            columns: ['torrent_id'];
+            isOneToOne: false;
+            referencedRelation: 'torrents';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'torrent_comments_parent_id_fkey';
+            columns: ['parent_id'];
+            isOneToOne: false;
+            referencedRelation: 'torrent_comments';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      comment_votes: {
+        Row: {
+          id: string;
+          comment_id: string;
+          user_id: string;
+          vote_value: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          comment_id: string;
+          user_id: string;
+          vote_value: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          comment_id?: string;
+          user_id?: string;
+          vote_value?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'comment_votes_comment_id_fkey';
+            columns: ['comment_id'];
+            isOneToOne: false;
+            referencedRelation: 'torrent_comments';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      torrent_votes: {
+        Row: {
+          id: string;
+          torrent_id: string;
+          user_id: string;
+          vote_value: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          torrent_id: string;
+          user_id: string;
+          vote_value: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          torrent_id?: string;
+          user_id?: string;
+          vote_value?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'torrent_votes_torrent_id_fkey';
+            columns: ['torrent_id'];
+            isOneToOne: false;
+            referencedRelation: 'torrents';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1679,3 +1812,21 @@ export type FamilyMemberRole = 'owner' | 'admin' | 'member';
 
 // Family invitation status type
 export type FamilyInvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'revoked';
+
+// Comment types
+export type TorrentComment = Tables<'torrent_comments'>;
+export type TorrentCommentInsert = InsertTables<'torrent_comments'>;
+export type TorrentCommentUpdate = UpdateTables<'torrent_comments'>;
+
+// Comment vote types
+export type CommentVote = Tables<'comment_votes'>;
+export type CommentVoteInsert = InsertTables<'comment_votes'>;
+export type CommentVoteUpdate = UpdateTables<'comment_votes'>;
+
+// Torrent vote types
+export type TorrentVote = Tables<'torrent_votes'>;
+export type TorrentVoteInsert = InsertTables<'torrent_votes'>;
+export type TorrentVoteUpdate = UpdateTables<'torrent_votes'>;
+
+// Vote value type
+export type VoteValue = 1 | -1;

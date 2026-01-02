@@ -50,6 +50,9 @@ describe('transforms', () => {
         container: null,
         needs_transcoding: false,
         codec_detected_at: null,
+        // Vote counts
+        upvotes: 0,
+        downvotes: 0,
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };
@@ -124,6 +127,9 @@ describe('transforms', () => {
         container: null,
         needs_transcoding: false,
         codec_detected_at: null,
+        // Vote counts
+        upvotes: 0,
+        downvotes: 0,
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };
@@ -172,6 +178,9 @@ describe('transforms', () => {
         container: 'flac',
         needs_transcoding: false,
         codec_detected_at: '2025-12-26T23:00:00.000Z',
+        // Vote counts
+        upvotes: 5,
+        downvotes: 1,
         created_at: '2025-12-26T22:24:00.000Z',
         updated_at: '2025-12-26T22:25:00.000Z',
       };

@@ -456,3 +456,70 @@ export async function getCurrentUser(): Promise<{ id: string; email: string } | 
     return null;
   }
 }
+
+/**
+ * Get authenticated user from NextRequest
+ * Parses the auth cookie from the request and validates with Supabase
+ * Returns null if not authenticated or session is invalid
+ *
+ * Server-side only - for use in API routes
+ */
+export async function getAuthenticatedUser(
+  request: { cookies: { get: (name: string) => { value: string } | undefined } }
+): Promise<{ id: string; email: string } | null> {
+  try {
+    // Get the auth cookie from request
+    const authCookie = request.cookies.get(AUTH_COOKIE_NAME);
+
+    if (!authCookie?.value) {
+      return null;
+    }
+
+    // Parse the session from cookie
+    let session: StoredSession;
+    try {
+      session = JSON.parse(decodeURIComponent(authCookie.value)) as StoredSession;
+    } catch {
+      console.error('[Auth] Failed to parse auth cookie');
+      return null;
+    }
+
+    if (!session.access_token || !session.refresh_token) {
+      return null;
+    }
+
+    // Create Supabase client
+    const supabase = createServerClient();
+
+    // Use setSession to set the tokens - this handles token refresh automatically
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+
+    if (sessionError) {
+      console.error('[Auth] Failed to set session:', sessionError.message);
+      return null;
+    }
+
+    // Get user from the session
+    const { data, error } = await supabase.auth.getUser();
+
+    if (error) {
+      console.error('[Auth] Failed to get user:', error.message);
+      return null;
+    }
+
+    if (!data.user || !data.user.email) {
+      return null;
+    }
+
+    return {
+      id: data.user.id,
+      email: data.user.email,
+    };
+  } catch (error) {
+    console.error('[Auth] Error getting authenticated user:', error);
+    return null;
+  }
+}

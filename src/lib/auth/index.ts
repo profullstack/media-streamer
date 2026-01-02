@@ -45,4 +45,5 @@ export {
   
   // Current User
   getCurrentUser,
+  getAuthenticatedUser,
 } from './auth';

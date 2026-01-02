@@ -3,7 +3,7 @@
 /**
  * Torrent Detail Page
  *
- * Shows torrent information and file browser.
+ * Shows torrent information, file browser, comments, and voting.
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -13,6 +13,7 @@ import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
 import { SearchBar, type SearchFilters } from '@/components/search';
 import { MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
+import { CommentsSection, TorrentVoting } from '@/components/comments';
 import {
   ChevronRightIcon,
   LoadingSpinner,
@@ -26,6 +27,7 @@ import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeh
 import { formatBytes } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
+import { useAuth } from '@/hooks';
 import type { Torrent, TorrentFile } from '@/types';
 
 interface TorrentDetailResponse {
@@ -99,6 +101,7 @@ function findFolderMetadataForFiles(
 export default function TorrentDetailPage(): React.ReactElement {
   const params = useParams();
   const torrentId = params.id as string;
+  const { user } = useAuth();
 
   const [torrent, setTorrent] = useState<Torrent | null>(null);
   const [files, setFiles] = useState<TorrentFile[]>([]);
@@ -502,6 +505,14 @@ export default function TorrentDetailPage(): React.ReactElement {
                 <span className="text-text-primary">{mediaCounts.other} other</span>
               </div> : null}
           </div>
+
+          {/* Torrent Voting */}
+          <div className="mt-6 border-t border-border-subtle pt-6">
+            <TorrentVoting
+              torrentId={torrentId}
+              user={user ? { id: user.id, email: user.email ?? '' } : null}
+            />
+          </div>
         </div>
 
         {/* File Browser */}
@@ -537,6 +548,14 @@ export default function TorrentDetailPage(): React.ReactElement {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Comments Section */}
+        <div className="card p-6">
+          <CommentsSection
+            torrentId={torrentId}
+            user={user ? { id: user.id, email: user.email ?? '' } : null}
+          />
         </div>
       </div>
 

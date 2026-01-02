@@ -76,6 +76,9 @@ function createMockTorrent(overrides: Partial<{
     director: null,
     actors: null,
     genre: null,
+    // Vote counts
+    upvotes: 0,
+    downvotes: 0,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
