@@ -132,6 +132,8 @@ export function useWebTorrent(): UseWebTorrentReturn {
   const currentTorrentRef = useRef<WebTorrentTorrent | null>(null);
   const streamUrlRef = useRef<string | null>(null);
   const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef<boolean>(true);
 
   /**
    * Initialize WebTorrent client lazily
@@ -160,8 +162,12 @@ export function useWebTorrent(): UseWebTorrentReturn {
 
   /**
    * Update stats from torrent
+   * Only updates state if component is still mounted
    */
   const updateStats = useCallback(() => {
+    // Don't update state if component is unmounted
+    if (!isMountedRef.current) return;
+    
     const torrent = currentTorrentRef.current;
     if (!torrent) return;
 
@@ -348,16 +354,27 @@ export function useWebTorrent(): UseWebTorrentReturn {
    * Cleanup on unmount
    */
   useEffect(() => {
+    // Mark as mounted
+    isMountedRef.current = true;
+    
     return () => {
+      // Mark as unmounted to prevent state updates
+      isMountedRef.current = false;
+      
       // Clear stats interval
       if (statsIntervalRef.current) {
         clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
       }
 
       // Revoke blob URL
       if (streamUrlRef.current?.startsWith('blob:')) {
         URL.revokeObjectURL(streamUrlRef.current);
       }
+      streamUrlRef.current = null;
+
+      // Clear torrent ref
+      currentTorrentRef.current = null;
 
       // Destroy client
       if (clientRef.current) {
