@@ -10,11 +10,19 @@ A comprehensive multi-media streaming platform that allows users to stream music
 - 📚 **Ebook Reader** - Read PDFs and EPUBs with progress tracking
 - 🔍 **Deep Search** - Search across file names, paths, and metadata
 - ⬇️ **Download** - Download individual files or entire torrents
+- 🎙️ **Podcasts** - Browse and stream podcasts with episode tracking
 
 ### IPTV Support
 - 📺 **Live TV** - Stream from M3U playlists and Xtream Codes providers
 - 📋 **EPG Guide** - Electronic Program Guide for live channels
 - 🔄 **Multiple Providers** - Manage multiple IPTV sources
+- 🔐 **IPTV Subscriptions** - Premium IPTV access with subscription management
+
+### Personal Library
+- ❤️ **Favorites** - Save your favorite files for quick access
+- 📁 **Collections** - Create custom playlists and watchlists
+- 📜 **Watch History** - Track your viewing and reading progress
+- 🔄 **Progress Sync** - Resume where you left off across devices
 
 ### Social Features
 - 🎉 **Watch Parties** - Synchronized viewing with friends
@@ -23,11 +31,13 @@ A comprehensive multi-media streaming platform that allows users to stream music
 ### Premium Features
 - 💳 **Crypto Payments** - Pay with cryptocurrency via CoinPayPortal
 - 👨‍👩‍👧‍👦 **Family Plans** - Share with up to 10 family members
+- 📺 **IPTV Add-on** - Premium live TV subscription
 
 ### Platform
 - 📱 **PWA Support** - Install as a native app on mobile and desktop
 - 🌙 **Dark Mode** - Premium dark-mode-first design
 - 🔒 **Server-side Security** - All sensitive operations server-side only
+- ⚡ **Server-Side Rendering** - Fast page loads with pre-fetched data
 
 ## Tech Stack
 
@@ -112,18 +122,32 @@ bittorrented/
 ├── src/
 │   ├── app/                    # Next.js App Router
 │   │   ├── api/                # API routes (server-side only)
+│   │   │   ├── library/        # Library API (favorites, collections, history)
+│   │   │   ├── iptv/           # IPTV API (channels, playlists, subscriptions)
+│   │   │   ├── auth/           # Authentication API
+│   │   │   ├── payments/       # Payment processing API
+│   │   │   └── stream/         # Streaming API
+│   │   ├── library/            # My Library page (server-rendered)
+│   │   ├── live-tv/            # Live TV page
+│   │   ├── podcasts/           # Podcasts page
 │   │   ├── layout.tsx          # Root layout
 │   │   └── page.tsx            # Home page
 │   ├── components/             # React components
 │   │   ├── layout/             # Layout components (sidebar, header)
 │   │   ├── torrents/           # Torrent-related components
-│   │   ├── players/            # Media player components
+│   │   ├── live-tv/            # Live TV components (HLS player)
+│   │   ├── media/              # Media player components
 │   │   └── ui/                 # UI primitives
 │   ├── lib/                    # Utility functions and services
 │   │   ├── supabase/           # Supabase client (server-side only)
+│   │   ├── library/            # Library repository (favorites, collections, history)
+│   │   ├── iptv/               # IPTV services (M3U parser, playlist cache)
+│   │   ├── iptv-proxy/         # IPTV proxy for HLS rewriting
+│   │   ├── podcasts/           # Podcast services
 │   │   ├── torrent/            # Torrent services
 │   │   ├── streaming/          # Streaming services
 │   │   ├── magnet/             # Magnet URL parsing
+│   │   ├── payments/           # Payment processing
 │   │   └── indexer/            # File indexing
 │   ├── hooks/                  # React hooks
 │   └── types/                  # TypeScript types
