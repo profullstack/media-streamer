@@ -1,13 +1,20 @@
 /**
  * Auth Module
- * 
+ *
  * Server-side authentication utilities for Supabase Auth
  */
 
 import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@/lib/supabase';
 
 const scryptAsync = promisify(scrypt);
+
+/**
+ * Cookie name for auth token (must match login route)
+ */
+const AUTH_COOKIE_NAME = 'sb-auth-token';
 
 // ============================================================================
 // Types
@@ -377,11 +384,64 @@ export function canAccessFeature(tier: SubscriptionTier, feature: FeatureName): 
 }
 
 /**
- * Get current user from session (mock - actual implementation uses Supabase)
- * Returns null if not authenticated
+ * Session token structure stored in cookie
+ */
+interface StoredSession {
+  access_token: string;
+  refresh_token: string;
+}
+
+/**
+ * Get current user from session cookie
+ * Validates the session with Supabase and returns user info
+ * Returns null if not authenticated or session is invalid
+ *
+ * Server-side only - uses Next.js cookies() API
  */
 export async function getCurrentUser(): Promise<{ id: string; email: string } | null> {
-  // This is a mock - actual implementation would check Supabase session
-  // For now, return a mock user for development
-  return { id: 'user-123', email: 'test@example.com' };
+  try {
+    // Get the auth cookie
+    const cookieStore = await cookies();
+    const authCookie = cookieStore.get(AUTH_COOKIE_NAME);
+
+    if (!authCookie?.value) {
+      return null;
+    }
+
+    // Parse the session from cookie
+    let session: StoredSession;
+    try {
+      session = JSON.parse(decodeURIComponent(authCookie.value)) as StoredSession;
+    } catch {
+      console.error('[Auth] Failed to parse auth cookie');
+      return null;
+    }
+
+    if (!session.access_token) {
+      return null;
+    }
+
+    // Create Supabase client and get user from token
+    const supabase = createServerClient();
+
+    // Get user from the access token
+    const { data, error } = await supabase.auth.getUser(session.access_token);
+
+    if (error) {
+      console.error('[Auth] Failed to get user from token:', error.message);
+      return null;
+    }
+
+    if (!data.user || !data.user.email) {
+      return null;
+    }
+
+    return {
+      id: data.user.id,
+      email: data.user.email,
+    };
+  } catch (error) {
+    console.error('[Auth] Error getting current user:', error);
+    return null;
+  }
 }
