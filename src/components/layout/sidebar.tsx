@@ -45,7 +45,7 @@ const mainNavItems: NavItem[] = [
   { href: '/library', label: 'My Library', icon: LibraryIcon, requiresAuth: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/find-torrents', label: 'Find Torrents', icon: SearchPlusIcon },
-  { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon },
+  { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
 ];

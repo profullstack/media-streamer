@@ -13,6 +13,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import {
@@ -145,7 +146,15 @@ function formatDate(dateString: string): string {
 }
 
 export default function PodcastsPage(): React.ReactElement {
+  const router = useRouter();
   const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthLoading && !isLoggedIn) {
+      router.push('/login?redirect=/podcasts');
+    }
+  }, [isAuthLoading, isLoggedIn, router]);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
