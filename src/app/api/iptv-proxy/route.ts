@@ -8,9 +8,11 @@
  * which browsers block when the page is served over HTTPS.
  *
  * Features:
- * - Proxies HTTP streams through HTTPS
+ * - Proxies HTTP streams through HTTPS with proper streaming
  * - Rewrites HLS playlists to proxy all HTTP URLs
  * - Forwards custom headers to upstream
+ * - Supports Range requests for seeking
+ * - Uses chunked transfer encoding for live streams
  * - Blocks private IPs in production for security
  */
 
@@ -25,9 +27,9 @@ import {
 } from '@/lib/iptv-proxy';
 
 /**
- * Request timeout in milliseconds
+ * Request timeout in milliseconds (longer for live streams)
  */
-const REQUEST_TIMEOUT = 30000;
+const REQUEST_TIMEOUT = 60000;
 
 /**
  * HLS content types that need URL rewriting
@@ -199,8 +201,15 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
   }
 
-  // Build request headers
+  // Build request headers - include Range header if present for seeking support
   const requestHeaders = getStreamHeaders(customHeaders);
+  
+  // Forward Range header for seeking support
+  const rangeHeader = request.headers.get('range');
+  if (rangeHeader) {
+    requestHeaders['Range'] = rangeHeader;
+    console.log('[IPTV Proxy] Forwarding Range header:', rangeHeader);
+  }
 
   try {
     // Create abort controller for timeout
@@ -215,8 +224,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     clearTimeout(timeoutId);
 
-    // Check for upstream errors
-    if (!response.ok) {
+    // Check for upstream errors (allow 206 Partial Content for Range requests)
+    if (!response.ok && response.status !== 206) {
+      console.log('[IPTV Proxy] Upstream error:', response.status, response.statusText);
       return NextResponse.json(
         { error: `Upstream error: ${response.status} ${response.statusText}` },
         { status: 502 }
@@ -226,12 +236,23 @@ export async function GET(request: NextRequest): Promise<Response> {
     // Get content type
     const contentType = response.headers.get('content-type');
     const contentLength = response.headers.get('content-length');
+    const contentRange = response.headers.get('content-range');
+    const acceptRanges = response.headers.get('accept-ranges');
 
     // Build proxy response headers
     const proxyHeaders = buildProxyHeaders({
       contentType: contentType ?? undefined,
       contentLength: contentLength ? parseInt(contentLength, 10) : undefined,
     });
+    
+    // Add streaming-specific headers
+    proxyHeaders['Accept-Ranges'] = acceptRanges ?? 'bytes';
+    proxyHeaders['Connection'] = 'keep-alive';
+    
+    // Forward Content-Range for partial content responses
+    if (contentRange) {
+      proxyHeaders['Content-Range'] = contentRange;
+    }
 
     // For HLS playlists, rewrite HTTP URLs to use proxy
     if (isHlsPlaylist(contentType) && response.body) {
@@ -244,18 +265,34 @@ export async function GET(request: NextRequest): Promise<Response> {
         headers: {
           ...proxyHeaders,
           'Content-Length': String(new TextEncoder().encode(rewrittenContent).length),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       });
     }
 
-    // For other content types, stream through directly
+    // For live streams (MPEG-TS, etc.), use chunked transfer encoding
+    // Don't set Content-Length for live streams to enable proper streaming
+    const isLiveStream = streamUrl.endsWith('.ts') ||
+                         contentType?.includes('video/mp2t') ||
+                         contentType?.includes('video/mpeg');
+    
+    if (isLiveStream) {
+      // Remove Content-Length for live streams to enable chunked transfer
+      delete proxyHeaders['Content-Length'];
+      proxyHeaders['Transfer-Encoding'] = 'chunked';
+      proxyHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      console.log('[IPTV Proxy] Live stream detected, using chunked transfer');
+    }
+
+    // Return the response with proper status code (200 or 206 for partial content)
     return new Response(response.body, {
-      status: 200,
+      status: response.status,
       headers: proxyHeaders,
     });
   } catch (error) {
     // Handle timeout
     if (error instanceof Error && error.name === 'AbortError') {
+      console.log('[IPTV Proxy] Request timeout');
       return NextResponse.json(
         { error: 'Request timeout' },
         { status: 504 }
