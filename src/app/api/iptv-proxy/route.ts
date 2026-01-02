@@ -13,9 +13,11 @@
  * - Forwards custom headers to upstream
  * - Supports Range requests for seeking
  * - Blocks private IPs in production for security
+ * - Skips SSL certificate validation for IPTV providers with misconfigured certs
  */
 
 import { NextRequest } from 'next/server';
+import { Agent, fetch as undiciFetch } from 'undici';
 import {
   validateStreamUrl,
   getStreamHeaders,
@@ -23,6 +25,17 @@ import {
   isHttpUrl,
   encodeStreamUrl,
 } from '@/lib/iptv-proxy';
+
+/**
+ * Custom undici Agent that skips SSL certificate validation.
+ * This is necessary because many IPTV providers have misconfigured SSL certificates.
+ * WARNING: This disables certificate validation for all IPTV proxy requests.
+ */
+const insecureAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+  },
+});
 
 /**
  * Request timeout in milliseconds (longer for live streams)
@@ -194,10 +207,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    // Fetch the upstream stream
-    const upstreamResponse = await fetch(streamUrl, {
+    // Fetch the upstream stream using undici with insecure agent
+    // This skips SSL certificate validation for IPTV providers with misconfigured certs
+    const upstreamResponse = await undiciFetch(streamUrl, {
       headers: requestHeaders,
       signal: controller.signal,
+      dispatcher: insecureAgent,
     });
 
     clearTimeout(timeoutId);
@@ -269,8 +284,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     // Return the upstream body directly as a ReadableStream
-    // This is the key - we pass the body through without any transformation
-    return new Response(upstreamResponse.body, {
+    // Convert undici's ReadableStream to a web-compatible ReadableStream
+    // by casting through unknown (undici's stream is compatible at runtime)
+    const body = upstreamResponse.body as unknown as ReadableStream<Uint8Array> | null;
+    return new Response(body, {
       status: upstreamResponse.status,
       headers: responseHeaders,
     });

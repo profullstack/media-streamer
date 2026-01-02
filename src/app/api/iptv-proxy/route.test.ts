@@ -8,20 +8,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-describe('IPTV Proxy API - GET /api/iptv-proxy', () => {
-  // Store original fetch
-  const originalFetch = globalThis.fetch;
-  let mockFetch: ReturnType<typeof vi.fn>;
+// Mock undici module
+const mockFetch = vi.fn();
+vi.mock('undici', () => ({
+  Agent: vi.fn().mockImplementation(() => ({})),
+  fetch: mockFetch,
+}));
 
+describe('IPTV Proxy API - GET /api/iptv-proxy', () => {
   beforeEach(() => {
     vi.stubEnv('NODE_ENV', 'development');
-    mockFetch = vi.fn();
-    globalThis.fetch = mockFetch;
+    mockFetch.mockReset();
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    globalThis.fetch = originalFetch;
     vi.resetModules();
   });
 
