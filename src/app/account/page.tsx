@@ -7,7 +7,7 @@
  * Includes account info, subscription management, and security settings.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
@@ -17,10 +17,52 @@ import { UserIcon, CreditCardIcon, KeyIcon, SettingsIcon } from '@/components/ui
 
 type AccountTab = 'account' | 'subscription' | 'security';
 
+/**
+ * Payment history item from API
+ */
+interface PaymentHistoryItem {
+  id: string;
+  plan: string;
+  amountUsd: number;
+  amountCrypto: string | null;
+  cryptoCurrency: string | null;
+  blockchain: string | null;
+  txHash: string | null;
+  status: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/**
+ * Subscription status from API
+ */
+interface SubscriptionStatus {
+  tier: string;
+  status: string;
+  expiresAt: string | null;
+  isActive: boolean;
+  daysRemaining: number | null;
+}
+
 export default function AccountPage(): React.ReactElement {
   const router = useRouter();
   const { isLoggedIn, isLoading, user } = useAuth();
   const [activeTab, setActiveTab] = useState<AccountTab>('account');
+  
+  // Subscription management state
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -28,6 +70,135 @@ export default function AccountPage(): React.ReactElement {
       router.push('/login');
     }
   }, [isLoading, isLoggedIn, router]);
+
+  // Fetch subscription status
+  const fetchSubscriptionStatus = useCallback(async () => {
+    setIsLoadingSubscription(true);
+    setSubscriptionError(null);
+    try {
+      const response = await fetch('/api/subscription');
+      if (!response.ok) {
+        throw new Error('Failed to fetch subscription status');
+      }
+      const data = await response.json() as SubscriptionStatus;
+      setSubscriptionStatus(data);
+    } catch (error) {
+      setSubscriptionError(error instanceof Error ? error.message : 'Failed to load subscription');
+    } finally {
+      setIsLoadingSubscription(false);
+    }
+  }, []);
+
+  // Fetch payment history
+  const fetchPaymentHistory = useCallback(async () => {
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+    try {
+      const response = await fetch('/api/subscription/history');
+      if (!response.ok) {
+        throw new Error('Failed to fetch payment history');
+      }
+      const data = await response.json() as { payments: PaymentHistoryItem[]; total: number };
+      setPaymentHistory(data.payments);
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : 'Failed to load payment history');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
+
+  // Load subscription data when tab changes to subscription
+  useEffect(() => {
+    if (activeTab === 'subscription' && isLoggedIn) {
+      fetchSubscriptionStatus();
+      fetchPaymentHistory();
+    }
+  }, [activeTab, isLoggedIn, fetchSubscriptionStatus, fetchPaymentHistory]);
+
+  // Handle subscription upgrade
+  const handleUpgrade = async (targetTier: 'premium' | 'family'): Promise<void> => {
+    setIsUpgrading(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const response = await fetch('/api/subscription/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upgrade', targetTier }),
+      });
+      
+      const data = await response.json() as { success?: boolean; redirectUrl?: string; error?: string; message?: string };
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upgrade subscription');
+      }
+      
+      if (data.redirectUrl) {
+        router.push(data.redirectUrl);
+      } else {
+        setActionSuccess(data.message || 'Upgrade initiated');
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to upgrade');
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
+  // Handle subscription downgrade
+  const handleDowngrade = async (targetTier: 'premium'): Promise<void> => {
+    setIsUpgrading(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const response = await fetch('/api/subscription/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'downgrade', targetTier }),
+      });
+      
+      const data = await response.json() as { success?: boolean; error?: string; message?: string; effectiveDate?: string };
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to downgrade subscription');
+      }
+      
+      setActionSuccess(data.message || 'Downgrade scheduled');
+      // Refresh subscription status
+      await fetchSubscriptionStatus();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to downgrade');
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
+  // Handle subscription cancellation
+  const handleCancel = async (): Promise<void> => {
+    setIsCancelling(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const response = await fetch('/api/subscription/manage', {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json() as { success?: boolean; error?: string; message?: string };
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription');
+      }
+      
+      setActionSuccess(data.message || 'Subscription cancelled');
+      setShowCancelConfirm(false);
+      // Refresh subscription status
+      await fetchSubscriptionStatus();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to cancel');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const tabs = [
     { id: 'account' as const, label: 'Account', icon: UserIcon },
@@ -67,7 +238,36 @@ export default function AccountPage(): React.ReactElement {
     ? 'Premium' 
     : user.subscription_tier === 'family' 
       ? 'Family' 
-      : 'Free Plan';
+      : user.subscription_tier === 'trial'
+        ? 'Trial'
+        : 'Free Plan';
+
+  const currentTier = subscriptionStatus?.tier || user.subscription_tier;
+  const isPremium = currentTier === 'premium';
+  const isFamily = currentTier === 'family';
+  const isTrial = currentTier === 'trial';
+  const canUpgradeToPremium = isTrial;
+  const canUpgradeToFamily = isTrial || isPremium;
+  const canDowngradeToPremium = isFamily;
+  const canCancel = isPremium || isFamily;
+
+  // Format date for display
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  // Format currency
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
 
   return (
     <MainLayout>
@@ -139,7 +339,7 @@ export default function AccountPage(): React.ReactElement {
                         )}>
                           {subscriptionLabel}
                         </span>
-                        {user.subscription_tier === 'free' && (
+                        {(user.subscription_tier === 'free' || user.subscription_tier === 'trial') && (
                           <Link href="/pricing" className="text-sm text-accent-primary hover:underline">
                             Upgrade
                           </Link>
@@ -176,58 +376,276 @@ export default function AccountPage(): React.ReactElement {
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-text-primary mb-4">Subscription Management</h2>
                 
+                {/* Action Messages */}
+                {actionError && (
+                  <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">
+                    {actionError}
+                  </div>
+                )}
+                {actionSuccess && (
+                  <div className="rounded-lg border border-status-success bg-status-success/10 p-4 text-sm text-status-success">
+                    {actionSuccess}
+                  </div>
+                )}
+
                 <div className="space-y-4">
+                  {/* Current Plan */}
                   <div>
                     <h3 className="text-sm font-medium text-text-primary mb-2">Current Plan</h3>
-                    <div className="flex items-center gap-3">
-                      <span className={cn(
-                        'rounded-full px-3 py-1 text-sm font-medium',
-                        user.subscription_tier === 'premium' || user.subscription_tier === 'family'
-                          ? 'bg-accent-secondary/10 text-accent-secondary'
-                          : 'bg-accent-primary/10 text-accent-primary'
-                      )}>
-                        {subscriptionLabel}
-                      </span>
-                    </div>
+                    {isLoadingSubscription ? (
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                        <span className="text-sm text-text-muted">Loading...</span>
+                      </div>
+                    ) : subscriptionError ? (
+                      <p className="text-sm text-status-error">{subscriptionError}</p>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            'rounded-full px-3 py-1 text-sm font-medium',
+                            isPremium || isFamily
+                              ? 'bg-accent-secondary/10 text-accent-secondary'
+                              : 'bg-accent-primary/10 text-accent-primary'
+                          )}>
+                            {subscriptionLabel}
+                          </span>
+                          {subscriptionStatus?.status && (
+                            <span className={cn(
+                              'text-xs px-2 py-0.5 rounded',
+                              subscriptionStatus.status === 'active' 
+                                ? 'bg-status-success/10 text-status-success'
+                                : subscriptionStatus.status === 'cancelled'
+                                  ? 'bg-status-error/10 text-status-error'
+                                  : 'bg-status-warning/10 text-status-warning'
+                            )}>
+                              {subscriptionStatus.status}
+                            </span>
+                          )}
+                        </div>
+                        {subscriptionStatus?.expiresAt && (
+                          <p className="text-sm text-text-muted">
+                            {subscriptionStatus.status === 'cancelled' 
+                              ? `Access until: ${formatDate(subscriptionStatus.expiresAt)}`
+                              : `Renews: ${formatDate(subscriptionStatus.expiresAt)}`
+                            }
+                          </p>
+                        )}
+                        {subscriptionStatus?.daysRemaining !== null && subscriptionStatus?.daysRemaining !== undefined && (
+                          <p className="text-sm text-text-muted">
+                            {subscriptionStatus.daysRemaining} days remaining
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  {user.subscription_tier === 'free' ? (
+                  {/* Upgrade Options */}
+                  {(canUpgradeToPremium || canUpgradeToFamily) && (
                     <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
-                      <h4 className="font-medium text-text-primary mb-2">Upgrade to Premium</h4>
-                      <p className="text-sm text-text-muted mb-4">
-                        Get unlimited streaming, higher quality, and more features.
-                      </p>
-                      <Link
-                        href="/pricing"
-                        className={cn(
-                          'inline-block rounded-lg bg-accent-primary px-4 py-2',
-                          'text-sm font-medium text-white',
-                          'hover:bg-accent-primary/90 transition-colors'
+                      <h4 className="font-medium text-text-primary mb-3">Upgrade Your Plan</h4>
+                      <div className="space-y-3">
+                        {canUpgradeToPremium && (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-text-primary">Premium</p>
+                              <p className="text-sm text-text-muted">$9.99/month - Unlimited streaming, high quality</p>
+                            </div>
+                            <button
+                              onClick={() => handleUpgrade('premium')}
+                              disabled={isUpgrading}
+                              className={cn(
+                                'rounded-lg bg-accent-primary px-4 py-2',
+                                'text-sm font-medium text-white',
+                                'hover:bg-accent-primary/90 transition-colors',
+                                'disabled:opacity-50 disabled:cursor-not-allowed'
+                              )}
+                            >
+                              {isUpgrading ? 'Processing...' : 'Upgrade'}
+                            </button>
+                          </div>
                         )}
-                      >
-                        Upgrade
-                      </Link>
+                        {canUpgradeToFamily && (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-text-primary">Family</p>
+                              <p className="text-sm text-text-muted">$14.99/month - Up to 5 members, all premium features</p>
+                            </div>
+                            <button
+                              onClick={() => handleUpgrade('family')}
+                              disabled={isUpgrading}
+                              className={cn(
+                                'rounded-lg bg-accent-primary px-4 py-2',
+                                'text-sm font-medium text-white',
+                                'hover:bg-accent-primary/90 transition-colors',
+                                'disabled:opacity-50 disabled:cursor-not-allowed'
+                              )}
+                            >
+                              {isUpgrading ? 'Processing...' : 'Upgrade'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {/* Downgrade Option */}
+                  {canDowngradeToPremium && (
                     <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
-                      <h4 className="font-medium text-text-primary mb-2">Premium Features</h4>
+                      <h4 className="font-medium text-text-primary mb-3">Downgrade Plan</h4>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-text-primary">Premium</p>
+                          <p className="text-sm text-text-muted">$9.99/month - Downgrade takes effect at end of billing period</p>
+                        </div>
+                        <button
+                          onClick={() => handleDowngrade('premium')}
+                          disabled={isUpgrading}
+                          className={cn(
+                            'rounded-lg border border-border-default px-4 py-2',
+                            'text-sm font-medium text-text-secondary',
+                            'hover:bg-bg-hover hover:text-text-primary transition-colors',
+                            'disabled:opacity-50 disabled:cursor-not-allowed'
+                          )}
+                        >
+                          {isUpgrading ? 'Processing...' : 'Downgrade'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Premium Features */}
+                  {(isPremium || isFamily) && (
+                    <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
+                      <h4 className="font-medium text-text-primary mb-2">Your Features</h4>
                       <ul className="text-sm text-text-muted space-y-1">
                         <li>✓ Unlimited streaming</li>
                         <li>✓ High quality audio/video</li>
                         <li>✓ Priority support</li>
                         <li>✓ No ads</li>
+                        {isFamily && <li>✓ Up to 5 family members</li>}
                       </ul>
                     </div>
                   )}
 
+                  {/* Trial Info */}
+                  {isTrial && (
+                    <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
+                      <h4 className="font-medium text-text-primary mb-2">Trial Features</h4>
+                      <p className="text-sm text-text-muted mb-3">
+                        You&apos;re on a trial plan with full access to premium features.
+                      </p>
+                      <ul className="text-sm text-text-muted space-y-1">
+                        <li>✓ Unlimited streaming</li>
+                        <li>✓ High quality audio/video</li>
+                        <li>✓ Watch parties</li>
+                      </ul>
+                      <p className="text-sm text-text-muted mt-3">
+                        <Link href="/pricing" className="text-accent-primary hover:underline">
+                          Upgrade now
+                        </Link>
+                        {' '}to keep your access after the trial ends.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Cancel Subscription */}
+                  {canCancel && subscriptionStatus?.status !== 'cancelled' && (
+                    <div className="border-t border-border-subtle pt-4">
+                      <h3 className="text-sm font-medium text-text-primary mb-2">Cancel Subscription</h3>
+                      {!showCancelConfirm ? (
+                        <button
+                          onClick={() => setShowCancelConfirm(true)}
+                          className={cn(
+                            'rounded-lg border border-status-error px-4 py-2',
+                            'text-sm font-medium text-status-error',
+                            'hover:bg-status-error/10 transition-colors'
+                          )}
+                        >
+                          Cancel Subscription
+                        </button>
+                      ) : (
+                        <div className="rounded-lg border border-status-error bg-status-error/5 p-4">
+                          <p className="text-sm text-text-primary mb-3">
+                            Are you sure you want to cancel your subscription? You will lose access to premium features.
+                          </p>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={handleCancel}
+                              disabled={isCancelling}
+                              className={cn(
+                                'rounded-lg bg-status-error px-4 py-2',
+                                'text-sm font-medium text-white',
+                                'hover:bg-status-error/90 transition-colors',
+                                'disabled:opacity-50 disabled:cursor-not-allowed'
+                              )}
+                            >
+                              {isCancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                            </button>
+                            <button
+                              onClick={() => setShowCancelConfirm(false)}
+                              disabled={isCancelling}
+                              className={cn(
+                                'rounded-lg border border-border-default px-4 py-2',
+                                'text-sm font-medium text-text-secondary',
+                                'hover:bg-bg-hover hover:text-text-primary transition-colors',
+                                'disabled:opacity-50 disabled:cursor-not-allowed'
+                              )}
+                            >
+                              Keep Subscription
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Billing History */}
                   <div className="border-t border-border-subtle pt-4">
-                    <h3 className="text-sm font-medium text-text-primary mb-2">Billing History</h3>
-                    <Link
-                      href="/api/subscription/history"
-                      className="text-sm text-accent-primary hover:underline"
-                    >
-                      View billing history
-                    </Link>
+                    <h3 className="text-sm font-medium text-text-primary mb-3">Billing History</h3>
+                    {isLoadingHistory ? (
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                        <span className="text-sm text-text-muted">Loading...</span>
+                      </div>
+                    ) : historyError ? (
+                      <p className="text-sm text-status-error">{historyError}</p>
+                    ) : paymentHistory.length === 0 ? (
+                      <p className="text-sm text-text-muted">No payment history yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {paymentHistory.map((payment) => (
+                          <div
+                            key={payment.id}
+                            className="flex items-center justify-between rounded-lg border border-border-default bg-bg-tertiary p-3"
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-text-primary">
+                                {payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan
+                              </p>
+                              <p className="text-xs text-text-muted">
+                                {formatDate(payment.createdAt)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium text-text-primary">
+                                {formatCurrency(payment.amountUsd)}
+                              </p>
+                              <span className={cn(
+                                'text-xs px-2 py-0.5 rounded',
+                                payment.status === 'confirmed' 
+                                  ? 'bg-status-success/10 text-status-success'
+                                  : payment.status === 'pending'
+                                    ? 'bg-status-warning/10 text-status-warning'
+                                    : 'bg-status-error/10 text-status-error'
+                              )}>
+                                {payment.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -192,8 +192,8 @@ describe('useAuth', () => {
     it('should return true for premium users', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ 
-          user: { id: 'user-123', email: 'test@example.com', subscription_tier: 'premium' } 
+        json: async () => ({
+          user: { id: 'user-123', email: 'test@example.com', subscription_tier: 'premium' }
         }),
       });
 
@@ -209,8 +209,25 @@ describe('useAuth', () => {
     it('should return true for family users', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ 
-          user: { id: 'user-123', email: 'test@example.com', subscription_tier: 'family' } 
+        json: async () => ({
+          user: { id: 'user-123', email: 'test@example.com', subscription_tier: 'family' }
+        }),
+      });
+
+      const { result } = renderHook(() => useAuth());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isPremium).toBe(true);
+    });
+
+    it('should return true for trial users', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          user: { id: 'user-123', email: 'test@example.com', subscription_tier: 'trial' }
         }),
       });
 
@@ -226,8 +243,8 @@ describe('useAuth', () => {
     it('should return false for free users', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ 
-          user: { id: 'user-123', email: 'test@example.com', subscription_tier: 'free' } 
+        json: async () => ({
+          user: { id: 'user-123', email: 'test@example.com', subscription_tier: 'free' }
         }),
       });
 

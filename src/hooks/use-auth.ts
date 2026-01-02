@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 export interface AuthUser {
   id: string;
   email: string;
-  subscription_tier?: 'free' | 'premium' | 'family';
+  subscription_tier?: 'free' | 'trial' | 'premium' | 'family';
   display_name?: string;
   avatar_url?: string;
 }
@@ -59,7 +59,7 @@ export function useAuth(): UseAuthResult {
   }, [fetchAuthState]);
 
   const isLoggedIn = user !== null;
-  const isPremium = user?.subscription_tier === 'premium' || user?.subscription_tier === 'family';
+  const isPremium = user?.subscription_tier === 'trial' || user?.subscription_tier === 'premium' || user?.subscription_tier === 'family';
 
   return {
     isLoading,
