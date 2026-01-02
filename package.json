@@ -46,6 +46,7 @@
     "hls.js": "^1.6.15",
     "ioredis": "^5.8.2",
     "lucide-react": "^0.468.0",
+    "mpegts.js": "^1.8.0",
     "next": "16.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
