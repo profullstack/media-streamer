@@ -32,7 +32,7 @@ jobs:
        (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master'))
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Write .env file
         env:
