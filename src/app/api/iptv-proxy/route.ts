@@ -4,23 +4,21 @@
  * GET /api/iptv-proxy?url=<encoded-url>&headers=<encoded-headers>
  *
  * Proxies HTTP streams to avoid mixed content errors on HTTPS pages.
- * This is necessary because many IPTV providers serve streams over HTTP,
- * which browsers block when the page is served over HTTPS.
+ * Uses native Web Streams API for true streaming without buffering.
  *
  * Features:
- * - Proxies HTTP streams through HTTPS with proper streaming
+ * - True streaming proxy using ReadableStream
+ * - Proxies HTTP streams through HTTPS
  * - Rewrites HLS playlists to proxy all HTTP URLs
  * - Forwards custom headers to upstream
  * - Supports Range requests for seeking
- * - Uses chunked transfer encoding for live streams
  * - Blocks private IPs in production for security
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import {
   validateStreamUrl,
   getStreamHeaders,
-  buildProxyHeaders,
   decodeStreamUrl,
   isHttpUrl,
   encodeStreamUrl,
@@ -29,7 +27,7 @@ import {
 /**
  * Request timeout in milliseconds (longer for live streams)
  */
-const REQUEST_TIMEOUT = 60000;
+const REQUEST_TIMEOUT = 120000;
 
 /**
  * HLS content types that need URL rewriting
@@ -52,11 +50,6 @@ function isHlsPlaylist(contentType: string | null): boolean {
 
 /**
  * Rewrite HTTP URLs in HLS playlist to use proxy
- *
- * @param content - The HLS playlist content
- * @param baseUrl - The base URL for resolving relative URLs
- * @param proxyBaseUrl - The proxy API base URL
- * @returns The rewritten playlist content
  */
 function rewriteHlsPlaylist(
   content: string,
@@ -66,20 +59,17 @@ function rewriteHlsPlaylist(
   const lines = content.split('\n');
   const rewrittenLines: string[] = [];
 
-  // Parse base URL for resolving relative paths
   let parsedBase: URL;
   try {
     parsedBase = new URL(baseUrl);
   } catch {
-    return content; // Return unchanged if base URL is invalid
+    return content;
   }
 
   for (const line of lines) {
     const trimmedLine = line.trim();
 
-    // Skip empty lines and comments (except URI in comments)
     if (!trimmedLine || trimmedLine.startsWith('#')) {
-      // Check for URI= in EXT-X-KEY or similar tags
       if (trimmedLine.includes('URI="')) {
         const rewrittenTag = trimmedLine.replace(
           /URI="([^"]+)"/g,
@@ -98,11 +88,8 @@ function rewriteHlsPlaylist(
       continue;
     }
 
-    // Check if line is a URL (not a tag)
     if (!trimmedLine.startsWith('#')) {
       const absoluteUrl = resolveUrl(trimmedLine, parsedBase);
-
-      // Only proxy HTTP URLs, leave HTTPS unchanged
       if (isHttpUrl(absoluteUrl)) {
         rewrittenLines.push(`${proxyBaseUrl}?url=${encodeStreamUrl(absoluteUrl)}`);
       } else {
@@ -120,17 +107,12 @@ function rewriteHlsPlaylist(
  * Resolve a URL against a base URL
  */
 function resolveUrl(url: string, base: URL): string {
-  // Already absolute URL
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-
-  // Absolute path
   if (url.startsWith('/')) {
     return `${base.protocol}//${base.host}${url}`;
   }
-
-  // Relative path - resolve against base directory
   const basePath = base.pathname.substring(0, base.pathname.lastIndexOf('/') + 1);
   return `${base.protocol}//${base.host}${basePath}${url}`;
 }
@@ -143,13 +125,22 @@ function isProduction(): boolean {
 }
 
 /**
+ * Create a JSON error response using native Response
+ */
+function jsonError(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+
+/**
  * GET /api/iptv-proxy
  *
- * Proxy an HTTP stream through HTTPS.
- *
- * Query parameters:
- * - url: (required) The encoded stream URL to proxy
- * - headers: (optional) Encoded JSON object of custom headers
+ * Proxy an HTTP stream through HTTPS using native streaming.
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const { searchParams } = new URL(request.url);
@@ -157,15 +148,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   const encodedHeaders = searchParams.get('headers');
 
   console.log('[IPTV Proxy] Request received');
-  console.log('[IPTV Proxy] Encoded URL:', encodedUrl?.substring(0, 100));
 
   // Validate URL parameter
   if (!encodedUrl) {
-    console.log('[IPTV Proxy] Missing URL parameter');
-    return NextResponse.json(
-      { error: 'Missing required parameter: url' },
-      { status: 400 }
-    );
+    return jsonError('Missing required parameter: url', 400);
   }
 
   // Decode the stream URL
@@ -173,42 +159,34 @@ export async function GET(request: NextRequest): Promise<Response> {
   console.log('[IPTV Proxy] Decoded URL:', streamUrl?.substring(0, 100));
 
   if (!streamUrl) {
-    console.log('[IPTV Proxy] Failed to decode URL');
-    return NextResponse.json(
-      { error: 'Invalid url parameter' },
-      { status: 400 }
-    );
+    return jsonError('Invalid url parameter', 400);
   }
 
   // Validate the stream URL
   if (!validateStreamUrl(streamUrl, isProduction())) {
-    console.log('[IPTV Proxy] URL validation failed');
-    return NextResponse.json(
-      { error: 'Invalid stream URL' },
-      { status: 400 }
-    );
+    return jsonError('Invalid stream URL', 400);
   }
-  
-  console.log('[IPTV Proxy] URL validated, fetching upstream');
 
   // Parse custom headers if provided
   let customHeaders: Record<string, string> = {};
   if (encodedHeaders) {
     try {
-      customHeaders = JSON.parse(decodeStreamUrl(encodedHeaders)) as Record<string, string>;
+      const decoded = decodeStreamUrl(encodedHeaders);
+      if (decoded) {
+        customHeaders = JSON.parse(decoded) as Record<string, string>;
+      }
     } catch {
       // Ignore invalid headers
     }
   }
 
-  // Build request headers - include Range header if present for seeking support
+  // Build request headers
   const requestHeaders = getStreamHeaders(customHeaders);
-  
+
   // Forward Range header for seeking support
   const rangeHeader = request.headers.get('range');
   if (rangeHeader) {
     requestHeaders['Range'] = rangeHeader;
-    console.log('[IPTV Proxy] Forwarding Range header:', rangeHeader);
   }
 
   try {
@@ -217,7 +195,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     // Fetch the upstream stream
-    const response = await fetch(streamUrl, {
+    const upstreamResponse = await fetch(streamUrl, {
       headers: requestHeaders,
       signal: controller.signal,
     });
@@ -225,86 +203,85 @@ export async function GET(request: NextRequest): Promise<Response> {
     clearTimeout(timeoutId);
 
     // Check for upstream errors (allow 206 Partial Content for Range requests)
-    if (!response.ok && response.status !== 206) {
-      console.log('[IPTV Proxy] Upstream error:', response.status, response.statusText);
-      return NextResponse.json(
-        { error: `Upstream error: ${response.status} ${response.statusText}` },
-        { status: 502 }
-      );
+    if (!upstreamResponse.ok && upstreamResponse.status !== 206) {
+      console.log('[IPTV Proxy] Upstream error:', upstreamResponse.status);
+      return jsonError(`Upstream error: ${upstreamResponse.status}`, 502);
     }
 
-    // Get content type
-    const contentType = response.headers.get('content-type');
-    const contentLength = response.headers.get('content-length');
-    const contentRange = response.headers.get('content-range');
-    const acceptRanges = response.headers.get('accept-ranges');
+    // Get content type and other headers
+    const contentType = upstreamResponse.headers.get('content-type');
+    const contentLength = upstreamResponse.headers.get('content-length');
+    const contentRange = upstreamResponse.headers.get('content-range');
+    const acceptRanges = upstreamResponse.headers.get('accept-ranges');
 
-    // Build proxy response headers
-    const proxyHeaders = buildProxyHeaders({
-      contentType: contentType ?? undefined,
-      contentLength: contentLength ? parseInt(contentLength, 10) : undefined,
-    });
-    
-    // Add streaming-specific headers
-    proxyHeaders['Accept-Ranges'] = acceptRanges ?? 'bytes';
-    proxyHeaders['Connection'] = 'keep-alive';
-    
-    // Forward Content-Range for partial content responses
+    // Build response headers
+    const responseHeaders: HeadersInit = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Range',
+      'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
+      'Connection': 'keep-alive',
+    };
+
+    if (contentType) {
+      responseHeaders['Content-Type'] = contentType;
+    }
+
+    if (acceptRanges) {
+      responseHeaders['Accept-Ranges'] = acceptRanges;
+    }
+
     if (contentRange) {
-      proxyHeaders['Content-Range'] = contentRange;
+      responseHeaders['Content-Range'] = contentRange;
     }
 
     // For HLS playlists, rewrite HTTP URLs to use proxy
-    if (isHlsPlaylist(contentType) && response.body) {
-      const text = await response.text();
+    if (isHlsPlaylist(contentType) && upstreamResponse.body) {
+      const text = await upstreamResponse.text();
       const proxyBaseUrl = '/api/iptv-proxy';
       const rewrittenContent = rewriteHlsPlaylist(text, streamUrl, proxyBaseUrl);
+      const encoded = new TextEncoder().encode(rewrittenContent);
 
-      return new Response(rewrittenContent, {
+      return new Response(encoded, {
         status: 200,
         headers: {
-          ...proxyHeaders,
-          'Content-Length': String(new TextEncoder().encode(rewrittenContent).length),
+          ...responseHeaders,
+          'Content-Length': String(encoded.length),
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       });
     }
 
-    // For live streams (MPEG-TS, etc.), use chunked transfer encoding
-    // Don't set Content-Length for live streams to enable proper streaming
+    // Detect if this is a live stream
     const isLiveStream = streamUrl.endsWith('.ts') ||
                          contentType?.includes('video/mp2t') ||
                          contentType?.includes('video/mpeg');
-    
-    if (isLiveStream) {
-      // Remove Content-Length for live streams to enable chunked transfer
-      delete proxyHeaders['Content-Length'];
-      proxyHeaders['Transfer-Encoding'] = 'chunked';
-      proxyHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-      console.log('[IPTV Proxy] Live stream detected, using chunked transfer');
+
+    // For live streams, don't set Content-Length to enable true streaming
+    if (!isLiveStream && contentLength) {
+      responseHeaders['Content-Length'] = contentLength;
     }
 
-    // Return the response with proper status code (200 or 206 for partial content)
-    return new Response(response.body, {
-      status: response.status,
-      headers: proxyHeaders,
+    // Add cache control for live streams
+    if (isLiveStream) {
+      responseHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      console.log('[IPTV Proxy] Live stream detected, streaming directly');
+    }
+
+    // Return the upstream body directly as a ReadableStream
+    // This is the key - we pass the body through without any transformation
+    return new Response(upstreamResponse.body, {
+      status: upstreamResponse.status,
+      headers: responseHeaders,
     });
   } catch (error) {
-    // Handle timeout
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('[IPTV Proxy] Request timeout');
-      return NextResponse.json(
-        { error: 'Request timeout' },
-        { status: 504 }
-      );
+      return jsonError('Request timeout', 504);
     }
 
-    // Handle other errors
     console.error('[IPTV Proxy] Error:', error);
-    return NextResponse.json(
-      { error: 'Proxy error: timeout or network failure' },
-      { status: 504 }
-    );
+    return jsonError('Proxy error', 504);
   }
 }
 
@@ -320,6 +297,7 @@ export async function OPTIONS(_request: NextRequest): Promise<Response> {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Range',
+      'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
       'Access-Control-Max-Age': '86400',
     },
   });

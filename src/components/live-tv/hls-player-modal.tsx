@@ -209,12 +209,27 @@ export function HlsPlayerModal({
             isLive: true,
             url: absoluteUrl,
           }, {
+            // Worker for better performance
             enableWorker: true,
-            enableStashBuffer: false,
-            stashInitialSize: 128,
-            liveBufferLatencyChasing: true,
-            liveBufferLatencyMaxLatency: 1.5,
-            liveBufferLatencyMinRemain: 0.3,
+            // Enable stash buffer for smoother playback through proxy
+            enableStashBuffer: true,
+            // Larger initial buffer to prevent stuttering (384KB)
+            stashInitialSize: 384 * 1024,
+            // Disable aggressive latency chasing - causes buffering through proxy
+            liveBufferLatencyChasing: false,
+            // More tolerant latency settings for proxied streams
+            liveBufferLatencyMaxLatency: 5.0,
+            liveBufferLatencyMinRemain: 1.0,
+            // Auto cleanup for memory management
+            autoCleanupSourceBuffer: true,
+            autoCleanupMaxBackwardDuration: 30,
+            autoCleanupMinBackwardDuration: 10,
+            // Larger IO buffer for network stability
+            lazyLoad: false,
+            lazyLoadMaxDuration: 60,
+            lazyLoadRecoverDuration: 30,
+            // Seek optimization
+            seekType: 'range',
           });
           
           mpegtsRef.current = player;
