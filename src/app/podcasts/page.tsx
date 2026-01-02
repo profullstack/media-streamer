@@ -88,7 +88,7 @@ interface PodcastEpisode {
  * API response types
  */
 interface SearchResponse {
-  podcasts: PodcastSearchResult[];
+  results: PodcastSearchResult[];
 }
 
 interface SubscriptionsResponse {
@@ -287,7 +287,7 @@ export default function PodcastsPage(): React.ReactElement {
           }
           
           const data = await response.json() as SearchResponse;
-          setSearchResults(data.podcasts);
+          setSearchResults(data.results);
         } catch (err) {
           console.error('[Podcasts] Search error:', err);
           setSearchError(err instanceof Error ? err.message : 'Search failed');

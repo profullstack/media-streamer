@@ -8,9 +8,10 @@
  */
 
 import React, { useState, useCallback, FormEvent } from 'react';
-import { 
-  SearchIcon, 
-  LoadingSpinner, 
+import { MainLayout } from '@/components/layout';
+import {
+  SearchIcon,
+  LoadingSpinner,
   MagnetIcon,
   CheckIcon,
   GlobeIcon,
@@ -170,8 +171,8 @@ export default function FindTorrentsPage(): React.ReactElement {
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary p-6">
-      <div className="mx-auto max-w-6xl">
+    <MainLayout>
+      <div className="space-y-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-text-primary">Find Torrents to Add</h1>
@@ -394,6 +395,6 @@ export default function FindTorrentsPage(): React.ReactElement {
           </div>
         ) : null}
       </div>
-    </div>
+    </MainLayout>
   );
 }
