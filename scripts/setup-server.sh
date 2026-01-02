@@ -95,7 +95,7 @@ fi
 # Install essential packages (only if missing)
 echo "=== Checking essential packages ==="
 PACKAGES_TO_INSTALL=""
-for pkg in curl git build-essential ffmpeg rsync ufw fail2ban nginx certbot python3-certbot-nginx; do
+for pkg in curl git build-essential ffmpeg rsync ufw fail2ban nginx certbot python3-certbot-nginx redis-server; do
     if ! dpkg -l | grep -q "^ii  $pkg "; then
         PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $pkg"
     fi
@@ -106,6 +106,16 @@ if [ -n "$PACKAGES_TO_INSTALL" ]; then
     sudo apt-get install -y $PACKAGES_TO_INSTALL
 else
     echo "All essential packages already installed"
+fi
+
+# Enable and start Redis (for IPTV playlist caching)
+echo "=== Configuring Redis ==="
+sudo systemctl enable redis-server 2>/dev/null || true
+sudo systemctl start redis-server 2>/dev/null || true
+if systemctl is-active --quiet redis-server; then
+    echo "✓ Redis is running"
+else
+    echo "WARNING: Redis failed to start"
 fi
 
 # Install Node.js if not present or wrong version

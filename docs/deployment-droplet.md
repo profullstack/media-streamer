@@ -146,57 +146,30 @@ SSH into your Droplet:
 ssh root@YOUR_DROPLET_IP
 ```
 
-Run the setup script:
+The automated setup script handles everything. Just clone the repo and run it:
 
 ```bash
-# Update system
-apt update && apt upgrade -y
-
-# Install Node.js 22
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt install -y nodejs
-
-# Install pnpm
-npm install -g pnpm
-
-# Install PM2 for process management
-npm install -g pm2
-
-# Install FFmpeg for transcoding
-apt install -y ffmpeg
-
-# Install Git
-apt install -y git
-
-# Install Nginx (optional, for reverse proxy)
-apt install -y nginx
-
-# Create app directory
-mkdir -p /var/www/bittorrented
-cd /var/www/bittorrented
-
 # Clone your repository
-git clone https://github.com/YOUR_USERNAME/music-torrent.git .
-
-# Install dependencies
-pnpm install
+git clone https://github.com/YOUR_USERNAME/music-torrent.git /home/ubuntu/www/bittorrented.com/media-streamer
+cd /home/ubuntu/www/bittorrented.com/media-streamer
 
 # Create .env file
 cp .env.example .env
-nano .env  # Edit with your values
+nano .env  # Edit with your values (see Environment Variables section)
 
-# Build the application
-pnpm build
-
-# Start with PM2
-pm2 start pnpm --name "bittorrented" -- start
-
-# Save PM2 process list
-pm2 save
-
-# Setup PM2 to start on boot
-pm2 startup
+# Run the idempotent setup script
+bash scripts/setup-server.sh
 ```
+
+The setup script automatically installs and configures:
+- Node.js 22
+- pnpm
+- FFmpeg (for transcoding)
+- Redis (for IPTV playlist caching)
+- Nginx (reverse proxy with SSL)
+- systemd service (process management)
+- fail2ban (security)
+- UFW firewall
 
 ## Step 5: Configure GitHub Secrets
 
@@ -290,7 +263,11 @@ Or trigger manually from GitHub Actions → Deploy to Droplet → Run workflow.
 After deployment, check the logs:
 
 ```bash
-pm2 logs bittorrented
+# View recent logs
+tail -100 /var/log/bittorrented.com.log
+
+# Follow logs in real-time
+tail -f /var/log/bittorrented.com.log
 ```
 
 Look for:
@@ -312,7 +289,15 @@ If you see `DHT has 0 nodes after 10 seconds`, UDP is still blocked.
 ### App not starting
 
 ```bash
-pm2 logs bittorrented --lines 100
+# Check service status
+sudo systemctl status bittorrented
+
+# View logs
+tail -100 /var/log/bittorrented.com.log
+tail -100 /var/log/bittorrented.com.error.log
+
+# Restart service
+sudo systemctl restart bittorrented
 ```
 
 ### Port 3000 not accessible
@@ -326,6 +311,20 @@ nginx -t
 systemctl status nginx
 ```
 
+### Redis not working
+
+```bash
+# Check Redis status
+systemctl status redis-server
+
+# Test Redis connection
+redis-cli ping
+# Should return: PONG
+
+# Restart Redis
+sudo systemctl restart redis-server
+```
+
 ## Environment Variables
 
 Create `/var/www/bittorrented/.env`:
@@ -336,7 +335,21 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
 SUPABASE_SERVICE_ROLE_KEY=xxx
 
+# Redis (for IPTV playlist caching)
+REDIS_URL=redis://localhost:6379
+
 # App
 NODE_ENV=production
 PORT=3000
+```
+
+### Verify Redis is Running
+
+```bash
+# Check Redis status
+systemctl status redis-server
+
+# Test Redis connection
+redis-cli ping
+# Should return: PONG
 ```
