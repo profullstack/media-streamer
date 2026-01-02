@@ -1,13 +1,14 @@
 /**
  * IPTV Channels API Route
- * 
+ *
  * GET /api/iptv/channels?m3uUrl=<url>&q=<search>&group=<group>&limit=<n>&offset=<n>
- * 
+ *
  * Fetches and parses M3U playlists with Redis caching (5 min TTL).
  * Supports server-side search with word-order-independent matching.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Agent, fetch as undiciFetch } from 'undici';
 import {
   parseM3U,
   searchChannels,
@@ -18,6 +19,16 @@ import {
   type Channel,
   type CachedPlaylist,
 } from '@/lib/iptv';
+
+/**
+ * Undici agent that ignores SSL certificate errors.
+ * Required for IPTV providers with self-signed or invalid certificates.
+ */
+const insecureAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false,
+  },
+});
 
 /**
  * Request timeout for fetching M3U playlists
@@ -108,11 +119,12 @@ export async function GET(request: NextRequest): Promise<Response> {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-      const response = await fetch(m3uUrl, {
+      const response = await undiciFetch(m3uUrl, {
         signal: controller.signal,
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; IPTV/1.0)',
         },
+        dispatcher: insecureAgent,
       });
 
       clearTimeout(timeoutId);

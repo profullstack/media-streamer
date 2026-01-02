@@ -1,6 +1,6 @@
 /**
  * IPTV Channels API Route Tests
- * 
+ *
  * Tests for the server-side channel search API with Redis caching.
  */
 
@@ -11,12 +11,19 @@ import { NextRequest } from 'next/server';
 const mockCacheGet = vi.fn();
 const mockCacheSet = vi.fn();
 
+// Mock undici fetch
+const mockFetch = vi.fn();
+vi.mock('undici', () => ({
+  Agent: vi.fn().mockImplementation(() => ({})),
+  fetch: mockFetch,
+}));
+
 // Mock the iptv library before importing the route
 vi.mock('@/lib/iptv', () => ({
   parseM3U: vi.fn(),
   searchChannels: vi.fn(),
   extractGroups: vi.fn(),
-  getProxiedUrl: vi.fn((url: string) => 
+  getProxiedUrl: vi.fn((url: string) =>
     url.startsWith('http://') ? `/api/iptv-proxy?url=${encodeURIComponent(url)}` : url
   ),
   getPlaylistCache: vi.fn(() => ({
@@ -27,10 +34,6 @@ vi.mock('@/lib/iptv', () => ({
     generateKey: vi.fn((url: string) => `key_${url}`),
   },
 }));
-
-// Mock fetch
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 // Import after mocks are set up
 const { GET } = await import('./route');
@@ -205,6 +208,33 @@ describe('IPTV Channels API', () => {
       
       expect(response.status).toBe(502);
       expect(data.error).toContain('fetch');
+    });
+
+    it('handles SSL certificate errors by ignoring invalid certs', async () => {
+      mockCacheGet.mockResolvedValue(null);
+      
+      const mockChannels = [
+        { id: '1', name: 'ESPN HD', url: 'https://example.com/espn.m3u8', group: 'Sports' },
+      ];
+      vi.mocked(parseM3U).mockReturnValue(mockChannels);
+      vi.mocked(searchChannels).mockReturnValue(mockChannels);
+      vi.mocked(extractGroups).mockReturnValue(['Sports']);
+      
+      // Simulate successful fetch (the implementation should use rejectUnauthorized: false)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('#EXTM3U\n#EXTINF:-1,ESPN HD\nhttps://example.com/espn.m3u8'),
+      });
+      
+      const request = new NextRequest('http://localhost/api/iptv/channels?m3uUrl=https://chimptv.xyz/get.php');
+      
+      const response = await GET(request);
+      const data = await response.json();
+      
+      expect(response.status).toBe(200);
+      expect(data.channels).toHaveLength(1);
+      // Verify fetch was called - the actual SSL bypass is in the implementation
+      expect(mockFetch).toHaveBeenCalled();
     });
 
     it('proxies HTTP URLs in channel responses', async () => {
