@@ -31,6 +31,10 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     contentType: dbTorrent.content_type as ContentType | null,
     year: dbTorrent.year,
     description: dbTorrent.description,
+    // Credits fields
+    director: dbTorrent.director,
+    actors: dbTorrent.actors,
+    genre: dbTorrent.genre,
     // Codec fields
     videoCodec: dbTorrent.video_codec,
     audioCodec: dbTorrent.audio_codec,

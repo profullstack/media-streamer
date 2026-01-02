@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { TorrentMetadata } from '../torrent';
 
 // Mock dependencies with factory functions that don't reference external variables
@@ -72,6 +72,10 @@ function createMockTorrent(overrides: Partial<{
     container: null,
     needs_transcoding: false,
     codec_detected_at: null,
+    // Credits fields
+    director: null,
+    actors: null,
+    genre: null,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,

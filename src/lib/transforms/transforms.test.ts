@@ -39,6 +39,10 @@ describe('transforms', () => {
         external_source: null,
         year: null,
         description: null,
+        // Credits fields
+        director: null,
+        actors: null,
+        genre: null,
         metadata_fetched_at: null,
         // Codec fields
         video_codec: null,
@@ -69,6 +73,10 @@ describe('transforms', () => {
         contentType: null,
         year: null,
         description: null,
+        // Credits fields
+        director: null,
+        actors: null,
+        genre: null,
         // Codec fields
         videoCodec: null,
         audioCodec: null,
@@ -105,6 +113,10 @@ describe('transforms', () => {
         external_source: null,
         year: null,
         description: null,
+        // Credits fields
+        director: null,
+        actors: null,
+        genre: null,
         metadata_fetched_at: null,
         // Codec fields
         video_codec: null,
@@ -149,6 +161,10 @@ describe('transforms', () => {
         external_source: 'musicbrainz',
         year: 1973,
         description: 'Complete discography of Pink Floyd',
+        // Credits fields
+        director: null,
+        actors: null,
+        genre: null,
         metadata_fetched_at: '2025-12-26T23:00:00.000Z',
         // Codec fields
         video_codec: null,

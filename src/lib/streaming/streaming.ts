@@ -9,6 +9,8 @@
 import WebTorrent from 'webtorrent';
 import type { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
+import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { validateMagnetUri, extractInfohash } from '../magnet';
 import { getMediaCategory, getMimeType } from '../utils';
 import type { MediaCategory } from '../utils';
@@ -875,6 +877,39 @@ export class StreamingService {
   }
 
   /**
+   * Delete the torrent folder from disk
+   * WebTorrent's destroyStore only deletes files inside the folder, not the folder itself
+   * This ensures complete cleanup of disk space
+   *
+   * @param torrentName - The torrent name (folder name in download path)
+   * @param infohash - The torrent infohash (used as fallback folder name)
+   */
+  private async deleteTorrentFolder(torrentName: string | undefined, infohash: string): Promise<void> {
+    // Try to delete folder by torrent name first, then by infohash
+    const foldersToTry = [
+      torrentName ? join(this.downloadPath, torrentName) : null,
+      join(this.downloadPath, infohash),
+    ].filter((f): f is string => f !== null);
+
+    for (const folderPath of foldersToTry) {
+      try {
+        await rm(folderPath, { recursive: true, force: true });
+        logger.info('Deleted torrent folder', { folderPath, infohash });
+        return; // Success, no need to try other paths
+      } catch (err) {
+        // ENOENT means folder doesn't exist, which is fine
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          logger.warn('Failed to delete torrent folder', {
+            folderPath,
+            infohash,
+            error: String(err),
+          });
+        }
+      }
+    }
+  }
+
+  /**
    * Schedule torrent removal after the cleanup delay
    * This is called when the last watcher disconnects.
    */
@@ -904,6 +939,8 @@ export class StreamingService {
         // destroyStore: true ensures the downloaded data is deleted from disk
         // This is critical for disk space management and DMCA compliance
         const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        const torrentName = torrent?.name;
+        
         if (torrent) {
           // Use destroy() with destroyStore option to delete files
           (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
@@ -914,10 +951,20 @@ export class StreamingService {
               } else {
                 logger.info('Torrent destroyed and files deleted (DMCA protection)', { infohash });
               }
+              
+              // Also delete the torrent folder itself (destroyStore only deletes files inside)
+              // This ensures complete cleanup of disk space
+              this.deleteTorrentFolder(torrentName, infohash).catch((folderErr) => {
+                logger.warn('Error deleting torrent folder', { infohash, error: String(folderErr) });
+              });
             }
           );
         } else {
           logger.debug('Torrent not found in client during cleanup', { infohash });
+          // Still try to delete the folder in case it exists
+          this.deleteTorrentFolder(undefined, infohash).catch((folderErr) => {
+            logger.warn('Error deleting torrent folder (torrent not in client)', { infohash, error: String(folderErr) });
+          });
         }
         
         // Clean up watcher tracking
@@ -989,11 +1036,16 @@ export class StreamingService {
         const torrent = this.client.torrents.find(t => t.infoHash === infohash);
         if (!torrent) {
           logger.debug('Torrent not in client list, nothing to remove', { infohash });
+          // Still try to delete the folder in case it exists
+          this.deleteTorrentFolder(undefined, infohash).catch((folderErr) => {
+            logger.debug('No folder to delete for non-existent torrent', { infohash, error: String(folderErr) });
+          });
           resolve(true);
           return;
         }
 
-        logger.debug('Removing torrent from client and deleting files', { infohash });
+        const torrentName = torrent.name;
+        logger.debug('Removing torrent from client and deleting files', { infohash, torrentName });
         // Use destroy() with destroyStore option to delete downloaded files
         // This is critical for disk space management
         (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
@@ -1004,6 +1056,10 @@ export class StreamingService {
               resolve(false);
             } else {
               logger.debug('Torrent destroyed and files deleted', { infohash });
+              // Also delete the torrent folder itself (destroyStore only deletes files inside)
+              this.deleteTorrentFolder(torrentName, infohash).catch((folderErr) => {
+                logger.warn('Error deleting torrent folder in safeRemoveTorrent', { infohash, error: String(folderErr) });
+              });
               resolve(true);
             }
           }

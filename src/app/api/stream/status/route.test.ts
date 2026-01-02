@@ -103,6 +103,9 @@ describe('Stream Status API - GET /api/stream/status', () => {
       container: null,
       needs_transcoding: false,
       codec_detected_at: null,
+      director: null,
+      actors: null,
+      genre: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -148,6 +151,9 @@ describe('Stream Status API - GET /api/stream/status', () => {
       container: null,
       needs_transcoding: false,
       codec_detected_at: null,
+      director: null,
+      actors: null,
+      genre: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -214,6 +220,9 @@ describe('Stream Status API - GET /api/stream/status', () => {
         container: null,
         needs_transcoding: false,
         codec_detected_at: null,
+        director: null,
+        actors: null,
+        genre: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -258,6 +267,9 @@ describe('Stream Status API - GET /api/stream/status', () => {
         container: null,
         needs_transcoding: false,
         codec_detected_at: null,
+        director: null,
+        actors: null,
+        genre: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -301,6 +313,9 @@ describe('Stream Status API - GET /api/stream/status', () => {
         container: null,
         needs_transcoding: false,
         codec_detected_at: null,
+        director: null,
+        actors: null,
+        genre: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

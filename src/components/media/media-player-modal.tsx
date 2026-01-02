@@ -5,7 +5,18 @@
  *
  * A modal dialog that displays a video/audio player for streaming torrent files.
  * Shows the file title and provides playback controls.
- * Supports automatic transcoding for non-browser-supported formats.
+ *
+ * STREAMING MODES:
+ * 1. Client-side WebTorrent (P2P): For native-compatible formats (mp4, webm, mp3, etc.)
+ *    - Streams directly from peers in the browser
+ *    - Reduces server load and bandwidth
+ *    - True P2P streaming
+ *
+ * 2. Server-side streaming: For formats requiring transcoding (mkv, flac, etc.)
+ *    - Uses /api/stream endpoint
+ *    - Server downloads from peers and transcodes via FFmpeg
+ *    - Outputs browser-compatible format
+ *
  * Pre-checks codec info before playback to determine if transcoding is needed.
  * Displays realtime swarm statistics (seeders/leechers).
  * Shows real-time connection status and health stats via persistent SSE.
@@ -16,7 +27,7 @@ import { Modal } from '@/components/ui/modal';
 import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { getMediaCategory } from '@/lib/utils';
-import { useAnalytics } from '@/hooks';
+import { useAnalytics, useWebTorrent, isNativeCompatible } from '@/hooks';
 import type { TorrentFile } from '@/types';
 
 /**
@@ -197,6 +208,9 @@ export interface MediaPlayerModalProps {
  * Displays a modal with the appropriate player based on media type.
  * Supports displaying artist, album, song title, and cover art.
  * Integrates with Media Session API for iOS lock screen and CarPlay.
+ *
+ * Uses client-side WebTorrent P2P streaming for native-compatible formats,
+ * and server-side streaming with transcoding for non-native formats.
  */
 export function MediaPlayerModal({
   isOpen,
@@ -209,10 +223,16 @@ export function MediaPlayerModal({
   coverArt,
 }: MediaPlayerModalProps): React.ReactElement | null {
   const { trackPlayback } = useAnalytics();
+  
+  // Client-side WebTorrent hook for P2P streaming of native formats
+  const webTorrent = useWebTorrent();
+  
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isTranscoding, setIsTranscoding] = useState(false);
+  /** Whether we're using client-side P2P streaming */
+  const [isP2PStreaming, setIsP2PStreaming] = useState(false);
   const [swarmStats, setSwarmStats] = useState<SwarmStats | null>(null);
   const [isLoadingSwarm, setIsLoadingSwarm] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
@@ -340,8 +360,8 @@ export function MediaPlayerModal({
   }, [isOpen, infohash, file]);
 
   // Build stream URL when file changes and codec check is complete
-  // Add transcode=auto parameter for files that need transcoding
-  // Also handles retry with transcoding after codec errors
+  // For native-compatible formats: use client-side WebTorrent P2P streaming
+  // For non-native formats: use server-side streaming with transcoding
   // retryCount is included to force URL rebuild on manual retry
   useEffect(() => {
     if (file && infohash && codecCheckComplete) {
@@ -352,46 +372,90 @@ export function MediaPlayerModal({
       const formatNeedsTranscode = needsTranscoding(file.name);
       const codecNeedsTranscode = codecInfo?.needsTranscoding === true;
       const requiresTranscoding = isRetryingWithTranscode || formatNeedsTranscode || codecNeedsTranscode;
+      
+      // Check if format is native-compatible for client-side P2P streaming
+      const canUseP2P = isNativeCompatible(file.name) && !requiresTranscoding;
+      
       setIsTranscoding(requiresTranscoding);
+      setIsP2PStreaming(canUseP2P);
 
-      // Add cache-busting parameter on retry to ensure fresh request
-      let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-      if (requiresTranscoding) {
-        url += '&transcode=auto';
-      }
-      if (retryCount > 0) {
-        url += `&_retry=${retryCount}`;
-      }
-
-      console.log('[MediaPlayerModal] Building stream URL:', {
+      console.log('[MediaPlayerModal] Determining streaming mode:', {
         infohash,
         fileIndex: file.fileIndex,
         fileName: file.name,
         formatNeedsTranscode,
         codecNeedsTranscode,
-        codecInfo: codecInfo ? {
-          videoCodec: codecInfo.videoCodec,
-          audioCodec: codecInfo.audioCodec,
-          needsTranscoding: codecInfo.needsTranscoding,
-          cached: codecInfo.cached,
-        } : null,
+        isNativeCompatible: isNativeCompatible(file.name),
+        canUseP2P,
         requiresTranscoding,
         isRetryingWithTranscode,
         retryCount,
-        url,
       });
 
-      setStreamUrl(url);
-      // Always clear error when building a new URL (including when retrying with transcoding)
+      if (canUseP2P) {
+        // Use client-side WebTorrent P2P streaming for native formats
+        console.log('[MediaPlayerModal] Starting client-side P2P streaming');
+        
+        // Build magnet URI - we need to fetch it from the API or construct it
+        const magnetUri = `magnet:?xt=urn:btih:${infohash}`;
+        
+        webTorrent.startStream({
+          magnetUri,
+          fileIndex: file.fileIndex,
+          fileName: file.name,
+        });
+        
+        // Clear server-side stream URL - we'll use webTorrent.streamUrl instead
+        setStreamUrl(null);
+      } else {
+        // Use server-side streaming with optional transcoding
+        console.log('[MediaPlayerModal] Using server-side streaming');
+        
+        // Stop any active P2P stream
+        webTorrent.stopStream();
+        
+        // Build server-side stream URL
+        let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+        if (requiresTranscoding) {
+          url += '&transcode=auto';
+        }
+        if (retryCount > 0) {
+          url += `&_retry=${retryCount}`;
+        }
+
+        console.log('[MediaPlayerModal] Server stream URL:', url);
+        setStreamUrl(url);
+      }
+      
+      // Always clear error when starting a new stream
       setError(null);
       setIsPlayerReady(false);
     } else if (!file || !infohash) {
+      // Cleanup when no file
+      webTorrent.stopStream();
       setStreamUrl(null);
       setIsTranscoding(false);
+      setIsP2PStreaming(false);
       setIsPlayerReady(false);
     }
     // Don't clear stream URL while waiting for codec check - keep previous state
-  }, [file, infohash, isRetryingWithTranscode, retryCount, codecCheckComplete, codecInfo]);
+  }, [file, infohash, isRetryingWithTranscode, retryCount, codecCheckComplete, codecInfo, webTorrent]);
+  
+  // Update stream URL from WebTorrent when P2P streaming is ready
+  useEffect(() => {
+    if (isP2PStreaming && webTorrent.status === 'ready' && webTorrent.streamUrl) {
+      console.log('[MediaPlayerModal] P2P stream ready:', webTorrent.streamUrl);
+      setStreamUrl(webTorrent.streamUrl);
+    }
+  }, [isP2PStreaming, webTorrent.status, webTorrent.streamUrl]);
+  
+  // Handle WebTorrent errors
+  useEffect(() => {
+    if (isP2PStreaming && webTorrent.status === 'error' && webTorrent.error) {
+      console.error('[MediaPlayerModal] P2P streaming error:', webTorrent.error);
+      setError(webTorrent.error);
+    }
+  }, [isP2PStreaming, webTorrent.status, webTorrent.error]);
 
   // Handle player ready
   const handlePlayerReady = useCallback(() => {
@@ -444,9 +508,13 @@ export function MediaPlayerModal({
 
   // Handle close and cleanup
   const handleClose = useCallback(() => {
+    // Stop P2P streaming
+    webTorrent.stopStream();
+    
     setStreamUrl(null);
     setError(null);
     setIsPlayerReady(false);
+    setIsP2PStreaming(false);
     setSwarmStats(null);
     setConnectionStatus(null);
     setUserClickedPlay(false);
@@ -463,7 +531,7 @@ export function MediaPlayerModal({
       eventSourceRef.current = null;
     }
     onClose();
-  }, [onClose]);
+  }, [onClose, webTorrent]);
 
   // Reset transcoding retry state when file changes
   useEffect(() => {
@@ -555,13 +623,19 @@ export function MediaPlayerModal({
   
   const isLoading = !isPlayerReady && !error;
   
+  // For P2P streaming, use WebTorrent status; for server-side, use SSE connection status
   // Stream is ready when file has enough buffer for streaming (2MB for audio, 10MB for video)
   // Falls back to ready (metadata ready) if fileReady is not yet available
-  const isStreamReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
+  const isP2PReady = isP2PStreaming && webTorrent.status === 'ready';
+  const isServerStreamReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
+  const isStreamReady = isP2PStreaming ? isP2PReady : isServerStreamReady;
   // Show play button when stream is ready but user hasn't clicked play yet
   const showPlayButton = isStreamReady && !userClickedPlay && !isPlayerReady;
-  // Show loading spinner when stream is not ready yet
-  const showLoadingSpinner = !isStreamReady && !error;
+  // Show loading spinner when stream is not ready yet (for P2P, check WebTorrent status)
+  // WebTorrent status: 'idle' | 'loading' | 'buffering' | 'ready' | 'error'
+  const showLoadingSpinner = isP2PStreaming
+    ? (webTorrent.status === 'loading' || webTorrent.status === 'buffering') && !error
+    : !isServerStreamReady && !error;
 
   return (
     <Modal
@@ -763,6 +837,71 @@ export function MediaPlayerModal({
             </div>
           </div> : null}
 
+        {/* P2P Streaming Notice - compact for TV */}
+        {isP2PStreaming && !error ? <div className="rounded-md sm:rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-2 sm:p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {webTorrent.status === 'loading' || webTorrent.status === 'buffering' ? (
+                  <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent flex-shrink-0" />
+                ) : (
+                  <svg
+                    className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-500 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
+                    />
+                  </svg>
+                )}
+                <span className="text-xs sm:text-sm text-cyan-500 truncate">
+                  {webTorrent.status === 'loading'
+                    ? 'Connecting to peers...'
+                    : webTorrent.status === 'buffering'
+                      ? 'Buffering from peers...'
+                      : 'P2P Streaming'}
+                </span>
+              </div>
+              {/* P2P Stats */}
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-text-muted">
+                {webTorrent.numPeers > 0 && (
+                  <span className="flex items-center gap-0.5 text-cyan-500" title="Connected peers">
+                    <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                    </svg>
+                    {webTorrent.numPeers}
+                  </span>
+                )}
+                {webTorrent.downloadSpeed > 0 && (
+                  <span className="flex items-center gap-0.5 text-green-500" title="Download speed">
+                    <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    {formatSpeedCompact(webTorrent.downloadSpeed)}
+                  </span>
+                )}
+                {webTorrent.progress > 0 && webTorrent.progress < 1 && (
+                  <span className="text-cyan-500">
+                    {(webTorrent.progress * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* P2P Progress bar */}
+            {webTorrent.progress > 0 && webTorrent.progress < 1 && (
+              <div className="mt-1 sm:mt-1.5 h-0.5 sm:h-1 w-full overflow-hidden rounded-full bg-cyan-500/20">
+                <div
+                  className="h-full bg-cyan-500 transition-all duration-300"
+                  style={{ width: `${webTorrent.progress * 100}%` }}
+                />
+              </div>
+            )}
+          </div> : null}
+
         {/* Error State with Try Again button - compact for TV */}
         {error ? <div className="rounded-md sm:rounded-lg border border-error/50 bg-error/10 p-2 sm:p-4">
             <div className="flex items-start gap-2 sm:gap-3">
@@ -903,7 +1042,8 @@ export function MediaPlayerModal({
           </div> : null}
 
         {/* Connection Status Footer - compact for TV */}
-        {connectionStatus ? <div className={`rounded-md sm:rounded-lg border p-1.5 sm:p-2 md:p-3 ${
+        {/* Only show server-side connection status when NOT using P2P streaming */}
+        {connectionStatus && !isP2PStreaming ? <div className={`rounded-md sm:rounded-lg border p-1.5 sm:p-2 md:p-3 ${
           isLoading
             ? 'border-border-subtle bg-bg-secondary'
             : 'border-green-500/30 bg-green-500/5'
@@ -997,6 +1137,7 @@ export function MediaPlayerModal({
               <span>Index: {file.fileIndex}</span>
               <span>Size: {formatBytes(file.size)}</span>
               {isTranscoding ? <span className="text-accent-primary">Transcoding</span> : null}
+              {isP2PStreaming ? <span className="text-cyan-500">P2P</span> : <span className="text-text-muted">Server</span>}
               <span className={isPlayerReady ? 'text-green-500' : 'text-yellow-500'}>
                 {isPlayerReady ? 'Ready' : 'Loading'}
               </span>
@@ -1004,6 +1145,15 @@ export function MediaPlayerModal({
                   Trackers: {swarmStats.trackersResponded}/{swarmStats.trackersQueried}
                 </span> : null}
             </div>
+            {/* P2P WebTorrent Info */}
+            {isP2PStreaming ? <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                <span className="text-text-secondary">P2P:</span>
+                <span>Status: {webTorrent.status}</span>
+                <span>Peers: {webTorrent.numPeers}</span>
+                <span>Progress: {(webTorrent.progress * 100).toFixed(1)}%</span>
+                <span>↓ {formatSpeed(webTorrent.downloadSpeed)}</span>
+                <span>↑ {formatSpeed(webTorrent.uploadSpeed)}</span>
+              </div> : null}
             {/* Codec Info */}
             {codecInfo ? <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                 <span className="text-text-secondary">Codec:</span>

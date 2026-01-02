@@ -58,6 +58,8 @@ export interface MovieMetadata {
   director?: string;
   /** Actors/cast from OMDb detail API (comma-separated) */
   actors?: string;
+  /** Genre(s) from OMDb detail API (comma-separated) */
+  genre?: string;
   source: 'omdb';
 }
 
@@ -435,6 +437,7 @@ export function parseOMDbDetailResponse(response: OMDbDetailResponse): MovieMeta
     description: response.Plot && response.Plot !== 'N/A' ? response.Plot : undefined,
     director: response.Director && response.Director !== 'N/A' ? response.Director : undefined,
     actors: response.Actors && response.Actors !== 'N/A' ? response.Actors : undefined,
+    genre: response.Genre && response.Genre !== 'N/A' ? response.Genre : undefined,
     source: 'omdb' as const,
   };
 }

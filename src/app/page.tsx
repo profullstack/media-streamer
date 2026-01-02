@@ -101,10 +101,16 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
     // Fetch IPTV playlist count for the user
     let liveTvCount = 0;
     if (user) {
-      const { count: playlistCount } = await supabase
+      const { count: playlistCount, error: playlistError } = await supabase
         .from('iptv_playlists')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+      
+      if (playlistError) {
+        console.error('[Home] Error fetching IPTV playlist count:', playlistError);
+      }
+      
       liveTvCount = playlistCount ?? 0;
     }
 

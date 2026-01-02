@@ -1,7 +1,7 @@
 /**
  * IPTV Playlists API Route
  *
- * GET /api/iptv/playlists - List user's playlists
+ * GET /api/iptv/playlists - List user's playlists (includes family owner's playlists for family members)
  * POST /api/iptv/playlists - Create a new playlist
  *
  * Requires authentication via HTTP-only cookie. Playlists are stored in Supabase.
@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import type { IptvPlaylistInsert } from '@/lib/supabase/types';
 import { Agent } from 'undici';
+import { getFamilyPlanRepository } from '@/lib/family';
 
 /**
  * Cookie name for auth token
@@ -182,6 +183,14 @@ async function getUserIdFromRequest(request: NextRequest): Promise<string | null
 }
 
 /**
+ * Extended playlist response with ownership info
+ */
+interface PlaylistResponseWithOwner extends PlaylistResponse {
+  isOwner: boolean;
+  ownerEmail?: string;
+}
+
+/**
  * Transform database row to API response
  */
 function transformPlaylist(row: {
@@ -205,9 +214,33 @@ function transformPlaylist(row: {
 }
 
 /**
+ * Transform database row to API response with ownership info
+ */
+function transformPlaylistWithOwner(
+  row: {
+    id: string;
+    name: string;
+    m3u_url: string;
+    epg_url: string | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  },
+  isOwner: boolean,
+  ownerEmail?: string
+): PlaylistResponseWithOwner {
+  return {
+    ...transformPlaylist(row),
+    isOwner,
+    ownerEmail,
+  };
+}
+
+/**
  * GET /api/iptv/playlists
- * 
+ *
  * Returns all playlists for the authenticated user.
+ * For family members, also includes playlists from the family owner.
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const userId = await getUserIdFromRequest(request);
@@ -221,23 +254,59 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const supabase = createServerClient();
   
-  const { data, error } = await supabase
+  // Get user's own playlists
+  const { data: ownPlaylists, error: ownError } = await supabase
     .from('iptv_playlists')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('[IPTV Playlists] Error fetching playlists:', error);
+  if (ownError) {
+    console.error('[IPTV Playlists] Error fetching playlists:', ownError);
     return NextResponse.json(
       { error: 'Failed to fetch playlists' },
       { status: 500 }
     );
   }
 
-  const playlists = data.map(transformPlaylist);
+  // Check if user is a family member and get owner's playlists
+  let familyOwnerPlaylists: PlaylistResponseWithOwner[] = [];
+  
+  try {
+    const familyRepo = getFamilyPlanRepository();
+    const familyOwnerId = await familyRepo.getFamilyOwnerId(userId);
+    
+    // If user is a family member (not the owner), fetch owner's playlists
+    if (familyOwnerId && familyOwnerId !== userId) {
+      // Get owner's email for display
+      const familyPlan = await familyRepo.getFamilyPlan(userId);
+      const ownerEmail = familyPlan?.ownerEmail;
+      
+      const { data: ownerPlaylists, error: ownerError } = await supabase
+        .from('iptv_playlists')
+        .select('*')
+        .eq('user_id', familyOwnerId)
+        .order('created_at', { ascending: false });
 
-  return NextResponse.json({ playlists });
+      if (!ownerError && ownerPlaylists) {
+        familyOwnerPlaylists = ownerPlaylists.map(row =>
+          transformPlaylistWithOwner(row, false, ownerEmail)
+        );
+      }
+    }
+  } catch (error) {
+    // Log but don't fail - family feature is optional
+    console.error('[IPTV Playlists] Error fetching family playlists:', error);
+  }
+
+  // Combine own playlists (marked as owner) with family owner's playlists
+  const ownPlaylistsWithOwner = ownPlaylists.map(row =>
+    transformPlaylistWithOwner(row, true)
+  );
+  
+  const allPlaylists = [...ownPlaylistsWithOwner, ...familyOwnerPlaylists];
+
+  return NextResponse.json({ playlists: allPlaylists });
 }
 
 /**

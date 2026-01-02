@@ -35,6 +35,12 @@ export interface Torrent {
   year: number | null;
   /** Description from external metadata source */
   description: string | null;
+  /** Director of the movie or TV show (from OMDb) */
+  director: string | null;
+  /** Main actors/cast of the movie or TV show (comma-separated, from OMDb) */
+  actors: string | null;
+  /** Genre(s) of the movie or TV show (comma-separated, from OMDb) */
+  genre: string | null;
   /** Video codec (e.g., h264, hevc) - detected from primary video file */
   videoCodec: string | null;
   /** Audio codec (e.g., aac, ac3, dts) - detected from primary video file */

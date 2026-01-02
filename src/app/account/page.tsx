@@ -2,9 +2,9 @@
 
 /**
  * Account Settings Page
- * 
+ *
  * User account settings and preferences.
- * Includes account info, subscription management, and security settings.
+ * Includes account info, subscription management, IPTV, and security settings.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,9 +13,10 @@ import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
-import { UserIcon, CreditCardIcon, KeyIcon, SettingsIcon } from '@/components/ui/icons';
+import { UserIcon, CreditCardIcon, KeyIcon, SettingsIcon, TvIcon } from '@/components/ui/icons';
+import { IPTVSubscriptionSection } from '@/components/account';
 
-type AccountTab = 'account' | 'subscription' | 'security';
+type AccountTab = 'account' | 'subscription' | 'iptv' | 'security';
 
 /**
  * Payment history item from API
@@ -203,6 +204,7 @@ export default function AccountPage(): React.ReactElement {
   const tabs = [
     { id: 'account' as const, label: 'Account', icon: UserIcon },
     { id: 'subscription' as const, label: 'Subscription', icon: CreditCardIcon },
+    { id: 'iptv' as const, label: 'IPTV', icon: TvIcon },
     { id: 'security' as const, label: 'Security', icon: KeyIcon },
   ];
 
@@ -649,6 +651,10 @@ export default function AccountPage(): React.ReactElement {
                   </div>
                 </div>
               </div>
+            )}
+
+            {activeTab === 'iptv' && (
+              <IPTVSubscriptionSection />
             )}
 
             {activeTab === 'security' && (

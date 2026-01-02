@@ -51,9 +51,11 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-pdf": "^10.2.0",
+    "resend": "^6.6.0",
     "tailwind-merge": "^2.6.0",
     "undici": "^7.16.0",
     "video.js": "^8.23.4",
+    "web-push": "^3.6.7",
     "webtorrent": "^2.8.5"
   },
   "devDependencies": {
@@ -64,6 +66,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/web-push": "^3.6.4",
     "@types/webtorrent": "^0.109.10",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^2.1.8",

@@ -40,6 +40,10 @@ export type Database = {
           external_source: string | null;
           year: number | null;
           description: string | null;
+          // Credits fields (from OMDb)
+          director: string | null;
+          actors: string | null;
+          genre: string | null;
           metadata_fetched_at: string | null;
           // Codec fields (from representative file in collection)
           video_codec: string | null;
@@ -74,6 +78,10 @@ export type Database = {
           external_source?: string | null;
           year?: number | null;
           description?: string | null;
+          // Credits fields (from OMDb)
+          director?: string | null;
+          actors?: string | null;
+          genre?: string | null;
           metadata_fetched_at?: string | null;
           // Codec fields (from representative file in collection)
           video_codec?: string | null;
@@ -108,6 +116,10 @@ export type Database = {
           external_source?: string | null;
           year?: number | null;
           description?: string | null;
+          // Credits fields (from OMDb)
+          director?: string | null;
+          actors?: string | null;
+          genre?: string | null;
           metadata_fetched_at?: string | null;
           // Codec fields (from representative file in collection)
           video_codec?: string | null;
@@ -746,6 +758,534 @@ export type Database = {
         };
         Relationships: [];
       };
+      iptv_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          argontv_line_id: number;
+          username: string;
+          password: string;
+          m3u_download_link: string;
+          package_key: '1_month' | '3_months' | '6_months' | '12_months' | '24_hour_test' | '3_hour_test';
+          status: 'pending' | 'active' | 'expired' | 'cancelled';
+          created_at: string;
+          expires_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          argontv_line_id: number;
+          username: string;
+          password: string;
+          m3u_download_link: string;
+          package_key: '1_month' | '3_months' | '6_months' | '12_months' | '24_hour_test' | '3_hour_test';
+          status?: 'pending' | 'active' | 'expired' | 'cancelled';
+          created_at?: string;
+          expires_at: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          argontv_line_id?: number;
+          username?: string;
+          password?: string;
+          m3u_download_link?: string;
+          package_key?: '1_month' | '3_months' | '6_months' | '12_months' | '24_hour_test' | '3_hour_test';
+          status?: 'pending' | 'active' | 'expired' | 'cancelled';
+          created_at?: string;
+          expires_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      iptv_payment_history: {
+        Row: {
+          id: string;
+          user_id: string;
+          iptv_subscription_id: string | null;
+          coinpayportal_payment_id: string;
+          amount_usd: number;
+          amount_crypto: string | null;
+          crypto_currency: string | null;
+          blockchain: string | null;
+          tx_hash: string | null;
+          payment_address: string | null;
+          status: 'pending' | 'detected' | 'confirmed' | 'failed' | 'expired';
+          payment_type: 'new_subscription' | 'extension';
+          package_key: '1_month' | '3_months' | '6_months' | '12_months' | '24_hour_test' | '3_hour_test';
+          webhook_received_at: string | null;
+          webhook_event_type: string | null;
+          metadata: Record<string, unknown> | null;
+          created_at: string;
+          updated_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          iptv_subscription_id?: string | null;
+          coinpayportal_payment_id: string;
+          amount_usd: number;
+          amount_crypto?: string | null;
+          crypto_currency?: string | null;
+          blockchain?: string | null;
+          tx_hash?: string | null;
+          payment_address?: string | null;
+          status?: 'pending' | 'detected' | 'confirmed' | 'failed' | 'expired';
+          payment_type?: 'new_subscription' | 'extension';
+          package_key: '1_month' | '3_months' | '6_months' | '12_months' | '24_hour_test' | '3_hour_test';
+          webhook_received_at?: string | null;
+          webhook_event_type?: string | null;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          iptv_subscription_id?: string | null;
+          coinpayportal_payment_id?: string;
+          amount_usd?: number;
+          amount_crypto?: string | null;
+          crypto_currency?: string | null;
+          blockchain?: string | null;
+          tx_hash?: string | null;
+          payment_address?: string | null;
+          status?: 'pending' | 'detected' | 'confirmed' | 'failed' | 'expired';
+          payment_type?: 'new_subscription' | 'extension';
+          package_key?: '1_month' | '3_months' | '6_months' | '12_months' | '24_hour_test' | '3_hour_test';
+          webhook_received_at?: string | null;
+          webhook_event_type?: string | null;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'iptv_payment_history_iptv_subscription_id_fkey';
+            columns: ['iptv_subscription_id'];
+            isOneToOne: false;
+            referencedRelation: 'iptv_subscriptions';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      podcasts: {
+        Row: {
+          id: string;
+          feed_url: string;
+          title: string;
+          description: string | null;
+          author: string | null;
+          image_url: string | null;
+          website_url: string | null;
+          language: string | null;
+          categories: string[] | null;
+          last_episode_date: string | null;
+          episode_count: number;
+          search_vector: unknown;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          feed_url: string;
+          title: string;
+          description?: string | null;
+          author?: string | null;
+          image_url?: string | null;
+          website_url?: string | null;
+          language?: string | null;
+          categories?: string[] | null;
+          last_episode_date?: string | null;
+          episode_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          feed_url?: string;
+          title?: string;
+          description?: string | null;
+          author?: string | null;
+          image_url?: string | null;
+          website_url?: string | null;
+          language?: string | null;
+          categories?: string[] | null;
+          last_episode_date?: string | null;
+          episode_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      podcast_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          podcast_id: string;
+          notify_new_episodes: boolean;
+          last_listened_episode_id: string | null;
+          last_listened_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          podcast_id: string;
+          notify_new_episodes?: boolean;
+          last_listened_episode_id?: string | null;
+          last_listened_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          podcast_id?: string;
+          notify_new_episodes?: boolean;
+          last_listened_episode_id?: string | null;
+          last_listened_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'podcast_subscriptions_podcast_id_fkey';
+            columns: ['podcast_id'];
+            isOneToOne: false;
+            referencedRelation: 'podcasts';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      podcast_episodes: {
+        Row: {
+          id: string;
+          podcast_id: string;
+          guid: string;
+          title: string;
+          description: string | null;
+          audio_url: string;
+          duration_seconds: number | null;
+          image_url: string | null;
+          published_at: string;
+          season_number: number | null;
+          episode_number: number | null;
+          search_vector: unknown;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          podcast_id: string;
+          guid: string;
+          title: string;
+          description?: string | null;
+          audio_url: string;
+          duration_seconds?: number | null;
+          image_url?: string | null;
+          published_at: string;
+          season_number?: number | null;
+          episode_number?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          podcast_id?: string;
+          guid?: string;
+          title?: string;
+          description?: string | null;
+          audio_url?: string;
+          duration_seconds?: number | null;
+          image_url?: string | null;
+          published_at?: string;
+          season_number?: number | null;
+          episode_number?: number | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'podcast_episodes_podcast_id_fkey';
+            columns: ['podcast_id'];
+            isOneToOne: false;
+            referencedRelation: 'podcasts';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      podcast_listen_progress: {
+        Row: {
+          id: string;
+          user_id: string;
+          episode_id: string;
+          current_time_seconds: number;
+          duration_seconds: number | null;
+          percentage: number;
+          completed: boolean;
+          last_listened_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          episode_id: string;
+          current_time_seconds?: number;
+          duration_seconds?: number | null;
+          percentage?: number;
+          completed?: boolean;
+          last_listened_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          episode_id?: string;
+          current_time_seconds?: number;
+          duration_seconds?: number | null;
+          percentage?: number;
+          completed?: boolean;
+          last_listened_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'podcast_listen_progress_episode_id_fkey';
+            columns: ['episode_id'];
+            isOneToOne: false;
+            referencedRelation: 'podcast_episodes';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh_key: string;
+          auth_key: string;
+          user_agent: string | null;
+          is_active: boolean;
+          last_used_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          endpoint: string;
+          p256dh_key: string;
+          auth_key: string;
+          user_agent?: string | null;
+          is_active?: boolean;
+          last_used_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          endpoint?: string;
+          p256dh_key?: string;
+          auth_key?: string;
+          user_agent?: string | null;
+          is_active?: boolean;
+          last_used_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      family_plans: {
+        Row: {
+          id: string;
+          owner_id: string;
+          plan_name: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          plan_name?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          plan_name?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      family_members: {
+        Row: {
+          id: string;
+          family_plan_id: string;
+          user_id: string;
+          email: string;
+          role: 'owner' | 'admin' | 'member';
+          joined_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_plan_id: string;
+          user_id: string;
+          email: string;
+          role?: 'owner' | 'admin' | 'member';
+          joined_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          family_plan_id?: string;
+          user_id?: string;
+          email?: string;
+          role?: 'owner' | 'admin' | 'member';
+          joined_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'family_members_family_plan_id_fkey';
+            columns: ['family_plan_id'];
+            isOneToOne: false;
+            referencedRelation: 'family_plans';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      family_invitations: {
+        Row: {
+          id: string;
+          family_plan_id: string;
+          inviter_id: string;
+          inviter_email: string;
+          invitee_email: string;
+          invite_code: string;
+          status: 'pending' | 'accepted' | 'declined' | 'expired' | 'revoked';
+          expires_at: string;
+          accepted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_plan_id: string;
+          inviter_id: string;
+          inviter_email: string;
+          invitee_email: string;
+          invite_code: string;
+          status?: 'pending' | 'accepted' | 'declined' | 'expired' | 'revoked';
+          expires_at: string;
+          accepted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          family_plan_id?: string;
+          inviter_id?: string;
+          inviter_email?: string;
+          invitee_email?: string;
+          invite_code?: string;
+          status?: 'pending' | 'accepted' | 'declined' | 'expired' | 'revoked';
+          expires_at?: string;
+          accepted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'family_invitations_family_plan_id_fkey';
+            columns: ['family_plan_id'];
+            isOneToOne: false;
+            referencedRelation: 'family_plans';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      notification_history: {
+        Row: {
+          id: string;
+          user_id: string;
+          push_subscription_id: string | null;
+          notification_type: string;
+          title: string;
+          body: string | null;
+          data: Record<string, unknown> | null;
+          status: 'pending' | 'sent' | 'failed' | 'clicked';
+          error_message: string | null;
+          podcast_id: string | null;
+          episode_id: string | null;
+          sent_at: string | null;
+          clicked_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          push_subscription_id?: string | null;
+          notification_type: string;
+          title: string;
+          body?: string | null;
+          data?: Record<string, unknown> | null;
+          status?: 'pending' | 'sent' | 'failed' | 'clicked';
+          error_message?: string | null;
+          podcast_id?: string | null;
+          episode_id?: string | null;
+          sent_at?: string | null;
+          clicked_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          push_subscription_id?: string | null;
+          notification_type?: string;
+          title?: string;
+          body?: string | null;
+          data?: Record<string, unknown> | null;
+          status?: 'pending' | 'sent' | 'failed' | 'clicked';
+          error_message?: string | null;
+          podcast_id?: string | null;
+          episode_id?: string | null;
+          sent_at?: string | null;
+          clicked_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_history_push_subscription_id_fkey';
+            columns: ['push_subscription_id'];
+            isOneToOne: false;
+            referencedRelation: 'push_subscriptions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'notification_history_podcast_id_fkey';
+            columns: ['podcast_id'];
+            isOneToOne: false;
+            referencedRelation: 'podcasts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'notification_history_episode_id_fkey';
+            columns: ['episode_id'];
+            isOneToOne: false;
+            referencedRelation: 'podcast_episodes';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -854,6 +1394,145 @@ export type Database = {
         };
         Returns: void;
       };
+      search_podcasts: {
+        Args: {
+          search_query: string;
+          result_limit?: number;
+          result_offset?: number;
+        };
+        Returns: {
+          podcast_id: string;
+          podcast_title: string;
+          podcast_author: string | null;
+          podcast_description: string | null;
+          podcast_image_url: string | null;
+          podcast_feed_url: string;
+          podcast_episode_count: number;
+          rank: number;
+        }[];
+      };
+      get_user_podcast_subscriptions: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: {
+          subscription_id: string;
+          podcast_id: string;
+          podcast_title: string;
+          podcast_author: string | null;
+          podcast_image_url: string | null;
+          podcast_feed_url: string;
+          notify_new_episodes: boolean;
+          latest_episode_title: string | null;
+          latest_episode_published_at: string | null;
+          unlistened_count: number;
+          subscribed_at: string;
+        }[];
+      };
+      get_users_to_notify_new_episode: {
+        Args: {
+          p_podcast_id: string;
+          p_episode_id: string;
+        };
+        Returns: {
+          user_id: string;
+          push_endpoint: string;
+          p256dh_key: string;
+          auth_key: string;
+        }[];
+      };
+      create_family_plan_for_user: {
+        Args: {
+          p_user_id: string;
+          p_user_email: string;
+          p_plan_name?: string;
+        };
+        Returns: Tables<'family_plans'>;
+      };
+      get_user_family_plan: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: {
+          family_plan_id: string;
+          plan_name: string;
+          owner_id: string;
+          owner_email: string;
+          member_count: number;
+          user_role: string;
+          created_at: string;
+        }[];
+      };
+      get_family_members: {
+        Args: {
+          p_family_plan_id: string;
+        };
+        Returns: {
+          member_id: string;
+          user_id: string;
+          email: string;
+          role: string;
+          joined_at: string;
+        }[];
+      };
+      get_family_invitations: {
+        Args: {
+          p_family_plan_id: string;
+        };
+        Returns: {
+          invitation_id: string;
+          invitee_email: string;
+          invite_code: string;
+          status: string;
+          expires_at: string;
+          created_at: string;
+        }[];
+      };
+      accept_family_invitation: {
+        Args: {
+          p_invite_code: string;
+          p_user_id: string;
+          p_user_email: string;
+        };
+        Returns: {
+          success: boolean;
+          message: string;
+          family_plan_id: string | null;
+        }[];
+      };
+      remove_family_member: {
+        Args: {
+          p_family_plan_id: string;
+          p_member_id: string;
+          p_requester_id: string;
+        };
+        Returns: {
+          success: boolean;
+          message: string;
+        }[];
+      };
+      revoke_family_invitation: {
+        Args: {
+          p_invitation_id: string;
+          p_requester_id: string;
+        };
+        Returns: {
+          success: boolean;
+          message: string;
+        }[];
+      };
+      can_invite_family_member: {
+        Args: {
+          p_family_plan_id: string;
+        };
+        Returns: boolean;
+      };
+      get_family_owner_id: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: string | null;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -930,3 +1609,73 @@ export type CollectionType = 'playlist' | 'watchlist' | 'reading_list' | 'mixed'
 export type IptvPlaylist = Tables<'iptv_playlists'>;
 export type IptvPlaylistInsert = InsertTables<'iptv_playlists'>;
 export type IptvPlaylistUpdate = UpdateTables<'iptv_playlists'>;
+
+// IPTV Subscription types
+export type IptvSubscription = Tables<'iptv_subscriptions'>;
+export type IptvSubscriptionInsert = InsertTables<'iptv_subscriptions'>;
+export type IptvSubscriptionUpdate = UpdateTables<'iptv_subscriptions'>;
+
+// IPTV Payment History types
+export type IptvPaymentHistory = Tables<'iptv_payment_history'>;
+export type IptvPaymentHistoryInsert = InsertTables<'iptv_payment_history'>;
+export type IptvPaymentHistoryUpdate = UpdateTables<'iptv_payment_history'>;
+
+// IPTV Package key type
+export type IptvPackageKey = '1_month' | '3_months' | '6_months' | '12_months' | '24_hour_test' | '3_hour_test';
+
+// IPTV Subscription status type
+export type IptvSubscriptionStatus = 'pending' | 'active' | 'expired' | 'cancelled';
+
+// IPTV Payment status type
+export type IptvPaymentStatus = 'pending' | 'detected' | 'confirmed' | 'failed' | 'expired';
+
+// IPTV Payment type
+export type IptvPaymentType = 'new_subscription' | 'extension';
+
+// Podcast types
+export type Podcast = Tables<'podcasts'>;
+export type PodcastInsert = InsertTables<'podcasts'>;
+export type PodcastUpdate = UpdateTables<'podcasts'>;
+
+export type PodcastSubscription = Tables<'podcast_subscriptions'>;
+export type PodcastSubscriptionInsert = InsertTables<'podcast_subscriptions'>;
+export type PodcastSubscriptionUpdate = UpdateTables<'podcast_subscriptions'>;
+
+export type PodcastEpisode = Tables<'podcast_episodes'>;
+export type PodcastEpisodeInsert = InsertTables<'podcast_episodes'>;
+export type PodcastEpisodeUpdate = UpdateTables<'podcast_episodes'>;
+
+export type PodcastListenProgress = Tables<'podcast_listen_progress'>;
+export type PodcastListenProgressInsert = InsertTables<'podcast_listen_progress'>;
+export type PodcastListenProgressUpdate = UpdateTables<'podcast_listen_progress'>;
+
+// Push notification types
+export type PushSubscription = Tables<'push_subscriptions'>;
+export type PushSubscriptionInsert = InsertTables<'push_subscriptions'>;
+export type PushSubscriptionUpdate = UpdateTables<'push_subscriptions'>;
+
+export type NotificationHistory = Tables<'notification_history'>;
+export type NotificationHistoryInsert = InsertTables<'notification_history'>;
+export type NotificationHistoryUpdate = UpdateTables<'notification_history'>;
+
+// Notification status type
+export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'clicked';
+
+// Family plan types
+export type FamilyPlan = Tables<'family_plans'>;
+export type FamilyPlanInsert = InsertTables<'family_plans'>;
+export type FamilyPlanUpdate = UpdateTables<'family_plans'>;
+
+export type FamilyMember = Tables<'family_members'>;
+export type FamilyMemberInsert = InsertTables<'family_members'>;
+export type FamilyMemberUpdate = UpdateTables<'family_members'>;
+
+export type FamilyInvitation = Tables<'family_invitations'>;
+export type FamilyInvitationInsert = InsertTables<'family_invitations'>;
+export type FamilyInvitationUpdate = UpdateTables<'family_invitations'>;
+
+// Family member role type
+export type FamilyMemberRole = 'owner' | 'admin' | 'member';
+
+// Family invitation status type
+export type FamilyInvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'revoked';

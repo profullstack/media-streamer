@@ -25,6 +25,9 @@ import {
   CreditCardIcon,
   LibraryIcon,
   ExternalLinkIcon,
+  TrendingIcon,
+  PodcastIcon,
+  SearchPlusIcon,
 } from '@/components/ui/icons';
 
 interface NavItem {
@@ -38,8 +41,11 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { href: '/', label: 'Home', icon: HomeIcon },
   { href: '/search', label: 'Search', icon: SearchIcon },
+  { href: '/trending', label: 'Trending', icon: TrendingIcon },
   { href: '/library', label: 'My Library', icon: LibraryIcon, requiresAuth: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
+  { href: '/find-torrents', label: 'Find Torrents', icon: SearchPlusIcon },
+  { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
 ];
@@ -49,16 +55,18 @@ const accountNavItems: NavItem[] = [
   { href: '/settings', label: 'Settings', icon: SettingsIcon, requiresAuth: true },
 ];
 
-interface TorrentIndexSite {
+interface ExternalSite {
   url: string;
   label: string;
 }
 
-const torrentIndexSites: TorrentIndexSite[] = [
-  { url: 'https://uflix.to/', label: 'uFlix' },
+const torrentIndexSites: ExternalSite[] = [
   { url: 'https://www.limetorrents.fun/', label: 'LimeTorrents' },
-  { url: 'https://torrentz9.org/', label: 'Torrentz9' },
   { url: 'https://x1337x.cc/', label: '1337x' },
+];
+
+const mediaInfoSites: ExternalSite[] = [
+  { url: 'https://www.imdb.com/', label: 'IMDB' },
 ];
 
 interface SidebarProps {
@@ -155,6 +163,26 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
             </h3>
             <ul className="space-y-1">
               {torrentIndexSites.map((site) => (
+                <li key={site.url}>
+                  <a
+                    href={site.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  >
+                    <ExternalLinkIcon size={16} />
+                    <span>{site.label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            
+            {/* Media Info Sites */}
+            <h3 className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Media Info
+            </h3>
+            <ul className="space-y-1">
+              {mediaInfoSites.map((site) => (
                 <li key={site.url}>
                   <a
                     href={site.url}

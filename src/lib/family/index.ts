@@ -33,3 +33,20 @@ export type {
   AddMemberOptions,
   CreateInvitationOptions,
 } from './family';
+
+// Repository exports
+export {
+  createFamilyPlanRepository,
+  getFamilyPlanRepository,
+  resetFamilyPlanRepository,
+} from './repository';
+
+export type {
+  FamilyPlanRepository,
+  FamilyPlanInfo,
+  FamilyMemberInfo,
+  FamilyInvitationInfo,
+  CreateInvitationParams,
+  AcceptInvitationResult,
+  OperationResult,
+} from './repository';

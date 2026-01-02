@@ -2948,3 +2948,147 @@ describe('getStreamingService singleton', () => {
     expect(service).toBeInstanceOf(StreamingService);
   });
 });
+
+describe('Torrent folder cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTorrents = [];
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should delete torrent folder after torrent is destroyed during cleanup', async () => {
+    const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => {
+      if (callback) callback(null);
+    });
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Test Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+      destroy: mockTorrentDestroy,
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 1000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister watcher to trigger cleanup
+    const watcherId = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcherId);
+
+    // Advance time past cleanup delay
+    vi.advanceTimersByTime(1001);
+
+    // Torrent should be destroyed with destroyStore: true
+    expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
+  });
+
+  it('should handle cleanup when torrent folder does not exist', async () => {
+    const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => {
+      if (callback) callback(null);
+    });
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Test Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+      destroy: mockTorrentDestroy,
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 1000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister watcher to trigger cleanup
+    const watcherId = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcherId);
+
+    // Advance time past cleanup delay - should not throw even if folder doesn't exist
+    vi.advanceTimersByTime(1001);
+
+    // Torrent should be destroyed
+    expect(mockTorrentDestroy).toHaveBeenCalled();
+  });
+
+  it('should cleanup torrent folder when torrent has no name (uses infohash)', async () => {
+    const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => {
+      if (callback) callback(null);
+    });
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: undefined, // No name - folder would be named by infohash
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+      destroy: mockTorrentDestroy,
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 1000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister watcher to trigger cleanup
+    const watcherId = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcherId);
+
+    // Advance time past cleanup delay
+    vi.advanceTimersByTime(1001);
+
+    // Torrent should be destroyed
+    expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
+  });
+
+  it('should cleanup torrent folder during safeRemoveTorrent', async () => {
+    const mockTorrentDestroy = vi.fn((opts: unknown, callback?: (err: Error | null) => void) => {
+      if (callback) callback(null);
+    });
+    const mockTorrent = {
+      infoHash: '1234567890abcdef1234567890abcdef12345678',
+      name: 'Test Album',
+      files: [],
+      numPeers: 5,
+      progress: 0.5,
+      downloadSpeed: 500000,
+      uploadSpeed: 100000,
+      ready: true,
+      on: vi.fn(),
+      destroy: mockTorrentDestroy,
+    };
+
+    mockTorrents = [mockTorrent];
+
+    const service = new StreamingService({ torrentCleanupDelay: 1000 });
+    const infohash = '1234567890abcdef1234567890abcdef12345678';
+
+    // Register and unregister watcher to trigger cleanup
+    const watcherId = service.registerWatcher(infohash);
+    service.unregisterWatcher(infohash, watcherId);
+
+    // Advance time past cleanup delay
+    vi.advanceTimersByTime(1001);
+
+    // Torrent should be destroyed with destroyStore: true
+    expect(mockTorrentDestroy).toHaveBeenCalledWith({ destroyStore: true }, expect.any(Function));
+  });
+});

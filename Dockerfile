@@ -33,8 +33,21 @@ FROM node:22-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
-# Install FFmpeg for video/audio transcoding
-RUN apk add --no-cache ffmpeg
+# Install FFmpeg for video/audio transcoding, and build tools for reliq/torge
+RUN apk add --no-cache ffmpeg git curl make gcc musl-dev bash jq
+
+# Install reliq (HTML parsing library - must be installed before torge)
+RUN git clone https://github.com/TUVIMEN/reliq.git /tmp/reliq && \
+    cd /tmp/reliq && \
+    make && \
+    make install && \
+    rm -rf /tmp/reliq
+
+# Install torge (shell script tool for torrent searching)
+RUN git clone https://github.com/TUVIMEN/torge.git /tmp/torge && \
+    cp /tmp/torge/torge /usr/local/bin/torge && \
+    chmod +x /usr/local/bin/torge && \
+    rm -rf /tmp/torge
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -50,6 +63,10 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy bin directory for torge-all.sh script
+COPY --from=builder --chown=nextjs:nodejs /app/bin ./bin
+RUN chmod +x ./bin/*.sh
 
 # Switch to non-root user
 USER nextjs
