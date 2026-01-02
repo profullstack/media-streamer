@@ -80,10 +80,10 @@ describe('webtorrent-loader', () => {
 
   describe('type exports', () => {
     it('should export all required functions', async () => {
-      const loaderModule = await import('./webtorrent-loader');
-      expect(loaderModule.loadWebTorrent).toBeDefined();
-      expect(loaderModule.isWebTorrentLoaded).toBeDefined();
-      expect(loaderModule.getWebTorrent).toBeDefined();
+      const loaderExports = await import('./webtorrent-loader');
+      expect(loaderExports.loadWebTorrent).toBeDefined();
+      expect(loaderExports.isWebTorrentLoaded).toBeDefined();
+      expect(loaderExports.getWebTorrent).toBeDefined();
     });
   });
 });

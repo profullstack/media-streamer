@@ -3,8 +3,8 @@
 /**
  * WebTorrent Browser Loader
  *
- * Loads the WebTorrent browser bundle using dynamic import with ES modules.
- * WebTorrent 2.x uses ES module exports, not UMD globals.
+ * Loads the WebTorrent browser bundle from jsDelivr CDN.
+ * The webtorrent.min.js file is a UMD bundle that sets window.WebTorrent.
  */
 
 // WebTorrent types for browser bundle
@@ -47,22 +47,21 @@ export interface WebTorrentConstructor {
 declare global {
   interface Window {
     WebTorrent?: WebTorrentConstructor;
-    __webtorrentModule?: { default: WebTorrentConstructor };
   }
 }
 
-// CDN URL for WebTorrent browser bundle - using ESM version
-const WEBTORRENT_ESM_CDN_URL = 'https://esm.sh/webtorrent@2.8.5';
+// CDN URL for WebTorrent browser bundle - UMD version that sets window.WebTorrent
+const WEBTORRENT_CDN_URL = 'https://cdn.jsdelivr.net/npm/webtorrent@2.8.5/dist/webtorrent.min.js';
 
 // Loading state
 let loadPromise: Promise<WebTorrentConstructor> | null = null;
 let cachedConstructor: WebTorrentConstructor | null = null;
 
 /**
- * Load WebTorrent from CDN using dynamic import
+ * Load WebTorrent from CDN using script tag
  *
- * This function loads the WebTorrent browser bundle from esm.sh CDN
- * which provides ES module compatible builds.
+ * This function loads the WebTorrent browser bundle from jsDelivr CDN.
+ * The UMD bundle sets window.WebTorrent which we then use.
  *
  * @returns Promise that resolves to the WebTorrent constructor
  * @throws Error if loading fails
@@ -70,6 +69,12 @@ let cachedConstructor: WebTorrentConstructor | null = null;
 export function loadWebTorrent(): Promise<WebTorrentConstructor> {
   // Return cached constructor if already loaded
   if (cachedConstructor) {
+    return Promise.resolve(cachedConstructor);
+  }
+
+  // Check if already loaded on window
+  if (typeof window !== 'undefined' && window.WebTorrent) {
+    cachedConstructor = window.WebTorrent;
     return Promise.resolve(cachedConstructor);
   }
 
@@ -86,21 +91,43 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
       return;
     }
 
-    // Use dynamic import with esm.sh CDN
-    // esm.sh provides browser-compatible ES module builds
-    import(/* webpackIgnore: true */ WEBTORRENT_ESM_CDN_URL)
-      .then((module: { default: WebTorrentConstructor }) => {
-        if (module && module.default) {
-          cachedConstructor = module.default;
-          resolve(module.default);
+    // Check if script is already in DOM
+    const existingScript = document.querySelector(`script[src="${WEBTORRENT_CDN_URL}"]`);
+    if (existingScript) {
+      // Wait for it to load
+      const checkLoaded = (): void => {
+        if (window.WebTorrent) {
+          cachedConstructor = window.WebTorrent;
+          resolve(cachedConstructor);
         } else {
-          reject(new Error('WebTorrent module loaded but default export not found'));
+          setTimeout(checkLoaded, 50);
         }
-      })
-      .catch((err: Error) => {
-        loadPromise = null; // Allow retry
-        reject(new Error(`Failed to load WebTorrent from CDN: ${err.message}`));
-      });
+      };
+      checkLoaded();
+      return;
+    }
+
+    // Create and load script
+    const script = document.createElement('script');
+    script.src = WEBTORRENT_CDN_URL;
+    script.async = true;
+
+    script.onload = (): void => {
+      if (window.WebTorrent) {
+        cachedConstructor = window.WebTorrent;
+        resolve(cachedConstructor);
+      } else {
+        loadPromise = null;
+        reject(new Error('WebTorrent script loaded but window.WebTorrent not available'));
+      }
+    };
+
+    script.onerror = (): void => {
+      loadPromise = null;
+      reject(new Error('Failed to load WebTorrent from CDN'));
+    };
+
+    document.head.appendChild(script);
   });
 
   return loadPromise;
