@@ -417,18 +417,29 @@ export async function getCurrentUser(): Promise<{ id: string; email: string } | 
       return null;
     }
 
-    if (!session.access_token) {
+    if (!session.access_token || !session.refresh_token) {
       return null;
     }
 
-    // Create Supabase client and get user from token
+    // Create Supabase client
     const supabase = createServerClient();
 
-    // Get user from the access token
-    const { data, error } = await supabase.auth.getUser(session.access_token);
+    // Use setSession to set the tokens - this handles token refresh automatically
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+
+    if (sessionError) {
+      console.error('[Auth] Failed to set session:', sessionError.message);
+      return null;
+    }
+
+    // Get user from the session
+    const { data, error } = await supabase.auth.getUser();
 
     if (error) {
-      console.error('[Auth] Failed to get user from token:', error.message);
+      console.error('[Auth] Failed to get user:', error.message);
       return null;
     }
 
