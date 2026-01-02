@@ -295,6 +295,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           cover_url: enrichmentResult.coverUrl ?? null,
           year: enrichmentResult.year ?? null,
           description: enrichmentResult.description ?? null,
+          director: enrichmentResult.director ?? null,
+          actors: enrichmentResult.actors ?? null,
           external_id: enrichmentResult.externalId ?? null,
           external_source: enrichmentResult.externalSource ?? null,
           metadata_fetched_at: new Date().toISOString(),

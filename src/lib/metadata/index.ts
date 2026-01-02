@@ -8,9 +8,12 @@ export {
   buildMusicBrainzUrl,
   buildOpenLibraryUrl,
   buildOMDbUrl,
+  buildOMDbDetailUrl,
   parseMusicBrainzResponse,
   parseOpenLibraryResponse,
   parseOMDbResponse,
+  parseOMDbDetailResponse,
+  fetchOMDbDetailByImdbId,
 } from './metadata';
 
 export type {
@@ -20,6 +23,7 @@ export type {
   MovieMetadata,
   TVShowMetadata,
   MusicBrainzSearchType,
+  OMDbDetailResponse,
 } from './metadata';
 
 // Fanart.tv utilities for all media types

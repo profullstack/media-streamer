@@ -52,6 +52,12 @@ export interface MovieMetadata {
   year?: number;
   type: string;
   posterUrl?: string;
+  /** Plot/description from OMDb detail API */
+  description?: string;
+  /** Director name(s) from OMDb detail API */
+  director?: string;
+  /** Actors/cast from OMDb detail API (comma-separated) */
+  actors?: string;
   source: 'omdb';
 }
 
@@ -374,6 +380,91 @@ export function parseOMDbResponse(response: OMDbResponse): MovieMetadata[] {
     posterUrl: result.Poster !== 'N/A' ? result.Poster : undefined,
     source: 'omdb' as const,
   }));
+}
+
+/**
+ * Build OMDb detail API URL (for fetching plot/description)
+ * @param imdbId - IMDB ID (e.g., tt1234567)
+ * @param apiKey - OMDb API key
+ * @param plot - Plot length ('short' or 'full')
+ * @returns API URL
+ */
+export function buildOMDbDetailUrl(
+  imdbId: string,
+  apiKey: string,
+  plot: 'short' | 'full' = 'short'
+): string {
+  return `https://www.omdbapi.com/?i=${imdbId}&apikey=${apiKey}&plot=${plot}`;
+}
+
+/**
+ * OMDb detail response (single item lookup by IMDB ID)
+ */
+export interface OMDbDetailResponse {
+  Response: string;
+  Error?: string;
+  imdbID?: string;
+  Title?: string;
+  Year?: string;
+  Type?: string;
+  Poster?: string;
+  Plot?: string;
+  Genre?: string;
+  Director?: string;
+  Actors?: string;
+  Runtime?: string;
+  imdbRating?: string;
+}
+
+/**
+ * Parse OMDb detail response
+ * @param response - OMDb detail API response
+ * @returns Parsed movie metadata with description or undefined
+ */
+export function parseOMDbDetailResponse(response: OMDbDetailResponse): MovieMetadata | undefined {
+  if (response.Response !== 'True' || !response.imdbID) {
+    return undefined;
+  }
+
+  return {
+    id: response.imdbID,
+    title: response.Title ?? '',
+    year: response.Year ? parseInt(response.Year, 10) : undefined,
+    type: response.Type ?? 'movie',
+    posterUrl: response.Poster && response.Poster !== 'N/A' ? response.Poster : undefined,
+    description: response.Plot && response.Plot !== 'N/A' ? response.Plot : undefined,
+    director: response.Director && response.Director !== 'N/A' ? response.Director : undefined,
+    actors: response.Actors && response.Actors !== 'N/A' ? response.Actors : undefined,
+    source: 'omdb' as const,
+  };
+}
+
+/**
+ * Fetch detailed movie/TV metadata from OMDb using IMDB ID
+ * This returns the Plot (description) which is not available in search results
+ * @param imdbId - IMDB ID (e.g., tt1234567)
+ * @param apiKey - OMDb API key
+ * @param plot - Plot length ('short' or 'full')
+ * @returns Movie metadata with description or undefined
+ */
+export async function fetchOMDbDetailByImdbId(
+  imdbId: string,
+  apiKey: string,
+  plot: 'short' | 'full' = 'short'
+): Promise<MovieMetadata | undefined> {
+  try {
+    const url = buildOMDbDetailUrl(imdbId, apiKey, plot);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const data = await response.json() as OMDbDetailResponse;
+    return parseOMDbDetailResponse(data);
+  } catch {
+    return undefined;
+  }
 }
 
 // ============================================================================

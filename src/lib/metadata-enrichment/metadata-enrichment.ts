@@ -21,6 +21,7 @@ import {
   fetchArtistImage,
   fetchAlbumCover,
   fetchMoviePosterByImdb,
+  fetchOMDbDetailByImdbId,
   type MusicBrainzSearchType,
 } from '@/lib/metadata';
 import { createLogger } from '@/lib/logger';
@@ -102,6 +103,10 @@ export interface EnrichmentResult {
   externalSource?: string;
   year?: number;
   description?: string;
+  /** Director name(s) from OMDb */
+  director?: string;
+  /** Actors/cast from OMDb (comma-separated) */
+  actors?: string;
   title?: string;
   /** Artist name extracted from torrent */
   artist?: string;
@@ -449,6 +454,7 @@ export function extractSearchQuery(name: string, contentType: ContentType): Sear
 /**
  * Fetch movie metadata from OMDb, then try Fanart.tv for better poster
  * Uses IMDB ID from OMDb to fetch high-quality posters from Fanart.tv
+ * Also fetches description/plot from OMDb detail API
  */
 async function fetchMovieMetadata(
   query: string,
@@ -479,6 +485,24 @@ async function fetchMovieMetadata(
     title: movie.title,
   };
 
+  // Fetch detailed info (including plot/description) using IMDB ID
+  if (movie.id) {
+    try {
+      const detailData = await fetchOMDbDetailByImdbId(movie.id, apiKey, 'short');
+      if (detailData) {
+        if (detailData.description) result.description = detailData.description;
+        if (detailData.director) result.director = detailData.director;
+        if (detailData.actors) result.actors = detailData.actors;
+      }
+    } catch (error) {
+      // Log but don't fail - description is optional
+      logger.warn('Failed to fetch OMDb movie details', {
+        imdbId: movie.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   // Try to get better poster from Fanart.tv using IMDB ID
   // Fanart.tv provides higher quality posters than OMDb
   if (fanartTvApiKey && movie.id) {
@@ -502,6 +526,7 @@ async function fetchMovieMetadata(
 /**
  * Fetch TV show metadata from OMDb (type='series'), then try Fanart.tv for better poster
  * Uses IMDB ID from OMDb to fetch high-quality posters from Fanart.tv
+ * Also fetches description/plot from OMDb detail API
  */
 async function fetchTVShowMetadata(
   query: string,
@@ -532,6 +557,24 @@ async function fetchTVShowMetadata(
     year: show.year,
     title: show.title,
   };
+
+  // Fetch detailed info (including plot/description) using IMDB ID
+  if (show.id) {
+    try {
+      const detailData = await fetchOMDbDetailByImdbId(show.id, apiKey, 'short');
+      if (detailData) {
+        if (detailData.description) result.description = detailData.description;
+        if (detailData.director) result.director = detailData.director;
+        if (detailData.actors) result.actors = detailData.actors;
+      }
+    } catch (error) {
+      // Log but don't fail - description is optional
+      logger.warn('Failed to fetch OMDb TV show details', {
+        imdbId: show.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   // Try to get better poster from Fanart.tv using IMDB ID
   // Fanart.tv supports TV shows via IMDB ID as well

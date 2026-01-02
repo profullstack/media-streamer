@@ -369,6 +369,12 @@ async function updateTorrentMetadata(
   if (result.description) {
     updateData.description = result.description;
   }
+  if (result.director) {
+    updateData.director = result.director;
+  }
+  if (result.actors) {
+    updateData.actors = result.actors;
+  }
 
   if (dryRun) {
     console.log(`  [DRY RUN] Would update with:`, updateData);
