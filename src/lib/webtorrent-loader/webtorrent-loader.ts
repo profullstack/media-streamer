@@ -3,8 +3,8 @@
 /**
  * WebTorrent Browser Loader
  *
- * Loads the WebTorrent browser bundle from jsDelivr CDN using dynamic import.
- * The webtorrent.min.js file is an ES module that exports the WebTorrent class as default.
+ * Loads the WebTorrent browser bundle from jsDelivr CDN using script tag injection.
+ * jsDelivr serves files with correct MIME types (application/javascript).
  */
 
 // WebTorrent types for browser bundle
@@ -67,8 +67,9 @@ declare global {
 }
 
 // CDN URL for WebTorrent browser bundle
-// Using unpkg which serves the UMD bundle that works better with dynamic import
-const WEBTORRENT_CDN_URL = 'https://unpkg.com/webtorrent@2.5.1/webtorrent.min.js';
+// Using jsDelivr which serves files with correct MIME types (application/javascript)
+// The webtorrent.min.js is a UMD bundle that sets window.WebTorrent
+const WEBTORRENT_CDN_URL = 'https://cdn.jsdelivr.net/npm/webtorrent@2.5.1/webtorrent.min.js';
 
 // Loading state
 let loadPromise: Promise<WebTorrentConstructor> | null = null;
@@ -77,8 +78,9 @@ let cachedConstructor: WebTorrentConstructor | null = null;
 /**
  * Load WebTorrent from CDN using script tag injection
  *
- * This function loads the WebTorrent browser bundle from unpkg CDN.
+ * This function loads the WebTorrent browser bundle from jsDelivr CDN.
  * The UMD bundle sets window.WebTorrent as the constructor.
+ * jsDelivr serves files with correct Content-Type: application/javascript
  *
  * @returns Promise that resolves to the WebTorrent constructor
  * @throws Error if loading fails
@@ -114,6 +116,8 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
     const script = document.createElement('script');
     script.src = WEBTORRENT_CDN_URL;
     script.async = true;
+    // Explicitly set type to ensure browser treats it as JavaScript
+    script.type = 'text/javascript';
 
     // Set timeout for loading (30 seconds)
     const loadTimeout = setTimeout(() => {
@@ -128,7 +132,7 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
       // Check if WebTorrent is now available on window
       if (window.WebTorrent) {
         cachedConstructor = window.WebTorrent;
-        console.log('[WebTorrent] Loaded successfully from CDN');
+        console.log('[WebTorrent] Loaded successfully from jsDelivr CDN');
         resolve(cachedConstructor);
       } else {
         loadPromise = null;
