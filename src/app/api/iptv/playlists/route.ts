@@ -148,21 +148,25 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   // Validate that the M3U URL is accessible
+  // Use GET instead of HEAD because many M3U servers don't support HEAD requests
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT);
 
     const response = await fetch(m3uUrl, {
-      method: 'HEAD', // Use HEAD to minimize data transfer
+      method: 'GET',
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; IPTV/1.0)',
+        // Request only a small range to minimize data transfer
+        'Range': 'bytes=0-1023',
       },
     });
 
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
+    // Accept 200 OK or 206 Partial Content (for Range requests)
+    if (!response.ok && response.status !== 206) {
       return NextResponse.json(
         { error: `Failed to validate M3U URL: ${response.status} ${response.statusText}` },
         { status: 502 }

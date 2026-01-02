@@ -151,7 +151,7 @@ describe('POST /api/iptv/playlists', () => {
     expect(data.error).toBe('Failed to validate M3U URL');
   });
 
-  it('should return 200 with playlist data on success', async () => {
+  it('should return 200 with playlist data on success (200 OK)', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -175,6 +175,30 @@ describe('POST /api/iptv/playlists', () => {
     expect(data.id).toBeDefined();
     expect(typeof data.id).toBe('string');
     expect(data.epgUrl).toBeUndefined();
+  });
+
+  it('should return 200 with playlist data on success (206 Partial Content)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false, // 206 is not considered "ok" by fetch
+      status: 206,
+    });
+
+    const request = new NextRequest('http://localhost/api/iptv/playlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'My Playlist',
+        m3uUrl: 'http://example.com/playlist.m3u',
+      }),
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.name).toBe('My Playlist');
+    expect(data.m3uUrl).toBe('http://example.com/playlist.m3u');
+    expect(data.id).toBeDefined();
   });
 
   it('should return 200 with playlist data including epgUrl on success', async () => {
