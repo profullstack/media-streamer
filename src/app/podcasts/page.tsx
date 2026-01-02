@@ -173,6 +173,7 @@ export default function PodcastsPage(): React.ReactElement {
   
   // Subscribe action state
   const [subscribingFeedUrl, setSubscribingFeedUrl] = useState<string | null>(null);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
   
   // Push notification state
   const [isPushSupported, setIsPushSupported] = useState(false);
@@ -302,9 +303,13 @@ export default function PodcastsPage(): React.ReactElement {
 
   // Subscribe to podcast
   const handleSubscribe = useCallback(async (podcast: PodcastSearchResult): Promise<void> => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn) {
+      setSubscribeError('Please sign in to subscribe to podcasts');
+      return;
+    }
     
     setSubscribingFeedUrl(podcast.feedUrl);
+    setSubscribeError(null);
     
     try {
       const response = await fetch('/api/podcasts', {
@@ -324,8 +329,10 @@ export default function PodcastsPage(): React.ReactElement {
       setActiveTab('subscriptions');
       setSearchQuery('');
       setSearchResults([]);
+      setSubscribeError(null);
     } catch (err) {
       console.error('[Podcasts] Subscribe error:', err);
+      setSubscribeError(err instanceof Error ? err.message : 'Failed to subscribe to podcast');
     } finally {
       setSubscribingFeedUrl(null);
     }
@@ -546,6 +553,12 @@ export default function PodcastsPage(): React.ReactElement {
             {searchError && (
               <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
                 {searchError}
+              </div>
+            )}
+
+            {subscribeError && (
+              <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
+                {subscribeError}
               </div>
             )}
 
