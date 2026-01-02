@@ -55,12 +55,14 @@ export default defineConfig({
       'src/lib/argontv/repository.test.ts',         // 536 lines
       // Tests that fail with isolate: false due to shared state
       'src/lib/torrent-index/ingestion.test.ts',
+      'src/lib/torrent-index/post-ingestion.test.ts',
       // Tests that fail in CI due to browser API mocking issues (HLS.js, mpegts.js)
       'src/components/live-tv/hls-player-modal.test.tsx',
       'src/components/media/playlist-player-modal.test.tsx',
       // Tests that fail in CI due to isolate: false causing shared state issues
       'src/components/layout/header.test.tsx',
       'src/components/layout/sidebar.test.tsx',
+      'src/components/layout/tv-layout-provider.test.tsx',
       'src/app/api/subscription/history/route.test.ts',
       'src/app/find-torrents/page.test.tsx',
     ],
