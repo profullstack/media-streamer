@@ -11,39 +11,11 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-
-// WebTorrent types for browser bundle
-// These match the types in src/types/webtorrent-browser.d.ts
-interface WebTorrentFile {
-  name: string;
-  length: number;
-  path: string;
-  streamURL: string;
-  getBlobURL: (callback: (err: Error | null, url?: string) => void) => void;
-}
-
-interface WebTorrentTorrent {
-  infoHash: string;
-  name: string;
-  files: WebTorrentFile[];
-  progress: number;
-  downloadSpeed: number;
-  uploadSpeed: number;
-  numPeers: number;
-  ready: boolean;
-  on: (event: string, callback: (...args: unknown[]) => void) => void;
-  off: (event: string, callback: (...args: unknown[]) => void) => void;
-  destroy: (callback?: () => void) => void;
-}
-
-interface WebTorrentClient {
-  add: (magnetUri: string, callback?: (torrent: WebTorrentTorrent) => void) => WebTorrentTorrent;
-  get: (infoHash: string) => WebTorrentTorrent | null;
-  remove: (infoHash: string, callback?: () => void) => void;
-  destroy: (callback?: () => void) => void;
-  on: (event: string, callback: (...args: unknown[]) => void) => void;
-  torrents: WebTorrentTorrent[];
-}
+import {
+  loadWebTorrent,
+  type WebTorrentClient,
+  type WebTorrentTorrent,
+} from '../lib/webtorrent-loader';
 
 /**
  * Native video formats that browsers can play without transcoding
@@ -138,11 +110,8 @@ export function useWebTorrent(): UseWebTorrentReturn {
       return clientRef.current;
     }
 
-    // Dynamic import of browser-compatible WebTorrent bundle
-    // This is the minified browser build that works in browsers
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const WebTorrentModule = await import('webtorrent/dist/webtorrent.min.js') as { default: new () => WebTorrentClient };
-    const WebTorrent = WebTorrentModule.default;
+    // Load WebTorrent from CDN to avoid Next.js/Turbopack chunk loading issues
+    const WebTorrent = await loadWebTorrent();
     const client = new WebTorrent();
     clientRef.current = client;
 

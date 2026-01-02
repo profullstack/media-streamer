@@ -66,8 +66,9 @@ const mockClient = {
   torrents: [] as typeof mockTorrent[],
 };
 
-vi.mock('webtorrent/dist/webtorrent.min.js', () => ({
-  default: vi.fn(() => mockClient),
+// Mock the webtorrent-loader module (CDN loader)
+vi.mock('../lib/webtorrent-loader', () => ({
+  loadWebTorrent: vi.fn(() => Promise.resolve(vi.fn(() => mockClient))),
 }));
 
 // Import hook after mocking
