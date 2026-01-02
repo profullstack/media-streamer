@@ -1,48 +1,11 @@
 /**
- * IPTV Module
+ * IPTV Library
  * 
- * M3U playlist parsing and EPG management
+ * Utilities for parsing M3U playlists and caching channel data.
  */
 
-export {
-  // Types
-  type M3UChannel,
-  type M3UPlaylist,
-  type EPGSource,
-  type ChannelGroup,
-  type ParsedExtInf,
-  type M3UParseResult,
-  type CreatePlaylistOptions,
-  type GenerateM3UOptions,
-  type FilterOptions,
-  
-  // M3U Parsing
-  parseM3U,
-  parseM3ULine,
-  parseExtInf,
-  parseAttributes,
-  validateM3UContent,
-  
-  // M3U Generation
-  generateM3U,
-  
-  // EPG URL Handling
-  parseEPGUrl,
-  validateEPGUrl,
-  
-  // Playlist Management
-  createPlaylist,
-  addChannel,
-  removeChannel,
-  updateChannel,
-  
-  // Channel Operations
-  getChannelsByGroup,
-  searchChannels,
-  sortChannels,
-  filterChannels,
-  
-  // Playlist Operations
-  mergePlaylist,
-  exportPlaylist,
-} from './iptv';
+export { parseM3U, searchChannels, extractGroups, getProxiedUrl } from './m3u-parser';
+export type { Channel } from './m3u-parser';
+
+export { PlaylistCache, getPlaylistCache } from './playlist-cache';
+export type { CachedPlaylist } from './playlist-cache';

@@ -5,13 +5,14 @@
  * 
  * Top header with search bar, category filter, and user actions.
  * Responsive design for mobile and desktop.
+ * Includes user dropdown with email display and account settings link.
  */
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, LogOutIcon, SettingsIcon, ChevronDownIcon } from '@/components/ui/icons';
 
 /**
  * Search categories for filtering
@@ -27,17 +28,20 @@ const SEARCH_CATEGORIES = [
 
 type SearchCategory = typeof SEARCH_CATEGORIES[number]['value'];
 
-interface HeaderProps {
+export interface HeaderProps {
   className?: string;
   isLoggedIn?: boolean;
+  userEmail?: string;
+  onLogout?: () => void;
 }
 
-export function Header({ className, isLoggedIn = false }: HeaderProps): React.ReactElement {
+export function Header({ className, isLoggedIn = false, userEmail, onLogout }: HeaderProps): React.ReactElement {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('');
   const [isSearching, setIsSearching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
   const handleSearch = useCallback(
     async (e: React.FormEvent): Promise<void> => {
@@ -66,6 +70,15 @@ export function Header({ className, isLoggedIn = false }: HeaderProps): React.Re
   const handleCategoryChange = useCallback((newCategory: SearchCategory): void => {
     setCategory(newCategory);
     setIsDropdownOpen(false);
+  }, []);
+
+  const handleLogout = useCallback((): void => {
+    setIsUserDropdownOpen(false);
+    onLogout?.();
+  }, [onLogout]);
+
+  const handleAccountSettingsClick = useCallback((): void => {
+    setIsUserDropdownOpen(false);
   }, []);
 
   const selectedCategoryLabel = SEARCH_CATEGORIES.find(c => c.value === category)?.label ?? 'All';
@@ -180,18 +193,79 @@ export function Header({ className, isLoggedIn = false }: HeaderProps): React.Re
       {/* Right side actions */}
       <div className="flex items-center gap-2">
         {isLoggedIn ? (
-          <Link
-            href="/account"
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-3 py-2',
-              'text-sm font-medium text-text-secondary',
-              'hover:bg-bg-hover hover:text-text-primary',
-              'transition-colors'
+          <div className="relative">
+            {/* User Dropdown Trigger */}
+            <button
+              type="button"
+              data-testid="user-dropdown-trigger"
+              aria-label="User menu"
+              aria-expanded={isUserDropdownOpen}
+              onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-2',
+                'text-sm font-medium text-text-secondary',
+                'hover:bg-bg-hover hover:text-text-primary',
+                'transition-colors'
+              )}
+            >
+              <UserIcon size={20} />
+              <span className="hidden max-w-[150px] truncate sm:inline">{userEmail}</span>
+              <ChevronDownIcon size={14} className={cn('transition-transform', isUserDropdownOpen && 'rotate-180')} />
+            </button>
+
+            {/* User Dropdown Menu */}
+            {isUserDropdownOpen && (
+              <>
+                {/* Backdrop to close dropdown */}
+                <div 
+                  data-testid="user-dropdown-backdrop"
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsUserDropdownOpen(false)}
+                />
+                <div 
+                  data-testid="user-dropdown-menu"
+                  className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-border-default bg-bg-secondary py-1 shadow-lg"
+                >
+                  {/* Email display in dropdown */}
+                  <div className="border-b border-border-subtle px-4 py-3">
+                    <p className="text-xs text-text-muted">Signed in as</p>
+                    <p className="truncate text-sm font-medium text-text-primary">{userEmail}</p>
+                  </div>
+
+                  {/* Account Settings Link */}
+                  <Link
+                    href="/account"
+                    onClick={handleAccountSettingsClick}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
+                      'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                      'transition-colors'
+                    )}
+                  >
+                    <SettingsIcon size={16} />
+                    <span>Account Settings</span>
+                  </Link>
+
+                  {/* Divider */}
+                  <div className="my-1 border-t border-border-subtle" />
+
+                  {/* Log Out Button */}
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
+                      'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                      'transition-colors'
+                    )}
+                  >
+                    <LogOutIcon size={16} />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              </>
             )}
-          >
-            <UserIcon size={20} />
-            <span className="hidden sm:inline">Account</span>
-          </Link>
+          </div>
         ) : (
           <>
             <Link

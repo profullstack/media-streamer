@@ -5,7 +5,7 @@
  */
 
 import { randomBytes } from 'crypto';
-import type { M3UChannel } from '../iptv';
+import type { Channel } from '../iptv';
 
 // ============================================================================
 // Types
@@ -426,14 +426,13 @@ export function getXtreamEPG(rawEPG: unknown[]): XtreamEPGEntry[] {
 export function formatXtreamChannel(
   credentials: XtreamCredentials,
   stream: XtreamLiveStream
-): M3UChannel {
+): Channel {
   return {
     id: stream.id,
     name: stream.name,
     url: buildLiveStreamUrl(credentials, stream.id),
-    duration: -1,
     tvgId: stream.epgChannelId,
-    tvgLogo: stream.logo,
-    groupTitle: stream.categoryId,
+    logo: stream.logo,
+    group: stream.categoryId,
   };
 }

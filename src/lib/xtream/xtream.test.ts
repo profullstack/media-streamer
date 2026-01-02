@@ -444,8 +444,9 @@ describe('Xtream Codes', () => {
       expect(channel.id).toBe('123');
       expect(channel.name).toBe('ESPN HD');
       expect(channel.url).toContain('/live/user/pass/123');
-      expect(channel.tvgLogo).toBe('http://logo.com/espn.png');
+      expect(channel.logo).toBe('http://logo.com/espn.png');
       expect(channel.tvgId).toBe('espn.us');
+      expect(channel.group).toBe('1');
     });
 
     it('should handle stream without EPG ID', () => {

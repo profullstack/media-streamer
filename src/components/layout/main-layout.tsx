@@ -2,12 +2,14 @@
 
 /**
  * Main Layout Component
- * 
+ *
  * Combines sidebar, header, and main content area.
  * Provides consistent layout across all pages.
  * Manages auth state and passes it to child components.
  */
 
+import { useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
@@ -19,7 +21,24 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, className }: MainLayoutProps): React.ReactElement {
-  const { isLoggedIn, isLoading } = useAuth();
+  const router = useRouter();
+  const { isLoggedIn, isLoading, user, refresh } = useAuth();
+
+  const handleLogout = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        refresh();
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  }, [refresh, router]);
 
   return (
     <div className="flex min-h-screen">
@@ -29,7 +48,11 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
       {/* Main content area */}
       <div className="flex flex-1 flex-col md:ml-64">
         {/* Header */}
-        <Header isLoggedIn={isLoggedIn} />
+        <Header
+          isLoggedIn={isLoggedIn}
+          userEmail={user?.email}
+          onLogout={handleLogout}
+        />
 
         {/* Page content */}
         <main className={cn('flex-1 p-4 md:p-6', className)}>
