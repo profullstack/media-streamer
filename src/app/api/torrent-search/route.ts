@@ -49,9 +49,10 @@ interface TorrentSearchResponse {
   timestamp: string;
 }
 
-// Search timeout in milliseconds (60 seconds)
-// Increased from 30s to handle slow torrent providers
-const SEARCH_TIMEOUT = 60000;
+// Search timeout in milliseconds (120 seconds)
+// Increased from 60s to handle slow torrent providers across 6 providers
+// Each provider may take up to 20s, and we search sequentially
+const SEARCH_TIMEOUT = 120000;
 
 /**
  * Sanitize query to prevent command injection

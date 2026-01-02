@@ -95,6 +95,12 @@ export default function FindTorrentsPage(): React.ReactElement {
     setIsSearching(true);
     setSearchResults(null);
 
+    // Create AbortController with 130 second timeout
+    // This is slightly longer than the server-side 120s timeout
+    // to allow the server to return a proper timeout error
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 130000);
+
     try {
       const params = new URLSearchParams({
         q: query.trim(),
@@ -110,7 +116,10 @@ export default function FindTorrentsPage(): React.ReactElement {
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -120,8 +129,13 @@ export default function FindTorrentsPage(): React.ReactElement {
       }
 
       setSearchResults(data as SearchResponse);
-    } catch {
-      setError('Search failed. Please try again.');
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Search timed out. Please try again with a more specific query.');
+      } else {
+        setError('Search failed. Please try again.');
+      }
     } finally {
       setIsSearching(false);
     }

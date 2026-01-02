@@ -9,6 +9,10 @@
 # Array of providers to search
 providers=(thepiratebay limetorrents 1337x rarbg nyaa libgen)
 
+# Per-provider timeout in seconds (20 seconds per provider)
+# This ensures slow providers don't block the entire search
+PROVIDER_TIMEOUT=20
+
 # Temporary file to collect results
 temp_results=$(mktemp)
 
@@ -19,14 +23,15 @@ log() {
 
 log "Starting torrent search across ${#providers[@]} providers..."
 log "Search query: $*"
+log "Per-provider timeout: ${PROVIDER_TIMEOUT}s"
 
 # Search each provider
 for provider in "${providers[@]}"; do
     log "Searching provider: $provider"
     
-    # Run torge and capture output and errors separately
+    # Run torge with timeout and capture output and errors separately
     error_file=$(mktemp)
-    result=$(torge "$provider" --no-prompt --link-conv -s date --json "$@" 2>"$error_file")
+    result=$(timeout "${PROVIDER_TIMEOUT}s" torge "$provider" --no-prompt --link-conv -s date --json "$@" 2>"$error_file")
     exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
@@ -34,6 +39,9 @@ for provider in "${providers[@]}"; do
         result_count=$(echo "$result" | jq -r '.results | length' 2>/dev/null || echo "0")
         log "  ✓ $provider completed: $result_count results"
         echo "$result" >> "$temp_results"
+    elif [ $exit_code -eq 124 ]; then
+        # Timeout exit code - provider took too long
+        log "  ⏱ $provider timed out after ${PROVIDER_TIMEOUT}s (skipping)"
     else
         # Show the actual error message
         error_msg=$(cat "$error_file" | head -3 | tr '\n' ' ')
