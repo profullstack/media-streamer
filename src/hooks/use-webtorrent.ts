@@ -36,25 +36,29 @@ const WEBTORRENT_TRACKERS: readonly string[] = [
 ];
 
 /**
- * ICE servers for WebRTC NAT traversal
- * STUN servers help discover public IP addresses
- * TURN servers relay traffic when direct connections fail
- * Using public STUN servers that are privacy-friendly (not Google)
+ * Available STUN servers for WebRTC NAT traversal
+ * One will be randomly selected to avoid overloading any single server
  */
-const ICE_SERVERS: RTCIceServer[] = [
-  // Public STUN servers (free, no auth required)
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun.stunprotocol.org:3478' },
-  { urls: 'stun:stun.nextcloud.com:443' },
-  // OpenRelay TURN servers (free, public)
+const STUN_SERVERS: readonly string[] = [
+  'stun:stun.l.google.com:19302',
+  'stun:stun1.l.google.com:19302',
+  'stun:stun2.l.google.com:19302',
+  'stun:stun3.l.google.com:19302',
+  'stun:stun4.l.google.com:19302',
+];
+
+/**
+ * Available TURN servers for relaying traffic when direct connections fail
+ * One will be randomly selected to distribute load
+ */
+const TURN_SERVERS: readonly RTCIceServer[] = [
   {
-    urls: 'turn:openrelay.metered.ca:80',
+    urls: 'turn:openrelay.metered.ca:443',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
   {
-    urls: 'turn:openrelay.metered.ca:443',
+    urls: 'turn:openrelay.metered.ca:80',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
@@ -66,11 +70,24 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 
 /**
+ * Get ICE servers configuration with randomly selected STUN and TURN servers
+ * This distributes load across multiple servers
+ */
+function getIceServers(): RTCIceServer[] {
+  const randomStun = STUN_SERVERS[Math.floor(Math.random() * STUN_SERVERS.length)];
+  const randomTurn = TURN_SERVERS[Math.floor(Math.random() * TURN_SERVERS.length)];
+  return [
+    { urls: randomStun },
+    randomTurn,
+  ];
+}
+
+/**
  * Timeout for adding a torrent (waiting for metadata from peers)
  * This is the time to wait for the torrent to be added and metadata to be received
- * 30 seconds should be enough for most torrents with active peers
+ * 60 seconds allows time for peer discovery via WebRTC signaling
  */
-const TORRENT_ADD_TIMEOUT_MS = 30000;
+const TORRENT_ADD_TIMEOUT_MS = 60000;
 
 /**
  * Timeout for torrent to become ready after being added
@@ -182,7 +199,7 @@ export function useWebTorrent(): UseWebTorrentReturn {
     const client = new WebTorrent({
       tracker: {
         rtcConfig: {
-          iceServers: ICE_SERVERS,
+          iceServers: getIceServers(),
         },
       },
     });
