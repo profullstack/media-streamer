@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { StreamingService } from '@/lib/streaming';
+import { getStreamingService } from '@/lib/streaming';
 
 export interface HealthCheckResponse {
   status: 'healthy' | 'unhealthy';
@@ -25,22 +25,15 @@ export interface HealthCheckResponse {
     activeCount: number;
     activeStreams: number;
   };
+  memory?: {
+    heapUsedMB: number;
+    heapTotalMB: number;
+    rssMB: number;
+    externalMB: number;
+  };
 }
 
 const startTime = Date.now();
-
-// Singleton streaming service instance (shared with stream route)
-let streamingService: StreamingService | null = null;
-
-function getStreamingService(): StreamingService {
-  if (!streamingService) {
-    streamingService = new StreamingService({
-      maxConcurrentStreams: 10,
-      streamTimeout: 90000,
-    });
-  }
-  return streamingService;
-}
 
 export async function GET(): Promise<NextResponse<HealthCheckResponse>> {
   const uptime = Math.floor((Date.now() - startTime) / 1000);
@@ -50,6 +43,9 @@ export async function GET(): Promise<NextResponse<HealthCheckResponse>> {
   const dhtStatus = service.getDhtStatus();
   const torrentStats = service.getAllTorrentStats();
   
+  // Get memory usage for monitoring
+  const memoryUsage = process.memoryUsage();
+  
   const response: HealthCheckResponse = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -57,13 +53,19 @@ export async function GET(): Promise<NextResponse<HealthCheckResponse>> {
     uptime,
     environment: process.env.NODE_ENV ?? 'development',
     services: {
-      database: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'connected' : 'unknown',
+      database: process.env.SUPABASE_URL ? 'connected' : 'unknown',
       cache: 'unknown',
     },
     dht: dhtStatus,
     torrents: {
       activeCount: torrentStats.length,
       activeStreams: service.getActiveStreamCount(),
+    },
+    memory: {
+      heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024 * 100) / 100,
+      heapTotalMB: Math.round(memoryUsage.heapTotal / 1024 / 1024 * 100) / 100,
+      rssMB: Math.round(memoryUsage.rss / 1024 / 1024 * 100) / 100,
+      externalMB: Math.round(memoryUsage.external / 1024 / 1024 * 100) / 100,
     },
   };
 

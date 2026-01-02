@@ -1363,12 +1363,21 @@ export class StreamingService {
     // Wait for the piece to be downloaded
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
-      let downloadHandler: ((piece: number) => void) | null = null;
+      let checkIntervalId: ReturnType<typeof setInterval> | null = null;
+      let downloadHandler: (() => void) | null = null;
+      let resolved = false;
 
       const cleanup = (): void => {
+        if (resolved) return;
+        resolved = true;
+        
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
+        }
+        if (checkIntervalId) {
+          clearInterval(checkIntervalId);
+          checkIntervalId = null;
         }
         if (downloadHandler && typeof torrent.removeListener === 'function') {
           torrent.removeListener('download', downloadHandler);
@@ -1376,30 +1385,13 @@ export class StreamingService {
         }
       };
 
-      // Set timeout
-      timeoutId = setTimeout(() => {
-        cleanup();
-        const elapsed = Date.now() - startTime;
-        logger.warn('Timeout waiting for data', {
-          fileName: file.name,
-          startPiece,
-          elapsed: `${elapsed}ms`,
-          timeout: this.streamTimeout,
-          progress: torrent.progress,
-          numPeers: torrent.numPeers,
-        });
-        reject(new StreamingError(
-          `Timeout waiting for data. No peers available or download too slow. ` +
-          `Progress: ${(torrent.progress * 100).toFixed(1)}%, Peers: ${torrent.numPeers}`
-        ));
-      }, this.streamTimeout);
-
       // Get bitfield reference for use in callbacks
       const getBitfield = (): { get: (index: number) => boolean } | undefined =>
         (torrent as unknown as { bitfield?: { get: (index: number) => boolean } }).bitfield;
 
       // Listen for download events
       downloadHandler = (): void => {
+        if (resolved) return;
         // Check if our piece is now available
         const bf = getBitfield();
         if (bf?.get(startPiece)) {
@@ -1419,10 +1411,10 @@ export class StreamingService {
       torrent.on('download', downloadHandler);
 
       // Also check periodically in case we missed the event
-      const checkInterval = setInterval(() => {
+      checkIntervalId = setInterval(() => {
+        if (resolved) return;
         const bf = getBitfield();
         if (bf?.get(startPiece)) {
-          clearInterval(checkInterval);
           cleanup();
           const elapsed = Date.now() - startTime;
           logger.info('Data now available (periodic check)', {
@@ -1434,16 +1426,10 @@ export class StreamingService {
         }
       }, 500);
 
-      // Clean up interval on timeout or success
-      const originalCleanup = cleanup;
-      const cleanupWithInterval = (): void => {
-        clearInterval(checkInterval);
-        originalCleanup();
-      };
-      
-      // Replace cleanup with the one that also clears interval
+      // Set timeout - only one timeout, cleanup handles everything
       timeoutId = setTimeout(() => {
-        cleanupWithInterval();
+        if (resolved) return;
+        cleanup();
         const elapsed = Date.now() - startTime;
         logger.warn('Timeout waiting for data', {
           fileName: file.name,

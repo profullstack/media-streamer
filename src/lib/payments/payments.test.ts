@@ -438,9 +438,12 @@ describe('Payments Module', () => {
 
   describe('Subscription Expiry Formatting', () => {
     it('should format expiry date', () => {
-      const expiry = new Date('2025-12-31T23:59:59Z');
+      // Use a date 1 year in the future to ensure it's always valid
+      const futureDate = new Date();
+      futureDate.setFullYear(futureDate.getFullYear() + 1);
+      const expiry = futureDate;
       const formatted = formatSubscriptionExpiry(expiry);
-      expect(formatted).toContain('2025');
+      expect(formatted).toContain(String(futureDate.getFullYear()));
     });
 
     it('should return "Never" for null expiry', () => {
