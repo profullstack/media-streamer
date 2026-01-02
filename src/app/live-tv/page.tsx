@@ -16,8 +16,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner } from '@/components/ui/icons';
-import { AddPlaylistModal, HlsPlayerModal, type PlaylistData } from '@/components/live-tv';
+import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner, EditIcon, TrashIcon } from '@/components/ui/icons';
+import { AddPlaylistModal, EditPlaylistModal, HlsPlayerModal, type PlaylistData } from '@/components/live-tv';
 import { useAuth } from '@/hooks/use-auth';
 import type { Channel } from '@/lib/iptv';
 
@@ -81,6 +81,13 @@ export default function LiveTvPage(): React.ReactElement {
   const [activePlaylist, setActivePlaylist] = useState<PlaylistData | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  
+  // Edit/Delete state
+  const [editingPlaylist, setEditingPlaylist] = useState<PlaylistData | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deletingPlaylist, setDeletingPlaylist] = useState<PlaylistData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   
   // Channel data state
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -322,6 +329,75 @@ export default function LiveTvPage(): React.ReactElement {
     setOffset(prev => prev + 50);
   }, []);
 
+  // Edit playlist handlers
+  const handleEditPlaylist = useCallback((playlist: PlaylistData): void => {
+    setEditingPlaylist(playlist);
+    setIsEditModalOpen(true);
+  }, []);
+
+  const handleCloseEditModal = useCallback((): void => {
+    setIsEditModalOpen(false);
+    setEditingPlaylist(null);
+  }, []);
+
+  const handlePlaylistUpdated = useCallback((updatedPlaylist: PlaylistData): void => {
+    setPlaylists(prev => prev.map(p => p.id === updatedPlaylist.id ? updatedPlaylist : p));
+    // Update active playlist if it was the one edited
+    if (activePlaylist?.id === updatedPlaylist.id) {
+      setActivePlaylist(updatedPlaylist);
+    }
+    setIsEditModalOpen(false);
+    setEditingPlaylist(null);
+  }, [activePlaylist]);
+
+  // Delete playlist handlers
+  const handleDeletePlaylist = useCallback((playlist: PlaylistData): void => {
+    setDeletingPlaylist(playlist);
+    setDeleteError(null);
+  }, []);
+
+  const handleCancelDelete = useCallback((): void => {
+    setDeletingPlaylist(null);
+    setDeleteError(null);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async (): Promise<void> => {
+    if (!deletingPlaylist) return;
+    
+    setIsDeleting(true);
+    setDeleteError(null);
+    
+    try {
+      if (isLoggedIn) {
+        // Delete from API for authenticated users
+        const response = await fetch(`/api/iptv/playlists/${deletingPlaylist.id}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const data = await response.json() as { error?: string };
+          throw new Error(data.error ?? 'Failed to delete playlist');
+        }
+      }
+      
+      // Remove from local state
+      setPlaylists(prev => prev.filter(p => p.id !== deletingPlaylist.id));
+      
+      // If deleted playlist was active, select another one
+      if (activePlaylist?.id === deletingPlaylist.id) {
+        const remaining = playlists.filter(p => p.id !== deletingPlaylist.id);
+        setActivePlaylist(remaining.length > 0 ? remaining[0] : null);
+      }
+      
+      setDeletingPlaylist(null);
+    } catch (err) {
+      console.error('[Live TV] Error deleting playlist:', err);
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete playlist');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deletingPlaylist, isLoggedIn, activePlaylist, playlists]);
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -346,7 +422,7 @@ export default function LiveTvPage(): React.ReactElement {
           </button>
         </div>
 
-        {/* Playlist Selector - Dropdown */}
+        {/* Playlist Selector - Dropdown with Edit/Delete */}
         {playlists.length > 0 && (
           <div className="flex items-center gap-3">
             <label htmlFor="playlist-select" className="text-sm font-medium text-text-secondary">
@@ -373,6 +449,88 @@ export default function LiveTvPage(): React.ReactElement {
                 </option>
               ))}
             </select>
+            
+            {/* Edit and Delete buttons for active playlist */}
+            {activePlaylist && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleEditPlaylist(activePlaylist)}
+                  className={cn(
+                    'p-2 rounded-lg transition-colors',
+                    'text-text-muted hover:text-text-primary hover:bg-bg-hover',
+                    'focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
+                  )}
+                  title="Edit playlist"
+                  aria-label="Edit playlist"
+                >
+                  <EditIcon size={18} />
+                </button>
+                <button
+                  onClick={() => handleDeletePlaylist(activePlaylist)}
+                  className={cn(
+                    'p-2 rounded-lg transition-colors',
+                    'text-text-muted hover:text-red-400 hover:bg-red-500/10',
+                    'focus:outline-none focus:ring-2 focus:ring-red-500/50'
+                  )}
+                  title="Delete playlist"
+                  aria-label="Delete playlist"
+                >
+                  <TrashIcon size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {deletingPlaylist && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-bg-primary border border-border-default rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold text-text-primary mb-2">
+                Delete Playlist
+              </h3>
+              <p className="text-sm text-text-secondary mb-4">
+                Are you sure you want to delete &quot;{deletingPlaylist.name}&quot;? This action cannot be undone.
+              </p>
+              {deleteError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-400 text-sm">
+                  {deleteError}
+                </div>
+              )}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleCancelDelete}
+                  disabled={isDeleting}
+                  className={cn(
+                    'px-4 py-2 rounded-lg transition-colors',
+                    'bg-bg-secondary text-text-primary',
+                    'hover:bg-bg-hover',
+                    'disabled:opacity-50'
+                  )}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleConfirmDelete()}
+                  disabled={isDeleting}
+                  className={cn(
+                    'px-4 py-2 rounded-lg transition-colors',
+                    'bg-red-500 text-white',
+                    'hover:bg-red-600',
+                    'disabled:opacity-50 flex items-center gap-2'
+                  )}
+                >
+                  {isDeleting ? (
+                    <>
+                      <LoadingSpinner size={16} />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <span>Delete</span>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -654,6 +812,14 @@ export default function LiveTvPage(): React.ReactElement {
             channel={selectedChannel}
           />
         )}
+
+        {/* Edit Playlist Modal */}
+        <EditPlaylistModal
+          isOpen={isEditModalOpen}
+          onClose={handleCloseEditModal}
+          playlist={editingPlaylist}
+          onSuccess={handlePlaylistUpdated}
+        />
       </div>
     </MainLayout>
   );

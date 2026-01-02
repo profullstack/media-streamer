@@ -154,8 +154,21 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Search and filter channels
+  console.log('[IPTV Channels] Searching:', {
+    query,
+    group,
+    totalChannels: playlist.channels.length,
+    sampleChannelNames: playlist.channels.slice(0, 5).map(c => c.name),
+  });
+  
   const filteredChannels = searchChannels(playlist.channels, query, group);
   const total = filteredChannels.length;
+  
+  console.log('[IPTV Channels] Search results:', {
+    query,
+    matchedCount: total,
+    sampleMatches: filteredChannels.slice(0, 3).map(c => c.name),
+  });
 
   // Apply pagination
   const paginatedChannels = filteredChannels.slice(offset, offset + limit);

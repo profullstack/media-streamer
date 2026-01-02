@@ -284,5 +284,37 @@ http://example.com/stream2.m3u8`;
       
       expect(results).toHaveLength(2);
     });
+
+    it('searches adult content channels with multiple words', () => {
+      const adultChannels: Channel[] = [
+        { id: '1', name: 'XXX Cum Shot HD', url: 'http://example.com/1.m3u8', group: 'Adult' },
+        { id: '2', name: 'XXX Hardcore', url: 'http://example.com/2.m3u8', group: 'Adult' },
+        { id: '3', name: 'Cum Lovers XXX', url: 'http://example.com/3.m3u8', group: 'Adult' },
+        { id: '4', name: 'Regular Channel', url: 'http://example.com/4.m3u8', group: 'General' },
+      ];
+
+      // Search for "xxx cum" should find channels with both words
+      const results = searchChannels(adultChannels, 'xxx cum');
+      
+      expect(results).toHaveLength(2);
+      expect(results.map(c => c.name)).toContain('XXX Cum Shot HD');
+      expect(results.map(c => c.name)).toContain('Cum Lovers XXX');
+    });
+
+    it('searches adult content channels with reversed word order', () => {
+      const adultChannels: Channel[] = [
+        { id: '1', name: 'XXX Cum Shot HD', url: 'http://example.com/1.m3u8', group: 'Adult' },
+        { id: '2', name: 'XXX Hardcore', url: 'http://example.com/2.m3u8', group: 'Adult' },
+        { id: '3', name: 'Cum Lovers XXX', url: 'http://example.com/3.m3u8', group: 'Adult' },
+        { id: '4', name: 'Regular Channel', url: 'http://example.com/4.m3u8', group: 'General' },
+      ];
+
+      // Search for "cum xxx" should find same channels as "xxx cum"
+      const results = searchChannels(adultChannels, 'cum xxx');
+      
+      expect(results).toHaveLength(2);
+      expect(results.map(c => c.name)).toContain('XXX Cum Shot HD');
+      expect(results.map(c => c.name)).toContain('Cum Lovers XXX');
+    });
   });
 });
