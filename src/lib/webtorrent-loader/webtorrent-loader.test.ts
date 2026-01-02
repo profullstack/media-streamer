@@ -6,15 +6,56 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Store original globals
 const originalWindow = globalThis.window;
+const originalDocument = globalThis.document;
 
 describe('webtorrent-loader', () => {
+  let mockScript: {
+    src: string;
+    async: boolean;
+    onload: (() => void) | null;
+    onerror: (() => void) | null;
+  };
+  let appendChildMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
 
+    // Create mock script element
+    mockScript = {
+      src: '',
+      async: false,
+      onload: null,
+      onerror: null,
+    };
+
+    // Mock document.createElement
+    const createElementMock = vi.fn().mockReturnValue(mockScript);
+    
+    // Mock document.head.appendChild
+    appendChildMock = vi.fn().mockImplementation(() => {
+      // Simulate async script load - call onload after appendChild
+      setTimeout(() => {
+        if (mockScript.onload) {
+          mockScript.onload();
+        }
+      }, 0);
+    });
+
     // Setup browser environment mocks using Object.defineProperty to avoid TS errors
     Object.defineProperty(globalThis, 'window', {
       value: {},
+      writable: true,
+      configurable: true,
+    });
+
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        createElement: createElementMock,
+        head: {
+          appendChild: appendChildMock,
+        },
+      },
       writable: true,
       configurable: true,
     });
@@ -24,6 +65,11 @@ describe('webtorrent-loader', () => {
     // Restore original globals
     Object.defineProperty(globalThis, 'window', {
       value: originalWindow,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'document', {
+      value: originalDocument,
       writable: true,
       configurable: true,
     });
@@ -63,6 +109,43 @@ describe('webtorrent-loader', () => {
       
       expect(result1).toBe(result2);
       expect(result1).toBe(mockWebTorrent);
+    });
+
+    it('should load WebTorrent via script tag when not cached', async () => {
+      const mockWebTorrent = vi.fn();
+      
+      // Override appendChild to set WebTorrent on window before calling onload
+      appendChildMock.mockImplementation(() => {
+        (globalThis.window as unknown as Record<string, unknown>).WebTorrent = mockWebTorrent;
+        setTimeout(() => {
+          if (mockScript.onload) {
+            mockScript.onload();
+          }
+        }, 0);
+      });
+
+      const { loadWebTorrent } = await import('./webtorrent-loader');
+      const result = await loadWebTorrent();
+      
+      expect(result).toBe(mockWebTorrent);
+      expect(mockScript.src).toContain('webtorrent');
+      expect(mockScript.async).toBe(true);
+      expect(appendChildMock).toHaveBeenCalled();
+    });
+
+    it('should reject when script fails to load', async () => {
+      // Override appendChild to call onerror
+      appendChildMock.mockImplementation(() => {
+        setTimeout(() => {
+          if (mockScript.onerror) {
+            mockScript.onerror();
+          }
+        }, 0);
+      });
+
+      const { loadWebTorrent } = await import('./webtorrent-loader');
+      
+      await expect(loadWebTorrent()).rejects.toThrow('Failed to load WebTorrent from CDN');
     });
   });
 

@@ -3,8 +3,15 @@
 /**
  * WebTorrent Browser Loader
  *
- * Loads the WebTorrent browser bundle from esm.sh CDN using dynamic import.
- * esm.sh is designed for ESM modules and serves with correct MIME types.
+ * Loads the WebTorrent browser bundle from local static files.
+ * The browser bundle is a UMD build that includes all necessary polyfills
+ * and is designed to work correctly in browsers with WebRTC support.
+ *
+ * Note: We use a local copy of the UMD bundle because:
+ * 1. CDNs may have CORS or Content-Type header issues
+ * 2. esm.sh serves the Node.js version which has polyfill issues
+ * 3. The official browser bundle is pre-built with all browser-specific code
+ * 4. Local files are served with correct headers by Next.js
  */
 
 // WebTorrent types for browser bundle
@@ -59,26 +66,27 @@ export interface WebTorrentConstructor {
   new (): WebTorrentClient;
 }
 
-// Extend Window interface for WebTorrent global (for backwards compatibility)
+// Extend Window interface for WebTorrent global
 declare global {
   interface Window {
     WebTorrent?: WebTorrentConstructor;
   }
 }
 
-// CDN URL for WebTorrent browser bundle
-// Using esm.sh which is designed for ESM modules and serves with correct MIME types
-const WEBTORRENT_CDN_URL = 'https://esm.sh/webtorrent';
+// Local path for WebTorrent browser bundle (UMD build)
+// This is the official browser bundle that includes all necessary polyfills
+// Served from public/libs/ with correct Content-Type headers by Next.js
+const WEBTORRENT_LOCAL_PATH = '/libs/webtorrent.min.js';
 
 // Loading state
 let loadPromise: Promise<WebTorrentConstructor> | null = null;
 let cachedConstructor: WebTorrentConstructor | null = null;
 
 /**
- * Load WebTorrent from CDN using dynamic import
+ * Load WebTorrent from CDN using script tag
  *
- * This function loads the WebTorrent browser bundle from esm.sh CDN.
- * esm.sh serves ESM modules with correct Content-Type: application/javascript
+ * This function loads the WebTorrent browser bundle from jsdelivr CDN.
+ * The UMD bundle sets window.WebTorrent when loaded.
  *
  * @returns Promise that resolves to the WebTorrent constructor
  * @throws Error if loading fails
@@ -100,8 +108,7 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
     return loadPromise;
   }
 
-  // Create loading promise using dynamic import
-  // esm.sh serves proper ESM modules that work with dynamic import
+  // Create loading promise using script tag
   loadPromise = new Promise<WebTorrentConstructor>((resolve, reject) => {
     // Ensure we're in browser environment
     if (typeof window === 'undefined') {
@@ -116,30 +123,35 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
       reject(new Error('WebTorrent CDN load timed out after 30s'));
     }, 30000);
 
-    // Use dynamic import for ESM module from esm.sh
-    import(/* webpackIgnore: true */ WEBTORRENT_CDN_URL)
-      .then((module: { default?: WebTorrentConstructor }) => {
-        clearTimeout(loadTimeout);
-        
-        // esm.sh exports the constructor as default
-        const WebTorrent = module.default;
-        
-        if (WebTorrent) {
-          cachedConstructor = WebTorrent;
-          // Also set on window for compatibility
-          window.WebTorrent = WebTorrent;
-          console.log('[WebTorrent] Loaded successfully from esm.sh CDN');
-          resolve(cachedConstructor);
-        } else {
-          loadPromise = null;
-          reject(new Error('WebTorrent module loaded but constructor not found'));
-        }
-      })
-      .catch((error: Error) => {
-        clearTimeout(loadTimeout);
+    // Create script element to load UMD bundle
+    const script = document.createElement('script');
+    script.src = WEBTORRENT_LOCAL_PATH;
+    script.async = true;
+    
+    script.onload = () => {
+      clearTimeout(loadTimeout);
+      
+      // UMD bundle sets window.WebTorrent
+      const WebTorrent = window.WebTorrent;
+      
+      if (WebTorrent) {
+        cachedConstructor = WebTorrent;
+        console.log('[WebTorrent] Loaded successfully from jsdelivr CDN (UMD bundle)');
+        resolve(cachedConstructor);
+      } else {
         loadPromise = null;
-        reject(new Error(`Failed to load WebTorrent from CDN: ${error.message}`));
-      });
+        reject(new Error('WebTorrent script loaded but constructor not found on window'));
+      }
+    };
+    
+    script.onerror = () => {
+      clearTimeout(loadTimeout);
+      loadPromise = null;
+      reject(new Error('Failed to load WebTorrent from CDN'));
+    };
+    
+    // Append script to document head
+    document.head.appendChild(script);
   });
 
   return loadPromise;
