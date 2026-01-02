@@ -36,6 +36,19 @@ const WEBTORRENT_TRACKERS: readonly string[] = [
 ];
 
 /**
+ * Timeout for adding a torrent (waiting for metadata from peers)
+ * This is the time to wait for the torrent to be added and metadata to be received
+ * 30 seconds should be enough for most torrents with active peers
+ */
+const TORRENT_ADD_TIMEOUT_MS = 30000;
+
+/**
+ * Timeout for torrent to become ready after being added
+ * This is additional time after metadata is received for the torrent to be fully ready
+ */
+const TORRENT_READY_TIMEOUT_MS = 15000;
+
+/**
  * Native video formats that browsers can play without transcoding
  * These use standard codecs (H.264, VP8/VP9, Theora) in supported containers
  */
@@ -199,20 +212,28 @@ export function useWebTorrent(): UseWebTorrentReturn {
         // These trackers are essential because browsers cannot use UDP trackers
         // They serve as signaling servers for WebRTC peer connections
         torrent = await new Promise<WebTorrentTorrent>((resolve, reject) => {
+          // Set timeout for torrent add operation
+          const addTimeout = setTimeout(() => {
+            reject(new Error(`Torrent add timed out after ${TORRENT_ADD_TIMEOUT_MS / 1000}s. No peers found or trackers unreachable.`));
+          }, TORRENT_ADD_TIMEOUT_MS);
+
           try {
             const t = client.add(magnetUri, {
               // Add WebSocket trackers for peer discovery
               // These will be used in addition to any trackers in the magnet URI
               announce: [...WEBTORRENT_TRACKERS],
             }, (addedTorrent) => {
+              clearTimeout(addTimeout);
               resolve(addedTorrent);
             });
 
             // Handle errors during add
             t.on('error', (err: unknown) => {
+              clearTimeout(addTimeout);
               reject(err instanceof Error ? err : new Error(String(err)));
             });
           } catch (err) {
+            clearTimeout(addTimeout);
             reject(err instanceof Error ? err : new Error(String(err)));
           }
         });
@@ -220,10 +241,23 @@ export function useWebTorrent(): UseWebTorrentReturn {
 
       currentTorrentRef.current = torrent;
 
-      // Wait for torrent to be ready
+      // Wait for torrent to be ready with timeout
       if (!torrent.ready) {
-        await new Promise<void>((resolve) => {
-          torrent!.on('ready', () => resolve());
+        await new Promise<void>((resolve, reject) => {
+          const readyTimeout = setTimeout(() => {
+            reject(new Error(`Torrent ready timed out after ${TORRENT_READY_TIMEOUT_MS / 1000}s. Metadata may be incomplete.`));
+          }, TORRENT_READY_TIMEOUT_MS);
+
+          torrent!.on('ready', () => {
+            clearTimeout(readyTimeout);
+            resolve();
+          });
+
+          // Also handle errors during ready wait
+          torrent!.on('error', (err: unknown) => {
+            clearTimeout(readyTimeout);
+            reject(err instanceof Error ? err : new Error(String(err)));
+          });
         });
       }
 
