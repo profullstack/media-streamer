@@ -66,19 +66,19 @@ declare global {
   }
 }
 
-// CDN URL for WebTorrent browser bundle - ES module version
-// Using jsDelivr's ESM endpoint which serves the file as an ES module
-const WEBTORRENT_CDN_URL = 'https://cdn.jsdelivr.net/npm/webtorrent@2.8.5/dist/webtorrent.min.js/+esm';
+// CDN URL for WebTorrent browser bundle
+// Using unpkg which serves the UMD bundle that works better with dynamic import
+const WEBTORRENT_CDN_URL = 'https://unpkg.com/webtorrent@2.5.1/webtorrent.min.js';
 
 // Loading state
 let loadPromise: Promise<WebTorrentConstructor> | null = null;
 let cachedConstructor: WebTorrentConstructor | null = null;
 
 /**
- * Load WebTorrent from CDN using dynamic import
+ * Load WebTorrent from CDN using script tag injection
  *
- * This function loads the WebTorrent browser bundle from jsDelivr CDN.
- * The bundle is an ES module that exports the WebTorrent class as default.
+ * This function loads the WebTorrent browser bundle from unpkg CDN.
+ * The UMD bundle sets window.WebTorrent as the constructor.
  *
  * @returns Promise that resolves to the WebTorrent constructor
  * @throws Error if loading fails
@@ -89,37 +89,62 @@ export function loadWebTorrent(): Promise<WebTorrentConstructor> {
     return Promise.resolve(cachedConstructor);
   }
 
+  // Check if already loaded on window (e.g., from previous load)
+  if (typeof window !== 'undefined' && window.WebTorrent) {
+    cachedConstructor = window.WebTorrent;
+    return Promise.resolve(cachedConstructor);
+  }
+
   // Return cached promise if already loading
   if (loadPromise) {
     return loadPromise;
   }
 
-  // Create loading promise
+  // Create loading promise using script tag injection
+  // This is more reliable than dynamic import for UMD bundles
   loadPromise = new Promise<WebTorrentConstructor>((resolve, reject) => {
     // Ensure we're in browser environment
     if (typeof window === 'undefined') {
+      loadPromise = null;
       reject(new Error('WebTorrent can only be loaded in browser environment'));
       return;
     }
 
-    // Use dynamic import with webpackIgnore to bypass Next.js bundling
-    // The jsDelivr +esm endpoint serves the file as a proper ES module
-    import(/* webpackIgnore: true */ WEBTORRENT_CDN_URL)
-      .then((module: { default: WebTorrentConstructor }) => {
-        if (module && module.default) {
-          cachedConstructor = module.default;
-          // Also set on window for debugging purposes
-          window.WebTorrent = cachedConstructor;
-          resolve(cachedConstructor);
-        } else {
-          loadPromise = null;
-          reject(new Error('WebTorrent module loaded but default export not found'));
-        }
-      })
-      .catch((err: Error) => {
+    // Create script element
+    const script = document.createElement('script');
+    script.src = WEBTORRENT_CDN_URL;
+    script.async = true;
+
+    // Set timeout for loading (30 seconds)
+    const loadTimeout = setTimeout(() => {
+      loadPromise = null;
+      script.remove();
+      reject(new Error('WebTorrent CDN load timed out after 30s'));
+    }, 30000);
+
+    script.onload = () => {
+      clearTimeout(loadTimeout);
+      
+      // Check if WebTorrent is now available on window
+      if (window.WebTorrent) {
+        cachedConstructor = window.WebTorrent;
+        console.log('[WebTorrent] Loaded successfully from CDN');
+        resolve(cachedConstructor);
+      } else {
         loadPromise = null;
-        reject(new Error(`Failed to load WebTorrent from CDN: ${err.message}`));
-      });
+        reject(new Error('WebTorrent script loaded but constructor not found on window'));
+      }
+    };
+
+    script.onerror = (event) => {
+      clearTimeout(loadTimeout);
+      loadPromise = null;
+      script.remove();
+      reject(new Error(`Failed to load WebTorrent from CDN: ${event}`));
+    };
+
+    // Append script to document head
+    document.head.appendChild(script);
   });
 
   return loadPromise;
