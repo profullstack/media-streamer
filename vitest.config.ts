@@ -62,6 +62,7 @@ export default defineConfig({
       'src/components/layout/header.test.tsx',
       'src/components/layout/sidebar.test.tsx',
       'src/app/api/subscription/history/route.test.ts',
+      'src/app/find-torrents/page.test.tsx',
     ],
     coverage: {
       provider: 'v8',
