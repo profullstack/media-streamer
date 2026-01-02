@@ -10,6 +10,7 @@
  * - Channel icons display
  * - HLS player modal for live streaming
  * - HTTP URL proxying for HTTPS compatibility
+ * - Playlist persistence via Supabase (authenticated) or localStorage (guest)
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -17,7 +18,18 @@ import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner } from '@/components/ui/icons';
 import { AddPlaylistModal, HlsPlayerModal, type PlaylistData } from '@/components/live-tv';
+import { useAuth } from '@/hooks/use-auth';
 import type { Channel } from '@/lib/iptv';
+
+/**
+ * localStorage key for persisting playlists (guest users only)
+ */
+const PLAYLISTS_STORAGE_KEY = 'iptv-playlists';
+
+/**
+ * localStorage key for persisting active playlist ID (guest users only)
+ */
+const ACTIVE_PLAYLIST_STORAGE_KEY = 'iptv-active-playlist-id';
 
 interface ChannelsResponse {
   channels: Channel[];
@@ -29,13 +41,45 @@ interface ChannelsResponse {
   fetchedAt: number;
 }
 
+/**
+ * API response for playlists
+ */
+interface PlaylistsApiResponse {
+  playlists: Array<{
+    id: string;
+    name: string;
+    m3uUrl: string;
+    epgUrl?: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+
+/**
+ * Type guard for PlaylistData array from localStorage
+ */
+function isPlaylistDataArray(data: unknown): data is PlaylistData[] {
+  if (!Array.isArray(data)) return false;
+  return data.every(item =>
+    typeof item === 'object' &&
+    item !== null &&
+    typeof (item as PlaylistData).id === 'string' &&
+    typeof (item as PlaylistData).name === 'string' &&
+    typeof (item as PlaylistData).m3uUrl === 'string'
+  );
+}
+
 export default function LiveTvPage(): React.ReactElement {
+  const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [isAddPlaylistModalOpen, setIsAddPlaylistModalOpen] = useState(false);
   const [playlists, setPlaylists] = useState<PlaylistData[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<PlaylistData | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   
   // Channel data state
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -52,6 +96,98 @@ export default function LiveTvPage(): React.ReactElement {
   
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load playlists from API (authenticated) or localStorage (guest)
+  useEffect(() => {
+    // Wait for auth state to be determined
+    if (isAuthLoading) return;
+
+    const loadPlaylists = async (): Promise<void> => {
+      if (isLoggedIn) {
+        // Load from API for authenticated users
+        setIsLoadingPlaylists(true);
+        try {
+          const response = await fetch('/api/iptv/playlists');
+          
+          if (response.ok) {
+            const data = await response.json() as PlaylistsApiResponse;
+            const loadedPlaylists: PlaylistData[] = data.playlists.map(p => ({
+              id: p.id,
+              name: p.name,
+              m3uUrl: p.m3uUrl,
+              epgUrl: p.epgUrl,
+            }));
+            
+            setPlaylists(loadedPlaylists);
+            
+            // Select first playlist if any exist
+            if (loadedPlaylists.length > 0) {
+              setActivePlaylist(loadedPlaylists[0]);
+            }
+          } else {
+            console.error('[Live TV] Failed to load playlists from API');
+          }
+        } catch (err) {
+          console.error('[Live TV] Error loading playlists from API:', err);
+        } finally {
+          setIsLoadingPlaylists(false);
+        }
+      } else {
+        // Load from localStorage for guest users
+        const storedPlaylists = localStorage.getItem(PLAYLISTS_STORAGE_KEY);
+        const storedActiveId = localStorage.getItem(ACTIVE_PLAYLIST_STORAGE_KEY);
+        
+        if (storedPlaylists) {
+          try {
+            const parsed: unknown = JSON.parse(storedPlaylists);
+            if (isPlaylistDataArray(parsed)) {
+              setPlaylists(parsed);
+              
+              // Restore active playlist if it exists
+              if (storedActiveId && parsed.length > 0) {
+                const activeFromStorage = parsed.find(p => p.id === storedActiveId);
+                if (activeFromStorage) {
+                  setActivePlaylist(activeFromStorage);
+                } else {
+                  // If stored active playlist not found, select first one
+                  setActivePlaylist(parsed[0]);
+                }
+              } else if (parsed.length > 0) {
+                // No stored active, select first playlist
+                setActivePlaylist(parsed[0]);
+              }
+            }
+          } catch (err) {
+            console.error('[Live TV] Error loading playlists from localStorage:', err);
+          }
+        }
+      }
+      
+      setIsInitialized(true);
+    };
+
+    void loadPlaylists();
+  }, [isLoggedIn, isAuthLoading]);
+
+  // Save playlists to localStorage when they change (guest users only)
+  useEffect(() => {
+    // Don't save until we've loaded, and only for guest users
+    if (!isInitialized || isLoggedIn) return;
+    
+    localStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(playlists));
+  }, [playlists, isInitialized, isLoggedIn]);
+
+  // Save active playlist ID to localStorage when it changes (guest users only)
+  useEffect(() => {
+    // Don't save until we've loaded, and only for guest users
+    if (!isInitialized || isLoggedIn) return;
+    
+    if (activePlaylist) {
+      localStorage.setItem(ACTIVE_PLAYLIST_STORAGE_KEY, activePlaylist.id);
+    } else {
+      localStorage.removeItem(ACTIVE_PLAYLIST_STORAGE_KEY);
+    }
+  }, [activePlaylist, isInitialized, isLoggedIn]);
 
   // Debounce search query
   useEffect(() => {
@@ -298,8 +434,16 @@ export default function LiveTvPage(): React.ReactElement {
           </div>
         )}
 
-        {/* Loading State */}
-        {isLoading && channels.length === 0 && (
+        {/* Loading State - Playlists */}
+        {(isAuthLoading || isLoadingPlaylists) && (
+          <div className="flex flex-col items-center justify-center py-16">
+            <LoadingSpinner size={48} className="text-accent-primary mb-4" />
+            <p className="text-sm text-text-secondary">Loading playlists...</p>
+          </div>
+        )}
+
+        {/* Loading State - Channels */}
+        {isLoading && channels.length === 0 && !isAuthLoading && !isLoadingPlaylists && (
           <div className="flex flex-col items-center justify-center py-16">
             <LoadingSpinner size={48} className="text-accent-primary mb-4" />
             <p className="text-sm text-text-secondary">Loading channels...</p>
@@ -385,7 +529,7 @@ export default function LiveTvPage(): React.ReactElement {
               </div>
             )}
           </>
-        ) : !isLoading && !error && (
+        ) : !isLoading && !error && !isAuthLoading && !isLoadingPlaylists && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <TvIcon size={48} className="text-text-muted mb-4" />
             <h3 className="text-lg font-medium text-text-primary mb-2">
@@ -396,7 +540,9 @@ export default function LiveTvPage(): React.ReactElement {
                 ? searchQuery
                   ? 'Try adjusting your search or filters'
                   : 'This playlist appears to be empty'
-                : 'Add an M3U playlist to get started'}
+                : isLoggedIn
+                  ? 'Add an M3U playlist to get started. Your playlists will be saved to your account.'
+                  : 'Add an M3U playlist to get started. Sign in to save playlists across devices.'}
             </p>
             {!activePlaylist && (
               <button

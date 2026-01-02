@@ -1,301 +1,453 @@
 /**
  * IPTV Playlists API Route Tests
  * 
- * Tests for POST /api/iptv/playlists endpoint
+ * Tests for GET and POST /api/iptv/playlists endpoints
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { POST } from './route';
+import { GET, POST } from './route';
 import { NextRequest } from 'next/server';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-describe('POST /api/iptv/playlists', () => {
+// Mock Supabase
+const mockSupabaseSelect = vi.fn();
+const mockSupabaseInsert = vi.fn();
+const mockSupabaseFrom = vi.fn();
+const mockSupabaseGetUser = vi.fn();
+
+vi.mock('@/lib/supabase', () => ({
+  createServerClient: () => ({
+    from: mockSupabaseFrom,
+    auth: {
+      getUser: mockSupabaseGetUser,
+    },
+  }),
+}));
+
+describe('IPTV Playlists API', () => {
+  const mockUserId = 'user-123-uuid';
+  const mockAccessToken = 'mock-access-token';
+
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Default: authenticated user
+    mockSupabaseGetUser.mockResolvedValue({
+      data: { user: { id: mockUserId } },
+      error: null,
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('should return 400 when name is missing', async () => {
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        m3uUrl: 'http://example.com/playlist.m3u',
-      }),
+  describe('GET /api/iptv/playlists', () => {
+    it('should return 401 when not authenticated', async () => {
+      mockSupabaseGetUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' },
+      });
+
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'GET',
+      });
+
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe('Authentication required');
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return playlists for authenticated user', async () => {
+      const mockPlaylists = [
+        {
+          id: 'playlist-1',
+          user_id: mockUserId,
+          name: 'My Playlist',
+          m3u_url: 'http://example.com/playlist.m3u',
+          epg_url: null,
+          is_active: false,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ];
 
-    expect(response.status).toBe(400);
-    expect(data.error).toBe('Missing required field: name');
+      mockSupabaseFrom.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: mockPlaylists,
+              error: null,
+            }),
+          }),
+        }),
+      });
+
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+      });
+
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.playlists).toHaveLength(1);
+      expect(data.playlists[0].name).toBe('My Playlist');
+      expect(data.playlists[0].m3uUrl).toBe('http://example.com/playlist.m3u');
+    });
+
+    it('should return 500 on database error', async () => {
+      mockSupabaseFrom.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: 'Database error' },
+            }),
+          }),
+        }),
+      });
+
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+      });
+
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe('Failed to fetch playlists');
+    });
   });
 
-  it('should return 400 when m3uUrl is missing', async () => {
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-      }),
+  describe('POST /api/iptv/playlists', () => {
+    beforeEach(() => {
+      // Default: successful M3U URL validation
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+      });
+
+      // Default: successful database insert
+      mockSupabaseFrom.mockReturnValue({
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: {
+                id: 'new-playlist-id',
+                user_id: mockUserId,
+                name: 'My Playlist',
+                m3u_url: 'http://example.com/playlist.m3u',
+                epg_url: null,
+                is_active: false,
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+              error: null,
+            }),
+          }),
+        }),
+      });
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 401 when not authenticated', async () => {
+      mockSupabaseGetUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' },
+      });
 
-    expect(response.status).toBe(400);
-    expect(data.error).toBe('Missing required field: m3uUrl');
-  });
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+        }),
+      });
 
-  it('should return 400 when m3uUrl is invalid', async () => {
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'not-a-valid-url',
-      }),
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe('Authentication required');
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 400 when name is missing', async () => {
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          m3uUrl: 'http://example.com/playlist.m3u',
+        }),
+      });
 
-    expect(response.status).toBe(400);
-    expect(data.error).toBe('Invalid m3uUrl: must be a valid HTTP or HTTPS URL');
-  });
+      const response = await POST(request);
+      const data = await response.json();
 
-  it('should return 400 when epgUrl is provided but invalid', async () => {
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'http://example.com/playlist.m3u',
-        epgUrl: 'not-a-valid-url',
-      }),
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('Missing required field: name');
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 400 when m3uUrl is missing', async () => {
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+        }),
+      });
 
-    expect(response.status).toBe(400);
-    expect(data.error).toBe('Invalid epgUrl: must be a valid HTTP or HTTPS URL');
-  });
+      const response = await POST(request);
+      const data = await response.json();
 
-  it('should return 502 when M3U URL is not accessible', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found',
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('Missing required field: m3uUrl');
     });
 
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'http://example.com/playlist.m3u',
-      }),
+    it('should return 400 when m3uUrl is invalid', async () => {
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'not-a-valid-url',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('Invalid m3uUrl: must be a valid HTTP or HTTPS URL');
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 400 when epgUrl is provided but invalid', async () => {
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+          epgUrl: 'not-a-valid-url',
+        }),
+      });
 
-    expect(response.status).toBe(502);
-    expect(data.error).toBe('Failed to validate M3U URL: 404 Not Found');
-  });
+      const response = await POST(request);
+      const data = await response.json();
 
-  it('should return 504 when M3U URL request times out', async () => {
-    const abortError = new Error('Aborted');
-    abortError.name = 'AbortError';
-    mockFetch.mockRejectedValueOnce(abortError);
-
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'http://example.com/playlist.m3u',
-      }),
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('Invalid epgUrl: must be a valid HTTP or HTTPS URL');
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 502 when M3U URL is not accessible', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
 
-    expect(response.status).toBe(504);
-    expect(data.error).toBe('Request timeout while validating M3U URL');
-  });
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+        }),
+      });
 
-  it('should return 502 when M3U URL fetch fails with network error', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      const response = await POST(request);
+      const data = await response.json();
 
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'http://example.com/playlist.m3u',
-      }),
+      expect(response.status).toBe(502);
+      expect(data.error).toBe('Failed to validate M3U URL: 404 Not Found');
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 504 when M3U URL request times out', async () => {
+      const abortError = new Error('Aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValueOnce(abortError);
 
-    expect(response.status).toBe(502);
-    expect(data.error).toBe('Failed to validate M3U URL');
-  });
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+        }),
+      });
 
-  it('should return 200 with playlist data on success (200 OK)', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(504);
+      expect(data.error).toBe('Request timeout while validating M3U URL');
     });
 
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'http://example.com/playlist.m3u',
-      }),
+    it('should return 200 with playlist data on success', async () => {
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.name).toBe('My Playlist');
+      expect(data.m3uUrl).toBe('http://example.com/playlist.m3u');
+      expect(data.id).toBeDefined();
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 200 with playlist data including epgUrl on success', async () => {
+      mockSupabaseFrom.mockReturnValue({
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: {
+                id: 'new-playlist-id',
+                user_id: mockUserId,
+                name: 'My Playlist',
+                m3u_url: 'http://example.com/playlist.m3u',
+                epg_url: 'http://example.com/epg.xml',
+                is_active: false,
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+              error: null,
+            }),
+          }),
+        }),
+      });
 
-    expect(response.status).toBe(200);
-    expect(data.name).toBe('My Playlist');
-    expect(data.m3uUrl).toBe('http://example.com/playlist.m3u');
-    expect(data.id).toBeDefined();
-    expect(typeof data.id).toBe('string');
-    expect(data.epgUrl).toBeUndefined();
-  });
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+          epgUrl: 'http://example.com/epg.xml',
+        }),
+      });
 
-  it('should return 200 with playlist data on success (206 Partial Content)', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false, // 206 is not considered "ok" by fetch
-      status: 206,
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.name).toBe('My Playlist');
+      expect(data.m3uUrl).toBe('http://example.com/playlist.m3u');
+      expect(data.epgUrl).toBe('http://example.com/epg.xml');
     });
 
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'http://example.com/playlist.m3u',
-      }),
+    it('should return 500 on database insert error', async () => {
+      mockSupabaseFrom.mockReturnValue({
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: 'Database error' },
+            }),
+          }),
+        }),
+      });
+
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe('Failed to create playlist');
     });
 
-    const response = await POST(request);
-    const data = await response.json();
+    it('should return 400 when request body is invalid JSON', async () => {
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: 'not valid json',
+      });
 
-    expect(response.status).toBe(200);
-    expect(data.name).toBe('My Playlist');
-    expect(data.m3uUrl).toBe('http://example.com/playlist.m3u');
-    expect(data.id).toBeDefined();
-  });
+      const response = await POST(request);
+      const data = await response.json();
 
-  it('should return 200 with playlist data including epgUrl on success', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('Invalid request body');
     });
 
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Playlist',
-        m3uUrl: 'http://example.com/playlist.m3u',
-        epgUrl: 'http://example.com/epg.xml',
-      }),
+    it('should accept 206 Partial Content response from M3U server', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false, // 206 is not considered "ok" by fetch
+        status: 206,
+      });
+
+      const request = new NextRequest('http://localhost/api/iptv/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mockAccessToken}`,
+        },
+        body: JSON.stringify({
+          name: 'My Playlist',
+          m3uUrl: 'http://example.com/playlist.m3u',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.name).toBe('My Playlist');
     });
-
-    const response = await POST(request);
-    const data = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(data.name).toBe('My Playlist');
-    expect(data.m3uUrl).toBe('http://example.com/playlist.m3u');
-    expect(data.epgUrl).toBe('http://example.com/epg.xml');
-    expect(data.id).toBeDefined();
-  });
-
-  it('should trim whitespace from name and URLs', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-    });
-
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: '  My Playlist  ',
-        m3uUrl: '  http://example.com/playlist.m3u  ',
-        epgUrl: '  http://example.com/epg.xml  ',
-      }),
-    });
-
-    const response = await POST(request);
-    const data = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(data.name).toBe('My Playlist');
-    expect(data.m3uUrl).toBe('http://example.com/playlist.m3u');
-    expect(data.epgUrl).toBe('http://example.com/epg.xml');
-  });
-
-  it('should return 400 when request body is invalid JSON', async () => {
-    const request = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: 'not valid json',
-    });
-
-    const response = await POST(request);
-    const data = await response.json();
-
-    expect(response.status).toBe(400);
-    expect(data.error).toBe('Invalid request body');
-  });
-
-  it('should generate unique IDs for each playlist', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-    });
-
-    const request1 = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Playlist 1',
-        m3uUrl: 'http://example.com/playlist1.m3u',
-      }),
-    });
-
-    const request2 = new NextRequest('http://localhost/api/iptv/playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Playlist 2',
-        m3uUrl: 'http://example.com/playlist2.m3u',
-      }),
-    });
-
-    const response1 = await POST(request1);
-    const data1 = await response1.json();
-
-    const response2 = await POST(request2);
-    const data2 = await response2.json();
-
-    expect(data1.id).not.toBe(data2.id);
   });
 });

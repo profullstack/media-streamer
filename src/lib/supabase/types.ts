@@ -713,6 +713,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      iptv_playlists: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          m3u_url: string;
+          epg_url: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          m3u_url: string;
+          epg_url?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          m3u_url?: string;
+          epg_url?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -892,3 +925,8 @@ export type MediaCategory = 'audio' | 'video' | 'ebook' | 'document' | 'other';
 
 // Collection type
 export type CollectionType = 'playlist' | 'watchlist' | 'reading_list' | 'mixed';
+
+// IPTV Playlist types
+export type IptvPlaylist = Tables<'iptv_playlists'>;
+export type IptvPlaylistInsert = InsertTables<'iptv_playlists'>;
+export type IptvPlaylistUpdate = UpdateTables<'iptv_playlists'>;

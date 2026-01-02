@@ -1,14 +1,28 @@
 /**
  * IPTV Playlists API Route
- * 
- * POST /api/iptv/playlists
- * 
- * Validates and creates IPTV playlist entries.
- * Validates that the M3U URL is accessible before returning success.
+ *
+ * GET /api/iptv/playlists - List user's playlists
+ * POST /api/iptv/playlists - Create a new playlist
+ *
+ * Requires authentication via HTTP-only cookie. Playlists are stored in Supabase.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'crypto';
+import { createServerClient } from '@/lib/supabase';
+import type { IptvPlaylistInsert } from '@/lib/supabase/types';
+
+/**
+ * Cookie name for auth token
+ */
+const AUTH_COOKIE_NAME = 'sb-auth-token';
+
+/**
+ * Session token structure stored in cookie
+ */
+interface SessionToken {
+  access_token: string;
+  refresh_token: string;
+}
 
 /**
  * Request body for creating a playlist
@@ -20,13 +34,16 @@ interface CreatePlaylistRequest {
 }
 
 /**
- * Response data for a created playlist
+ * Response data for a playlist
  */
 interface PlaylistResponse {
   id: string;
   name: string;
   m3uUrl: string;
   epgUrl?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -62,9 +79,159 @@ function isCreatePlaylistRequest(body: unknown): body is CreatePlaylistRequest {
 }
 
 /**
+ * Parse session token from cookie
+ */
+function parseSessionCookie(cookieValue: string | undefined): SessionToken | null {
+  if (!cookieValue) return null;
+
+  try {
+    const decoded = decodeURIComponent(cookieValue);
+    const parsed = JSON.parse(decoded) as unknown;
+    
+    // Validate structure
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'access_token' in parsed &&
+      'refresh_token' in parsed &&
+      typeof (parsed as SessionToken).access_token === 'string' &&
+      typeof (parsed as SessionToken).refresh_token === 'string'
+    ) {
+      return parsed as SessionToken;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract user ID from session cookie or Authorization header
+ * Supports both cookie-based auth (browser) and header-based auth (tests/API clients)
+ */
+async function getUserIdFromRequest(request: NextRequest): Promise<string | null> {
+  // First try cookie-based auth (browser)
+  const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const sessionToken = parseSessionCookie(cookieValue);
+  
+  if (sessionToken) {
+    const supabase = createServerClient();
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: sessionToken.access_token,
+      refresh_token: sessionToken.refresh_token,
+    });
+
+    if (!sessionError) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (!userError && user) {
+        return user.id;
+      }
+    }
+  }
+
+  // Fall back to Authorization header (for tests and API clients)
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
+    // Parse the session token (it's a JSON object with access_token)
+    const sessionData = JSON.parse(token) as { access_token?: string };
+    if (!sessionData.access_token) {
+      return null;
+    }
+
+    const supabase = createServerClient();
+    const { data: { user }, error } = await supabase.auth.getUser(sessionData.access_token);
+    
+    if (error || !user) {
+      return null;
+    }
+
+    return user.id;
+  } catch {
+    // Token might be a direct access token
+    try {
+      const supabase = createServerClient();
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      
+      if (error || !user) {
+        return null;
+      }
+
+      return user.id;
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Transform database row to API response
+ */
+function transformPlaylist(row: {
+  id: string;
+  name: string;
+  m3u_url: string;
+  epg_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}): PlaylistResponse {
+  return {
+    id: row.id,
+    name: row.name,
+    m3uUrl: row.m3u_url,
+    epgUrl: row.epg_url ?? undefined,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * GET /api/iptv/playlists
+ * 
+ * Returns all playlists for the authenticated user.
+ */
+export async function GET(request: NextRequest): Promise<Response> {
+  const userId = await getUserIdFromRequest(request);
+  
+  if (!userId) {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
+  const supabase = createServerClient();
+  
+  const { data, error } = await supabase
+    .from('iptv_playlists')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[IPTV Playlists] Error fetching playlists:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch playlists' },
+      { status: 500 }
+    );
+  }
+
+  const playlists = data.map(transformPlaylist);
+
+  return NextResponse.json({ playlists });
+}
+
+/**
  * POST /api/iptv/playlists
  * 
- * Creates a new IPTV playlist entry after validating the M3U URL is accessible.
+ * Creates a new IPTV playlist after validating the M3U URL is accessible.
  * 
  * Request body:
  * - name: (required) Display name for the playlist
@@ -72,12 +239,22 @@ function isCreatePlaylistRequest(body: unknown): body is CreatePlaylistRequest {
  * - epgUrl: (optional) URL to the EPG XML file
  * 
  * Returns:
- * - 200: Playlist created successfully with id, name, m3uUrl, and optional epgUrl
+ * - 200: Playlist created successfully
  * - 400: Invalid request (missing fields, invalid URLs)
+ * - 401: Authentication required
  * - 502: M3U URL is not accessible
  * - 504: M3U URL validation timed out
  */
 export async function POST(request: NextRequest): Promise<Response> {
+  const userId = await getUserIdFromRequest(request);
+  
+  if (!userId) {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
   let body: unknown;
   
   try {
@@ -187,19 +364,30 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  // Generate a unique ID for the playlist
-  const id = randomUUID();
-
-  // Build response
-  const playlistResponse: PlaylistResponse = {
-    id,
+  // Insert into database
+  const supabase = createServerClient();
+  
+  const insertData: IptvPlaylistInsert = {
+    user_id: userId,
     name,
-    m3uUrl,
+    m3u_url: m3uUrl,
+    epg_url: epgUrl ?? null,
+    is_active: false,
   };
 
-  if (epgUrl) {
-    playlistResponse.epgUrl = epgUrl;
+  const { data, error } = await supabase
+    .from('iptv_playlists')
+    .insert(insertData)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[IPTV Playlists] Error creating playlist:', error);
+    return NextResponse.json(
+      { error: 'Failed to create playlist' },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json(playlistResponse);
+  return NextResponse.json(transformPlaylist(data));
 }
