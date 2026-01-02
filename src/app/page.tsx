@@ -69,10 +69,14 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
   music: number;
   books: number;
   xxx: number;
+  liveTv: number;
   total: number;
 }> {
   try {
     const supabase = createServerClient();
+    
+    // Get current user for IPTV playlist count
+    const { data: { user } } = await supabase.auth.getUser();
     
     // Fetch counts for each content type
     const queries = [
@@ -93,6 +97,16 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
     const results = await Promise.all(queries);
     const [moviesResult, tvshowsResult, musicResult, booksResult, totalResult] = results;
     const xxxResult = includexxx ? results[5] : null;
+    
+    // Fetch IPTV playlist count for the user
+    let liveTvCount = 0;
+    if (user) {
+      const { count: playlistCount } = await supabase
+        .from('iptv_playlists')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      liveTvCount = playlistCount ?? 0;
+    }
 
     return {
       movies: moviesResult.count ?? 0,
@@ -100,11 +114,12 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
       music: musicResult.count ?? 0,
       books: booksResult.count ?? 0,
       xxx: xxxResult?.count ?? 0,
+      liveTv: liveTvCount,
       total: totalResult.count ?? 0,
     };
   } catch (error) {
     console.error('Failed to fetch category counts:', error);
-    return { movies: 0, tvshows: 0, music: 0, books: 0, xxx: 0, total: 0 };
+    return { movies: 0, tvshows: 0, music: 0, books: 0, xxx: 0, liveTv: 0, total: 0 };
   }
 }
 
@@ -165,8 +180,9 @@ export default async function HomePage(): Promise<React.ReactElement> {
               href="/live-tv"
               icon={TvIcon}
               title="Live TV"
-              count={0}
+              count={counts.liveTv}
               color="accent-primary"
+              label="provider"
             />
             {/* XXX category - only visible to paid subscribers */}
             {canAccessXxx && (
@@ -216,6 +232,7 @@ interface CategoryCardProps {
   title: string;
   count: number;
   color: string;
+  label?: string;
 }
 
 function CategoryCard({
@@ -224,7 +241,9 @@ function CategoryCard({
   title,
   count,
   color,
+  label = 'torrent',
 }: CategoryCardProps): React.ReactElement {
+  const pluralLabel = label === 'torrent' ? 'torrents' : `${label}s`;
   return (
     <Link
       href={href}
@@ -235,7 +254,7 @@ function CategoryCard({
       </div>
       <div>
         <h3 className="font-medium text-text-primary">{title}</h3>
-        <p className="text-sm text-text-muted">{count} {count === 1 ? 'torrent' : 'torrents'}</p>
+        <p className="text-sm text-text-muted">{count} {count === 1 ? label : pluralLabel}</p>
       </div>
     </Link>
   );

@@ -126,7 +126,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           userEmail: user.email,
         },
         webhookUrl: `${baseUrl}/api/payments/webhook`,
-        redirectUrl: `${baseUrl}/settings?payment=success`,
+        redirectUrl: `${baseUrl}/account?payment=success`,
       });
     } catch (apiError) {
       const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown payment provider error';
