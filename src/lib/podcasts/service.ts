@@ -280,6 +280,7 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
             author?: string;
             description?: string;
             image?: string;
+            url?: string;
             feed_url?: string;
             feedUrl?: string;
             website?: string;
@@ -291,10 +292,10 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
         }
 
         // Filter out results without a valid feed URL and map to our format
-        // Castos API may return feed_url or feedUrl depending on the endpoint
+        // Castos API returns 'url' field for the RSS feed URL
         return data.data
           .filter(item => {
-            const feedUrl = item.feed_url ?? item.feedUrl;
+            const feedUrl = item.url ?? item.feed_url ?? item.feedUrl;
             return typeof feedUrl === 'string' && feedUrl.length > 0;
           })
           .map(item => ({
@@ -302,7 +303,7 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
             author: item.author ?? null,
             description: item.description ?? null,
             imageUrl: item.image ?? null,
-            feedUrl: (item.feed_url ?? item.feedUrl) as string,
+            feedUrl: (item.url ?? item.feed_url ?? item.feedUrl) as string,
             websiteUrl: item.website ?? null,
           }));
       } catch {

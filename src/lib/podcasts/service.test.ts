@@ -60,16 +60,14 @@ describe('PodcastService', () => {
             author: 'Test Author',
             description: 'A test podcast description',
             image: 'https://example.com/image.jpg',
-            feed_url: 'https://example.com/feed.xml',
-            website: 'https://example.com',
+            url: 'https://example.com/feed.xml',
           },
           {
             title: 'Another Podcast',
             author: 'Another Author',
             description: 'Another description',
             image: 'https://example.com/image2.jpg',
-            feed_url: 'https://example.com/feed2.xml',
-            website: 'https://example.com/2',
+            url: 'https://example.com/feed2.xml',
           },
         ],
       };
@@ -88,7 +86,7 @@ describe('PodcastService', () => {
         description: 'A test podcast description',
         imageUrl: 'https://example.com/image.jpg',
         feedUrl: 'https://example.com/feed.xml',
-        websiteUrl: 'https://example.com',
+        websiteUrl: null,
       });
       expect(mockFetch).toHaveBeenCalledWith(
         'https://castos.com/wp-admin/admin-ajax.php',
@@ -132,7 +130,7 @@ describe('PodcastService', () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
-    it('should filter out results without feed_url', async () => {
+    it('should filter out results without url', async () => {
       const mockCastosResponse = {
         success: true,
         data: [
@@ -141,24 +139,21 @@ describe('PodcastService', () => {
             author: 'Author',
             description: 'Description',
             image: 'https://example.com/image.jpg',
-            feed_url: 'https://example.com/feed.xml',
-            website: 'https://example.com',
+            url: 'https://example.com/feed.xml',
           },
           {
-            title: 'Invalid Podcast - No Feed URL',
+            title: 'Invalid Podcast - No URL',
             author: 'Author',
             description: 'Description',
             image: 'https://example.com/image2.jpg',
-            // Missing feed_url
-            website: 'https://example.com/2',
+            // Missing url
           },
           {
-            title: 'Invalid Podcast - Empty Feed URL',
+            title: 'Invalid Podcast - Empty URL',
             author: 'Author',
             description: 'Description',
             image: 'https://example.com/image3.jpg',
-            feed_url: '',
-            website: 'https://example.com/3',
+            url: '',
           },
         ],
       };
@@ -175,17 +170,16 @@ describe('PodcastService', () => {
       expect(results[0].feedUrl).toBe('https://example.com/feed.xml');
     });
 
-    it('should handle feedUrl field name variant', async () => {
+    it('should handle url field from Castos API', async () => {
       const mockCastosResponse = {
         success: true,
         data: [
           {
-            title: 'Podcast with feedUrl',
+            title: 'Podcast with url',
             author: 'Author',
             description: 'Description',
             image: 'https://example.com/image.jpg',
-            feedUrl: 'https://example.com/feed.xml', // camelCase variant
-            website: 'https://example.com',
+            url: 'https://example.com/feed.xml',
           },
         ],
       };
