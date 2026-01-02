@@ -98,6 +98,9 @@ export default function LiveTvPage(): React.ReactElement {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   
+  // Refresh key to force re-fetch (incremented on manual reload)
+  const [refreshKey, setRefreshKey] = useState(0);
+  
   // Player state
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
@@ -218,7 +221,7 @@ export default function LiveTvPage(): React.ReactElement {
     };
   }, [searchQuery]);
 
-  // Fetch channels when playlist, search, or group changes
+  // Fetch channels when playlist, search, group, or refreshKey changes
   useEffect(() => {
     if (!activePlaylist?.m3uUrl) {
       setChannels([]);
@@ -274,7 +277,7 @@ export default function LiveTvPage(): React.ReactElement {
     };
 
     void fetchChannels();
-  }, [activePlaylist, debouncedQuery, selectedGroup, offset]);
+  }, [activePlaylist, debouncedQuery, selectedGroup, offset, refreshKey]);
 
   // Reset offset when group changes
   useEffect(() => {
@@ -282,12 +285,16 @@ export default function LiveTvPage(): React.ReactElement {
   }, [selectedGroup]);
 
   // Apply filters handler (for TV remote users)
+  // This forces a reload even if no changes are pending
   const handleApplyFilters = useCallback((): void => {
     // Apply pending group immediately
     setSelectedGroup(pendingGroup);
     // Apply search query immediately (bypass debounce)
     setDebouncedQuery(searchQuery);
+    // Reset offset
     setOffset(0);
+    // Increment refresh key to force re-fetch even if other values haven't changed
+    setRefreshKey(prev => prev + 1);
   }, [pendingGroup, searchQuery]);
 
   const handleOpenAddPlaylistModal = useCallback((): void => {
@@ -571,37 +578,14 @@ export default function LiveTvPage(): React.ReactElement {
             )}
           </div>
           
-          {/* Search hint and Apply button when no groups */}
+          {/* Search hint */}
           {activePlaylist && (
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-xs text-text-muted flex-1">
-                Search is case-insensitive and matches words in any order.
-                {groups.length === 0 && ' Press "Apply Filter" or wait for auto-search.'}
-              </p>
-              {/* Show Apply button here when no groups loaded yet */}
-              {groups.length === 0 && searchQuery !== debouncedQuery && (
-                <button
-                  onClick={handleApplyFilters}
-                  disabled={isLoading}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg px-4 py-1.5',
-                    'text-sm font-medium transition-colors',
-                    'bg-accent-primary text-white hover:bg-accent-primary/90',
-                    'disabled:opacity-50'
-                  )}
-                >
-                  {isLoading ? (
-                    <LoadingSpinner size={14} />
-                  ) : (
-                    <SearchIcon size={14} />
-                  )}
-                  <span>Apply</span>
-                </button>
-              )}
-            </div>
+            <p className="text-xs text-text-muted">
+              Search is case-insensitive and matches words in any order.
+            </p>
           )}
           
-          {/* Group Filter - Dropdown and Apply Button */}
+          {/* Group Filter - Dropdown */}
           {groups.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">
               <label htmlFor="group-select" className="text-sm font-medium text-text-secondary">
@@ -626,17 +610,20 @@ export default function LiveTvPage(): React.ReactElement {
                   </option>
                 ))}
               </select>
-              
-              {/* Apply Filter Button - Essential for TV remote navigation */}
+            </div>
+          )}
+          
+          {/* Static Submit Button - Always visible when playlist is active (essential for TV remote) */}
+          {activePlaylist && (
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleApplyFilters}
-                disabled={!hasPendingFilters || isLoading}
+                disabled={isLoading}
                 className={cn(
-                  'flex items-center gap-2 rounded-lg px-6 py-2',
+                  'flex items-center gap-2 rounded-lg px-6 py-3',
                   'text-sm font-medium transition-colors',
-                  hasPendingFilters
-                    ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
-                    : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
+                  'bg-accent-primary text-white hover:bg-accent-primary/90',
+                  'focus:outline-none focus:ring-2 focus:ring-accent-primary/50',
                   'disabled:opacity-50'
                 )}
                 aria-label="Apply search and group filters"
@@ -644,12 +631,12 @@ export default function LiveTvPage(): React.ReactElement {
                 {isLoading ? (
                   <>
                     <LoadingSpinner size={16} />
-                    <span>Applying...</span>
+                    <span>Loading...</span>
                   </>
                 ) : (
                   <>
                     <SearchIcon size={16} />
-                    <span>Apply Filter</span>
+                    <span>Search / Reload</span>
                   </>
                 )}
               </button>
@@ -657,7 +644,7 @@ export default function LiveTvPage(): React.ReactElement {
               {/* Pending changes indicator */}
               {hasPendingFilters && !isLoading && (
                 <span className="text-xs text-yellow-500">
-                  Press &quot;Apply Filter&quot; to search
+                  Pending changes - press button to apply
                 </span>
               )}
             </div>
