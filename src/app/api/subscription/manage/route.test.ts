@@ -81,6 +81,9 @@ describe('Subscription Management API', () => {
     activateSubscription: ReturnType<typeof vi.fn>;
     cancelSubscription: ReturnType<typeof vi.fn>;
     getSubscription: ReturnType<typeof vi.fn>;
+    createSubscription: ReturnType<typeof vi.fn>;
+    getSubscriptionsNeedingReminders: ReturnType<typeof vi.fn>;
+    markRenewalReminderSent: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -91,9 +94,12 @@ describe('Subscription Management API', () => {
       activateSubscription: vi.fn(),
       cancelSubscription: vi.fn(),
       getSubscription: vi.fn(),
+      createSubscription: vi.fn(),
+      getSubscriptionsNeedingReminders: vi.fn(),
+      markRenewalReminderSent: vi.fn(),
     };
 
-    mockGetSubscriptionRepository.mockReturnValue(mockRepository as ReturnType<typeof getSubscriptionRepository>);
+    mockGetSubscriptionRepository.mockReturnValue(mockRepository as unknown as ReturnType<typeof getSubscriptionRepository>);
   });
 
   afterEach(() => {
