@@ -419,24 +419,44 @@ export function MediaPlayerModal({
           : 'P2P disabled - format requires transcoding or is not native-compatible',
       });
 
-      // Always use server-side streaming
-      // Server can connect to traditional BitTorrent peers using TCP/UDP
-      console.log('[MediaPlayerModal] Using server-side streaming');
-      
-      // Stop any active P2P stream (in case it was started before)
-      webTorrentStopStream();
-      
-      // Build server-side stream URL
-      let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-      if (requiresTranscoding) {
-        url += '&transcode=auto';
-      }
-      if (retryCount > 0) {
-        url += `&_retry=${retryCount}`;
-      }
+      if (canUseP2P) {
+        // Use client-side WebTorrent P2P streaming for native-compatible formats
+        // The server has WebRTC support via node-datachannel, so browsers can connect
+        console.log('[MediaPlayerModal] Starting P2P streaming');
+        
+        // Build magnet URI with WebSocket trackers for browser peer discovery
+        const magnetUri = `magnet:?xt=urn:btih:${infohash}&${WEBTORRENT_TRACKERS.map(t => `tr=${encodeURIComponent(t)}`).join('&')}`;
+        
+        // Start P2P streaming - this will set webTorrent.streamUrl when ready
+        webTorrentStartStream({
+          magnetUri,
+          fileIndex: file.fileIndex,
+          fileName: file.name,
+        });
+        
+        // Don't set streamUrl here - it will be set by the useEffect that watches webTorrent.streamUrl
+        // Clear any previous server-side URL
+        setStreamUrl(null);
+      } else {
+        // Use server-side streaming for formats requiring transcoding
+        // Server can connect to traditional BitTorrent peers using TCP/UDP
+        console.log('[MediaPlayerModal] Using server-side streaming');
+        
+        // Stop any active P2P stream (in case it was started before)
+        webTorrentStopStream();
+        
+        // Build server-side stream URL
+        let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+        if (requiresTranscoding) {
+          url += '&transcode=auto';
+        }
+        if (retryCount > 0) {
+          url += `&_retry=${retryCount}`;
+        }
 
-      console.log('[MediaPlayerModal] Server stream URL:', url);
-      setStreamUrl(url);
+        console.log('[MediaPlayerModal] Server stream URL:', url);
+        setStreamUrl(url);
+      }
       
       // Always clear error when starting a new stream
       setError(null);
