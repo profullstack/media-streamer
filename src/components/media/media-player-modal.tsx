@@ -477,6 +477,25 @@ export function MediaPlayerModal({
     }
   }, [isP2PStreaming, webTorrent.status, webTorrent.error]);
 
+  // Handle 'no-peers' status - fall back to server streaming
+  // This happens when no WebRTC peers are found after the peer discovery timeout
+  useEffect(() => {
+    if (isP2PStreaming && webTorrent.status === 'no-peers' && file && infohash) {
+      console.log('[MediaPlayerModal] No WebRTC peers found, falling back to server streaming');
+      
+      // Stop P2P streaming
+      webTorrentStopStream();
+      
+      // Switch to server-side streaming
+      setIsP2PStreaming(false);
+      
+      // Build server-side stream URL (no transcoding needed since format is native-compatible)
+      const url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+      console.log('[MediaPlayerModal] Server stream URL (fallback):', url);
+      setStreamUrl(url);
+    }
+  }, [isP2PStreaming, webTorrent.status, file, infohash, webTorrentStopStream]);
+
   // Handle player ready
   const handlePlayerReady = useCallback(() => {
     console.log('[MediaPlayerModal] Player ready');
@@ -652,9 +671,10 @@ export function MediaPlayerModal({
   // Show play button when stream is ready but user hasn't clicked play yet
   const showPlayButton = isStreamReady && !userClickedPlay && !isPlayerReady;
   // Show loading spinner when stream is not ready yet (for P2P, check WebTorrent status)
-  // WebTorrent status: 'idle' | 'loading' | 'buffering' | 'ready' | 'error'
+  // WebTorrent status: 'idle' | 'loading' | 'buffering' | 'ready' | 'no-peers' | 'error'
+  // Also show loading when falling back from P2P to server streaming ('no-peers' status)
   const showLoadingSpinner = isP2PStreaming
-    ? (webTorrent.status === 'loading' || webTorrent.status === 'buffering') && !error
+    ? (webTorrent.status === 'loading' || webTorrent.status === 'buffering' || webTorrent.status === 'no-peers') && !error
     : !isServerStreamReady && !error;
 
   return (
@@ -861,7 +881,7 @@ export function MediaPlayerModal({
         {isP2PStreaming && !error ? <div className="rounded-md sm:rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-2 sm:p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                {webTorrent.status === 'loading' || webTorrent.status === 'buffering' ? (
+                {webTorrent.status === 'loading' || webTorrent.status === 'buffering' || webTorrent.status === 'no-peers' ? (
                   <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent flex-shrink-0" />
                 ) : (
                   <svg
@@ -883,7 +903,9 @@ export function MediaPlayerModal({
                     ? 'Connecting to peers...'
                     : webTorrent.status === 'buffering'
                       ? 'Buffering from peers...'
-                      : 'P2P Streaming'}
+                      : webTorrent.status === 'no-peers'
+                        ? 'No peers found, switching to server...'
+                        : 'P2P Streaming'}
                 </span>
               </div>
               {/* P2P Stats */}

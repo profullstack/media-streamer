@@ -31,6 +31,8 @@ const mockTorrent = {
       getBlobURL: vi.fn((cb: (err: Error | null, url?: string) => void) => {
         cb(null, 'blob:http://localhost/video-blob');
       }),
+      select: vi.fn(),
+      deselect: vi.fn(),
     },
     {
       name: 'audio.mp3',
@@ -40,6 +42,8 @@ const mockTorrent = {
       getBlobURL: vi.fn((cb: (err: Error | null, url?: string) => void) => {
         cb(null, 'blob:http://localhost/audio-blob');
       }),
+      select: vi.fn(),
+      deselect: vi.fn(),
     },
     {
       name: 'video.mkv',
@@ -49,6 +53,8 @@ const mockTorrent = {
       getBlobURL: vi.fn((cb: (err: Error | null, url?: string) => void) => {
         cb(null, 'blob:http://localhost/mkv-blob');
       }),
+      select: vi.fn(),
+      deselect: vi.fn(),
     },
   ],
   progress: 0.5,
@@ -506,6 +512,159 @@ describe('useWebTorrent', () => {
         }),
         expect.any(Function)
       );
+    });
+  });
+
+  describe('peer discovery and fallback', () => {
+    it('should signal no-peers status when no WebRTC peers found after timeout', async () => {
+      // Mock torrent with 0 peers
+      const noPeersTorrent = {
+        ...mockTorrent,
+        numPeers: 0,
+        files: mockTorrent.files.map(f => ({
+          ...f,
+          select: vi.fn(),
+          deselect: vi.fn(),
+        })),
+      };
+
+      mockClient.add.mockImplementationOnce((_magnetUri: string, _options?: { announce?: string[] }, callback?: (torrent: typeof mockTorrent) => void) => {
+        const actualCallback = typeof _options === 'function' ? _options : callback;
+        if (actualCallback) {
+          setTimeout(() => actualCallback(noPeersTorrent), 10);
+        }
+        return noPeersTorrent;
+      });
+
+      vi.useFakeTimers();
+
+      const { result } = renderHook(() => useWebTorrent());
+
+      await act(async () => {
+        result.current.startStream({
+          magnetUri: 'magnet:?xt=urn:btih:abc123',
+          fileIndex: 0,
+          fileName: 'video.mp4',
+        });
+      });
+
+      // Wait for torrent to be ready
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(result.current.status).toBe('ready');
+
+      // Advance past peer discovery timeout (10 seconds)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+
+      expect(result.current.status).toBe('no-peers');
+
+      vi.useRealTimers();
+    });
+
+    it('should stay in ready status when sufficient peers are found', async () => {
+      // Mock torrent with peers
+      const withPeersTorrent = {
+        ...mockTorrent,
+        numPeers: 5,
+        files: mockTorrent.files.map(f => ({
+          ...f,
+          select: vi.fn(),
+          deselect: vi.fn(),
+        })),
+      };
+
+      mockClient.add.mockImplementationOnce((_magnetUri: string, _options?: { announce?: string[] }, callback?: (torrent: typeof mockTorrent) => void) => {
+        const actualCallback = typeof _options === 'function' ? _options : callback;
+        if (actualCallback) {
+          setTimeout(() => actualCallback(withPeersTorrent), 10);
+        }
+        return withPeersTorrent;
+      });
+
+      vi.useFakeTimers();
+
+      const { result } = renderHook(() => useWebTorrent());
+
+      await act(async () => {
+        result.current.startStream({
+          magnetUri: 'magnet:?xt=urn:btih:abc123',
+          fileIndex: 0,
+          fileName: 'video.mp4',
+        });
+      });
+
+      // Wait for torrent to be ready
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(result.current.status).toBe('ready');
+
+      // Advance past peer discovery timeout (10 seconds)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+
+      // Should still be ready since we have peers
+      expect(result.current.status).toBe('ready');
+
+      vi.useRealTimers();
+    });
+
+    it('should clear peer discovery timeout on stopStream', async () => {
+      const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+
+      const { result } = renderHook(() => useWebTorrent());
+
+      await act(async () => {
+        result.current.startStream({
+          magnetUri: 'magnet:?xt=urn:btih:abc123',
+          fileIndex: 0,
+          fileName: 'video.mp4',
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready');
+      });
+
+      await act(async () => {
+        result.current.stopStream();
+      });
+
+      // clearTimeout should have been called for the peer discovery timeout
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+
+      clearTimeoutSpy.mockRestore();
+    });
+
+    it('should clear peer discovery timeout on unmount', async () => {
+      const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+
+      const { result, unmount } = renderHook(() => useWebTorrent());
+
+      await act(async () => {
+        result.current.startStream({
+          magnetUri: 'magnet:?xt=urn:btih:abc123',
+          fileIndex: 0,
+          fileName: 'video.mp4',
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready');
+      });
+
+      unmount();
+
+      // clearTimeout should have been called for the peer discovery timeout
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+
+      clearTimeoutSpy.mockRestore();
     });
   });
 });

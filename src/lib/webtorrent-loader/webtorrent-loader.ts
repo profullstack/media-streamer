@@ -21,6 +21,10 @@ export interface WebTorrentFile {
   path: string;
   streamURL: string;
   getBlobURL: (callback: (err: Error | null, url?: string) => void) => void;
+  /** Select this file for download (prioritize it) */
+  select: () => void;
+  /** Deselect this file (don't download it unless needed) */
+  deselect: () => void;
 }
 
 export interface WebTorrentTorrent {

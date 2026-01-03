@@ -49,6 +49,19 @@ const WEBTORRENT_TRACKERS: readonly string[] = [
 const TORRENT_ADD_TIMEOUT_MS = 60000;
 
 /**
+ * Timeout for peer discovery after torrent is ready
+ * If no WebRTC peers are found within this time, we signal to fall back to server streaming
+ * 10 seconds is enough time for WebSocket tracker responses
+ */
+const PEER_DISCOVERY_TIMEOUT_MS = 10000;
+
+/**
+ * Minimum number of peers required to continue with P2P streaming
+ * If fewer peers are found, fall back to server streaming
+ */
+const MIN_PEERS_FOR_P2P = 1;
+
+/**
  * TURN credentials response from the API
  */
 interface TurnCredentialsResponse {
@@ -135,8 +148,14 @@ export function isNativeCompatible(filename: string): boolean {
 
 /**
  * Stream status
+ * - 'idle': No stream active
+ * - 'loading': Loading WebTorrent client and adding torrent
+ * - 'buffering': Torrent added, waiting for data
+ * - 'ready': Stream URL available, playback can begin
+ * - 'no-peers': No WebRTC peers found after timeout, should fall back to server streaming
+ * - 'error': An error occurred
  */
-export type StreamStatus = 'idle' | 'loading' | 'buffering' | 'ready' | 'error';
+export type StreamStatus = 'idle' | 'loading' | 'buffering' | 'ready' | 'no-peers' | 'error';
 
 /**
  * Stream options
@@ -189,6 +208,7 @@ export function useWebTorrent(): UseWebTorrentReturn {
   const currentTorrentRef = useRef<WebTorrentTorrent | null>(null);
   const streamUrlRef = useRef<string | null>(null);
   const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const peerDiscoveryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef<boolean>(true);
 
@@ -357,9 +377,29 @@ export function useWebTorrent(): UseWebTorrentReturn {
         status: 'buffering',
       }));
 
+      // Deselect all files first to focus bandwidth on the selected file
+      // This is important for streaming - we don't want to download the entire torrent
+      torrent.files.forEach((f, i) => {
+        if (i !== fileIndex) {
+          f.deselect();
+        }
+      });
+
+      // Select the file we want to stream - this prioritizes downloading it
+      // and enables progressive streaming from the beginning of the file
+      file.select();
+
       // Use streamURL for streaming (more efficient than blob URL)
+      // This is a service worker URL that serves data as it's downloaded
       const streamUrl = file.streamURL;
       streamUrlRef.current = streamUrl;
+
+      console.log('[useWebTorrent] File selected for streaming:', {
+        fileName: file.name,
+        fileSize: file.length,
+        fileIndex,
+        totalFiles: torrent.files.length,
+      });
 
       // Start stats update interval
       if (statsIntervalRef.current) {
@@ -386,6 +426,35 @@ export function useWebTorrent(): UseWebTorrentReturn {
         streamUrl,
         numPeers: torrent.numPeers,
       });
+
+      // Start peer discovery timeout - if no peers found after timeout, signal fallback
+      // Clear any existing timeout first
+      if (peerDiscoveryTimeoutRef.current) {
+        clearTimeout(peerDiscoveryTimeoutRef.current);
+      }
+
+      peerDiscoveryTimeoutRef.current = setTimeout(() => {
+        if (!isMountedRef.current) return;
+        
+        const currentTorrent = currentTorrentRef.current;
+        if (!currentTorrent) return;
+
+        const numPeers = currentTorrent.numPeers;
+        console.log('[useWebTorrent] Peer discovery timeout reached:', {
+          numPeers,
+          minRequired: MIN_PEERS_FOR_P2P,
+        });
+
+        if (numPeers < MIN_PEERS_FOR_P2P) {
+          console.log('[useWebTorrent] Not enough WebRTC peers found, signaling fallback to server streaming');
+          setState(prev => ({
+            ...prev,
+            status: 'no-peers',
+          }));
+        } else {
+          console.log('[useWebTorrent] Sufficient peers found, continuing with P2P streaming');
+        }
+      }, PEER_DISCOVERY_TIMEOUT_MS);
     } catch (err) {
       console.error('[useWebTorrent] Failed to start stream:', err);
       // Only update state if component is still mounted
@@ -407,6 +476,12 @@ export function useWebTorrent(): UseWebTorrentReturn {
     if (statsIntervalRef.current) {
       clearInterval(statsIntervalRef.current);
       statsIntervalRef.current = null;
+    }
+
+    // Clear peer discovery timeout
+    if (peerDiscoveryTimeoutRef.current) {
+      clearTimeout(peerDiscoveryTimeoutRef.current);
+      peerDiscoveryTimeoutRef.current = null;
     }
 
     // Revoke blob URL if it was created
@@ -447,6 +522,12 @@ export function useWebTorrent(): UseWebTorrentReturn {
       if (statsIntervalRef.current) {
         clearInterval(statsIntervalRef.current);
         statsIntervalRef.current = null;
+      }
+
+      // Clear peer discovery timeout
+      if (peerDiscoveryTimeoutRef.current) {
+        clearTimeout(peerDiscoveryTimeoutRef.current);
+        peerDiscoveryTimeoutRef.current = null;
       }
 
       // Revoke blob URL
