@@ -26,6 +26,7 @@ import {
   loadWebTorrent,
   type WebTorrentClient,
   type WebTorrentTorrent,
+  type WebTorrentFile,
   type WebTorrentClientOptions,
 } from '../lib/webtorrent-loader';
 
@@ -60,6 +61,19 @@ const PEER_DISCOVERY_TIMEOUT_MS = 10000;
  * If fewer peers are found, fall back to server streaming
  */
 const MIN_PEERS_FOR_P2P = 1;
+
+/**
+ * Buffer thresholds for streaming
+ * These match the server-side thresholds in /api/stream/status
+ * We need enough data buffered before starting playback to avoid stuttering
+ */
+const VIDEO_BUFFER_THRESHOLD = 10 * 1024 * 1024; // 10MB for video
+const AUDIO_BUFFER_THRESHOLD = 2 * 1024 * 1024;  // 2MB for audio
+
+/**
+ * Interval for checking buffer progress (ms)
+ */
+const BUFFER_CHECK_INTERVAL_MS = 500;
 
 /**
  * TURN credentials response from the API
@@ -131,9 +145,28 @@ export const NATIVE_VIDEO_FORMATS: readonly string[] = ['mp4', 'webm', 'ogv', 'm
 export const NATIVE_AUDIO_FORMATS: readonly string[] = ['mp3', 'wav', 'ogg', 'aac', 'm4a'];
 
 /**
+ * Set of video formats for quick lookup
+ */
+const VIDEO_FORMATS_SET = new Set<string>(NATIVE_VIDEO_FORMATS);
+
+/**
  * All native-compatible formats
  */
 const NATIVE_FORMATS = new Set<string>([...NATIVE_VIDEO_FORMATS, ...NATIVE_AUDIO_FORMATS]);
+
+/**
+ * Get the buffer threshold for a file based on its extension
+ * Video files need more data buffered than audio files
+ * @param filename - The filename to check
+ * @returns The buffer threshold in bytes
+ */
+function getBufferThreshold(filename: string): number {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (ext && VIDEO_FORMATS_SET.has(ext)) {
+    return VIDEO_BUFFER_THRESHOLD;
+  }
+  return AUDIO_BUFFER_THRESHOLD;
+}
 
 /**
  * Check if a filename has a native-compatible format
@@ -177,6 +210,10 @@ export interface WebTorrentState {
   downloadSpeed: number;
   uploadSpeed: number;
   numPeers: number;
+  /** Bytes downloaded for the selected file */
+  downloadedBytes: number;
+  /** Total size of the selected file */
+  fileSize: number;
 }
 
 /**
@@ -202,6 +239,8 @@ export function useWebTorrent(): UseWebTorrentReturn {
     downloadSpeed: 0,
     uploadSpeed: 0,
     numPeers: 0,
+    downloadedBytes: 0,
+    fileSize: 0,
   });
 
   const clientRef = useRef<WebTorrentClient | null>(null);
@@ -209,6 +248,9 @@ export function useWebTorrent(): UseWebTorrentReturn {
   const streamUrlRef = useRef<string | null>(null);
   const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const peerDiscoveryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bufferCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track the current file being streamed for buffer checking
+  const currentFileRef = useRef<WebTorrentFile | null>(null);
   // Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef<boolean>(true);
 
@@ -270,12 +312,16 @@ export function useWebTorrent(): UseWebTorrentReturn {
     const torrent = currentTorrentRef.current;
     if (!torrent) return;
 
+    const file = currentFileRef.current;
+
     setState(prev => ({
       ...prev,
       progress: torrent.progress,
       downloadSpeed: torrent.downloadSpeed,
       uploadSpeed: torrent.uploadSpeed,
       numPeers: torrent.numPeers,
+      downloadedBytes: file?.downloaded ?? 0,
+      fileSize: file?.length ?? 0,
     }));
   }, []);
 
@@ -389,16 +435,24 @@ export function useWebTorrent(): UseWebTorrentReturn {
       // and enables progressive streaming from the beginning of the file
       file.select();
 
+      // Store file reference for buffer checking
+      currentFileRef.current = file;
+
       // Use streamURL for streaming (more efficient than blob URL)
       // This is a service worker URL that serves data as it's downloaded
       const streamUrl = file.streamURL;
       streamUrlRef.current = streamUrl;
+
+      // Calculate buffer threshold based on file type (video vs audio)
+      const bufferThreshold = getBufferThreshold(fileName);
 
       console.log('[useWebTorrent] File selected for streaming:', {
         fileName: file.name,
         fileSize: file.length,
         fileIndex,
         totalFiles: torrent.files.length,
+        bufferThreshold,
+        bufferThresholdMB: (bufferThreshold / (1024 * 1024)).toFixed(1),
       });
 
       // Start stats update interval
@@ -410,22 +464,66 @@ export function useWebTorrent(): UseWebTorrentReturn {
       // Listen for download progress
       torrent.on('download', updateStats);
 
+      // Update state with initial values (still buffering)
       setState(prev => ({
         ...prev,
-        status: 'ready',
         streamUrl,
         progress: torrent!.progress,
         downloadSpeed: torrent!.downloadSpeed,
         uploadSpeed: torrent!.uploadSpeed,
         numPeers: torrent!.numPeers,
+        downloadedBytes: file.downloaded,
+        fileSize: file.length,
       }));
 
-      console.log('[useWebTorrent] Stream ready:', {
-        fileName: file.name,
-        fileSize: file.length,
-        streamUrl,
-        numPeers: torrent.numPeers,
-      });
+      // Start buffer check interval - only set status to 'ready' when buffer threshold is reached
+      // This matches the server-side behavior where we wait for 10MB video / 2MB audio before playback
+      if (bufferCheckIntervalRef.current) {
+        clearInterval(bufferCheckIntervalRef.current);
+      }
+
+      bufferCheckIntervalRef.current = setInterval(() => {
+        if (!isMountedRef.current) return;
+        
+        const currentFile = currentFileRef.current;
+        if (!currentFile) return;
+
+        const downloaded = currentFile.downloaded;
+        const fileSize = currentFile.length;
+
+        console.log('[useWebTorrent] Buffer check:', {
+          downloaded,
+          downloadedMB: (downloaded / (1024 * 1024)).toFixed(2),
+          bufferThreshold,
+          bufferThresholdMB: (bufferThreshold / (1024 * 1024)).toFixed(1),
+          progress: ((downloaded / bufferThreshold) * 100).toFixed(1) + '%',
+        });
+
+        // Check if we've buffered enough data OR if the file is smaller than the threshold
+        // (small files should be playable immediately once fully downloaded)
+        if (downloaded >= bufferThreshold || downloaded >= fileSize) {
+          // Clear the buffer check interval - we're ready
+          if (bufferCheckIntervalRef.current) {
+            clearInterval(bufferCheckIntervalRef.current);
+            bufferCheckIntervalRef.current = null;
+          }
+
+          console.log('[useWebTorrent] Buffer threshold reached, stream ready:', {
+            downloaded,
+            downloadedMB: (downloaded / (1024 * 1024)).toFixed(2),
+            bufferThreshold,
+            bufferThresholdMB: (bufferThreshold / (1024 * 1024)).toFixed(1),
+            streamUrl,
+          });
+
+          setState(prev => ({
+            ...prev,
+            status: 'ready',
+            downloadedBytes: downloaded,
+            fileSize,
+          }));
+        }
+      }, BUFFER_CHECK_INTERVAL_MS);
 
       // Start peer discovery timeout - if no peers found after timeout, signal fallback
       // Clear any existing timeout first
@@ -447,6 +545,13 @@ export function useWebTorrent(): UseWebTorrentReturn {
 
         if (numPeers < MIN_PEERS_FOR_P2P) {
           console.log('[useWebTorrent] Not enough WebRTC peers found, signaling fallback to server streaming');
+          
+          // Clear buffer check interval since we're falling back
+          if (bufferCheckIntervalRef.current) {
+            clearInterval(bufferCheckIntervalRef.current);
+            bufferCheckIntervalRef.current = null;
+          }
+          
           setState(prev => ({
             ...prev,
             status: 'no-peers',
@@ -484,11 +589,20 @@ export function useWebTorrent(): UseWebTorrentReturn {
       peerDiscoveryTimeoutRef.current = null;
     }
 
+    // Clear buffer check interval
+    if (bufferCheckIntervalRef.current) {
+      clearInterval(bufferCheckIntervalRef.current);
+      bufferCheckIntervalRef.current = null;
+    }
+
     // Revoke blob URL if it was created
     if (streamUrlRef.current?.startsWith('blob:')) {
       URL.revokeObjectURL(streamUrlRef.current);
     }
     streamUrlRef.current = null;
+
+    // Clear file reference
+    currentFileRef.current = null;
 
     // Remove download listener
     if (currentTorrentRef.current) {
@@ -504,6 +618,8 @@ export function useWebTorrent(): UseWebTorrentReturn {
       downloadSpeed: 0,
       uploadSpeed: 0,
       numPeers: 0,
+      downloadedBytes: 0,
+      fileSize: 0,
     });
   }, [updateStats]);
 
@@ -530,11 +646,20 @@ export function useWebTorrent(): UseWebTorrentReturn {
         peerDiscoveryTimeoutRef.current = null;
       }
 
+      // Clear buffer check interval
+      if (bufferCheckIntervalRef.current) {
+        clearInterval(bufferCheckIntervalRef.current);
+        bufferCheckIntervalRef.current = null;
+      }
+
       // Revoke blob URL
       if (streamUrlRef.current?.startsWith('blob:')) {
         URL.revokeObjectURL(streamUrlRef.current);
       }
       streamUrlRef.current = null;
+
+      // Clear file reference
+      currentFileRef.current = null;
 
       // Clear torrent ref
       currentTorrentRef.current = null;

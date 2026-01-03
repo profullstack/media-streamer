@@ -461,13 +461,20 @@ export function MediaPlayerModal({
     // Note: webTorrentStartStream and webTorrentStopStream are stable references from useCallback
   }, [file, infohash, isRetryingWithTranscode, retryCount, codecCheckComplete, codecInfo, webTorrentStartStream, webTorrentStopStream]);
   
-  // Update stream URL from WebTorrent when P2P streaming is ready
+  // Update stream URL from WebTorrent when P2P streaming has a URL available
+  // The streamUrl is available as soon as the torrent is ready (metadata received)
+  // We should start playing immediately - the service worker will serve data progressively
   useEffect(() => {
-    if (isP2PStreaming && webTorrent.status === 'ready' && webTorrent.streamUrl) {
-      console.log('[MediaPlayerModal] P2P stream ready:', webTorrent.streamUrl);
+    if (isP2PStreaming && webTorrent.streamUrl) {
+      console.log('[MediaPlayerModal] P2P stream URL available:', {
+        streamUrl: webTorrent.streamUrl,
+        status: webTorrent.status,
+        numPeers: webTorrent.numPeers,
+        progress: webTorrent.progress,
+      });
       setStreamUrl(webTorrent.streamUrl);
     }
-  }, [isP2PStreaming, webTorrent.status, webTorrent.streamUrl]);
+  }, [isP2PStreaming, webTorrent.streamUrl, webTorrent.status, webTorrent.numPeers, webTorrent.progress]);
   
   // Handle WebTorrent errors
   useEffect(() => {
@@ -663,9 +670,9 @@ export function MediaPlayerModal({
   const isLoading = !isPlayerReady && !error;
   
   // For P2P streaming, use WebTorrent status; for server-side, use SSE connection status
-  // Stream is ready when file has enough buffer for streaming (2MB for audio, 10MB for video)
-  // Falls back to ready (metadata ready) if fileReady is not yet available
-  const isP2PReady = isP2PStreaming && webTorrent.status === 'ready';
+  // Stream is ready when the stream URL is available - the service worker handles progressive streaming
+  // We don't need to wait for a specific buffer amount - the player will buffer as needed
+  const isP2PReady = isP2PStreaming && webTorrent.streamUrl !== null;
   const isServerStreamReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
   const isStreamReady = isP2PStreaming ? isP2PReady : isServerStreamReady;
   // Show play button when stream is ready but user hasn't clicked play yet

@@ -26,6 +26,8 @@ const mockTorrent = {
     {
       name: 'video.mp4',
       length: 1024 * 1024 * 100, // 100MB
+      downloaded: 1024 * 1024 * 15, // 15MB downloaded (above 10MB video threshold)
+      progress: 0.15,
       path: 'video.mp4',
       streamURL: 'blob:http://localhost/video-stream',
       getBlobURL: vi.fn((cb: (err: Error | null, url?: string) => void) => {
@@ -37,6 +39,8 @@ const mockTorrent = {
     {
       name: 'audio.mp3',
       length: 1024 * 1024 * 10, // 10MB
+      downloaded: 1024 * 1024 * 3, // 3MB downloaded (above 2MB audio threshold)
+      progress: 0.3,
       path: 'audio.mp3',
       streamURL: 'blob:http://localhost/audio-stream',
       getBlobURL: vi.fn((cb: (err: Error | null, url?: string) => void) => {
@@ -48,6 +52,8 @@ const mockTorrent = {
     {
       name: 'video.mkv',
       length: 1024 * 1024 * 200, // 200MB
+      downloaded: 0,
+      progress: 0,
       path: 'video.mkv',
       streamURL: 'blob:http://localhost/mkv-stream',
       getBlobURL: vi.fn((cb: (err: Error | null, url?: string) => void) => {
@@ -523,6 +529,8 @@ describe('useWebTorrent', () => {
         numPeers: 0,
         files: mockTorrent.files.map(f => ({
           ...f,
+          downloaded: 1024 * 1024 * 15, // 15MB - above video threshold
+          progress: 0.15,
           select: vi.fn(),
           deselect: vi.fn(),
         })),
@@ -548,9 +556,14 @@ describe('useWebTorrent', () => {
         });
       });
 
-      // Wait for torrent to be ready
+      // Wait for torrent to be ready (10ms for callback)
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(100);
+        await vi.advanceTimersByTimeAsync(50);
+      });
+
+      // Wait for buffer check interval to run (500ms)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
       });
 
       expect(result.current.status).toBe('ready');
@@ -572,6 +585,8 @@ describe('useWebTorrent', () => {
         numPeers: 5,
         files: mockTorrent.files.map(f => ({
           ...f,
+          downloaded: 1024 * 1024 * 15, // 15MB - above video threshold
+          progress: 0.15,
           select: vi.fn(),
           deselect: vi.fn(),
         })),
@@ -597,9 +612,14 @@ describe('useWebTorrent', () => {
         });
       });
 
-      // Wait for torrent to be ready
+      // Wait for torrent to be ready (10ms for callback)
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(100);
+        await vi.advanceTimersByTimeAsync(50);
+      });
+
+      // Wait for buffer check interval to run (500ms)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
       });
 
       expect(result.current.status).toBe('ready');

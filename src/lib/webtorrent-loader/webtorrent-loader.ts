@@ -20,6 +20,10 @@ export interface WebTorrentFile {
   length: number;
   path: string;
   streamURL: string;
+  /** Number of bytes downloaded for this file */
+  downloaded: number;
+  /** Download progress for this file (0 to 1) */
+  progress: number;
   getBlobURL: (callback: (err: Error | null, url?: string) => void) => void;
   /** Select this file for download (prioritize it) */
   select: () => void;
