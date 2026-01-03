@@ -3,15 +3,32 @@
  *
  * Fetches torrent metadata (file list, sizes, piece info) without downloading content.
  * This is a SERVER-SIDE ONLY service.
+ *
+ * WebRTC Support:
+ * This service uses node-datachannel to enable WebRTC peer connections.
+ * This allows the server to connect to browser WebTorrent clients via WebRTC.
  */
 
 import WebTorrent from 'webtorrent';
+// Import node-datachannel polyfill to enable WebRTC in Node.js
+// This allows the server to connect to browser WebTorrent clients via WebRTC
+import nodeDataChannel from 'node-datachannel/polyfill';
 import { validateMagnetUri, parseMagnetUri } from '../magnet';
 import { getMediaCategory, getMimeType } from '../utils';
 import { createLogger } from '../logger';
 import { getWebTorrentDir, ensureDir } from '../config';
 
 const logger = createLogger('TorrentService');
+
+// Set up WebRTC polyfill for Node.js
+// This enables the server to act as a WebRTC peer that browsers can connect to
+if (typeof globalThis.RTCPeerConnection === 'undefined') {
+  logger.info('Setting up node-datachannel WebRTC polyfill for TorrentService');
+  // node-datachannel/polyfill automatically sets up the global WebRTC APIs
+  if (nodeDataChannel.RTCPeerConnection) {
+    logger.info('WebRTC polyfill loaded successfully for TorrentService');
+  }
+}
 
 /**
  * Custom error for metadata fetch failures

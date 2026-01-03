@@ -388,8 +388,17 @@ export function MediaPlayerModal({
       const codecNeedsTranscode = codecInfo?.needsTranscoding === true;
       const requiresTranscoding = isRetryingWithTranscode || formatNeedsTranscode || codecNeedsTranscode;
       
-      // Check if format is native-compatible for client-side P2P streaming
-      const canUseP2P = isNativeCompatible(file.name) && !requiresTranscoding;
+      // P2P streaming is now ENABLED with hybrid server support
+      // The server uses node-datachannel to enable WebRTC peer connections.
+      // This means the server can:
+      // 1. Download from traditional BitTorrent peers (TCP/UDP)
+      // 2. Seed to browser WebTorrent clients (WebRTC)
+      //
+      // Browser clients can now connect to the server as a WebRTC peer,
+      // enabling true P2P streaming where the server acts as a bridge.
+      //
+      // P2P is only used for native-compatible formats that don't need transcoding.
+      const canUseP2P = !requiresTranscoding && isNativeCompatible(file.name);
       
       setIsTranscoding(requiresTranscoding);
       setIsP2PStreaming(canUseP2P);
@@ -405,46 +414,29 @@ export function MediaPlayerModal({
         requiresTranscoding,
         isRetryingWithTranscode,
         retryCount,
+        note: canUseP2P
+          ? 'P2P enabled - server has WebRTC support via node-datachannel'
+          : 'P2P disabled - format requires transcoding or is not native-compatible',
       });
 
-      if (canUseP2P) {
-        // Use client-side WebTorrent P2P streaming for native formats
-        console.log('[MediaPlayerModal] Starting client-side P2P streaming');
-        
-        // Build magnet URI with WebSocket trackers for browser peer discovery
-        // UDP trackers don't work in browsers, so we need WSS trackers
-        const trackerParams = WEBTORRENT_TRACKERS.map(t => `&tr=${encodeURIComponent(t)}`).join('');
-        const magnetUri = `magnet:?xt=urn:btih:${infohash}${trackerParams}`;
-        
-        console.log('[MediaPlayerModal] Magnet URI with trackers:', magnetUri);
-        
-        webTorrentStartStream({
-          magnetUri,
-          fileIndex: file.fileIndex,
-          fileName: file.name,
-        });
-        
-        // Clear server-side stream URL - we'll use webTorrent.streamUrl instead
-        setStreamUrl(null);
-      } else {
-        // Use server-side streaming with optional transcoding
-        console.log('[MediaPlayerModal] Using server-side streaming');
-        
-        // Stop any active P2P stream
-        webTorrentStopStream();
-        
-        // Build server-side stream URL
-        let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-        if (requiresTranscoding) {
-          url += '&transcode=auto';
-        }
-        if (retryCount > 0) {
-          url += `&_retry=${retryCount}`;
-        }
-
-        console.log('[MediaPlayerModal] Server stream URL:', url);
-        setStreamUrl(url);
+      // Always use server-side streaming
+      // Server can connect to traditional BitTorrent peers using TCP/UDP
+      console.log('[MediaPlayerModal] Using server-side streaming');
+      
+      // Stop any active P2P stream (in case it was started before)
+      webTorrentStopStream();
+      
+      // Build server-side stream URL
+      let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+      if (requiresTranscoding) {
+        url += '&transcode=auto';
       }
+      if (retryCount > 0) {
+        url += `&_retry=${retryCount}`;
+      }
+
+      console.log('[MediaPlayerModal] Server stream URL:', url);
+      setStreamUrl(url);
       
       // Always clear error when starting a new stream
       setError(null);

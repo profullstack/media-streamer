@@ -4,9 +4,17 @@
  * Provides streaming capabilities for audio, video, and ebook files from torrents.
  * Supports HTTP range requests for seeking and prioritizes only needed pieces.
  * This is a SERVER-SIDE ONLY service.
+ *
+ * WebRTC Support:
+ * This service uses node-datachannel to enable WebRTC peer connections.
+ * This allows the server to act as a WebRTC peer that browser clients can connect to,
+ * enabling true P2P streaming where the server seeds to browser WebTorrent clients.
  */
 
 import WebTorrent from 'webtorrent';
+// Import node-datachannel polyfill to enable WebRTC in Node.js
+// This allows the server to connect to browser WebTorrent clients via WebRTC
+import nodeDataChannel from 'node-datachannel/polyfill';
 import type { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
@@ -18,6 +26,19 @@ import { createLogger } from '../logger';
 import { getWebTorrentDir, ensureDir } from '../config';
 
 const logger = createLogger('StreamingService');
+
+// Set up WebRTC polyfill for Node.js
+// This enables the server to act as a WebRTC peer that browsers can connect to
+// The polyfill provides RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
+if (typeof globalThis.RTCPeerConnection === 'undefined') {
+  logger.info('Setting up node-datachannel WebRTC polyfill for Node.js');
+  // node-datachannel/polyfill automatically sets up the global WebRTC APIs
+  // Just importing it is enough to enable WebRTC support
+  // Log that WebRTC is now available
+  if (nodeDataChannel.RTCPeerConnection) {
+    logger.info('WebRTC polyfill loaded successfully - server can now connect to browser WebTorrent clients');
+  }
+}
 
 // Well-known DHT bootstrap nodes for reliable peer discovery
 // More nodes = faster DHT bootstrapping
