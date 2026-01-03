@@ -36,53 +36,6 @@ const WEBTORRENT_TRACKERS: readonly string[] = [
 ];
 
 /**
- * Available STUN servers for WebRTC NAT traversal
- * One will be randomly selected to avoid overloading any single server
- */
-const STUN_SERVERS: readonly string[] = [
-  'stun:stun.l.google.com:19302',
-  'stun:stun1.l.google.com:19302',
-  'stun:stun2.l.google.com:19302',
-  'stun:stun3.l.google.com:19302',
-  'stun:stun4.l.google.com:19302',
-];
-
-/**
- * Available TURN servers for relaying traffic when direct connections fail
- * One will be randomly selected to distribute load
- */
-const TURN_SERVERS: readonly RTCIceServer[] = [
-  {
-    urls: 'turn:openrelay.metered.ca:443',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:80',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-];
-
-/**
- * Get ICE servers configuration with randomly selected STUN and TURN servers
- * This distributes load across multiple servers
- */
-function getIceServers(): RTCIceServer[] {
-  const randomStun = STUN_SERVERS[Math.floor(Math.random() * STUN_SERVERS.length)];
-  const randomTurn = TURN_SERVERS[Math.floor(Math.random() * TURN_SERVERS.length)];
-  return [
-    { urls: randomStun },
-    randomTurn,
-  ];
-}
-
-/**
  * Timeout for adding a torrent (waiting for metadata from peers)
  * This is the time to wait for the torrent to be added and metadata to be received
  * 60 seconds allows time for peer discovery via WebRTC signaling
@@ -193,16 +146,9 @@ export function useWebTorrent(): UseWebTorrentReturn {
     // Load WebTorrent from local bundle to avoid Next.js/Turbopack chunk loading issues
     const WebTorrent = await loadWebTorrent();
     
-    // Configure WebTorrent with ICE servers for WebRTC NAT traversal
-    // This is essential for browsers behind NAT/firewalls (most users)
-    // and for privacy-focused browsers like LibreWolf that may block default STUN servers
-    const client = new WebTorrent({
-      tracker: {
-        rtcConfig: {
-          iceServers: getIceServers(),
-        },
-      },
-    });
+    // Use WebTorrent's default ICE server configuration
+    // WebTorrent has built-in STUN/TURN servers that are maintained by the project
+    const client = new WebTorrent();
     clientRef.current = client;
 
     client.on('error', (err: unknown) => {
