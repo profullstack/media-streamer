@@ -9,6 +9,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
+// Mock fetch for TURN credentials API
+const mockFetch = vi.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ iceServers: [], ttl: 86400 }),
+  } as Response)
+);
+vi.stubGlobal('fetch', mockFetch);
+
 // Mock WebTorrent before importing the hook
 const mockTorrent = {
   infoHash: 'abc123',

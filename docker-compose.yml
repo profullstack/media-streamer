@@ -1,5 +1,5 @@
-# Docker Compose for local development
-# Includes Redis for IPTV playlist caching
+# Docker Compose for local development and production
+# Includes Redis for IPTV playlist caching and Coturn for WebRTC STUN/TURN
 
 services:
   # Redis for caching M3U playlists
@@ -16,6 +16,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  # Coturn STUN/TURN server for WebRTC NAT traversal
+  # Required for WebTorrent P2P connections through firewalls/NAT
+  coturn:
+    image: coturn/coturn:latest
+    container_name: bittorrented-coturn
+    # network_mode: host is required for TURN to work properly
+    # It needs direct access to the network for UDP relay
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    environment:
+      # These are passed to the config via command line
+      - TURN_REALM=${TURN_REALM:-bittorrented.com}
+      - TURN_SECRET=${TURN_SECRET:-change-this-secret-in-production}
+      - EXTERNAL_IP=${TURN_EXTERNAL_IP:-}
+    healthcheck:
+      test: ["CMD", "turnutils_uclient", "-T", "-u", "health", "-w", "health", "127.0.0.1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   # Application (optional - for full local deployment)

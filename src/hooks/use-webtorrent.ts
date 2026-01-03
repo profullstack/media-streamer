@@ -14,6 +14,11 @@
  * - WebTorrent uses WebRTC for peer-to-peer connections
  * - WebSocket trackers are required for initial peer discovery (signaling)
  * - Once connected, WebTorrent can use WebRTC-based DHT and PEX for more peers
+ *
+ * TURN Server Integration:
+ * - Fetches time-limited TURN credentials from /api/turn-credentials
+ * - Uses self-hosted Coturn server for NAT traversal
+ * - Credentials are cached and refreshed before expiry
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -21,6 +26,7 @@ import {
   loadWebTorrent,
   type WebTorrentClient,
   type WebTorrentTorrent,
+  type WebTorrentClientOptions,
 } from '../lib/webtorrent-loader';
 
 /**
@@ -41,6 +47,57 @@ const WEBTORRENT_TRACKERS: readonly string[] = [
  * 60 seconds allows time for peer discovery via WebRTC signaling
  */
 const TORRENT_ADD_TIMEOUT_MS = 60000;
+
+/**
+ * TURN credentials response from the API
+ */
+interface TurnCredentialsResponse {
+  iceServers: Array<{
+    urls: string[];
+    username: string;
+    credential: string;
+  }>;
+  ttl: number;
+}
+
+/**
+ * Cached TURN credentials
+ */
+let cachedTurnCredentials: TurnCredentialsResponse | null = null;
+let credentialsExpiresAt = 0;
+
+/**
+ * Fetch TURN credentials from the API
+ * Credentials are cached and refreshed when they're about to expire
+ */
+async function fetchTurnCredentials(): Promise<RTCIceServer[]> {
+  const now = Date.now();
+  
+  // Return cached credentials if still valid (with 5 minute buffer)
+  if (cachedTurnCredentials && credentialsExpiresAt > now + 300000) {
+    return cachedTurnCredentials.iceServers;
+  }
+
+  try {
+    const response = await fetch('/api/ice/turn');
+    if (!response.ok) {
+      console.warn('[useWebTorrent] Failed to fetch TURN credentials:', response.status);
+      return [];
+    }
+
+    const data: TurnCredentialsResponse = await response.json();
+    
+    // Cache the credentials
+    cachedTurnCredentials = data;
+    credentialsExpiresAt = now + (data.ttl * 1000);
+    
+    console.log('[useWebTorrent] TURN credentials fetched, expires in', data.ttl, 'seconds');
+    return data.iceServers;
+  } catch (error) {
+    console.warn('[useWebTorrent] Error fetching TURN credentials:', error);
+    return [];
+  }
+}
 
 /**
  * Timeout for torrent to become ready after being added
@@ -146,9 +203,25 @@ export function useWebTorrent(): UseWebTorrentReturn {
     // Load WebTorrent from local bundle to avoid Next.js/Turbopack chunk loading issues
     const WebTorrent = await loadWebTorrent();
     
-    // Use WebTorrent's default ICE server configuration
-    // WebTorrent has built-in STUN/TURN servers that are maintained by the project
-    const client = new WebTorrent();
+    // Fetch TURN credentials from our self-hosted Coturn server
+    // This enables NAT traversal for users behind firewalls
+    const iceServers = await fetchTurnCredentials();
+    
+    // Configure WebTorrent with ICE servers if available
+    // If no TURN server is configured, WebTorrent will use its defaults
+    const options: WebTorrentClientOptions = {};
+    if (iceServers.length > 0) {
+      options.tracker = {
+        rtcConfig: {
+          iceServers,
+        },
+      };
+      console.log('[useWebTorrent] Using self-hosted TURN server');
+    } else {
+      console.log('[useWebTorrent] No TURN server configured, using WebTorrent defaults');
+    }
+    
+    const client = new WebTorrent(options);
     clientRef.current = client;
 
     client.on('error', (err: unknown) => {
