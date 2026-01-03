@@ -207,11 +207,14 @@ export function useWebTorrent(): UseWebTorrentReturn {
 
     client.on('error', (err: unknown) => {
       console.error('[useWebTorrent] Client error:', err);
-      setState(prev => ({
-        ...prev,
-        status: 'error',
-        error: err instanceof Error ? err.message : String(err),
-      }));
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setState(prev => ({
+          ...prev,
+          status: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        }));
+      }
     });
 
     return client;
@@ -366,11 +369,14 @@ export function useWebTorrent(): UseWebTorrentReturn {
       });
     } catch (err) {
       console.error('[useWebTorrent] Failed to start stream:', err);
-      setState(prev => ({
-        ...prev,
-        status: 'error',
-        error: err instanceof Error ? err.message : String(err),
-      }));
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setState(prev => ({
+          ...prev,
+          status: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        }));
+      }
     }
   }, [getClient, updateStats]);
 
