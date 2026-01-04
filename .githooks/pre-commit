@@ -1,7 +1,19 @@
 #!/bin/sh
 # BitTorrented.com Pre-commit Hook
-# Runs GitHub Actions locally via act before every commit
+# Runs security audit and GitHub Actions locally via act before every commit
 
+echo "🔐 Running security audit..."
+pnpm audit --audit-level=critical
+AUDIT_EXIT_CODE=$?
+
+if [ $AUDIT_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ CRITICAL security vulnerabilities found! Please fix before committing."
+    exit 1
+fi
+
+echo "✅ No critical security vulnerabilities found"
+echo ""
 echo "🔨 Running pre-commit checks via act..."
 echo ""
 

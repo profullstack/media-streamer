@@ -6,7 +6,13 @@
       "Bash(gh cache delete:*)",
       "Bash(gh workflow run:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(pnpm list:*)",
+      "Bash(pnpm why:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm audit:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
