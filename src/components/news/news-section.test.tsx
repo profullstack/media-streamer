@@ -87,18 +87,26 @@ describe('NewsSection', () => {
       render(<NewsSection />);
 
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        expect(screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        })).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Ethereum Update Released')).toBeInTheDocument();
-      expect(screen.getByText('Market Analysis')).toBeInTheDocument();
+      expect(screen.getByText((content, element) => {
+        return element?.tagName.toLowerCase() === 'h3' && content === 'Ethereum Update Released';
+      })).toBeInTheDocument();
+      expect(screen.getByText((content, element) => {
+        return element?.tagName.toLowerCase() === 'h3' && content === 'Market Analysis';
+      })).toBeInTheDocument();
     });
 
     it('should display article title', async () => {
       render(<NewsSection />);
 
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        expect(screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        })).toBeInTheDocument();
       });
     });
 
@@ -225,7 +233,9 @@ describe('NewsSection', () => {
       fireEvent.click(screen.getByRole('button', { name: /retry/i }));
 
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        expect(screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        })).toBeInTheDocument();
       });
 
       expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -236,11 +246,15 @@ describe('NewsSection', () => {
     it('should open modal when article is clicked', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         expect(screen.getByTestId('news-modal')).toBeInTheDocument();
@@ -250,11 +264,15 @@ describe('NewsSection', () => {
     it('should display iframe with article URL in modal', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         const iframe = screen.getByTestId('news-iframe');
@@ -266,11 +284,15 @@ describe('NewsSection', () => {
     it('should close modal when close button is clicked', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         expect(screen.getByTestId('news-modal')).toBeInTheDocument();
@@ -286,11 +308,15 @@ describe('NewsSection', () => {
     it('should close modal when clicking outside', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         expect(screen.getByTestId('news-modal')).toBeInTheDocument();
@@ -306,11 +332,15 @@ describe('NewsSection', () => {
     it('should close modal when Escape key is pressed', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         expect(screen.getByTestId('news-modal')).toBeInTheDocument();
@@ -326,11 +356,15 @@ describe('NewsSection', () => {
     it('should display article title in modal header', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         const modalHeader = screen.getByTestId('modal-header');
@@ -341,11 +375,15 @@ describe('NewsSection', () => {
     it('should have link to open article in new tab', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         const externalLink = screen.getByTestId('open-external-link');
@@ -406,7 +444,9 @@ describe('NewsSection', () => {
       render(<NewsSection />);
 
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        expect(screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        })).toBeInTheDocument();
       });
 
       const articles = screen.getAllByTestId('news-article');
@@ -418,11 +458,15 @@ describe('NewsSection', () => {
     it('should have accessible modal', async () => {
       render(<NewsSection />);
 
+      let articleTitle: HTMLElement;
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Bitcoin Reaches New High'));
+      fireEvent.click(articleTitle!);
 
       await waitFor(() => {
         const modal = screen.getByTestId('news-modal');

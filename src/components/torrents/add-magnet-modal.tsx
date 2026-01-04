@@ -265,7 +265,7 @@ export function AddMagnetModal({
 
         {/* Magnet input */}
         <div>
-          <label htmlFor="magnet-uri" className="mb-2 block text-sm font-medium text-text-primary">
+          <label htmlFor="magnet-url" className="mb-2 block text-sm font-medium text-text-primary">
             Magnet URL
           </label>
           <div className="relative">
@@ -273,7 +273,7 @@ export function AddMagnetModal({
               <MagnetIcon size={18} />
             </div>
             <textarea
-              id="magnet-uri"
+              id="magnet-url"
               value={magnetUri}
               onChange={handleInputChange}
               placeholder="magnet:?xt=urn:btih:..."

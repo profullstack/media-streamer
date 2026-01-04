@@ -58,7 +58,7 @@ export function EbookReader({
   // Handle unsupported format
   if (!format || !isEbookFile(filename)) {
     return (
-      <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
+      <div data-testid="ebook-reader" className={`flex flex-col items-center justify-center p-8 ${className}`}>
         <div className="text-red-500 text-lg mb-4">Unsupported Format</div>
         <div className="text-gray-400 text-sm">
           The file &quot;{filename}&quot; is not a supported ebook format.
@@ -87,7 +87,7 @@ export function EbookReader({
       className,
     };
 
-    return <PdfReader {...pdfProps} />;
+    return <div data-testid="ebook-reader"><PdfReader {...pdfProps} /></div>;
   }
 
   // Render EPUB reader
@@ -107,13 +107,13 @@ export function EbookReader({
       className,
     };
 
-    return <EpubReader {...epubProps} />;
+    return <div data-testid="ebook-reader"><EpubReader {...epubProps} /></div>;
   }
 
   // For other formats (MOBI, AZW, CBZ, etc.), show placeholder
   // These would require additional libraries or conversion
   return (
-    <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
+    <div data-testid="ebook-reader" className={`flex flex-col items-center justify-center p-8 ${className}`}>
       <div className="text-yellow-500 text-lg mb-4">Format Not Yet Implemented</div>
       <div className="text-gray-400 text-sm">
         The {format.toUpperCase()} format is recognized but not yet fully supported.

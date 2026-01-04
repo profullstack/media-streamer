@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "*"
+      "*",
+      "Bash(pnpm test:*)",
+      "Bash(node --version:*)",
+      "Bash(pnpm:*)"
     ]
-  }
+  },
+  "defaultMode": "bypassPermissions"
 }
