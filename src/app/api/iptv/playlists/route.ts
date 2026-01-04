@@ -44,6 +44,7 @@ interface PlaylistResponse {
   m3uUrl: string;
   epgUrl?: string;
   isActive: boolean;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -199,6 +200,7 @@ function transformPlaylist(row: {
   m3u_url: string;
   epg_url: string | null;
   is_active: boolean;
+  is_default?: boolean;
   created_at: string;
   updated_at: string;
 }): PlaylistResponse {
@@ -208,6 +210,7 @@ function transformPlaylist(row: {
     m3uUrl: row.m3u_url,
     epgUrl: row.epg_url ?? undefined,
     isActive: row.is_active,
+    isDefault: row.is_default ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -223,6 +226,7 @@ function transformPlaylistWithOwner(
     m3u_url: string;
     epg_url: string | null;
     is_active: boolean;
+    is_default?: boolean;
     created_at: string;
     updated_at: string;
   },

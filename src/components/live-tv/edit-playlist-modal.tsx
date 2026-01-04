@@ -40,6 +40,7 @@ export function EditPlaylistModal({
   const [name, setName] = useState('');
   const [m3uUrl, setM3uUrl] = useState('');
   const [epgUrl, setEpgUrl] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export function EditPlaylistModal({
       setName(playlist.name);
       setM3uUrl(playlist.m3uUrl);
       setEpgUrl(playlist.epgUrl ?? '');
+      setIsDefault(playlist.isDefault ?? false);
       setError(null);
       setSuccess(null);
     }
@@ -59,6 +61,7 @@ export function EditPlaylistModal({
     setName('');
     setM3uUrl('');
     setEpgUrl('');
+    setIsDefault(false);
     setError(null);
     setSuccess(null);
   }, []);
@@ -110,6 +113,7 @@ export function EditPlaylistModal({
             name: trimmedName,
             m3uUrl: trimmedM3uUrl,
             epgUrl: trimmedEpgUrl || undefined,
+            isDefault,
           }),
         });
 
@@ -136,7 +140,7 @@ export function EditPlaylistModal({
         setIsSubmitting(false);
       }
     },
-    [playlist, name, m3uUrl, epgUrl, onSuccess]
+    [playlist, name, m3uUrl, epgUrl, isDefault, onSuccess]
   );
 
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -246,6 +250,28 @@ export function EditPlaylistModal({
             />
           </div>
         </div>
+
+        {/* Default Provider Checkbox */}
+        <div className="flex items-center gap-3">
+          <input
+            id="edit-is-default"
+            type="checkbox"
+            checked={isDefault}
+            onChange={(e) => setIsDefault(e.target.checked)}
+            className={cn(
+              'h-5 w-5 rounded border-border-default bg-bg-tertiary',
+              'text-accent-primary focus:ring-2 focus:ring-accent-primary focus:ring-offset-0',
+              'cursor-pointer'
+            )}
+            disabled={isSubmitting}
+          />
+          <label htmlFor="edit-is-default" className="text-sm text-text-primary cursor-pointer">
+            Set as default provider
+          </label>
+        </div>
+        <p className="text-xs text-text-muted -mt-2">
+          The default provider will be automatically selected when you visit Live TV.
+        </p>
 
         {/* Error message */}
         {error ? (

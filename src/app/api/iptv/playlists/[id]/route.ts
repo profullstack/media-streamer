@@ -33,6 +33,7 @@ interface UpdatePlaylistRequest {
   m3uUrl?: string;
   epgUrl?: string | null;
   isActive?: boolean;
+  isDefault?: boolean;
 }
 
 /**
@@ -44,6 +45,7 @@ interface PlaylistResponse {
   m3uUrl: string;
   epgUrl?: string;
   isActive: boolean;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -95,7 +97,8 @@ function isUpdatePlaylistRequest(body: unknown): body is UpdatePlaylistRequest {
     (obj.name === undefined || typeof obj.name === 'string') &&
     (obj.m3uUrl === undefined || typeof obj.m3uUrl === 'string') &&
     (obj.epgUrl === undefined || obj.epgUrl === null || typeof obj.epgUrl === 'string') &&
-    (obj.isActive === undefined || typeof obj.isActive === 'boolean')
+    (obj.isActive === undefined || typeof obj.isActive === 'boolean') &&
+    (obj.isDefault === undefined || typeof obj.isDefault === 'boolean')
   );
 }
 
@@ -195,6 +198,7 @@ function transformPlaylist(row: {
   m3u_url: string;
   epg_url: string | null;
   is_active: boolean;
+  is_default?: boolean;
   created_at: string;
   updated_at: string;
 }): PlaylistResponse {
@@ -204,6 +208,7 @@ function transformPlaylist(row: {
     m3uUrl: row.m3u_url,
     epgUrl: row.epg_url ?? undefined,
     isActive: row.is_active,
+    isDefault: row.is_default ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -387,6 +392,10 @@ export async function PUT(
 
   if (body.isActive !== undefined) {
     updateData.is_active = body.isActive;
+  }
+
+  if (body.isDefault !== undefined) {
+    updateData.is_default = body.isDefault;
   }
 
   // Check if there's anything to update

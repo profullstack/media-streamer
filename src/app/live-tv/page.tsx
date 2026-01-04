@@ -52,6 +52,7 @@ interface PlaylistsApiResponse {
     m3uUrl: string;
     epgUrl?: string;
     isActive: boolean;
+    isDefault: boolean;
     createdAt: string;
     updatedAt: string;
   }>;
@@ -136,13 +137,15 @@ export default function LiveTvPage(): React.ReactElement {
               name: p.name,
               m3uUrl: p.m3uUrl,
               epgUrl: p.epgUrl,
+              isDefault: p.isDefault,
             }));
-            
+
             setPlaylists(loadedPlaylists);
-            
-            // Select first playlist if any exist
+
+            // Select default playlist if one exists, otherwise first playlist
             if (loadedPlaylists.length > 0) {
-              setActivePlaylist(loadedPlaylists[0]);
+              const defaultPlaylist = loadedPlaylists.find(p => p.isDefault);
+              setActivePlaylist(defaultPlaylist ?? loadedPlaylists[0]);
             }
           } else {
             console.error('[Live TV] Failed to load playlists from API');
@@ -390,7 +393,16 @@ export default function LiveTvPage(): React.ReactElement {
   }, []);
 
   const handlePlaylistUpdated = useCallback((updatedPlaylist: PlaylistData): void => {
-    setPlaylists(prev => prev.map(p => p.id === updatedPlaylist.id ? updatedPlaylist : p));
+    setPlaylists(prev => prev.map(p => {
+      if (p.id === updatedPlaylist.id) {
+        return updatedPlaylist;
+      }
+      // If the updated playlist is now the default, clear isDefault from others
+      if (updatedPlaylist.isDefault && p.isDefault) {
+        return { ...p, isDefault: false };
+      }
+      return p;
+    }));
     // Update active playlist if it was the one edited
     if (activePlaylist?.id === updatedPlaylist.id) {
       setActivePlaylist(updatedPlaylist);

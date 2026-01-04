@@ -16,6 +16,7 @@ export interface PlaylistData {
   name: string;
   m3uUrl: string;
   epgUrl?: string;
+  isDefault?: boolean;
 }
 
 interface AddPlaylistModalProps {
