@@ -198,11 +198,9 @@ function SearchResultItem({
         ) : (
           <>
             {/* Show raw name in grey if different from clean title */}
-            {result.torrent.cleanTitle && result.torrent.cleanTitle !== result.torrent.name && (
-              <p className="truncate text-xs text-text-muted" title={result.torrent.name}>
+            {result.torrent.cleanTitle && result.torrent.cleanTitle !== result.torrent.name ? <p className="truncate text-xs text-text-muted" title={result.torrent.name}>
                 {result.torrent.name}
-              </p>
-            )}
+              </p> : null}
             <p className="mt-0.5 text-sm text-text-muted">
               Torrent
             </p>

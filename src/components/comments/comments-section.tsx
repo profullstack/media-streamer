@@ -357,19 +357,16 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
                 size="sm"
               />
 
-              {user && depth < 2 && (
-                <button
+              {user && depth < 2 ? <button
                   type="button"
                   onClick={() => { setReplyingTo(comment.id); setReplyContent(''); }}
                   className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
                 >
                   <ReplyIcon size={14} />
                   Reply
-                </button>
-              )}
+                </button> : null}
 
-              {isOwner && (
-                <>
+              {isOwner ? <>
                   <button
                     type="button"
                     onClick={() => { setEditingId(comment.id); setEditContent(comment.content); }}
@@ -386,14 +383,12 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
                     <TrashIcon size={14} />
                     Delete
                   </button>
-                </>
-              )}
+                </> : null}
             </div>
           )}
 
           {/* Reply form */}
-          {isReplying && (
-            <div className="mt-3">
+          {isReplying ? <div className="mt-3">
               <textarea
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
@@ -418,8 +413,7 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
                   Cancel
                 </button>
               </div>
-            </div>
-          )}
+            </div> : null}
         </div>
 
         {/* Replies */}
@@ -459,7 +453,7 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
                 disabled={isSubmitting || !newComment.trim()}
                 className="flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50"
               >
-                {isSubmitting && <LoadingSpinner size={14} />}
+                {isSubmitting ? <LoadingSpinner size={14} /> : null}
                 Post Comment
               </button>
             </div>
@@ -474,11 +468,9 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
         )}
 
         {/* Error message */}
-        {error && (
-          <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">
+        {error ? <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">
             {error}
-          </div>
-        )}
+          </div> : null}
 
         {/* Comments list */}
         {isLoading ? (

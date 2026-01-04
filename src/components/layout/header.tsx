@@ -116,8 +116,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
             </button>
             
             {/* Dropdown Menu */}
-            {isDropdownOpen && (
-              <>
+            {isDropdownOpen ? <>
                 {/* Backdrop to close dropdown */}
                 <div 
                   className="fixed inset-0 z-40" 
@@ -140,8 +139,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
                     </button>
                   ))}
                 </div>
-              </>
-            )}
+              </> : null}
           </div>
 
           {/* Search Input */}
@@ -214,8 +212,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
             </button>
 
             {/* User Dropdown Menu */}
-            {isUserDropdownOpen && (
-              <>
+            {isUserDropdownOpen ? <>
                 {/* Backdrop to close dropdown */}
                 <div 
                   data-testid="user-dropdown-backdrop"
@@ -263,8 +260,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
                     <span>Log Out</span>
                   </button>
                 </div>
-              </>
-            )}
+              </> : null}
           </div>
         ) : (
           <>

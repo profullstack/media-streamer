@@ -176,13 +176,10 @@ export function MediaPlaceholder({
       style={{ width: dimensions.width, height: dimensions.height }}
     >
       {/* Loading skeleton */}
-      {isLoading && !showPlaceholder && (
-        <div className="absolute inset-0 animate-pulse bg-bg-tertiary" />
-      )}
+      {isLoading && !showPlaceholder ? <div className="absolute inset-0 animate-pulse bg-bg-tertiary" /> : null}
 
       {/* Image */}
-      {src && !hasError && (
-        optimized ? (
+      {src && !hasError ? optimized ? (
           <Image
             src={src}
             alt={alt}
@@ -208,18 +205,15 @@ export function MediaPlaceholder({
             onError={handleError}
             onLoad={handleLoad}
           />
-        )
-      )}
+        ) : null}
 
       {/* Placeholder */}
-      {showPlaceholder && (
-        <div className="flex h-full w-full items-center justify-center">
+      {showPlaceholder ? <div className="flex h-full w-full items-center justify-center">
           <IconComponent
             className={iconColorClass}
             size={dimensions.iconSize}
           />
-        </div>
-      )}
+        </div> : null}
     </div>
   );
 }

@@ -88,9 +88,7 @@ export function VoteButtons({
         title={isAuthenticated ? 'Upvote' : 'Login to vote'}
       >
         <ThumbsUpIcon size={iconSize} className={isVoting ? 'animate-pulse' : ''} />
-        {showCounts && (
-          <span className={textSize}>{displayUpvotes}</span>
-        )}
+        {showCounts ? <span className={textSize}>{displayUpvotes}</span> : null}
       </button>
 
       {/* Score display (optional) */}
@@ -115,9 +113,7 @@ export function VoteButtons({
         title={isAuthenticated ? 'Downvote' : 'Login to vote'}
       >
         <ThumbsDownIcon size={iconSize} className={isVoting ? 'animate-pulse' : ''} />
-        {showCounts && (
-          <span className={textSize}>{displayDownvotes}</span>
-        )}
+        {showCounts ? <span className={textSize}>{displayDownvotes}</span> : null}
       </button>
     </div>
   );

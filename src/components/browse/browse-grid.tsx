@@ -76,18 +76,6 @@ function formatSize(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-/**
- * Format date for display
- */
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 const SORT_OPTIONS: { key: SortBy; label: string }[] = [
   { key: 'date', label: 'Date Added' },
   { key: 'seeders', label: 'Seeders' },
@@ -306,15 +294,12 @@ export function BrowseGrid({
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">
+      {error ? <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {error}
-        </div>
-      )}
+        </div> : null}
 
       {/* Loading - compact grid */}
-      {isLoading && (
-        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      {isLoading ? <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="card animate-pulse">
               <div className="aspect-[3/4] bg-bg-tertiary rounded-t-lg" />
@@ -324,8 +309,7 @@ export function BrowseGrid({
               </div>
             </div>
           ))}
-        </div>
-      )}
+        </div> : null}
 
       {/* Grid - compact cards, more per row */}
       {!isLoading && !error && torrents.length > 0 && (
@@ -344,8 +328,7 @@ export function BrowseGrid({
       )}
 
       {/* Load More Button */}
-      {!isLoading && hasMore && (
-        <div className="flex justify-center pt-4">
+      {!isLoading && hasMore ? <div className="flex justify-center pt-4">
           <button
             type="button"
             onClick={handleLoadMore}
@@ -376,8 +359,7 @@ export function BrowseGrid({
               `Load more (${torrents.length} of ${total.toLocaleString()})`
             )}
           </button>
-        </div>
-      )}
+        </div> : null}
 
       {/* Show count when all loaded */}
       {!isLoading && !hasMore && torrents.length > 0 && (
@@ -438,6 +420,7 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
       {/* Image - more compact aspect ratio */}
       <div className="aspect-[3/4] bg-bg-tertiary relative overflow-hidden rounded-t-lg">
         {imageUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- External torrent poster/cover images */
           <img
             src={imageUrl}
             alt={torrent.cleanTitle ?? torrent.name}
@@ -468,8 +451,8 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
           {torrent.cleanTitle ?? torrent.name}
         </h3>
         <div className="mt-1 flex items-center gap-1 text-[10px] text-text-muted">
-          {torrent.year && <span>{torrent.year}</span>}
-          {torrent.year && <span>•</span>}
+          {torrent.year ? <span>{torrent.year}</span> : null}
+          {torrent.year ? <span>•</span> : null}
           <span>{formatSize(torrent.totalSize)}</span>
         </div>
       </div>

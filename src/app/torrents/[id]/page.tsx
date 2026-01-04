@@ -36,17 +36,6 @@ interface TorrentDetailResponse {
 }
 
 /**
- * Swarm stats response from the API
- */
-interface SwarmStatsResponse {
-  seeders: number | null;
-  leechers: number | null;
-  fetchedAt: string;
-  trackersResponded: number;
-  trackersQueried: number;
-}
-
-/**
  * Folder metadata from the API
  */
 interface FolderMetadata {
@@ -322,45 +311,29 @@ export default function TorrentDetailPage(): React.ReactElement {
                 {torrent.infohash}
               </p>
               {/* Content type, year, and genre */}
-              {(torrent.contentType || torrent.year || torrent.genre) && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
-                  {torrent.contentType && (
-                    <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
+              {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                  {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
                       {torrent.contentType}
-                    </span>
-                  )}
-                  {torrent.year && <span>{torrent.year}</span>}
-                  {torrent.genre && (
-                    <span className="text-text-muted">•</span>
-                  )}
-                  {torrent.genre && (
-                    <span className="text-text-secondary">{torrent.genre}</span>
-                  )}
-                </div>
-              )}
+                    </span> : null}
+                  {torrent.year ? <span>{torrent.year}</span> : null}
+                  {torrent.genre ? <span className="text-text-muted">•</span> : null}
+                  {torrent.genre ? <span className="text-text-secondary">{torrent.genre}</span> : null}
+                </div> : null}
               {/* Director and Cast */}
-              {(torrent.director || torrent.actors) && (
-                <div className="mt-2 space-y-1 text-sm">
-                  {torrent.director && (
-                    <p className="text-text-secondary">
+              {(torrent.director || torrent.actors) ? <div className="mt-2 space-y-1 text-sm">
+                  {torrent.director ? <p className="text-text-secondary">
                       <span className="text-text-muted">Director:</span>{' '}
                       <span className="text-text-primary">{torrent.director}</span>
-                    </p>
-                  )}
-                  {torrent.actors && (
-                    <p className="text-text-secondary">
+                    </p> : null}
+                  {torrent.actors ? <p className="text-text-secondary">
                       <span className="text-text-muted">Cast:</span>{' '}
                       <span className="text-text-primary">{torrent.actors}</span>
-                    </p>
-                  )}
-                </div>
-              )}
+                    </p> : null}
+                </div> : null}
               {/* Description */}
-              {torrent.description && (
-                <p className="mt-2 line-clamp-3 text-sm text-text-secondary">
+              {torrent.description ? <p className="mt-2 line-clamp-3 text-sm text-text-secondary">
                   {torrent.description}
-                </p>
-              )}
+                </p> : null}
             </div>
           </div>
 

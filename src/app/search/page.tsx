@@ -14,7 +14,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
 import { cn, formatBytes } from '@/lib/utils';
-import { LoadingSpinner, MusicIcon, VideoIcon, BookIcon, FileIcon, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { LoadingSpinner, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
 import { MediaPlaceholder } from '@/components/ui/media-placeholder';
 
 /**
@@ -63,22 +63,6 @@ const SORT_OPTIONS: { key: SortBy; label: string }[] = [
 ];
 
 const PAGE_SIZE = 50;
-
-/**
- * Get icon for category
- */
-function getCategoryIcon(category: string): React.ReactElement {
-  switch (category) {
-    case 'audio':
-      return <MusicIcon size={14} className="text-accent-primary" />;
-    case 'video':
-      return <VideoIcon size={14} className="text-accent-primary" />;
-    case 'ebook':
-      return <BookIcon size={14} className="text-accent-primary" />;
-    default:
-      return <FileIcon size={14} className="text-text-muted" />;
-  }
-}
 
 /**
  * Format date for display
@@ -166,11 +150,9 @@ function SearchResultsList({
                 {displayName}
               </span>
               {/* Show raw name if different from clean title */}
-              {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name && (
-                <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>
+              {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name ? <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>
                   {result.torrent_name}
-                </span>
-              )}
+                </span> : null}
             </div>
             
             {/* Stats - compact */}
@@ -380,22 +362,17 @@ function SearchPageInner(): React.ReactElement {
           <div>
             <h1 className="text-xl font-bold text-text-primary">
               Search Results
-              {queryParam && (
-                <span className="font-normal text-text-secondary">
+              {queryParam ? <span className="font-normal text-text-secondary">
                   {' '}for &ldquo;{queryParam}&rdquo;
-                </span>
-              )}
+                </span> : null}
             </h1>
-            {typeParam && (
-              <p className="text-sm text-text-secondary">
+            {typeParam ? <p className="text-sm text-text-secondary">
                 Filtered by: {categoryLabel}
-              </p>
-            )}
+              </p> : null}
           </div>
 
           {/* Sort Controls */}
-          {hasSearched && results.length > 0 && (
-            <div className="flex items-center gap-2">
+          {hasSearched && results.length > 0 ? <div className="flex items-center gap-2">
               <SortIcon className="text-text-muted" size={16} />
               <span className="text-xs text-text-muted">Sort:</span>
               <div className="flex gap-1">
@@ -417,16 +394,13 @@ function SearchPageInner(): React.ReactElement {
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            </div> : null}
         </div>
 
         {/* Results count */}
-        {hasSearched && !isLoading && (
-          <div className="text-xs text-text-muted">
+        {hasSearched && !isLoading ? <div className="text-xs text-text-muted">
             {total > 0 ? `${total.toLocaleString()} result${total !== 1 ? 's' : ''} found` : 'No results found'}
-          </div>
-        )}
+          </div> : null}
 
         {/* Results */}
         {hasSearched ? (
@@ -444,8 +418,7 @@ function SearchPageInner(): React.ReactElement {
         )}
 
         {/* Load More Button */}
-        {hasSearched && hasMore && !isLoading && (
-          <div className="flex justify-center pt-4">
+        {hasSearched && hasMore && !isLoading ? <div className="flex justify-center pt-4">
             <button
               type="button"
               onClick={handleLoadMore}
@@ -461,15 +434,12 @@ function SearchPageInner(): React.ReactElement {
                 `Load more (${results.length} of ${total.toLocaleString()})`
               )}
             </button>
-          </div>
-        )}
+          </div> : null}
 
         {/* Show count when all loaded */}
-        {hasSearched && !hasMore && results.length > 0 && !isLoading && (
-          <div className="text-center text-xs text-text-secondary">
+        {hasSearched && !hasMore && results.length > 0 && !isLoading ? <div className="text-center text-xs text-text-secondary">
             Showing all {results.length.toLocaleString()} results
-          </div>
-        )}
+          </div> : null}
       </div>
     </MainLayout>
   );

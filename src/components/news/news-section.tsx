@@ -161,26 +161,21 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
             className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-700 transition-colors cursor-pointer"
             onClick={() => setSelectedArticle(article)}
           >
-            {article.imageUrl && (
-              <div className="aspect-video bg-gray-900">
+            {article.imageUrl ? <div className="aspect-video bg-gray-900">
+                {/* eslint-disable-next-line @next/next/no-img-element -- External news article images from TheNewsAPI */}
                 <img
                   src={article.imageUrl}
                   alt={article.title}
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
-              </div>
-            )}
+              </div> : null}
             <div className="p-4">
               <h3 className="font-semibold text-lg mb-2 line-clamp-2">{article.title}</h3>
               
-              {article.snippet && (
-                <p className="text-gray-400 text-sm mb-2 line-clamp-2">{article.snippet}</p>
-              )}
+              {article.snippet ? <p className="text-gray-400 text-sm mb-2 line-clamp-2">{article.snippet}</p> : null}
               
-              {article.description && (
-                <p className="text-gray-300 text-sm mb-3 line-clamp-2">{article.description}</p>
-              )}
+              {article.description ? <p className="text-gray-300 text-sm mb-3 line-clamp-2">{article.description}</p> : null}
 
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>{article.source}</span>
@@ -205,8 +200,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
       </div>
 
       {/* Modal */}
-      {selectedArticle && (
-        <div
+      {selectedArticle ? <div
           data-testid="news-modal"
           role="dialog"
           aria-modal="true"
@@ -260,8 +254,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
               />
             </div>
           </div>
-        </div>
-      )}
+        </div> : null}
     </section>
   );
 }

@@ -9,7 +9,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Database,
   TorrentComment,
-  TorrentCommentInsert,
   CommentVote as CommentVoteType,
   TorrentVote as TorrentVoteType,
   VoteValue,

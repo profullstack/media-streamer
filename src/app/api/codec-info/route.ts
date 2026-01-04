@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { detectCodecFromUrl, formatCodecInfoForDb, type CodecInfo } from '@/lib/codec-detection';
+import { detectCodecFromUrl, formatCodecInfoForDb } from '@/lib/codec-detection';
 import { createServerClient } from '@/lib/supabase';
 
 /**

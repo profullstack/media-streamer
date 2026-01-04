@@ -150,25 +150,18 @@ function TheTVDBItemCard({ item, onFindTorrent }: { item: TheTVDBItem; onFindTor
               {item.title}
             </h3>
             <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary mt-1">
-              {item.year && <span>{item.year}</span>}
-              {item.runtime && (
-                <span className="flex items-center gap-1">
+              {item.year ? <span>{item.year}</span> : null}
+              {item.runtime ? <span className="flex items-center gap-1">
                   <ClockIcon size={14} />
                   {item.runtime} min
-                </span>
-              )}
-              {item.status && (
-                <span className="text-accent-secondary">{item.status}</span>
-              )}
-              {item.network && (
-                <span className="text-accent-secondary">{item.network}</span>
-              )}
+                </span> : null}
+              {item.status ? <span className="text-accent-secondary">{item.status}</span> : null}
+              {item.network ? <span className="text-accent-secondary">{item.network}</span> : null}
             </div>
           </div>
 
           {/* Genres */}
-          {item.genres && item.genres.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+          {item.genres && item.genres.length > 0 ? <div className="flex flex-wrap gap-1">
               {item.genres.slice(0, 4).map((genre) => (
                 <span
                   key={genre}
@@ -177,49 +170,40 @@ function TheTVDBItemCard({ item, onFindTorrent }: { item: TheTVDBItem; onFindTor
                   {genre}
                 </span>
               ))}
-            </div>
-          )}
+            </div> : null}
 
           {/* Description/Overview */}
-          {item.overview && (
-            <p className={cn(
+          {item.overview ? <p className={cn(
               'text-sm text-text-secondary',
               !isExpanded && 'line-clamp-2'
             )}>
               {item.overview}
-            </p>
-          )}
-          {item.overview && item.overview.length > 150 && (
-            <button
+            </p> : null}
+          {item.overview && item.overview.length > 150 ? <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
               className="text-xs text-accent-primary hover:underline"
             >
               {isExpanded ? 'Show less' : 'Show more'}
-            </button>
-          )}
+            </button> : null}
 
           {/* Cast */}
-          {item.cast && item.cast.length > 0 && (
-            <div className="text-sm">
+          {item.cast && item.cast.length > 0 ? <div className="text-sm">
               <span className="text-text-muted">Cast: </span>
               <span className="text-text-secondary">
                 {item.cast.slice(0, 3).join(', ')}
               </span>
-            </div>
-          )}
+            </div> : null}
 
           {/* Directors/Creators */}
-          {item.directors && item.directors.length > 0 && (
-            <div className="text-sm">
+          {item.directors && item.directors.length > 0 ? <div className="text-sm">
               <span className="text-text-muted">
                 {item.mediaType === 'tv' ? 'Created by: ' : 'Director: '}
               </span>
               <span className="text-text-secondary">
                 {item.directors.join(', ')}
               </span>
-            </div>
-          )}
+            </div> : null}
 
           {/* Find Torrent Button */}
           <button
@@ -277,13 +261,11 @@ function TorrentItemCard({ item }: { item: TorrentItem }): React.ReactElement {
             {item.cleanTitle ?? item.title}
           </h3>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-            {item.year && <span>{item.year}</span>}
+            {item.year ? <span>{item.year}</span> : null}
             <span className="capitalize">{item.mediaType === 'tv' ? 'TV' : item.mediaType}</span>
             <span>{formatBytes(item.totalSize)}</span>
           </div>
-          {item.description && (
-            <p className="text-xs text-text-muted line-clamp-2">{item.description}</p>
-          )}
+          {item.description ? <p className="text-xs text-text-muted line-clamp-2">{item.description}</p> : null}
           <div className="flex items-center gap-3 text-xs text-text-muted">
             {item.seeders !== null && <span className="text-green-500">{item.seeders} seeders</span>}
             {item.leechers !== null && <span className="text-yellow-500">{item.leechers} leechers</span>}
@@ -317,9 +299,7 @@ function SectionHeader({
           <span className="text-sm font-normal text-text-muted">({count})</span>
         )}
       </h2>
-      {error && (
-        <span className="text-xs text-red-400">{error}</span>
-      )}
+      {error ? <span className="text-xs text-red-400">{error}</span> : null}
     </div>
   );
 }
@@ -438,14 +418,12 @@ export default function TrendingPage(): React.ReactElement {
         </div>
 
         {/* Loading */}
-        {isLoading && <LoadingSkeleton />}
+        {isLoading ? <LoadingSkeleton /> : null}
 
         {/* Content */}
-        {!isLoading && data && (
-          <div className="space-y-10">
+        {!isLoading && data ? <div className="space-y-10">
             {/* Movies Section */}
-            {showMovies && data.movies && (
-              <section className="space-y-4">
+            {showMovies && data.movies ? <section className="space-y-4">
                 <SectionHeader
                   title="Trending Movies"
                   icon={MovieIcon}
@@ -467,12 +445,10 @@ export default function TrendingPage(): React.ReactElement {
                     {data.movies.error || 'No trending movies found. Make sure THETVDB_API_KEY is configured.'}
                   </p>
                 )}
-              </section>
-            )}
+              </section> : null}
 
             {/* TV Shows Section */}
-            {showTV && data.tv && (
-              <section className="space-y-4">
+            {showTV && data.tv ? <section className="space-y-4">
                 <SectionHeader
                   title="Trending TV Shows"
                   icon={TvIcon}
@@ -494,12 +470,10 @@ export default function TrendingPage(): React.ReactElement {
                     {data.tv.error || 'No trending TV shows found. Make sure THETVDB_API_KEY is configured.'}
                   </p>
                 )}
-              </section>
-            )}
+              </section> : null}
 
             {/* Torrents Section */}
-            {showTorrents && data.torrents && (
-              <section className="space-y-4">
+            {showTorrents && data.torrents ? <section className="space-y-4">
                 <SectionHeader
                   title="Popular Torrents"
                   icon={TrendingIcon}
@@ -517,10 +491,8 @@ export default function TrendingPage(): React.ReactElement {
                     {data.torrents.error || 'No popular torrents found in our database.'}
                   </p>
                 )}
-              </section>
-            )}
-          </div>
-        )}
+              </section> : null}
+          </div> : null}
 
         {/* Empty state */}
         {!isLoading && !data && (

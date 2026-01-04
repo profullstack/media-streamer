@@ -247,7 +247,7 @@ export function detectContentType(name: string): ContentType {
  * @returns A cleaned title suitable for display in the UI
  */
 export function cleanTorrentNameForDisplay(name: string): string {
-  let cleaned = name
+  const cleaned = name
     // Remove file extensions first (before replacing dots)
     .replace(/\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|ts|mpg|mpeg)$/i, '')
     // Remove website prefixes (www.site.org, site.com, etc.)

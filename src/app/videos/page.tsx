@@ -239,7 +239,7 @@ export default function VideosPage(): React.ReactElement {
                   : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
               )}
             >
-              {Icon && <Icon size={16} />}
+              {Icon ? <Icon size={16} /> : null}
               {label}
             </button>
           ))}
@@ -296,15 +296,12 @@ export default function VideosPage(): React.ReactElement {
         )}
 
         {/* Error */}
-        {error && (
-          <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        {error ? <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">
             {error}
-          </div>
-        )}
+          </div> : null}
 
         {/* Loading */}
-        {isLoading && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {isLoading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="card animate-pulse">
                 <div className="aspect-[2/3] bg-bg-tertiary rounded-t-lg" />
@@ -314,8 +311,7 @@ export default function VideosPage(): React.ReactElement {
                 </div>
               </div>
             ))}
-          </div>
-        )}
+          </div> : null}
 
         {/* Grid */}
         {!isLoading && !error && torrents.length > 0 && (
@@ -418,6 +414,7 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
       {/* Image */}
       <div className="aspect-[2/3] bg-bg-tertiary relative overflow-hidden">
         {imageUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- External torrent poster/cover images */
           <img
             src={imageUrl}
             alt={torrent.cleanTitle ?? torrent.name}
@@ -450,7 +447,7 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
           {torrent.cleanTitle ?? torrent.name}
         </h3>
         <div className="mt-2 flex items-center gap-2 text-xs text-text-muted">
-          {torrent.year && <span>{torrent.year}</span>}
+          {torrent.year ? <span>{torrent.year}</span> : null}
           <span>•</span>
           <span>{formatSize(torrent.totalSize)}</span>
           <span>•</span>

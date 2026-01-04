@@ -17,7 +17,6 @@ import {
   getPlaylistCache,
   PlaylistCache,
   type Channel,
-  type CachedPlaylist,
 } from '@/lib/iptv';
 
 /**

@@ -131,11 +131,9 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
           {torrent.cleanTitle ?? torrent.name}
         </h3>
         {/* Show raw name in grey if different from clean title */}
-        {torrent.cleanTitle && torrent.cleanTitle !== torrent.name && (
-          <p className="truncate text-xs text-text-muted" title={torrent.name}>
+        {torrent.cleanTitle && torrent.cleanTitle !== torrent.name ? <p className="truncate text-xs text-text-muted" title={torrent.name}>
             {torrent.name}
-          </p>
-        )}
+          </p> : null}
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary">
           <span>{formatBytes(torrent.totalSize)}</span>
           <span>{torrent.fileCount} files</span>

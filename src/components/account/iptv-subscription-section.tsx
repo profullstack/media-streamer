@@ -191,15 +191,12 @@ export function IPTVSubscriptionSection(): React.ReactElement {
         Get access to live TV channels with our IPTV service powered by ArgonTV.
       </p>
 
-      {error && (
-        <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">
+      {error ? <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">
           {error}
-        </div>
-      )}
+        </div> : null}
 
       {/* Current Subscription Status */}
-      {hasSubscription && subscriptionData?.subscription && (
-        <div className="rounded-lg border border-border-default bg-bg-tertiary p-4 space-y-4">
+      {hasSubscription && subscriptionData?.subscription ? <div className="rounded-lg border border-border-default bg-bg-tertiary p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-medium text-text-primary">Current IPTV Subscription</h3>
             <span className={cn(
@@ -244,8 +241,7 @@ export function IPTVSubscriptionSection(): React.ReactElement {
               {showCredentials ? 'Hide Credentials' : 'Show Credentials'}
             </button>
 
-            {showCredentials && (
-              <div className="mt-3 space-y-3 rounded-lg bg-bg-secondary p-3">
+            {showCredentials ? <div className="mt-3 space-y-3 rounded-lg bg-bg-secondary p-3">
                 <div>
                   <p className="text-xs text-text-muted">Username</p>
                   <p className="text-sm text-text-primary font-mono">
@@ -270,11 +266,9 @@ export function IPTVSubscriptionSection(): React.ReactElement {
                     Copy URL
                   </button>
                 </div>
-              </div>
-            )}
+              </div> : null}
           </div>
-        </div>
-      )}
+        </div> : null}
 
       {/* Purchase/Extend Section */}
       <div className="rounded-lg border border-border-default bg-bg-tertiary p-4 space-y-4">

@@ -219,7 +219,6 @@ describe('Codec Info Dynamic Route', () => {
         codec_detected_at: '2024-01-01T00:00:00Z',
       };
 
-      let callCount = 0;
       const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'torrents') {

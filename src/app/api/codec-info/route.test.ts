@@ -15,12 +15,9 @@ vi.mock('@/lib/codec-detection', () => ({
 }));
 
 // Create a more complete mock for Supabase with flexible return types
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockUpsert = vi.fn().mockResolvedValue({ data: null, error: null }) as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockSingleTorrent = vi.fn().mockResolvedValue({ data: { id: 'torrent-123' }, error: null }) as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockSingleFile = vi.fn().mockResolvedValue({ data: { id: 'file-123', media_category: 'video' }, error: null }) as any;
+const mockUpsert = vi.fn().mockResolvedValue({ data: null, error: null });
+const mockSingleTorrent = vi.fn().mockResolvedValue({ data: { id: 'torrent-123' }, error: null });
+const mockSingleFile = vi.fn().mockResolvedValue({ data: { id: 'file-123', media_category: 'video' }, error: null });
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(() => ({

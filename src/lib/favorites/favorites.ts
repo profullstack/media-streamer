@@ -13,8 +13,6 @@ import type {
   Database,
   TorrentFavorite,
   IptvChannelFavorite,
-  Torrent,
-  IptvPlaylist,
 } from '../supabase/types';
 
 // Type aliases for database tables

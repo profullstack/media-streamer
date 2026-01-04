@@ -477,8 +477,7 @@ export default function LiveTvPage(): React.ReactElement {
             </select>
             
             {/* Edit and Delete buttons for active playlist */}
-            {activePlaylist && (
-              <div className="flex items-center gap-1">
+            {activePlaylist ? <div className="flex items-center gap-1">
                 <button
                   onClick={() => handleEditPlaylist(activePlaylist)}
                   className={cn(
@@ -503,14 +502,12 @@ export default function LiveTvPage(): React.ReactElement {
                 >
                   <TrashIcon size={18} />
                 </button>
-              </div>
-            )}
+              </div> : null}
           </div>
         )}
 
         {/* Delete Confirmation Dialog */}
-        {deletingPlaylist && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        {deletingPlaylist ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-bg-primary border border-border-default rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
               <h3 className="text-lg font-semibold text-text-primary mb-2">
                 Delete Playlist
@@ -518,11 +515,9 @@ export default function LiveTvPage(): React.ReactElement {
               <p className="text-sm text-text-secondary mb-4">
                 Are you sure you want to delete &quot;{deletingPlaylist.name}&quot;? This action cannot be undone.
               </p>
-              {deleteError && (
-                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-400 text-sm">
+              {deleteError ? <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-400 text-sm">
                   {deleteError}
-                </div>
-              )}
+                </div> : null}
               <div className="flex justify-end gap-3">
                 <button
                   onClick={handleCancelDelete}
@@ -557,8 +552,7 @@ export default function LiveTvPage(): React.ReactElement {
                 </button>
               </div>
             </div>
-          </div>
-        )}
+          </div> : null}
 
         {/* Search and Filters */}
         <div className="space-y-4">
@@ -577,14 +571,11 @@ export default function LiveTvPage(): React.ReactElement {
               )}
             />
             {/* Loading indicator while searching */}
-            {isLoading && searchQuery && (
-              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+            {isLoading && searchQuery ? <div className="absolute right-4 top-1/2 -translate-y-1/2">
                 <LoadingSpinner size={20} className="text-accent-primary" />
-              </div>
-            )}
+              </div> : null}
             {/* Clear button when there's a query */}
-            {searchQuery && !isLoading && (
-              <button
+            {searchQuery && !isLoading ? <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
                 aria-label="Clear search"
@@ -593,16 +584,13 @@ export default function LiveTvPage(): React.ReactElement {
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-              </button>
-            )}
+              </button> : null}
           </div>
           
           {/* Search hint */}
-          {activePlaylist && (
-            <p className="text-xs text-text-muted">
+          {activePlaylist ? <p className="text-xs text-text-muted">
               Search is case-insensitive and matches words in any order.
-            </p>
-          )}
+            </p> : null}
           
           {/* Group Filter - Dropdown */}
           {groups.length > 0 && (
@@ -633,8 +621,7 @@ export default function LiveTvPage(): React.ReactElement {
           )}
           
           {/* Static Submit Button - Always visible when playlist is active (essential for TV remote) */}
-          {activePlaylist && (
-            <div className="flex flex-wrap items-center gap-3">
+          {activePlaylist ? <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleApplyFilters}
                 disabled={isLoading}
@@ -661,37 +648,28 @@ export default function LiveTvPage(): React.ReactElement {
               </button>
               
               {/* Pending changes indicator */}
-              {hasPendingFilters && !isLoading && (
-                <span className="text-xs text-yellow-500">
+              {hasPendingFilters && !isLoading ? <span className="text-xs text-yellow-500">
                   Pending changes - press button to apply
-                </span>
-              )}
-            </div>
-          )}
+                </span> : null}
+            </div> : null}
         </div>
 
         {/* Error Message */}
-        {error && (
-          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
+        {error ? <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
             {error}
-          </div>
-        )}
+          </div> : null}
 
         {/* Loading State - Playlists */}
-        {(isAuthLoading || isLoadingPlaylists) && (
-          <div className="flex flex-col items-center justify-center py-16">
+        {(isAuthLoading || isLoadingPlaylists) ? <div className="flex flex-col items-center justify-center py-16">
             <LoadingSpinner size={48} className="text-accent-primary mb-4" />
             <p className="text-sm text-text-secondary">Loading playlists...</p>
-          </div>
-        )}
+          </div> : null}
 
         {/* Loading State - Channels */}
-        {isLoading && channels.length === 0 && !isAuthLoading && !isLoadingPlaylists && (
-          <div className="flex flex-col items-center justify-center py-16">
+        {isLoading && channels.length === 0 && !isAuthLoading && !isLoadingPlaylists ? <div className="flex flex-col items-center justify-center py-16">
             <LoadingSpinner size={48} className="text-accent-primary mb-4" />
             <p className="text-sm text-text-secondary">Loading channels...</p>
-          </div>
-        )}
+          </div> : null}
 
         {/* Channels Grid */}
         {channels.length > 0 ? (
@@ -713,6 +691,7 @@ export default function LiveTvPage(): React.ReactElement {
                     {/* Channel Logo */}
                     {channel.logo ? (
                       <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- External IPTV channel logos with onError fallback */}
                         <img
                           src={channel.logo}
                           alt={`${channel.name} logo`}
@@ -734,9 +713,7 @@ export default function LiveTvPage(): React.ReactElement {
                     )}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-text-primary truncate">{channel.name}</h3>
-                      {channel.group && (
-                        <p className="text-sm text-text-muted truncate">{channel.group}</p>
-                      )}
+                      {channel.group ? <p className="text-sm text-text-muted truncate">{channel.group}</p> : null}
                     </div>
                     {/* Play indicator on hover */}
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -748,8 +725,7 @@ export default function LiveTvPage(): React.ReactElement {
             </div>
             
             {/* Load More Button */}
-            {hasMore && (
-              <div className="flex justify-center pt-4">
+            {hasMore ? <div className="flex justify-center pt-4">
                 <button
                   onClick={handleLoadMore}
                   disabled={isLoading}
@@ -769,8 +745,7 @@ export default function LiveTvPage(): React.ReactElement {
                     <span>Load More</span>
                   )}
                 </button>
-              </div>
-            )}
+              </div> : null}
           </>
         ) : !isLoading && !error && !isAuthLoading && !isLoadingPlaylists && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -811,13 +786,11 @@ export default function LiveTvPage(): React.ReactElement {
         />
 
         {/* HLS Player Modal */}
-        {selectedChannel && (
-          <HlsPlayerModal
+        {selectedChannel ? <HlsPlayerModal
             isOpen={isPlayerOpen}
             onClose={handleClosePlayer}
             channel={selectedChannel}
-          />
-        )}
+          /> : null}
 
         {/* Edit Playlist Modal */}
         <EditPlaylistModal

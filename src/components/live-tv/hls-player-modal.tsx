@@ -376,6 +376,7 @@ export function HlsPlayerModal({
           <div className="flex items-center gap-3">
             {/* Channel Logo */}
             {channel.logo ? (
+              /* eslint-disable-next-line @next/next/no-img-element -- External IPTV channel logos with onError fallback */
               <img
                 src={channel.logo}
                 alt={`${channel.name} logo`}
@@ -401,14 +402,12 @@ export function HlsPlayerModal({
               >
                 {channel.name}
               </h2>
-              {channel.group && (
-                <span
+              {channel.group ? <span
                   data-testid="group-badge"
                   className="inline-block px-2 py-0.5 text-xs font-medium bg-zinc-800 text-zinc-400 rounded"
                 >
                   {channel.group}
-                </span>
-              )}
+                </span> : null}
             </div>
 
             {/* Refresh Button */}
@@ -438,8 +437,7 @@ export function HlsPlayerModal({
         {/* Video Container */}
         <div className="relative aspect-video bg-black">
           {/* Loading Indicator */}
-          {isLoading && !hasError && (
-            <div
+          {isLoading && !hasError ? <div
               data-testid="loading-indicator"
               className="absolute inset-0 flex items-center justify-center"
             >
@@ -447,12 +445,10 @@ export function HlsPlayerModal({
                 <div className="w-12 h-12 border-4 border-zinc-700 border-t-blue-500 rounded-full animate-spin" />
                 <span className="text-zinc-400 text-sm">Loading stream...</span>
               </div>
-            </div>
-          )}
+            </div> : null}
 
           {/* Error Message */}
-          {hasError && (
-            <div className="absolute inset-0 flex items-center justify-center">
+          {hasError ? <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3 text-center px-4">
                 <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
                   <CloseIcon className="w-8 h-8 text-red-500" />
@@ -468,8 +464,7 @@ export function HlsPlayerModal({
                   Close
                 </button>
               </div>
-            </div>
-          )}
+            </div> : null}
 
           {/* Video Element */}
           <video

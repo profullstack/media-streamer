@@ -226,8 +226,7 @@ export default function TorrentsPage(): React.ReactElement {
           </div> : null}
 
         {/* Loading */}
-        {isLoading && (
-          <div className="space-y-2">
+        {isLoading ? <div className="space-y-2">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2 animate-pulse">
                 <div className="w-12 h-16 bg-bg-tertiary rounded shrink-0" />
@@ -236,8 +235,7 @@ export default function TorrentsPage(): React.ReactElement {
                 <div className="w-12 h-4 bg-bg-tertiary rounded" />
               </div>
             ))}
-          </div>
-        )}
+          </div> : null}
 
         {/* Torrent list with thumbnails */}
         {!isLoading && torrents.length > 0 && (
@@ -274,9 +272,7 @@ export default function TorrentsPage(): React.ReactElement {
                     <span className="truncate text-sm text-text-primary block" title={torrent.name}>
                       {torrent.cleanTitle ?? torrent.name}
                     </span>
-                    {torrent.contentType && (
-                      <span className="text-xs text-text-muted capitalize">{torrent.contentType}</span>
-                    )}
+                    {torrent.contentType ? <span className="text-xs text-text-muted capitalize">{torrent.contentType}</span> : null}
                   </div>
                   
                   {/* Stats */}
@@ -314,8 +310,7 @@ export default function TorrentsPage(): React.ReactElement {
         )}
 
         {/* Load more button */}
-        {hasMore && !isLoading && (
-          <div className="flex justify-center pt-4">
+        {hasMore && !isLoading ? <div className="flex justify-center pt-4">
             <button
               type="button"
               onClick={handleLoadMore}
@@ -346,8 +341,7 @@ export default function TorrentsPage(): React.ReactElement {
                 `Load more (${torrents.length} of ${total.toLocaleString()})`
               )}
             </button>
-          </div>
-        )}
+          </div> : null}
 
         {/* Show count when all loaded */}
         {!hasMore && torrents.length > 0 && !isLoading && (

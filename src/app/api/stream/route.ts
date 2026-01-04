@@ -44,7 +44,6 @@ import {
 import { getFFmpegDemuxerForExtension } from '@/lib/codec-detection';
 import {
   getFileTranscodingService,
-  isFileBasedTranscodingRequired,
 } from '@/lib/file-transcoding';
 
 const logger = createLogger('API:stream');

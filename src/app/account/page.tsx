@@ -348,14 +348,12 @@ export default function AccountPage(): React.ReactElement {
                         )}
                       </div>
                     </div>
-                    {user.display_name && (
-                      <div>
+                    {user.display_name ? <div>
                         <label className="block text-sm font-medium text-text-primary mb-1">
                           Display Name
                         </label>
                         <p className="text-text-secondary">{user.display_name}</p>
-                      </div>
-                    )}
+                      </div> : null}
                   </div>
                 </div>
 
@@ -379,16 +377,12 @@ export default function AccountPage(): React.ReactElement {
                 <h2 className="text-lg font-semibold text-text-primary mb-4">Subscription Management</h2>
                 
                 {/* Action Messages */}
-                {actionError && (
-                  <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">
+                {actionError ? <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">
                     {actionError}
-                  </div>
-                )}
-                {actionSuccess && (
-                  <div className="rounded-lg border border-status-success bg-status-success/10 p-4 text-sm text-status-success">
+                  </div> : null}
+                {actionSuccess ? <div className="rounded-lg border border-status-success bg-status-success/10 p-4 text-sm text-status-success">
                     {actionSuccess}
-                  </div>
-                )}
+                  </div> : null}
 
                 <div className="space-y-4">
                   {/* Current Plan */}
@@ -412,8 +406,7 @@ export default function AccountPage(): React.ReactElement {
                           )}>
                             {subscriptionLabel}
                           </span>
-                          {subscriptionStatus?.status && (
-                            <span className={cn(
+                          {subscriptionStatus?.status ? <span className={cn(
                               'text-xs px-2 py-0.5 rounded',
                               subscriptionStatus.status === 'active' 
                                 ? 'bg-status-success/10 text-status-success'
@@ -422,17 +415,14 @@ export default function AccountPage(): React.ReactElement {
                                   : 'bg-status-warning/10 text-status-warning'
                             )}>
                               {subscriptionStatus.status}
-                            </span>
-                          )}
+                            </span> : null}
                         </div>
-                        {subscriptionStatus?.expiresAt && (
-                          <p className="text-sm text-text-muted">
+                        {subscriptionStatus?.expiresAt ? <p className="text-sm text-text-muted">
                             {subscriptionStatus.status === 'cancelled' 
                               ? `Access until: ${formatDate(subscriptionStatus.expiresAt)}`
                               : `Renews: ${formatDate(subscriptionStatus.expiresAt)}`
                             }
-                          </p>
-                        )}
+                          </p> : null}
                         {subscriptionStatus?.daysRemaining !== null && subscriptionStatus?.daysRemaining !== undefined && (
                           <p className="text-sm text-text-muted">
                             {subscriptionStatus.daysRemaining} days remaining
@@ -443,12 +433,10 @@ export default function AccountPage(): React.ReactElement {
                   </div>
 
                   {/* Upgrade Options */}
-                  {(canUpgradeToPremium || canUpgradeToFamily) && (
-                    <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
+                  {(canUpgradeToPremium || canUpgradeToFamily) ? <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
                       <h4 className="font-medium text-text-primary mb-3">Upgrade Your Plan</h4>
                       <div className="space-y-3">
-                        {canUpgradeToPremium && (
-                          <div className="flex items-center justify-between">
+                        {canUpgradeToPremium ? <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-text-primary">Premium</p>
                               <p className="text-sm text-text-muted">$9.99/month - Unlimited streaming, high quality</p>
@@ -465,10 +453,8 @@ export default function AccountPage(): React.ReactElement {
                             >
                               {isUpgrading ? 'Processing...' : 'Upgrade'}
                             </button>
-                          </div>
-                        )}
-                        {canUpgradeToFamily && (
-                          <div className="flex items-center justify-between">
+                          </div> : null}
+                        {canUpgradeToFamily ? <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-text-primary">Family</p>
                               <p className="text-sm text-text-muted">$14.99/month - Up to 5 members, all premium features</p>
@@ -485,15 +471,12 @@ export default function AccountPage(): React.ReactElement {
                             >
                               {isUpgrading ? 'Processing...' : 'Upgrade'}
                             </button>
-                          </div>
-                        )}
+                          </div> : null}
                       </div>
-                    </div>
-                  )}
+                    </div> : null}
 
                   {/* Downgrade Option */}
-                  {canDowngradeToPremium && (
-                    <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
+                  {canDowngradeToPremium ? <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
                       <h4 className="font-medium text-text-primary mb-3">Downgrade Plan</h4>
                       <div className="flex items-center justify-between">
                         <div>
@@ -513,26 +496,22 @@ export default function AccountPage(): React.ReactElement {
                           {isUpgrading ? 'Processing...' : 'Downgrade'}
                         </button>
                       </div>
-                    </div>
-                  )}
+                    </div> : null}
 
                   {/* Premium Features */}
-                  {(isPremium || isFamily) && (
-                    <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
+                  {(isPremium || isFamily) ? <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
                       <h4 className="font-medium text-text-primary mb-2">Your Features</h4>
                       <ul className="text-sm text-text-muted space-y-1">
                         <li>✓ Unlimited streaming</li>
                         <li>✓ High quality audio/video</li>
                         <li>✓ Priority support</li>
                         <li>✓ No ads</li>
-                        {isFamily && <li>✓ Up to 5 family members</li>}
+                        {isFamily ? <li>✓ Up to 5 family members</li> : null}
                       </ul>
-                    </div>
-                  )}
+                    </div> : null}
 
                   {/* Trial Info */}
-                  {isTrial && (
-                    <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
+                  {isTrial ? <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
                       <h4 className="font-medium text-text-primary mb-2">Trial Features</h4>
                       <p className="text-sm text-text-muted mb-3">
                         You&apos;re on a trial plan with full access to premium features.
@@ -548,12 +527,10 @@ export default function AccountPage(): React.ReactElement {
                         </Link>
                         {' '}to keep your access after the trial ends.
                       </p>
-                    </div>
-                  )}
+                    </div> : null}
 
                   {/* Cancel Subscription */}
-                  {canCancel && subscriptionStatus?.status !== 'cancelled' && (
-                    <div className="border-t border-border-subtle pt-4">
+                  {canCancel && subscriptionStatus?.status !== 'cancelled' ? <div className="border-t border-border-subtle pt-4">
                       <h3 className="text-sm font-medium text-text-primary mb-2">Cancel Subscription</h3>
                       {!showCancelConfirm ? (
                         <button
@@ -599,8 +576,7 @@ export default function AccountPage(): React.ReactElement {
                           </div>
                         </div>
                       )}
-                    </div>
-                  )}
+                    </div> : null}
 
                   {/* Billing History */}
                   <div className="border-t border-border-subtle pt-4">

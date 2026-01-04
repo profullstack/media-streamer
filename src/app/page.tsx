@@ -192,15 +192,13 @@ export default async function HomePage(): Promise<React.ReactElement> {
               label="provider"
             />
             {/* XXX category - only visible to paid subscribers */}
-            {canAccessXxx && (
-              <CategoryCard
+            {canAccessXxx ? <CategoryCard
                 href="/xxx"
                 icon={HeartIcon}
                 title="XXX"
                 count={counts.xxx}
                 color="accent-primary"
-              />
-            )}
+              /> : null}
           </div>
         </section>
 

@@ -86,6 +86,7 @@ export function NowPlayingBar(): React.ReactElement | null {
           {/* Cover Image */}
           <div className="flex-shrink-0">
             {coverImage ? (
+              /* eslint-disable-next-line @next/next/no-img-element -- External podcast cover images */
               <img
                 src={coverImage}
                 alt={currentEpisode.title}

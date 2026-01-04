@@ -480,8 +480,7 @@ export default function PodcastsPage(): React.ReactElement {
             </p>
           </div>
           
-          {isLoggedIn && isPushSupported && (
-            <button
+          {isLoggedIn && isPushSupported ? <button
               onClick={() => void handleEnablePush()}
               disabled={isEnablingPush || isPushEnabled}
               className={cn(
@@ -493,8 +492,7 @@ export default function PodcastsPage(): React.ReactElement {
             >
               {isEnablingPush ? <LoadingSpinner size={20} /> : <BellIcon size={20} />}
               <span>{isPushEnabled ? 'Notifications On' : 'Enable Notifications'}</span>
-            </button>
-          )}
+            </button> : null}
         </div>
 
         {/* Tabs */}
@@ -539,24 +537,18 @@ export default function PodcastsPage(): React.ReactElement {
                   'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
                 )}
               />
-              {isSearching && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+              {isSearching ? <div className="absolute right-4 top-1/2 -translate-y-1/2">
                   <LoadingSpinner size={20} className="text-accent-primary" />
-                </div>
-              )}
+                </div> : null}
             </div>
 
-            {searchError && (
-              <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
+            {searchError ? <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
                 {searchError}
-              </div>
-            )}
+              </div> : null}
 
-            {subscribeError && (
-              <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
+            {subscribeError ? <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-red-400">
                 {subscribeError}
-              </div>
-            )}
+              </div> : null}
 
             {searchResults.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -571,6 +563,7 @@ export default function PodcastsPage(): React.ReactElement {
                     <div className="flex gap-4">
                       <div className="flex-shrink-0">
                         {podcast.imageUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element -- External podcast images from search API */
                           <img
                             src={podcast.imageUrl}
                             alt={podcast.title}
@@ -615,13 +608,11 @@ export default function PodcastsPage(): React.ReactElement {
               </div>
             )}
 
-            {!isSearching && searchQuery && searchResults.length === 0 && !searchError && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
+            {!isSearching && searchQuery && searchResults.length === 0 && !searchError ? <div className="flex flex-col items-center justify-center py-16 text-center">
                 <SearchIcon size={48} className="text-text-muted mb-4" />
                 <h3 className="text-lg font-medium text-text-primary mb-2">No podcasts found</h3>
                 <p className="text-sm text-text-secondary">Try a different search term</p>
-              </div>
-            )}
+              </div> : null}
 
             {!searchQuery && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -677,6 +668,7 @@ export default function PodcastsPage(): React.ReactElement {
                     )}
                   >
                     {podcast.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element -- External podcast images from subscriptions */
                       <img
                         src={podcast.imageUrl}
                         alt={podcast.title}
@@ -703,6 +695,7 @@ export default function PodcastsPage(): React.ReactElement {
                   {/* Podcast Header */}
                   <div className="flex items-start gap-4 p-4 rounded-lg bg-bg-secondary">
                     {selectedPodcast.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element -- External podcast images from subscriptions */
                       <img
                         src={selectedPodcast.imageUrl}
                         alt={selectedPodcast.title}
@@ -716,11 +709,9 @@ export default function PodcastsPage(): React.ReactElement {
                     <div className="flex-1 min-w-0">
                       <h2 className="text-xl font-bold text-text-primary">{selectedPodcast.title}</h2>
                       <p className="text-sm text-text-muted">{selectedPodcast.author}</p>
-                      {selectedPodcast.description && (
-                        <p className="text-sm text-text-secondary mt-2 line-clamp-2">
+                      {selectedPodcast.description ? <p className="text-sm text-text-secondary mt-2 line-clamp-2">
                           {selectedPodcast.description}
-                        </p>
-                      )}
+                        </p> : null}
                       {/* Unsubscribe button with confirmation */}
                       {confirmUnsubscribeId === selectedPodcast.id ? (
                         <div className="mt-3 flex items-center gap-2">
@@ -757,9 +748,7 @@ export default function PodcastsPage(): React.ReactElement {
                           <span>Unsubscribe</span>
                         </button>
                       )}
-                      {unsubscribeError && confirmUnsubscribeId === selectedPodcast.id && (
-                        <p className="mt-2 text-sm text-red-400">{unsubscribeError}</p>
-                      )}
+                      {unsubscribeError && confirmUnsubscribeId === selectedPodcast.id ? <p className="mt-2 text-sm text-red-400">{unsubscribeError}</p> : null}
                     </div>
                   </div>
 
@@ -810,8 +799,7 @@ export default function PodcastsPage(): React.ReactElement {
                                   <span>•</span>
                                   <span>{formatDuration(episode.duration)}</span>
                                 </div>
-                                {episode.description && (
-                                  <div className="mt-2">
+                                {episode.description ? <div className="mt-2">
                                     <p className={cn(
                                       'text-sm text-text-secondary',
                                       expandedEpisodeId !== episode.id && 'line-clamp-2'
@@ -834,8 +822,7 @@ export default function PodcastsPage(): React.ReactElement {
                                         </>
                                       )}
                                     </button>
-                                  </div>
-                                )}
+                                  </div> : null}
                               </div>
                             </div>
                           </div>

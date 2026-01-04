@@ -684,8 +684,7 @@ export function PlaylistPlayerModal({
                   {/* Main content row */}
                   <div className="relative flex w-full items-center gap-3 px-3 py-2">
                     {/* Download progress bar background */}
-                    {(isDownloading || isReady) && (
-                      <div
+                    {(isDownloading || isReady) ? <div
                         className={cn(
                           'absolute inset-y-0 left-0 transition-all duration-300',
                           isReady
@@ -693,8 +692,7 @@ export function PlaylistPlayerModal({
                             : 'bg-accent-primary/10'
                         )}
                         style={{ width: `${Math.round(progress * 100)}%` }}
-                      />
-                    )}
+                      /> : null}
                     
                     {/* Track number / play icon */}
                     <span className="relative z-10 w-6 text-center text-xs">
@@ -709,8 +707,7 @@ export function PlaylistPlayerModal({
                     <span className="relative z-10 flex-1 truncate text-sm">{file.name}</span>
                     
                     {/* Download status indicator */}
-                    {downloadStatus && (
-                      <span className="relative z-10 flex items-center gap-1 text-xs">
+                    {downloadStatus ? <span className="relative z-10 flex items-center gap-1 text-xs">
                         {isDownloading ? (
                           <>
                             <DownloadIcon size={12} className="text-accent-primary animate-pulse" />
@@ -731,19 +728,16 @@ export function PlaylistPlayerModal({
                             />
                           </svg>
                         ) : null}
-                      </span>
-                    )}
+                      </span> : null}
                   </div>
                   
                   {/* Playback progress bar - only for currently playing track */}
-                  {isCurrentTrack && playbackProgress.duration > 0 && (
-                    <div className="h-1 w-full bg-bg-tertiary">
+                  {isCurrentTrack && playbackProgress.duration > 0 ? <div className="h-1 w-full bg-bg-tertiary">
                       <div
                         className="h-full bg-accent-audio transition-all duration-100"
                         style={{ width: `${playbackPercent}%` }}
                       />
-                    </div>
-                  )}
+                    </div> : null}
                 </button>
               );
             })}

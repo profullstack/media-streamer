@@ -179,25 +179,19 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
               <div className="flex-1 min-w-0">
                 <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white" title={torrent.name}>
                   {cleanTitle ?? torrent.name}
-                  {torrent.year && (
-                    <span className="ml-2 text-gray-500 dark:text-gray-400">({torrent.year})</span>
-                  )}
+                  {torrent.year ? <span className="ml-2 text-gray-500 dark:text-gray-400">({torrent.year})</span> : null}
                 </h3>
                 {/* Show artist/album for music */}
-                {isMusic && (torrent.artist ?? torrent.album) && (
-                  <p className="truncate text-xs text-gray-600 dark:text-gray-300">
+                {isMusic && (torrent.artist ?? torrent.album) ? <p className="truncate text-xs text-gray-600 dark:text-gray-300">
                     {torrent.artist}
-                    {torrent.artist && torrent.album && ' — '}
+                    {torrent.artist && torrent.album ? ' — ' : null}
                     {torrent.album}
-                  </p>
-                )}
+                  </p> : null}
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  {contentType && (
-                    <>
+                  {contentType ? <>
                       <span className="capitalize">{contentType}</span>
                       <span>•</span>
-                    </>
-                  )}
+                    </> : null}
                   <span>{fileCount} files</span>
                   <span>•</span>
                   <span>{formatBytes(totalSize)}</span>
