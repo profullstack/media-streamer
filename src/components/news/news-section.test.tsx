@@ -10,6 +10,11 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } fr
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NewsSection } from './news-section';
 
+// Mock useAuth to prevent it from making fetch calls
+vi.mock('@/hooks/use-auth', () => ({
+  useAuth: () => ({ isPremium: false }),
+}));
+
 describe('NewsSection', () => {
   const mockArticles = [
     {

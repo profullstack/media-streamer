@@ -77,6 +77,9 @@ importers:
       node-datachannel:
         specifier: ^0.31.0
         version: 0.31.0
+      openai:
+        specifier: ^6.15.0
+        version: 6.15.0(ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.3.5)
       react:
         specifier: ^19.0.0
         version: 19.2.3
@@ -3475,6 +3478,18 @@ packages:
   onetime@6.0.0:
     resolution: {integrity: sha512-1FlR+gjXK7X+AsAHso35MnyN5KqGwJRi/31ft6x0M194ht7S+rWAvd7PHss9xSKMzE0asv1pyIHaJYq+BbacAQ==}
     engines: {node: '>=12'}
+
+  openai@6.15.0:
+    resolution: {integrity: sha512-F1Lvs5BoVvmZtzkUEVyh8mDQPPFolq4F+xdsx/DO8Hee8YF3IGAlZqUIsF+DVGhqf4aU0a3bTghsxB6OIsRy1g==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -8010,6 +8025,11 @@ snapshots:
   onetime@6.0.0:
     dependencies:
       mimic-fn: 4.0.0
+
+  openai@6.15.0(ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.3.5):
+    optionalDependencies:
+      ws: 8.18.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      zod: 4.3.5
 
   optionator@0.9.4:
     dependencies:
