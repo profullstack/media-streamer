@@ -4,7 +4,9 @@
       "Bash(*:*)",
       "Bash(gh cache list:*)",
       "Bash(gh cache delete:*)",
-      "Bash(gh workflow run:*)"
+      "Bash(gh workflow run:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ]
   }
 }
