@@ -6,4 +6,6 @@
 
 export * from './icons';
 export * from './favorite-button';
+export * from './torrent-favorite-button';
+export * from './iptv-channel-favorite-button';
 export * from './media-placeholder';

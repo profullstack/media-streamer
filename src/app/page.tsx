@@ -99,14 +99,13 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
     const [moviesResult, tvshowsResult, musicResult, booksResult, totalResult] = results;
     const xxxResult = includexxx ? results[5] : null;
     
-    // Fetch IPTV playlist count for the user
+    // Fetch IPTV playlist count for the user (all playlists, not just active)
     let liveTvCount = 0;
     if (user) {
       const { count: playlistCount, error: playlistError } = await supabase
         .from('iptv_playlists')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_active', true);
+        .eq('user_id', user.id);
       
       if (playlistError) {
         console.error('[Home] Error fetching IPTV playlist count:', playlistError);

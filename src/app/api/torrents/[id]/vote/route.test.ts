@@ -18,12 +18,21 @@ vi.mock('@/lib/comments', () => ({
   })),
 }));
 
+// Mock the favorites service
+vi.mock('@/lib/favorites', () => ({
+  getFavoritesService: vi.fn(() => ({
+    getTorrentFavoritesCount: vi.fn(),
+    isTorrentFavorite: vi.fn(),
+  })),
+}));
+
 // Mock the auth helper
 vi.mock('@/lib/auth', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 
 import { getCommentsService } from '@/lib/comments';
+import { getFavoritesService } from '@/lib/favorites';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 describe('Torrent Vote API', () => {
@@ -32,15 +41,21 @@ describe('Torrent Vote API', () => {
   });
 
   describe('GET /api/torrents/:id/vote', () => {
-    it('should return vote counts for a torrent', async () => {
+    it('should return vote counts and favorites count for a torrent', async () => {
       const mockCounts = { upvotes: 42, downvotes: 5 };
 
-      const mockService = {
+      const mockCommentsService = {
         getTorrentVoteCounts: vi.fn().mockResolvedValue(mockCounts),
         getUserTorrentVote: vi.fn().mockResolvedValue(null),
       };
 
-      (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
+      const mockFavoritesService = {
+        getTorrentFavoritesCount: vi.fn().mockResolvedValue(10),
+        isTorrentFavorite: vi.fn().mockResolvedValue(false),
+      };
+
+      (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockCommentsService);
+      (getFavoritesService as ReturnType<typeof vi.fn>).mockReturnValue(mockFavoritesService);
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost/api/torrents/torrent-123/vote');
@@ -51,9 +66,11 @@ describe('Torrent Vote API', () => {
       expect(data.upvotes).toBe(42);
       expect(data.downvotes).toBe(5);
       expect(data.userVote).toBeNull();
+      expect(data.favoritesCount).toBe(10);
+      expect(data.isFavorited).toBe(false);
     });
 
-    it('should include user vote when authenticated', async () => {
+    it('should include user vote and favorite status when authenticated', async () => {
       const mockCounts = { upvotes: 42, downvotes: 5 };
       const mockUserVote = {
         id: 'vote-123',
@@ -64,12 +81,18 @@ describe('Torrent Vote API', () => {
         updatedAt: new Date('2026-01-01T00:00:00Z'),
       };
 
-      const mockService = {
+      const mockCommentsService = {
         getTorrentVoteCounts: vi.fn().mockResolvedValue(mockCounts),
         getUserTorrentVote: vi.fn().mockResolvedValue(mockUserVote),
       };
 
-      (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
+      const mockFavoritesService = {
+        getTorrentFavoritesCount: vi.fn().mockResolvedValue(10),
+        isTorrentFavorite: vi.fn().mockResolvedValue(true),
+      };
+
+      (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockCommentsService);
+      (getFavoritesService as ReturnType<typeof vi.fn>).mockReturnValue(mockFavoritesService);
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'user-456' });
 
       const request = new NextRequest('http://localhost/api/torrents/torrent-123/vote');
@@ -78,6 +101,7 @@ describe('Torrent Vote API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.userVote).toBe(1);
+      expect(data.isFavorited).toBe(true);
     });
 
     it('should return 400 for missing torrent ID', async () => {
@@ -91,7 +115,7 @@ describe('Torrent Vote API', () => {
   });
 
   describe('POST /api/torrents/:id/vote', () => {
-    it('should create an upvote when authenticated', async () => {
+    it('should create an upvote and return updated counts when authenticated', async () => {
       const mockVote = {
         id: 'vote-new',
         torrentId: 'torrent-123',
@@ -100,9 +124,11 @@ describe('Torrent Vote API', () => {
         createdAt: new Date('2026-01-02T00:00:00Z'),
         updatedAt: new Date('2026-01-02T00:00:00Z'),
       };
+      const mockUpdatedCounts = { upvotes: 43, downvotes: 5 };
 
       const mockService = {
         voteOnTorrent: vi.fn().mockResolvedValue(mockVote),
+        getTorrentVoteCounts: vi.fn().mockResolvedValue(mockUpdatedCounts),
       };
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
@@ -118,10 +144,14 @@ describe('Torrent Vote API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.vote.voteValue).toBe(1);
+      expect(data.upvotes).toBe(43);
+      expect(data.downvotes).toBe(5);
+      expect(data.userVote).toBe(1);
       expect(mockService.voteOnTorrent).toHaveBeenCalledWith('torrent-123', 'user-456', 1);
+      expect(mockService.getTorrentVoteCounts).toHaveBeenCalledWith('torrent-123');
     });
 
-    it('should create a downvote when authenticated', async () => {
+    it('should create a downvote and return updated counts when authenticated', async () => {
       const mockVote = {
         id: 'vote-new',
         torrentId: 'torrent-123',
@@ -130,9 +160,11 @@ describe('Torrent Vote API', () => {
         createdAt: new Date('2026-01-02T00:00:00Z'),
         updatedAt: new Date('2026-01-02T00:00:00Z'),
       };
+      const mockUpdatedCounts = { upvotes: 42, downvotes: 6 };
 
       const mockService = {
         voteOnTorrent: vi.fn().mockResolvedValue(mockVote),
+        getTorrentVoteCounts: vi.fn().mockResolvedValue(mockUpdatedCounts),
       };
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
@@ -148,6 +180,9 @@ describe('Torrent Vote API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.vote.voteValue).toBe(-1);
+      expect(data.upvotes).toBe(42);
+      expect(data.downvotes).toBe(6);
+      expect(data.userVote).toBe(-1);
     });
 
     it('should return 401 when not authenticated', async () => {
@@ -182,9 +217,12 @@ describe('Torrent Vote API', () => {
   });
 
   describe('DELETE /api/torrents/:id/vote', () => {
-    it('should remove a vote when authenticated', async () => {
+    it('should remove a vote and return updated counts when authenticated', async () => {
+      const mockUpdatedCounts = { upvotes: 41, downvotes: 5 };
+
       const mockService = {
         removeTorrentVote: vi.fn().mockResolvedValue(undefined),
+        getTorrentVoteCounts: vi.fn().mockResolvedValue(mockUpdatedCounts),
       };
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
@@ -199,7 +237,11 @@ describe('Torrent Vote API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.success).toBe(true);
+      expect(data.upvotes).toBe(41);
+      expect(data.downvotes).toBe(5);
+      expect(data.userVote).toBeNull();
       expect(mockService.removeTorrentVote).toHaveBeenCalledWith('torrent-123', 'user-456');
+      expect(mockService.getTorrentVoteCounts).toHaveBeenCalledWith('torrent-123');
     });
 
     it('should return 401 when not authenticated', async () => {

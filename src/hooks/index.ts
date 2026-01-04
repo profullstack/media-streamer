@@ -15,3 +15,11 @@ export type { StreamStatus, StreamOptions, WebTorrentState, UseWebTorrentReturn 
 
 export { useTvDetection, isTvBrowser, getTvBrowserType, detectTvFromUserAgent } from './use-tv-detection';
 export type { TvBrowserType, TvDetectionResult } from './use-tv-detection';
+
+export {
+  useTorrentFavorite,
+  useIptvChannelFavorite,
+  useTorrentFavorites,
+  useIptvChannelFavorites,
+} from './use-favorites';
+export type { ChannelFavoriteData } from './use-favorites';

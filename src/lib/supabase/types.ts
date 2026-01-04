@@ -1419,6 +1419,85 @@ export type Database = {
           }
         ];
       };
+      torrent_favorites: {
+        Row: {
+          id: string;
+          user_id: string;
+          torrent_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          torrent_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          torrent_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'torrent_favorites_torrent_id_fkey';
+            columns: ['torrent_id'];
+            isOneToOne: false;
+            referencedRelation: 'torrents';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      iptv_channel_favorites: {
+        Row: {
+          id: string;
+          user_id: string;
+          playlist_id: string;
+          channel_id: string;
+          channel_name: string;
+          channel_url: string;
+          channel_logo: string | null;
+          channel_group: string | null;
+          tvg_id: string | null;
+          tvg_name: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          playlist_id: string;
+          channel_id: string;
+          channel_name: string;
+          channel_url: string;
+          channel_logo?: string | null;
+          channel_group?: string | null;
+          tvg_id?: string | null;
+          tvg_name?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          playlist_id?: string;
+          channel_id?: string;
+          channel_name?: string;
+          channel_url?: string;
+          channel_logo?: string | null;
+          channel_group?: string | null;
+          tvg_id?: string | null;
+          tvg_name?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'iptv_channel_favorites_playlist_id_fkey';
+            columns: ['playlist_id'];
+            isOneToOne: false;
+            referencedRelation: 'iptv_playlists';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1830,3 +1909,59 @@ export type TorrentVoteUpdate = UpdateTables<'torrent_votes'>;
 
 // Vote value type
 export type VoteValue = 1 | -1;
+
+// Torrent favorites types
+export type TorrentFavorite = Tables<'torrent_favorites'>;
+export type TorrentFavoriteInsert = InsertTables<'torrent_favorites'>;
+export type TorrentFavoriteUpdate = UpdateTables<'torrent_favorites'>;
+
+// IPTV channel favorites types
+export type IptvChannelFavorite = Tables<'iptv_channel_favorites'>;
+export type IptvChannelFavoriteInsert = InsertTables<'iptv_channel_favorites'>;
+export type IptvChannelFavoriteUpdate = UpdateTables<'iptv_channel_favorites'>;
+
+// User profile types (manually defined until migration is applied)
+export interface UserProfile {
+  id: string;
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  is_public: boolean;
+  comment_count: number;
+  favorite_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserProfileInsert {
+  user_id: string;
+  username: string;
+  display_name?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+  is_public?: boolean;
+}
+
+export interface UserProfileUpdate {
+  username?: string;
+  display_name?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+  is_public?: boolean;
+}
+
+/**
+ * Public user profile (for display, excludes private fields)
+ */
+export interface PublicUserProfile {
+  id: string;
+  username: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  comment_count: number;
+  favorite_count: number;
+  created_at: string;
+}

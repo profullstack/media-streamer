@@ -1,13 +1,14 @@
 /**
  * Torrent Vote API Route
  *
- * GET /api/torrents/:id/vote - Get vote counts and user's vote (if authenticated)
+ * GET /api/torrents/:id/vote - Get vote counts, favorites count, and user's vote/favorite status
  * POST /api/torrents/:id/vote - Vote on a torrent (requires auth)
  * DELETE /api/torrents/:id/vote - Remove vote from a torrent (requires auth)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsService, type VoteValue } from '@/lib/comments';
+import { getFavoritesService } from '@/lib/favorites';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 interface RouteParams {
@@ -16,7 +17,7 @@ interface RouteParams {
 
 /**
  * GET /api/torrents/:id/vote
- * Get vote counts for a torrent and user's vote if authenticated
+ * Get vote counts, favorites count, and user's vote/favorite status if authenticated
  */
 export async function GET(
   request: NextRequest,
@@ -35,22 +36,30 @@ export async function GET(
     // Get authenticated user (optional)
     const user = await getAuthenticatedUser(request);
 
-    const service = getCommentsService();
+    const commentsService = getCommentsService();
+    const favoritesService = getFavoritesService();
 
     // Get vote counts
-    const counts = await service.getTorrentVoteCounts(torrentId);
+    const counts = await commentsService.getTorrentVoteCounts(torrentId);
 
-    // Get user's vote if authenticated
+    // Get favorites count
+    const favoritesCount = await favoritesService.getTorrentFavoritesCount(torrentId);
+
+    // Get user's vote and favorite status if authenticated
     let userVote: VoteValue | null = null;
+    let isFavorited = false;
     if (user) {
-      const vote = await service.getUserTorrentVote(torrentId, user.id);
+      const vote = await commentsService.getUserTorrentVote(torrentId, user.id);
       userVote = vote?.voteValue ?? null;
+      isFavorited = await favoritesService.isTorrentFavorite(user.id, torrentId);
     }
 
     return NextResponse.json({
       upvotes: counts.upvotes,
       downvotes: counts.downvotes,
       userVote,
+      favoritesCount,
+      isFavorited,
     });
   } catch (error) {
     console.error('Error fetching torrent votes:', error);
@@ -67,6 +76,12 @@ export async function GET(
  *
  * Body:
  * - value: 1 (upvote) or -1 (downvote)
+ *
+ * Returns:
+ * - vote: The created/updated vote
+ * - upvotes: Updated upvote count
+ * - downvotes: Updated downvote count
+ * - userVote: The user's current vote value
  */
 export async function POST(
   request: NextRequest,
@@ -106,7 +121,15 @@ export async function POST(
     const service = getCommentsService();
     const vote = await service.voteOnTorrent(torrentId, user.id, value as VoteValue);
 
-    return NextResponse.json({ vote });
+    // Fetch updated counts after vote
+    const counts = await service.getTorrentVoteCounts(torrentId);
+
+    return NextResponse.json({
+      vote,
+      upvotes: counts.upvotes,
+      downvotes: counts.downvotes,
+      userVote: value as VoteValue,
+    });
   } catch (error) {
     console.error('Error voting on torrent:', error);
 
@@ -130,6 +153,12 @@ export async function POST(
 /**
  * DELETE /api/torrents/:id/vote
  * Remove vote from a torrent
+ *
+ * Returns:
+ * - success: true
+ * - upvotes: Updated upvote count
+ * - downvotes: Updated downvote count
+ * - userVote: null (vote removed)
  */
 export async function DELETE(
   request: NextRequest,
@@ -158,7 +187,15 @@ export async function DELETE(
     const service = getCommentsService();
     await service.removeTorrentVote(torrentId, user.id);
 
-    return NextResponse.json({ success: true });
+    // Fetch updated counts after vote removal
+    const counts = await service.getTorrentVoteCounts(torrentId);
+
+    return NextResponse.json({
+      success: true,
+      upvotes: counts.upvotes,
+      downvotes: counts.downvotes,
+      userVote: null,
+    });
   } catch (error) {
     console.error('Error removing torrent vote:', error);
     return NextResponse.json(
