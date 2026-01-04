@@ -108,6 +108,9 @@ export default function LiveTvPage(): React.ReactElement {
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Track if playlist is loaded (to prevent race condition)
+  const [isPlaylistLoaded, setIsPlaylistLoaded] = useState(false);
+  
   // Track if there are pending filter changes (for TV remote users)
   const hasPendingFilters = searchQuery !== debouncedQuery || pendingGroup !== selectedGroup;
 
@@ -222,12 +225,21 @@ export default function LiveTvPage(): React.ReactElement {
   }, [searchQuery]);
 
   // Fetch channels when playlist, search, group, or refreshKey changes
+  // Race condition fix: Only fetch with filters after initial playlist load
   useEffect(() => {
     if (!activePlaylist?.m3uUrl) {
       setChannels([]);
       setGroups([]);
       setTotal(0);
       setHasMore(false);
+      setIsPlaylistLoaded(false);
+      return;
+    }
+
+    // If playlist is not loaded yet and we have filters, skip this fetch
+    // The initial load (without filters) will set isPlaylistLoaded to true
+    const hasFilters = debouncedQuery || selectedGroup;
+    if (!isPlaylistLoaded && hasFilters) {
       return;
     }
 
@@ -268,6 +280,11 @@ export default function LiveTvPage(): React.ReactElement {
         setGroups(data.groups);
         setTotal(data.total);
         setHasMore(offset + data.channels.length < data.total);
+        
+        // Mark playlist as loaded after successful initial fetch
+        if (!isPlaylistLoaded) {
+          setIsPlaylistLoaded(true);
+        }
       } catch (err) {
         console.error('[Live TV] Error fetching channels:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch channels');
@@ -277,7 +294,7 @@ export default function LiveTvPage(): React.ReactElement {
     };
 
     void fetchChannels();
-  }, [activePlaylist, debouncedQuery, selectedGroup, offset, refreshKey]);
+  }, [activePlaylist, debouncedQuery, selectedGroup, offset, refreshKey, isPlaylistLoaded]);
 
   // Reset offset when group changes
   useEffect(() => {
@@ -320,6 +337,8 @@ export default function LiveTvPage(): React.ReactElement {
     setSearchQuery('');
     setDebouncedQuery('');
     setOffset(0);
+    // Reset playlist loaded state to prevent race condition
+    setIsPlaylistLoaded(false);
   }, []);
 
   const handleChannelClick = useCallback((channel: Channel): void => {
@@ -547,7 +566,7 @@ export default function LiveTvPage(): React.ReactElement {
           <div className="relative">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={20} />
             <input
-              type="search"
+              type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search channels... (e.g., 'espn hd' or 'hd espn')"

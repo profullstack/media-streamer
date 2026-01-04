@@ -51,15 +51,15 @@ const SORT_OPTIONS = [
   { value: 'size', label: 'Size' },
 ] as const;
 
-// Valid providers
+// Valid providers (alphabetically sorted by label, with "All Providers" first)
 const PROVIDERS = [
   { value: '', label: 'All Providers' },
-  { value: 'thepiratebay', label: 'The Pirate Bay' },
-  { value: 'limetorrents', label: 'LimeTorrents' },
   { value: '1337x', label: '1337x' },
-  { value: 'rarbg', label: 'RARBG' },
-  { value: 'nyaa', label: 'Nyaa' },
   { value: 'libgen', label: 'LibGen' },
+  { value: 'limetorrents', label: 'LimeTorrents' },
+  { value: 'nyaa', label: 'Nyaa' },
+  { value: 'rarbg', label: 'RARBG' },
+  { value: 'thepiratebay', label: 'The Pirate Bay' },
 ] as const;
 
 // Track which magnets have been added
