@@ -18,14 +18,9 @@ vi.mock('next/navigation', () => ({
   usePathname: vi.fn(() => '/reader/test-file-id'),
 }));
 
-// Mock the useAuth hook to prevent MainLayout from blocking children
-vi.mock('@/hooks/use-auth', () => ({
-  useAuth: vi.fn(() => ({
-    isLoggedIn: false,
-    isLoading: false,
-    user: null,
-    refresh: vi.fn(),
-  })),
+// Mock MainLayout to be a simple passthrough component
+vi.mock('@/components/layout', () => ({
+  MainLayout: ({ children }: { children: React.ReactNode }) => <div data-testid="main-layout">{children}</div>,
 }));
 
 // Mock the EbookReader component since it requires browser APIs
