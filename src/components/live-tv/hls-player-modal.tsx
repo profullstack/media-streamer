@@ -53,6 +53,8 @@ export interface HlsPlayerModalProps {
   channel: Channel;
   /** Playlist ID for favorites (optional) */
   playlistId?: string;
+  /** Whether channel is initially favorited */
+  initialFavorited?: boolean;
   /** Callback when favorite state changes */
   onFavoriteToggle?: (channelId: string, isFavorited: boolean) => void;
 }
@@ -65,6 +67,7 @@ export function HlsPlayerModal({
   onClose,
   channel,
   playlistId,
+  initialFavorited = false,
   onFavoriteToggle,
 }: HlsPlayerModalProps): React.ReactElement | null {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -441,6 +444,7 @@ export function HlsPlayerModal({
                 channelGroup={channel.group}
                 tvgId={channel.tvgId}
                 tvgName={channel.tvgName}
+                initialFavorited={initialFavorited}
                 size="md"
                 onToggle={onFavoriteToggle}
                 className="hover:bg-zinc-800"

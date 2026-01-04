@@ -912,6 +912,9 @@ export default function LiveTvPage(): React.ReactElement {
             onClose={handleClosePlayer}
             channel={selectedChannel}
             playlistId={activePlaylist?.id}
+            initialFavorited={favorites.some(
+              f => f.playlist_id === activePlaylist?.id && f.channel_id === selectedChannel.id
+            )}
             onFavoriteToggle={handleFavoriteToggle}
           /> : null}
 

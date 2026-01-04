@@ -120,6 +120,7 @@ describe('LibraryContent', () => {
           initialCollections={mockCollections}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -141,6 +142,7 @@ describe('LibraryContent', () => {
           initialCollections={mockCollections}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -165,6 +167,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -179,6 +182,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -193,6 +197,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -225,6 +230,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -256,6 +262,7 @@ describe('LibraryContent', () => {
           initialCollections={mockCollections}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -275,6 +282,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -306,6 +314,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -345,6 +354,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -371,6 +381,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -388,6 +399,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -404,6 +416,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -422,6 +435,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -451,6 +465,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 
@@ -478,6 +493,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
         />
       );
 

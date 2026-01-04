@@ -143,6 +143,11 @@ export function useIptvChannelFavorite(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Sync state when initialFavorited prop changes (e.g., when favorites are refetched)
+  useEffect(() => {
+    setIsFavorited(initialFavorited);
+  }, [initialFavorited]);
+
   const toggle = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     setError(null);

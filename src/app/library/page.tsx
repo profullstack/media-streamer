@@ -44,11 +44,12 @@ export default async function LibraryPage(): Promise<React.ReactElement> {
   const libraryRepo = getLibraryRepository();
   const favoritesService = getFavoritesService();
 
-  const [favorites, collections, history, torrentFavorites] = await Promise.all([
+  const [favorites, collections, history, torrentFavorites, iptvChannelFavorites] = await Promise.all([
     libraryRepo.getUserFavorites(user.id).catch(() => []),
     libraryRepo.getUserCollections(user.id).catch(() => []),
     libraryRepo.getCombinedHistory(user.id, 50).catch(() => []),
     favoritesService.getTorrentFavorites(user.id).catch(() => []),
+    favoritesService.getIptvChannelFavorites(user.id).catch(() => []),
   ]);
 
   return (
@@ -58,6 +59,7 @@ export default async function LibraryPage(): Promise<React.ReactElement> {
         initialCollections={collections}
         initialHistory={history}
         initialTorrentFavorites={torrentFavorites}
+        initialIptvChannelFavorites={iptvChannelFavorites}
       />
     </MainLayout>
   );

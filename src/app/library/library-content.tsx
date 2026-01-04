@@ -19,6 +19,7 @@ import {
   FolderIcon,
   PlayIcon,
   CloseIcon,
+  TvIcon,
 } from '@/components/ui/icons';
 import type {
   Favorite,
@@ -26,16 +27,17 @@ import type {
   HistoryItem,
   CollectionType,
 } from '@/lib/library';
-import type { TorrentFavoriteWithDetails } from '@/lib/favorites';
+import type { TorrentFavoriteWithDetails, IptvChannelFavoriteWithDetails } from '@/lib/favorites';
 
 type TabType = 'favorites' | 'collections' | 'history';
-type MediaType = 'all' | 'music' | 'video' | 'ebook';
+type MediaType = 'all' | 'music' | 'video' | 'ebook' | 'livetv';
 
 interface LibraryContentProps {
   initialFavorites: Favorite[];
   initialCollections: Collection[];
   initialHistory: HistoryItem[];
   initialTorrentFavorites: TorrentFavoriteWithDetails[];
+  initialIptvChannelFavorites: IptvChannelFavoriteWithDetails[];
 }
 
 function getMediaIcon(
@@ -83,6 +85,7 @@ export function LibraryContent({
   initialCollections,
   initialHistory,
   initialTorrentFavorites,
+  initialIptvChannelFavorites,
 }: LibraryContentProps): React.ReactElement {
   const [activeTab, setActiveTab] = useState<TabType>('favorites');
   const [mediaFilter, setMediaFilter] = useState<MediaType>('all');
@@ -90,6 +93,7 @@ export function LibraryContent({
   const [collections, setCollections] = useState<Collection[]>(initialCollections);
   const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
   const [torrentFavorites, setTorrentFavorites] = useState<TorrentFavoriteWithDetails[]>(initialTorrentFavorites);
+  const [iptvChannelFavorites, setIptvChannelFavorites] = useState<IptvChannelFavoriteWithDetails[]>(initialIptvChannelFavorites);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionType, setNewCollectionType] = useState<CollectionType>('mixed');
@@ -144,6 +148,24 @@ export function LibraryContent({
     }
   }, []);
 
+  const removeIptvChannelFavorite = useCallback(async (playlistId: string, channelId: string): Promise<void> => {
+    try {
+      const response = await fetch('/api/favorites/iptv-channels', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playlistId, channelId }),
+      });
+
+      if (response.ok) {
+        setIptvChannelFavorites((prev) => prev.filter((item) =>
+          !(item.playlist_id === playlistId && item.channel_id === channelId)
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to remove IPTV channel favorite:', error);
+    }
+  }, []);
+
   const createCollection = useCallback(async (): Promise<void> => {
     if (!newCollectionName.trim()) return;
 
@@ -183,7 +205,7 @@ export function LibraryContent({
   }, []);
 
   const tabs: { id: TabType; label: string; count: number }[] = [
-    { id: 'favorites', label: 'Favorites', count: favorites.length + torrentFavorites.length },
+    { id: 'favorites', label: 'Favorites', count: favorites.length + torrentFavorites.length + iptvChannelFavorites.length },
     { id: 'collections', label: 'Collections', count: collections.length },
     { id: 'history', label: 'History', count: history.length },
   ];
@@ -193,6 +215,7 @@ export function LibraryContent({
     { id: 'music', label: 'Music' },
     { id: 'video', label: 'Videos' },
     { id: 'ebook', label: 'Ebooks' },
+    { id: 'livetv', label: 'Live TV' },
   ];
 
   return (
@@ -251,7 +274,7 @@ export function LibraryContent({
       {activeTab === 'favorites' && (
         <div className="space-y-6">
           {/* Torrent Favorites Section */}
-          {torrentFavorites.length > 0 && (
+          {torrentFavorites.length > 0 && (mediaFilter === 'all' || mediaFilter === 'music' || mediaFilter === 'video' || mediaFilter === 'ebook') && (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
                 <HeartFilledIcon size={14} className="text-red-400" />
@@ -323,9 +346,9 @@ export function LibraryContent({
           )}
 
           {/* File Favorites Section */}
-          {filteredFavorites.length > 0 && (
+          {filteredFavorites.length > 0 && mediaFilter !== 'livetv' && (
             <div className="space-y-2">
-              {torrentFavorites.length > 0 && (
+              {(torrentFavorites.length > 0 || iptvChannelFavorites.length > 0) && (
                 <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider">
                   Favorite Files ({filteredFavorites.length})
                 </h3>
@@ -371,8 +394,74 @@ export function LibraryContent({
             </div>
           )}
 
+          {/* IPTV Channel Favorites Section */}
+          {iptvChannelFavorites.length > 0 && (mediaFilter === 'all' || mediaFilter === 'livetv') && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
+                <TvIcon size={14} className="text-accent-primary" />
+                Live TV Channels ({iptvChannelFavorites.length})
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {iptvChannelFavorites.map((item) => (
+                  <div
+                    key={`${item.playlist_id}-${item.channel_id}`}
+                    className="flex items-center gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                  >
+                    {/* Channel Logo */}
+                    {item.channel_logo ? (
+                      <div className="w-12 h-12 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.channel_logo}
+                          alt={item.channel_name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                        <TvIcon size={24} className="text-text-muted" />
+                      </div>
+                    )}
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-text-primary truncate">
+                        {item.channel_name}
+                      </h3>
+                      {item.channel_group ? <p className="text-sm text-text-secondary truncate">{item.channel_group}</p> : null}
+                      <p className="text-xs text-text-muted mt-1">
+                        Added {formatTimeAgo(item.created_at)}
+                      </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Link
+                        href="/live-tv"
+                        className="p-2 rounded-full bg-accent-primary text-white hover:bg-accent-primary/80"
+                        title="Watch on Live TV"
+                      >
+                        <PlayIcon size={16} />
+                      </Link>
+                      <button
+                        onClick={() => removeIptvChannelFavorite(item.playlist_id, item.channel_id)}
+                        className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
+                        title="Remove from favorites"
+                      >
+                        <CloseIcon size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Empty State */}
-          {torrentFavorites.length === 0 && filteredFavorites.length === 0 && (
+          {torrentFavorites.length === 0 && filteredFavorites.length === 0 && iptvChannelFavorites.length === 0 && (
             <div className="text-center py-12">
               <HeartIcon className="mx-auto text-text-muted mb-4" size={48} />
               <h3 className="text-lg font-medium text-text-primary mb-2">
