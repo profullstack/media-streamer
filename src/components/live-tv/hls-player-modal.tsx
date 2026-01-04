@@ -15,7 +15,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import Hls from 'hls.js';
 // mpegts.js is dynamically imported to avoid SSR issues (it accesses window at module load)
 import type { Channel } from '@/lib/iptv';
-import { CloseIcon, TvIcon } from '@/components/ui/icons';
+import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
 
 // Type for mpegts.js player - dynamically imported
 type MpegtsPlayer = {
@@ -65,6 +65,7 @@ export function HlsPlayerModal({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // The stream URL is already proxied by the channels API if needed
   // HTTP URLs are converted to /api/iptv-proxy?url=... by the server
@@ -123,6 +124,26 @@ export function HlsPlayerModal({
         console.warn('[HLS Player] Could not enter fullscreen:', err);
       });
     }
+  }, []);
+
+  // Handle refresh button click to reload the stream
+  const handleRefresh = useCallback((): void => {
+    console.log('[HLS Player] Refreshing stream...');
+    
+    // Destroy existing players
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (mpegtsRef.current) {
+      mpegtsRef.current.destroy();
+      mpegtsRef.current = null;
+    }
+    
+    // Reset state and trigger re-initialization
+    setIsLoading(true);
+    setError(null);
+    setRefreshKey((prev) => prev + 1);
   }, []);
 
   // Initialize video player
@@ -304,7 +325,7 @@ export function HlsPlayerModal({
         mpegtsRef.current = null;
       }
     };
-  }, [isOpen, streamUrl, isHlsStream, channel.url]);
+  }, [isOpen, streamUrl, isHlsStream, channel.url, refreshKey]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
@@ -389,6 +410,17 @@ export function HlsPlayerModal({
                 </span>
               )}
             </div>
+
+            {/* Refresh Button */}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+              aria-label="Refresh stream"
+              title="Refresh stream"
+            >
+              <RefreshIcon className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Close Button */}

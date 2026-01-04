@@ -631,4 +631,169 @@ describe('HlsPlayerModal', () => {
       });
     });
   });
+
+  describe('Refresh functionality', () => {
+    it('renders refresh button in the header', () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      const refreshButton = screen.getByRole('button', { name: /refresh/i });
+      expect(refreshButton).toBeInTheDocument();
+    });
+
+    it('refresh button is positioned to the right of the channel title', () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      const refreshButton = screen.getByRole('button', { name: /refresh/i });
+      const channelTitle = screen.getByText('ESPN HD');
+      
+      // Both should be in the same header container
+      const header = refreshButton.closest('.flex.items-center.justify-between');
+      expect(header).toContainElement(channelTitle);
+      expect(header).toContainElement(refreshButton);
+    });
+
+    it('reloads the stream when refresh button is clicked for HLS streams', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(Hls).toHaveBeenCalled();
+      });
+      
+      // Clear the mock to track new calls
+      vi.mocked(Hls).mockClear();
+      
+      const refreshButton = screen.getByRole('button', { name: /refresh/i });
+      fireEvent.click(refreshButton);
+      
+      // Should create a new HLS instance
+      await waitFor(() => {
+        expect(Hls).toHaveBeenCalled();
+      });
+    });
+
+    it('reloads the stream when refresh button is clicked for MPEG-TS streams', async () => {
+      const mpegtsChannel: Channel = {
+        id: 'mpeg-ts-channel',
+        name: 'MPEG-TS Channel',
+        url: 'https://example.com/stream.ts',
+        group: 'Test',
+      };
+
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mpegtsChannel}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+      });
+      
+      // Clear the mock to track new calls
+      mockMpegts.createPlayer.mockClear();
+      mockMpegtsPlayer.destroy.mockClear();
+      
+      const refreshButton = screen.getByRole('button', { name: /refresh/i });
+      fireEvent.click(refreshButton);
+      
+      // Should destroy old player and create a new one
+      await waitFor(() => {
+        expect(mockMpegtsPlayer.destroy).toHaveBeenCalled();
+        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+      });
+    });
+
+    it('shows loading state when refresh is clicked', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+      
+      // Wait for initial load to complete
+      await waitFor(() => {
+        expect(Hls).toHaveBeenCalled();
+      });
+      
+      // Simulate manifest parsed to clear loading state
+      const hlsInstance = vi.mocked(Hls).mock.results[0]?.value;
+      if (hlsInstance) {
+        const onCall = hlsInstance.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'hlsManifestParsed'
+        );
+        if (onCall) {
+          onCall[1]();
+        }
+      }
+      
+      // Click refresh
+      const refreshButton = screen.getByRole('button', { name: /refresh/i });
+      fireEvent.click(refreshButton);
+      
+      // Should show loading indicator again
+      expect(screen.getByTestId('loading-indicator')).toBeInTheDocument();
+    });
+
+    it('clears error state when refresh is clicked', async () => {
+      // Create a channel that will trigger an error
+      const channelWithError: Channel = {
+        id: 'error-channel',
+        name: 'Error Channel',
+        url: 'https://example.com/error.m3u8',
+        group: 'Test',
+      };
+
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={channelWithError}
+        />
+      );
+      
+      await waitFor(() => {
+        expect(Hls).toHaveBeenCalled();
+      });
+      
+      // Simulate an error
+      const hlsInstance = vi.mocked(Hls).mock.results[0]?.value;
+      if (hlsInstance) {
+        const onCall = hlsInstance.on.mock.calls.find(
+          (call: unknown[]) => call[0] === 'hlsError'
+        );
+        if (onCall) {
+          onCall[1]('hlsError', { fatal: true, type: 'otherError', details: 'test' });
+        }
+      }
+      
+      // Click refresh - should clear error and show loading
+      const refreshButton = screen.getByRole('button', { name: /refresh/i });
+      fireEvent.click(refreshButton);
+      
+      // Should show loading indicator (error cleared)
+      expect(screen.getByTestId('loading-indicator')).toBeInTheDocument();
+    });
+  });
 });
