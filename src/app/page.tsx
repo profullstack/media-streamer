@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { QuickActions } from '@/components/home';
+import { NewsSection } from '@/components/news';
 
 /**
  * Check if user has an active paid subscription (premium or family)
@@ -227,6 +228,9 @@ export default async function HomePage(): Promise<React.ReactElement> {
             </li>
           </ol>
         </section>
+
+        {/* News Section */}
+        <NewsSection searchTerm="cryptocurrency" limit={6} />
       </div>
     </MainLayout>
   );
