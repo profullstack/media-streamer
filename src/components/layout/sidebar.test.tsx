@@ -272,25 +272,26 @@ describe('Sidebar Navigation', () => {
   });
 
   describe('Navigation Item Count', () => {
-    it('should show correct nav items when logged out (Home, Search, Trending, Torrents, Find Torrents, Podcasts, Live TV, Watch Party, Pricing + 4 external)', () => {
+    it('should show correct nav items when logged out (Home, Search, Trending, Torrents, Find Torrents, News, Podcasts, Live TV, Watch Party, Pricing + 4 external)', () => {
       render(<Sidebar isLoggedIn={false} />);
 
       const links = screen.getAllByRole('link');
-      // Logo link + 8 main nav items + 1 account item (Pricing) + 3 external sites (mediaInfoSites only renders when logged in, or torrentIndexSites has 3)
+      // Logo link + 9 main nav items + 1 account item (Pricing) + 3 external sites + 1 IMDB
+      // Home, Search, Trending, Torrents, Find Torrents, News, Podcasts, Live TV, Watch Party = 9 main (News visible but redirects to login)
       // Actually count the rendered links
-      expect(links.length).toBe(13);
+      expect(links.length).toBe(14);
     });
 
     it('should show correct nav items when logged in (adds My Library and Settings)', () => {
       render(<Sidebar isLoggedIn={true} />);
 
       const links = screen.getAllByRole('link');
-      // Logo link + 9 main nav items + 2 account items + 4 external sites
-      // Home, Search, Trending, My Library, Torrents, Find Torrents, Podcasts, Live TV, Watch Party = 9 main
+      // Logo link + 10 main nav items + 2 account items + 4 external sites
+      // Home, Search, Trending, My Library, Torrents, Find Torrents, News, Podcasts, Live TV, Watch Party = 10 main
       // Pricing, Settings = 2 account
       // Logo = 1
       // External: The Pirate Bay, LimeTorrents, 1337x, IMDB = 4
-      expect(links.length).toBe(16);
+      expect(links.length).toBe(17);
     });
   });
 

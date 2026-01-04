@@ -7,7 +7,8 @@
  * and add them to the catalog via magnet links.
  */
 
-import React, { useState, useCallback, FormEvent } from 'react';
+import React, { useState, useCallback, useEffect, FormEvent, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import {
   SearchIcon,
@@ -65,8 +66,11 @@ const PROVIDERS = [
 // Track which magnets have been added
 type AddedMagnets = Record<string, boolean>;
 
-export default function FindTorrentsPage(): React.ReactElement {
-  const [query, setQuery] = useState('');
+function FindTorrentsPageInner(): React.ReactElement {
+  const searchParams = useSearchParams();
+  const queryParam = searchParams.get('q') ?? '';
+
+  const [query, setQuery] = useState(queryParam);
   const [sort, setSort] = useState<string>('date');
   const [provider, setProvider] = useState<string>('');
   const [isSearching, setIsSearching] = useState(false);
@@ -75,11 +79,68 @@ export default function FindTorrentsPage(): React.ReactElement {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [addedMagnets, setAddedMagnets] = useState<AddedMagnets>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
+  const [initialSearchDone, setInitialSearchDone] = useState(false);
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMagnet, setSelectedMagnet] = useState<string | undefined>(undefined);
   const [selectedTorrentName, setSelectedTorrentName] = useState<string>('');
+
+  // Auto-search when query param is present
+  useEffect(() => {
+    if (queryParam && queryParam.trim().length >= 3 && !initialSearchDone) {
+      setInitialSearchDone(true);
+      // Trigger search after component mounts
+      const doInitialSearch = async () => {
+        setIsSearching(true);
+        setSearchResults(null);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 130000);
+
+        try {
+          const params = new URLSearchParams({
+            q: queryParam.trim(),
+            sort,
+          });
+
+          if (provider) {
+            params.set('provider', provider);
+          }
+
+          const response = await fetch(`/api/torrent-search?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            setError(data.error || 'Search failed');
+            return;
+          }
+
+          setSearchResults(data as SearchResponse);
+        } catch (err) {
+          clearTimeout(timeoutId);
+          if (err instanceof Error && err.name === 'AbortError') {
+            setError('Search timed out. Please try again with a more specific query.');
+          } else {
+            setError('Search failed. Please try again.');
+          }
+        } finally {
+          setIsSearching(false);
+        }
+      };
+
+      doInitialSearch();
+    }
+  }, [queryParam, initialSearchDone, sort, provider]);
 
   const handleSearch = useCallback(async (e?: FormEvent) => {
     if (e) {
@@ -408,5 +469,21 @@ export default function FindTorrentsPage(): React.ReactElement {
         />
       </div>
     </MainLayout>
+  );
+}
+
+export default function FindTorrentsPage(): React.ReactElement {
+  return (
+    <Suspense
+      fallback={
+        <MainLayout>
+          <div className="flex items-center justify-center py-12">
+            <LoadingSpinner size={32} />
+          </div>
+        </MainLayout>
+      }
+    >
+      <FindTorrentsPageInner />
+    </Suspense>
   );
 }

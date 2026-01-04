@@ -22,7 +22,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, className }: MainLayoutProps): React.ReactElement {
   const router = useRouter();
-  const { isLoggedIn, isLoading, user, refresh } = useAuth();
+  const { isLoggedIn, isLoading, isPremium, user, refresh } = useAuth();
 
   const handleLogout = useCallback(async (): Promise<void> => {
     try {
@@ -43,7 +43,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <Sidebar isLoggedIn={isLoggedIn} />
+      <Sidebar isLoggedIn={isLoggedIn} isPremium={isPremium} />
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col md:ml-64">

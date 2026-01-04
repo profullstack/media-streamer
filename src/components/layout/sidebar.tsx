@@ -28,6 +28,7 @@ import {
   TrendingIcon,
   PodcastIcon,
   SearchPlusIcon,
+  NewsIcon,
 } from '@/components/ui/icons';
 
 interface NavItem {
@@ -36,6 +37,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string; size?: number }>;
   badge?: string;
   requiresAuth?: boolean;
+  requiresPaid?: boolean;
 }
 
 const mainNavItems: NavItem[] = [
@@ -45,6 +47,7 @@ const mainNavItems: NavItem[] = [
   { href: '/library', label: 'My Library', icon: LibraryIcon, requiresAuth: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/find-torrents', label: 'Find Torrents', icon: SearchPlusIcon },
+  { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
   { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
@@ -73,9 +76,10 @@ const mediaInfoSites: ExternalSite[] = [
 interface SidebarProps {
   className?: string;
   isLoggedIn?: boolean;
+  isPremium?: boolean;
 }
 
-export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.ReactElement {
+export function Sidebar({ className, isLoggedIn = false, isPremium = false }: SidebarProps): React.ReactElement {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -87,7 +91,7 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
     setIsMobileOpen(false);
   };
 
-  // Filter nav items based on auth state
+  // Filter nav items based on auth state only (paid items shown to all, redirect handled in NavSection)
   const filteredMainNavItems = mainNavItems.filter(
     (item) => !item.requiresAuth || isLoggedIn
   );
@@ -143,7 +147,7 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
           <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
             {/* Main Navigation */}
             <div>
-              <NavSection items={filteredMainNavItems} pathname={pathname} onItemClick={closeMobile} />
+              <NavSection items={filteredMainNavItems} pathname={pathname} onItemClick={closeMobile} isPremium={isPremium} />
             </div>
 
             {/* Account */}
@@ -152,7 +156,7 @@ export function Sidebar({ className, isLoggedIn = false }: SidebarProps): React.
                 <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
                   Account
                 </h3>
-                <NavSection items={filteredAccountNavItems} pathname={pathname} onItemClick={closeMobile} />
+                <NavSection items={filteredAccountNavItems} pathname={pathname} onItemClick={closeMobile} isPremium={isPremium} />
               </div>
             )}
 
@@ -210,19 +214,22 @@ interface NavSectionProps {
   items: NavItem[];
   pathname: string;
   onItemClick: () => void;
+  isPremium: boolean;
 }
 
-function NavSection({ items, pathname, onItemClick }: NavSectionProps): React.ReactElement {
+function NavSection({ items, pathname, onItemClick, isPremium }: NavSectionProps): React.ReactElement {
   return (
     <ul className="space-y-1">
       {items.map((item) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
+        // Redirect to login if paid feature and user is not premium
+        const href = item.requiresPaid && !isPremium ? '/login' : item.href;
 
         return (
           <li key={item.href}>
             <Link
-              href={item.href}
+              href={href}
               onClick={onItemClick}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
