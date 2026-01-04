@@ -78,3 +78,17 @@ export interface WebhookPayload {
   created_at: string;
   business_id: string;
 }
+
+export interface SupportedCoin {
+  symbol: string;
+  name: string;
+  is_active: boolean;
+  has_wallet: boolean;
+}
+
+export interface SupportedCoinsResponse {
+  success: boolean;
+  coins: SupportedCoin[];
+  business_id: string;
+  total: number;
+}

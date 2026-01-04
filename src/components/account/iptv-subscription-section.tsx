@@ -2,12 +2,13 @@
 
 /**
  * IPTV Subscription Section Component
- * 
+ *
  * Manages IPTV subscription display and purchase/extension in account settings.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { useSupportedCoins } from '@/hooks/use-supported-coins';
 
 /**
  * IPTV Package pricing info
@@ -56,20 +57,21 @@ interface PaymentResponse {
 }
 
 export function IPTVSubscriptionSection(): React.ReactElement {
+  const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [subscriptionData, setSubscriptionData] = useState<IPTVSubscriptionResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<string>('1_month');
-  const [selectedCrypto, setSelectedCrypto] = useState<string>('ETH');
+  const [selectedCrypto, setSelectedCrypto] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
 
-  const cryptoOptions = [
-    { value: 'BTC', label: 'Bitcoin (BTC)' },
-    { value: 'ETH', label: 'Ethereum (ETH)' },
-    { value: 'USDT', label: 'Tether (USDT)' },
-    { value: 'USDC', label: 'USD Coin (USDC)' },
-  ];
+  // Set default selected crypto when coins are loaded
+  useEffect(() => {
+    if (coins.length > 0 && !selectedCrypto) {
+      setSelectedCrypto(coins[0].symbol);
+    }
+  }, [coins, selectedCrypto]);
 
   // Fetch IPTV subscription data
   const fetchSubscription = useCallback(async () => {
@@ -309,26 +311,37 @@ export function IPTVSubscriptionSection(): React.ReactElement {
           <label className="block text-sm font-medium text-text-primary mb-2">
             Payment Method
           </label>
-          <select
-            value={selectedCrypto}
-            onChange={(e) => setSelectedCrypto(e.target.value)}
-            className={cn(
-              'w-full max-w-xs rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
-              'text-text-primary focus:border-accent-primary focus:outline-none'
-            )}
-          >
-            {cryptoOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          {isLoadingCoins ? (
+            <div className="flex items-center gap-2 py-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+              <span className="text-sm text-text-muted">Loading payment methods...</span>
+            </div>
+          ) : coinsError ? (
+            <p className="text-sm text-status-error py-2">{coinsError}</p>
+          ) : coins.length === 0 ? (
+            <p className="text-sm text-text-muted py-2">No payment methods available</p>
+          ) : (
+            <select
+              value={selectedCrypto}
+              onChange={(e) => setSelectedCrypto(e.target.value)}
+              className={cn(
+                'w-full max-w-xs rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
+                'text-text-primary focus:border-accent-primary focus:outline-none'
+              )}
+            >
+              {coins.map((coin) => (
+                <option key={coin.symbol} value={coin.symbol}>
+                  {coin.name} ({coin.symbol})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Purchase/Extend Button */}
         <button
           onClick={hasSubscription ? handleExtend : handlePurchase}
-          disabled={isProcessing}
+          disabled={isProcessing || !selectedCrypto || coins.length === 0}
           className={cn(
             'rounded-lg bg-accent-primary px-6 py-3',
             'text-sm font-medium text-white',
@@ -338,9 +351,11 @@ export function IPTVSubscriptionSection(): React.ReactElement {
         >
           {isProcessing
             ? 'Processing...'
-            : hasSubscription
-              ? 'Extend Subscription'
-              : 'Purchase Subscription'
+            : !selectedCrypto
+              ? 'Select payment method'
+              : hasSubscription
+                ? 'Extend Subscription'
+                : 'Purchase Subscription'
           }
         </button>
       </div>

@@ -2,15 +2,16 @@
 
 /**
  * Pricing Page
- * 
+ *
  * Subscription plans with crypto payment support.
  * No free tier - all users start with a 3-day trial.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
+import { useSupportedCoins } from '@/hooks/use-supported-coins';
 
 interface PlanFeature {
   text: string;
@@ -29,7 +30,21 @@ interface Plan {
   isTrial?: boolean;
 }
 
-type CryptoType = 'BTC' | 'ETH' | 'LTC' | 'USDT' | 'USDC';
+/**
+ * Symbol mapping for crypto display
+ */
+const cryptoSymbols: Record<string, string> = {
+  BTC: '₿',
+  ETH: 'Ξ',
+  LTC: 'Ł',
+  SOL: '◎',
+  POL: '⬡',
+  USDT: '₮',
+  USDC: '$',
+  USDC_ETH: '$',
+  USDC_POL: '$',
+  USDC_SOL: '$',
+};
 
 const plans: Plan[] = [
   {
@@ -87,20 +102,20 @@ const plans: Plan[] = [
   },
 ];
 
-const cryptoOptions: { type: CryptoType; symbol: string; name: string }[] = [
-  { type: 'BTC', symbol: '₿', name: 'Bitcoin' },
-  { type: 'ETH', symbol: 'Ξ', name: 'Ethereum' },
-  { type: 'LTC', symbol: 'Ł', name: 'Litecoin' },
-  { type: 'USDT', symbol: '₮', name: 'USDT' },
-  { type: 'USDC', symbol: '$', name: 'USDC' },
-];
-
 export default function PricingPage(): React.ReactElement {
   const router = useRouter();
+  const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [selectedCrypto, setSelectedCrypto] = useState<CryptoType>('BTC');
+  const [selectedCrypto, setSelectedCrypto] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Set default selected crypto when coins are loaded
+  useEffect(() => {
+    if (coins.length > 0 && !selectedCrypto) {
+      setSelectedCrypto(coins[0].symbol);
+    }
+  }, [coins, selectedCrypto]);
 
   const handlePlanSelect = (plan: Plan): void => {
     if (plan.isTrial) {
@@ -245,14 +260,23 @@ export default function PricingPage(): React.ReactElement {
           <h3 className="text-lg font-semibold text-text-primary mb-4">
             Pay with Crypto
           </h3>
-          <div className="flex items-center justify-center gap-6 flex-wrap">
-            {cryptoOptions.map((crypto) => (
-              <div key={crypto.type} className="flex items-center gap-2 text-text-secondary">
-                <span className="text-2xl">{crypto.symbol}</span>
-                <span>{crypto.name}</span>
-              </div>
-            ))}
-          </div>
+          {isLoadingCoins ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+              <span className="text-sm text-text-muted">Loading payment methods...</span>
+            </div>
+          ) : coinsError ? (
+            <p className="text-sm text-status-error">{coinsError}</p>
+          ) : (
+            <div className="flex items-center justify-center gap-6 flex-wrap">
+              {coins.map((coin) => (
+                <div key={coin.symbol} className="flex items-center gap-2 text-text-secondary">
+                  <span className="text-2xl">{cryptoSymbols[coin.symbol] || '●'}</span>
+                  <span>{coin.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <p className="text-sm text-text-muted mt-4">
             Powered by CoinPayPortal • Secure • Private • No credit card required
           </p>
@@ -286,7 +310,7 @@ export default function PricingPage(): React.ReactElement {
                 What payment methods do you accept?
               </h4>
               <p className="text-sm text-text-secondary">
-                We accept Bitcoin, Ethereum, Litecoin, USDT, and USDC through our secure payment partner CoinPayPortal.
+                We accept {coins.length > 0 ? coins.map(c => c.name).join(', ') : 'various cryptocurrencies'} through our secure payment partner CoinPayPortal.
               </p>
             </div>
             <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4">
@@ -324,23 +348,37 @@ export default function PricingPage(): React.ReactElement {
               <label className="block text-sm font-medium text-text-primary mb-2">
                 Select Payment Method
               </label>
-              <div className="grid grid-cols-5 gap-2">
-                {cryptoOptions.map((crypto) => (
-                  <button
-                    key={crypto.type}
-                    onClick={() => setSelectedCrypto(crypto.type)}
-                    className={cn(
-                      'flex flex-col items-center p-3 rounded-lg border transition-colors',
-                      selectedCrypto === crypto.type
-                        ? 'border-accent-primary bg-accent-primary/10'
-                        : 'border-border-subtle hover:border-border-default'
-                    )}
-                  >
-                    <span className="text-xl">{crypto.symbol}</span>
-                    <span className="text-xs text-text-muted mt-1">{crypto.type}</span>
-                  </button>
-                ))}
-              </div>
+              {isLoadingCoins ? (
+                <div className="flex items-center gap-2 py-4">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                  <span className="text-sm text-text-muted">Loading payment methods...</span>
+                </div>
+              ) : coinsError ? (
+                <p className="text-sm text-status-error py-4">{coinsError}</p>
+              ) : coins.length === 0 ? (
+                <p className="text-sm text-text-muted py-4">No payment methods available</p>
+              ) : (
+                <div className={cn(
+                  'grid gap-2',
+                  coins.length <= 3 ? 'grid-cols-3' : coins.length <= 5 ? 'grid-cols-5' : 'grid-cols-4'
+                )}>
+                  {coins.map((coin) => (
+                    <button
+                      key={coin.symbol}
+                      onClick={() => setSelectedCrypto(coin.symbol)}
+                      className={cn(
+                        'flex flex-col items-center p-3 rounded-lg border transition-colors',
+                        selectedCrypto === coin.symbol
+                          ? 'border-accent-primary bg-accent-primary/10'
+                          : 'border-border-subtle hover:border-border-default'
+                      )}
+                    >
+                      <span className="text-xl">{cryptoSymbols[coin.symbol] || '●'}</span>
+                      <span className="text-xs text-text-muted mt-1">{coin.symbol}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error ? <div className="mb-4 p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm">
@@ -349,14 +387,14 @@ export default function PricingPage(): React.ReactElement {
 
             <button
               onClick={handlePayment}
-              disabled={isLoading}
+              disabled={isLoading || !selectedCrypto || coins.length === 0}
               className={cn(
                 'w-full rounded-lg py-3 font-medium transition-colors',
                 'bg-accent-primary text-white hover:bg-accent-primary/90',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
             >
-              {isLoading ? 'Processing...' : `Pay with ${selectedCrypto}`}
+              {isLoading ? 'Processing...' : selectedCrypto ? `Pay with ${selectedCrypto}` : 'Select payment method'}
             </button>
 
             <p className="text-xs text-text-muted text-center mt-4">

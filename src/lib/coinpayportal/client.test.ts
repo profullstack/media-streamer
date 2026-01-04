@@ -311,6 +311,129 @@ describe('CoinPayPortalClient', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('getSupportedCoins', () => {
+    it('should get supported coins successfully', async () => {
+      const mockResponse = {
+        success: true,
+        coins: [
+          {
+            symbol: 'BTC',
+            name: 'Bitcoin',
+            is_active: true,
+            has_wallet: true,
+          },
+          {
+            symbol: 'ETH',
+            name: 'Ethereum',
+            is_active: true,
+            has_wallet: true,
+          },
+          {
+            symbol: 'SOL',
+            name: 'Solana',
+            is_active: false,
+            has_wallet: true,
+          },
+        ],
+        business_id: 'test-business-id',
+        total: 3,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await client.getSupportedCoins();
+
+      expect(result.success).toBe(true);
+      expect(result.coins).toHaveLength(3);
+      expect(result.coins[0].symbol).toBe('BTC');
+      expect(result.coins[0].is_active).toBe(true);
+      expect(result.total).toBe(3);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coinpayportal.com/api/supported-coins',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer cp_test_key',
+          }),
+        })
+      );
+    });
+
+    it('should filter active coins only when activeOnly is true', async () => {
+      const mockResponse = {
+        success: true,
+        coins: [
+          {
+            symbol: 'BTC',
+            name: 'Bitcoin',
+            is_active: true,
+            has_wallet: true,
+          },
+        ],
+        business_id: 'test-business-id',
+        total: 1,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await client.getSupportedCoins({ activeOnly: true });
+
+      expect(result.success).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coinpayportal.com/api/supported-coins?active_only=true',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer cp_test_key',
+          }),
+        })
+      );
+    });
+
+    it('should throw error on API failure', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        json: () => Promise.resolve({ error: 'Invalid API key' }),
+      });
+
+      await expect(client.getSupportedCoins()).rejects.toThrow(
+        'CoinPayPortal API error: 401 - Invalid API key'
+      );
+    });
+
+    it('should handle empty coins list', async () => {
+      const mockResponse = {
+        success: true,
+        coins: [],
+        business_id: 'test-business-id',
+        total: 0,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await client.getSupportedCoins();
+
+      expect(result.success).toBe(true);
+      expect(result.coins).toHaveLength(0);
+      expect(result.total).toBe(0);
+    });
+
+    it('should handle network errors', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(client.getSupportedCoins()).rejects.toThrow('Network error');
+    });
+  });
 });
 
 describe('getCoinPayPortalClient', () => {

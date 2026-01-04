@@ -10,6 +10,7 @@ import type {
   CryptoBlockchain,
   PaymentResponse,
   PaymentStatusResponse,
+  SupportedCoinsResponse,
   WebhookPayload,
 } from './types';
 
@@ -185,6 +186,20 @@ export class CoinPayPortalClient {
       console.error('Failed to parse webhook payload:', error);
       return null;
     }
+  }
+
+  /**
+   * Get supported cryptocurrencies for the business
+   * @param options.activeOnly - If true, only return active wallets
+   */
+  async getSupportedCoins(options?: { activeOnly?: boolean }): Promise<SupportedCoinsResponse> {
+    const params = new URLSearchParams();
+    if (options?.activeOnly) {
+      params.set('active_only', 'true');
+    }
+    const queryString = params.toString();
+    const endpoint = `/supported-coins${queryString ? `?${queryString}` : ''}`;
+    return this.request<SupportedCoinsResponse>(endpoint);
   }
 }
 
