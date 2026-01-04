@@ -10,18 +10,12 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'node', // Use node for .ts tests - much faster than jsdom
+    environment: 'node', // Use node for .ts tests - much faster than happy-dom
     environmentMatchGlobs: [
-      // Use jsdom for React component tests and hook tests (better React 19 support in CI)
-      ['**/*.test.tsx', 'jsdom'],
-      ['**/hooks/*.test.ts', 'jsdom'],
+      // Use happy-dom for React component tests and hook tests
+      ['**/*.test.tsx', 'happy-dom'],
+      ['**/hooks/*.test.ts', 'happy-dom'],
     ],
-    environmentOptions: {
-      jsdom: {
-        resources: 'usable',
-        url: 'http://localhost:3000',
-      },
-    },
     watch: false,
     testTimeout: 5000, // 5 second timeout per test
     hookTimeout: 5000, // 5 second timeout for hooks
