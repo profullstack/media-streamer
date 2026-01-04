@@ -12,7 +12,7 @@ export default defineConfig({
     globals: true,
     environment: 'node', // Use node for .ts tests - much faster than jsdom
     environmentMatchGlobs: [
-      // Use jsdom for React component tests and hook tests (no security vulnerabilities, unlike happy-dom <20)
+      // Use jsdom for React component tests and hook tests
       ['**/*.test.tsx', 'jsdom'],
       ['**/hooks/*.test.ts', 'jsdom'],
     ],

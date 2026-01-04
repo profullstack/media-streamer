@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  happy-dom: '>=20.0.0'
-
 importers:
 
   .:
@@ -4483,7 +4480,7 @@ packages:
       '@types/node': ^18.0.0 || >=20.0.0
       '@vitest/browser': 2.1.9
       '@vitest/ui': 2.1.9
-      happy-dom: '>=20.0.0'
+      happy-dom: '*'
       jsdom: '*'
     peerDependenciesMeta:
       '@edge-runtime/vm':
