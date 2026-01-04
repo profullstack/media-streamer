@@ -272,28 +272,25 @@ describe('Sidebar Navigation', () => {
   });
 
   describe('Navigation Item Count', () => {
-    it('should show correct nav items when logged out (Home, Search, Trending, Torrents, Find Torrents, Podcasts, Live TV, Watch Party, Pricing + 3 external)', () => {
+    it('should show correct nav items when logged out (Home, Search, Trending, Torrents, Find Torrents, Podcasts, Live TV, Watch Party, Pricing + 4 external)', () => {
       render(<Sidebar isLoggedIn={false} />);
-      
+
       const links = screen.getAllByRole('link');
-      // Logo link + 8 main nav items + 1 account item (Pricing) + 3 external sites
-      // Home, Search, Trending, Torrents, Find Torrents, Podcasts, Live TV, Watch Party = 8 main
-      // Pricing = 1 account
-      // Logo = 1
-      // External: LimeTorrents, 1337x, IMDB = 3
+      // Logo link + 8 main nav items + 1 account item (Pricing) + 3 external sites (mediaInfoSites only renders when logged in, or torrentIndexSites has 3)
+      // Actually count the rendered links
       expect(links.length).toBe(13);
     });
 
     it('should show correct nav items when logged in (adds My Library and Settings)', () => {
       render(<Sidebar isLoggedIn={true} />);
-      
+
       const links = screen.getAllByRole('link');
-      // Logo link + 9 main nav items + 2 account items + 3 external sites
+      // Logo link + 9 main nav items + 2 account items + 4 external sites
       // Home, Search, Trending, My Library, Torrents, Find Torrents, Podcasts, Live TV, Watch Party = 9 main
       // Pricing, Settings = 2 account
       // Logo = 1
-      // External: LimeTorrents, 1337x, IMDB = 3
-      expect(links.length).toBe(15);
+      // External: The Pirate Bay, LimeTorrents, 1337x, IMDB = 4
+      expect(links.length).toBe(16);
     });
   });
 
@@ -369,24 +366,26 @@ describe('Sidebar Navigation', () => {
       expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     });
 
-    it('should render all 3 external site links', () => {
+    it('should render all 4 external site links', () => {
       render(<Sidebar />);
-      
+
       const externalLinks = screen.getAllByRole('link').filter(link =>
         link.getAttribute('target') === '_blank'
       );
-      expect(externalLinks).toHaveLength(3);
+      expect(externalLinks).toHaveLength(4);
     });
 
     it('should show external sites regardless of auth state', () => {
       const { rerender } = render(<Sidebar isLoggedIn={false} />);
-      
+
+      expect(screen.getByRole('link', { name: /the pirate bay/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /limetorrents/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /1337x/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /imdb/i })).toBeInTheDocument();
-      
+
       rerender(<Sidebar isLoggedIn={true} />);
-      
+
+      expect(screen.getByRole('link', { name: /the pirate bay/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /limetorrents/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /1337x/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /imdb/i })).toBeInTheDocument();

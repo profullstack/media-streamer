@@ -19,7 +19,8 @@
       "Bash(pnpm test:*)",
       "Bash(node --version:*)",
       "Bash(grep:*)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(node -e:*)"
     ]
   }
 }
