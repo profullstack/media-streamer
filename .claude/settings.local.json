@@ -17,7 +17,8 @@
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
       "Bash(pnpm test:*)",
-      "Bash(node --version:*)"
+      "Bash(node --version:*)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -1,12 +1,18 @@
 /**
  * AddPlaylistModal Component Tests
- * 
+ *
  * Tests for the IPTV playlist modal with name, M3U URL, and EPG URL fields.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// Mock useTvDetection hook to avoid issues in test environment
+vi.mock('@/hooks/use-tv-detection', () => ({
+  useTvDetection: () => ({ isTv: false, isLoading: false, browserType: null }),
+}));
+
 import { AddPlaylistModal } from './add-playlist-modal';
 
 // Mock fetch globally

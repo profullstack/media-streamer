@@ -7,6 +7,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// Mock useTvDetection hook to avoid issues in test environment
+vi.mock('@/hooks/use-tv-detection', () => ({
+  useTvDetection: () => ({ isTv: false, isLoading: false, browserType: null }),
+}));
+
 import { LibraryContent } from './library-content';
 import type { Favorite, Collection, HistoryItem } from '@/lib/library';
 
