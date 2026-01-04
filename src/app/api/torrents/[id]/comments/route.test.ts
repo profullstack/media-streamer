@@ -10,11 +10,13 @@ import { GET, POST } from './route';
 
 // Mock the comments service
 vi.mock('@/lib/comments', () => ({
-  getCommentsService: vi.fn(() => ({
-    getCommentsWithUserVotes: vi.fn(),
-    createComment: vi.fn(),
-    getCommentCount: vi.fn(),
-  })),
+  getCommentsService: vi.fn(function() {
+    return {
+      getCommentsWithUserVotes: vi.fn(),
+      createComment: vi.fn(),
+      getCommentCount: vi.fn(),
+    };
+  }),
 }));
 
 // Mock the auth helper

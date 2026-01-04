@@ -11,18 +11,22 @@ import userEvent from '@testing-library/user-event';
 
 // Mock the hooks
 vi.mock('@/hooks/use-auth', () => ({
-  useAuth: vi.fn(() => ({
-    isLoggedIn: false,
-    isLoading: false,
-  })),
+  useAuth: vi.fn(function() {
+    return {
+      isLoggedIn: false,
+      isLoading: false,
+    };
+  }),
 }));
 
 vi.mock('@/hooks/use-favorites', () => ({
-  useIptvChannelFavorites: vi.fn(() => ({
-    favorites: [],
-    refetch: vi.fn(),
-    isLoading: false,
-  })),
+  useIptvChannelFavorites: vi.fn(function() {
+    return {
+      favorites: [],
+      refetch: vi.fn(),
+      isLoading: false,
+    };
+  }),
 }));
 
 // Mock MainLayout

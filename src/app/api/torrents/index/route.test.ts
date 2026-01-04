@@ -3,19 +3,23 @@ import { NextRequest } from 'next/server';
 
 // Mock logger
 vi.mock('@/lib/logger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    child: vi.fn(() => ({
+  createLogger: vi.fn(function() {
+    return {
       info: vi.fn(),
       debug: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-    })),
-  })),
-  generateRequestId: vi.fn(() => 'test-request-id'),
+      child: vi.fn(function() {
+        return {
+          info: vi.fn(),
+          debug: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        };
+      }),
+    };
+  }),
+  generateRequestId: vi.fn(function() { return 'test-request-id'; }),
 }));
 
 // Mock magnet utilities
@@ -56,10 +60,12 @@ const mockFetchMetadata = vi.fn();
 const mockDestroy = vi.fn();
 
 vi.mock('@/lib/torrent', () => ({
-  TorrentService: vi.fn(() => ({
-    fetchMetadata: mockFetchMetadata,
-    destroy: mockDestroy,
-  })),
+  TorrentService: vi.fn(function() {
+    return {
+      fetchMetadata: mockFetchMetadata,
+      destroy: mockDestroy,
+    };
+  }),
 }));
 
 import { POST } from './route';

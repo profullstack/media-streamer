@@ -10,20 +10,24 @@ import { GET, POST, DELETE } from './route';
 
 // Mock the comments service
 vi.mock('@/lib/comments', () => ({
-  getCommentsService: vi.fn(() => ({
-    getTorrentVoteCounts: vi.fn(),
-    getUserTorrentVote: vi.fn(),
-    voteOnTorrent: vi.fn(),
-    removeTorrentVote: vi.fn(),
-  })),
+  getCommentsService: vi.fn(function() {
+    return {
+      getTorrentVoteCounts: vi.fn(),
+      getUserTorrentVote: vi.fn(),
+      voteOnTorrent: vi.fn(),
+      removeTorrentVote: vi.fn(),
+    };
+  }),
 }));
 
 // Mock the favorites service
 vi.mock('@/lib/favorites', () => ({
-  getFavoritesService: vi.fn(() => ({
-    getTorrentFavoritesCount: vi.fn(),
-    isTorrentFavorite: vi.fn(),
-  })),
+  getFavoritesService: vi.fn(function() {
+    return {
+      getTorrentFavoritesCount: vi.fn(),
+      isTorrentFavorite: vi.fn(),
+    };
+  }),
 }));
 
 // Mock the auth helper

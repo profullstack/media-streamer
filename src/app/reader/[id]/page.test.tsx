@@ -17,12 +17,14 @@ import ReaderPage from './page';
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
-  useParams: vi.fn(() => ({ id: 'test-file-id' })),
-  useRouter: vi.fn(() => ({
-    push: vi.fn(),
-    back: vi.fn(),
-  })),
-  usePathname: vi.fn(() => '/reader/test-file-id'),
+  useParams: vi.fn(function() { return { id: 'test-file-id' }; }),
+  useRouter: vi.fn(function() {
+    return {
+      push: vi.fn(),
+      back: vi.fn(),
+    };
+  }),
+  usePathname: vi.fn(function() { return '/reader/test-file-id'; }),
 }));
 
 // Mock MainLayout to be a simple passthrough component

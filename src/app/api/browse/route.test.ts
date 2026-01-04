@@ -48,9 +48,11 @@ function createChainableMock() {
 
 // Mock the Supabase client
 vi.mock('@/lib/supabase/client', () => ({
-  getServerClient: vi.fn(() => ({
-    from: vi.fn(() => createChainableMock()),
-  })),
+  getServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function() { return createChainableMock(); }),
+    };
+  }),
   resetServerClient: vi.fn(),
 }));
 

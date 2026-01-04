@@ -19,7 +19,7 @@ const mockSubscriptionRepository = {
 };
 
 vi.mock('@/lib/subscription', () => ({
-  getSubscriptionRepository: vi.fn(() => mockSubscriptionRepository),
+  getSubscriptionRepository: vi.fn(function() { return mockSubscriptionRepository; }),
 }));
 
 // Mock Supabase client
@@ -40,13 +40,17 @@ const mockSupabaseSelect = vi.fn().mockReturnValue({
 const mockSupabaseUpsert = vi.fn().mockResolvedValue({ error: null });
 
 vi.mock('@/lib/supabase/client', () => ({
-  getServerClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      update: mockSupabaseUpdate,
-      select: mockSupabaseSelect,
-      upsert: mockSupabaseUpsert,
-    })),
-  })),
+  getServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function() {
+        return {
+          update: mockSupabaseUpdate,
+          select: mockSupabaseSelect,
+          upsert: mockSupabaseUpsert,
+        };
+      }),
+    };
+  }),
   resetServerClient: vi.fn(),
 }));
 
@@ -83,10 +87,12 @@ vi.mock('@/lib/metadata-enrichment', () => ({
 
 // Mock the indexer module
 vi.mock('@/lib/indexer', () => ({
-  IndexerService: vi.fn(() => ({
-    indexMagnet: vi.fn(),
-    destroy: vi.fn(),
-  })),
+  IndexerService: vi.fn(function() {
+    return {
+      indexMagnet: vi.fn(),
+      destroy: vi.fn(),
+    };
+  }),
   IndexerError: class IndexerError extends Error {
     constructor(message: string) {
       super(message);

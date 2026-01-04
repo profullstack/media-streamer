@@ -8,39 +8,47 @@ import { NextRequest } from 'next/server';
 
 // Mock Supabase
 vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          data: [
-            {
-              id: 'folder-1',
-              torrent_id: 'torrent-123',
-              path: 'Metallica - Discography/Kill Em All (1983)',
-              artist: 'Metallica',
-              album: 'Kill Em All',
-              year: 1983,
-              cover_url: 'https://coverartarchive.org/release-group/abc/front-500.jpg',
-              external_id: 'abc',
-              external_source: 'musicbrainz',
-            },
-            {
-              id: 'folder-2',
-              torrent_id: 'torrent-123',
-              path: 'Metallica - Discography/Ride the Lightning (1984)',
-              artist: 'Metallica',
-              album: 'Ride the Lightning',
-              year: 1984,
-              cover_url: 'https://coverartarchive.org/release-group/def/front-500.jpg',
-              external_id: 'def',
-              external_source: 'musicbrainz',
-            },
-          ],
-          error: null,
-        })),
-      })),
-    })),
-  })),
+  createServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function() {
+        return {
+          select: vi.fn(function() {
+            return {
+              eq: vi.fn(function() {
+                return {
+                  data: [
+                    {
+                      id: 'folder-1',
+                      torrent_id: 'torrent-123',
+                      path: 'Metallica - Discography/Kill Em All (1983)',
+                      artist: 'Metallica',
+                      album: 'Kill Em All',
+                      year: 1983,
+                      cover_url: 'https://coverartarchive.org/release-group/abc/front-500.jpg',
+                      external_id: 'abc',
+                      external_source: 'musicbrainz',
+                    },
+                    {
+                      id: 'folder-2',
+                      torrent_id: 'torrent-123',
+                      path: 'Metallica - Discography/Ride the Lightning (1984)',
+                      artist: 'Metallica',
+                      album: 'Ride the Lightning',
+                      year: 1984,
+                      cover_url: 'https://coverartarchive.org/release-group/def/front-500.jpg',
+                      external_id: 'def',
+                      external_source: 'musicbrainz',
+                    },
+                  ],
+                  error: null,
+                };
+              }),
+            };
+          }),
+        };
+      }),
+    };
+  }),
 }));
 
 describe('GET /api/torrents/[id]/folders', () => {

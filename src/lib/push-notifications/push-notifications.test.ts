@@ -19,10 +19,12 @@ import type { Database } from '../supabase/types';
 vi.mock('web-push', () => ({
   setVapidDetails: vi.fn(),
   sendNotification: vi.fn(),
-  generateVAPIDKeys: vi.fn(() => ({
-    publicKey: 'test-public-key',
-    privateKey: 'test-private-key',
-  })),
+  generateVAPIDKeys: vi.fn(function() {
+    return {
+      publicKey: 'test-public-key',
+      privateKey: 'test-private-key',
+    };
+  }),
 }));
 
 // Mock Supabase client

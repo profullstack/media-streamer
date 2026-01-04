@@ -17,12 +17,14 @@ import {
 
 // Mock the torrent client
 vi.mock('@/lib/torrent', () => ({
-  TorrentClient: vi.fn(() => ({
-    addMagnet: vi.fn(),
-    prioritizePieces: vi.fn(),
-    getFileStream: vi.fn(),
-    destroy: vi.fn(),
-  })),
+  TorrentClient: vi.fn(function() {
+    return {
+      addMagnet: vi.fn(),
+      prioritizePieces: vi.fn(),
+      getFileStream: vi.fn(),
+      destroy: vi.fn(),
+    };
+  }),
 }));
 
 describe('Stream From Search', () => {

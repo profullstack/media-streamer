@@ -18,33 +18,55 @@ import {
 
 // Mock Supabase client
 vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        textSearch: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            order: vi.fn(() => ({
-              range: vi.fn(() => Promise.resolve({ data: [], error: null, count: 0 })),
-            })),
-          })),
-          order: vi.fn(() => ({
-            range: vi.fn(() => Promise.resolve({ data: [], error: null, count: 0 })),
-          })),
-        })),
-        ilike: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            order: vi.fn(() => ({
-              range: vi.fn(() => Promise.resolve({ data: [], error: null, count: 0 })),
-            })),
-          })),
-          order: vi.fn(() => ({
-            range: vi.fn(() => Promise.resolve({ data: [], error: null, count: 0 })),
-          })),
-        })),
-      })),
-    })),
-  })),
+  createServerClient: vi.fn(function() {
+    return {
+      rpc: vi.fn(function() { return Promise.resolve({ data: [], error: null }); }),
+      from: vi.fn(function() {
+        return {
+          select: vi.fn(function() {
+            return {
+              textSearch: vi.fn(function() {
+                return {
+                  eq: vi.fn(function() {
+                    return {
+                      order: vi.fn(function() {
+                        return {
+                          range: vi.fn(function() { return Promise.resolve({ data: [], error: null, count: 0 }); }),
+                        };
+                      }),
+                    };
+                  }),
+                  order: vi.fn(function() {
+                    return {
+                      range: vi.fn(function() { return Promise.resolve({ data: [], error: null, count: 0 }); }),
+                    };
+                  }),
+                };
+              }),
+              ilike: vi.fn(function() {
+                return {
+                  eq: vi.fn(function() {
+                    return {
+                      order: vi.fn(function() {
+                        return {
+                          range: vi.fn(function() { return Promise.resolve({ data: [], error: null, count: 0 }); }),
+                        };
+                      }),
+                    };
+                  }),
+                  order: vi.fn(function() {
+                    return {
+                      range: vi.fn(function() { return Promise.resolve({ data: [], error: null, count: 0 }); }),
+                    };
+                  }),
+                };
+              }),
+            };
+          }),
+        };
+      }),
+    };
+  }),
 }));
 
 describe('Deep File-Level Search', () => {

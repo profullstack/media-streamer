@@ -18,33 +18,53 @@ import {
 
 // Mock Supabase client
 vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({ data: null, error: null })),
-          maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        })),
-        order: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
-        })),
-      })),
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({ 
-            data: { id: 'test-id', infohash: 'abc123def456789012345678901234567890abcd' }, 
-            error: null 
-          })),
-        })),
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
-      })),
-      delete: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
-      })),
-    })),
-  })),
+  createServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function() {
+        return {
+          select: vi.fn(function() {
+            return {
+              eq: vi.fn(function() {
+                return {
+                  single: vi.fn(function() { return Promise.resolve({ data: null, error: null }); }),
+                  maybeSingle: vi.fn(function() { return Promise.resolve({ data: null, error: null }); }),
+                };
+              }),
+              order: vi.fn(function() {
+                return {
+                  limit: vi.fn(function() { return Promise.resolve({ data: [], error: null }); }),
+                };
+              }),
+            };
+          }),
+          insert: vi.fn(function() {
+            return {
+              select: vi.fn(function() {
+                return {
+                  single: vi.fn(function() {
+                    return Promise.resolve({
+                      data: { id: 'test-id', infohash: 'abc123def456789012345678901234567890abcd' },
+                      error: null
+                    });
+                  }),
+                };
+              }),
+            };
+          }),
+          update: vi.fn(function() {
+            return {
+              eq: vi.fn(function() { return Promise.resolve({ data: null, error: null }); }),
+            };
+          }),
+          delete: vi.fn(function() {
+            return {
+              eq: vi.fn(function() { return Promise.resolve({ data: null, error: null }); }),
+            };
+          }),
+        };
+      }),
+    };
+  }),
 }));
 
 describe('Torrent Ingestion Service', () => {

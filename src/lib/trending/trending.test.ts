@@ -30,9 +30,11 @@ const mockFrom = vi.fn(() => ({
 }));
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: mockFrom,
-  })),
+  createClient: vi.fn(function() {
+    return {
+      from: mockFrom,
+    };
+  }),
 }));
 
 // Set up environment variables

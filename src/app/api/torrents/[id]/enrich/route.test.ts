@@ -10,37 +10,51 @@ import { POST } from './route';
 
 // Mock Supabase
 vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(() => ({
-            data: {
-              id: 'test-torrent-id',
-              name: 'Pink Floyd - Discography [FLAC]',
-              infohash: 'abc123def456',
-              status: 'ready',
-              content_type: null,
-              poster_url: null,
-              cover_url: null,
-            },
-            error: null,
-          })),
-        })),
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          error: null,
-        })),
-      })),
-    })),
-  })),
+  createServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function() {
+        return {
+          select: vi.fn(function() {
+            return {
+              eq: vi.fn(function() {
+                return {
+                  single: vi.fn(function() {
+                    return {
+                      data: {
+                        id: 'test-torrent-id',
+                        name: 'Pink Floyd - Discography [FLAC]',
+                        infohash: 'abc123def456',
+                        status: 'ready',
+                        content_type: null,
+                        poster_url: null,
+                        cover_url: null,
+                      },
+                      error: null,
+                    };
+                  }),
+                };
+              }),
+            };
+          }),
+          update: vi.fn(function() {
+            return {
+              eq: vi.fn(function() {
+                return {
+                  error: null,
+                };
+              }),
+            };
+          }),
+        };
+      }),
+    };
+  }),
 }));
 
 // Mock metadata enrichment
 vi.mock('@/lib/metadata-enrichment', () => ({
-  enrichTorrentMetadata: vi.fn(() =>
-    Promise.resolve({
+  enrichTorrentMetadata: vi.fn(function() {
+    return Promise.resolve({
       contentType: 'music',
       posterUrl: 'https://example.com/poster.jpg',
       coverUrl: 'https://coverartarchive.org/release-group/abc123/front',
@@ -50,9 +64,9 @@ vi.mock('@/lib/metadata-enrichment', () => ({
       year: 1973,
       title: 'The Dark Side of the Moon',
       artist: 'Pink Floyd',
-    })
-  ),
-  detectContentType: vi.fn(() => 'music'),
+    });
+  }),
+  detectContentType: vi.fn(function() { return 'music'; }),
 }));
 
 describe('POST /api/torrents/[id]/enrich', () => {

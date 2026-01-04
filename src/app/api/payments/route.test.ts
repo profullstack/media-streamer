@@ -35,21 +35,25 @@ const mockPaymentHistoryRepository = {
 };
 
 vi.mock('@/lib/payments', () => ({
-  createPaymentRequest: vi.fn((options) => ({
-    id: 'pay-test-123',
-    userId: options.userId,
-    plan: options.plan,
-    cryptoType: options.cryptoType,
-    amountUsd: options.plan === 'premium' ? 4.99 : 9.99,
-    status: 'pending',
-    createdAt: new Date(),
-  })),
-  validatePaymentRequest: vi.fn(() => true),
-  getSubscriptionPrice: vi.fn((plan) => ({
-    plan,
-    usd: plan === 'premium' ? 4.99 : 9.99,
-  })),
-  getPaymentHistoryRepository: vi.fn(() => mockPaymentHistoryRepository),
+  createPaymentRequest: vi.fn(function(options) {
+    return {
+      id: 'pay-test-123',
+      userId: options.userId,
+      plan: options.plan,
+      cryptoType: options.cryptoType,
+      amountUsd: options.plan === 'premium' ? 4.99 : 9.99,
+      status: 'pending',
+      createdAt: new Date(),
+    };
+  }),
+  validatePaymentRequest: vi.fn(function() { return true; }),
+  getSubscriptionPrice: vi.fn(function(plan) {
+    return {
+      plan,
+      usd: plan === 'premium' ? 4.99 : 9.99,
+    };
+  }),
+  getPaymentHistoryRepository: vi.fn(function() { return mockPaymentHistoryRepository; }),
 }));
 
 // Mock auth
@@ -60,9 +64,11 @@ vi.mock('@/lib/auth', () => ({
 // Mock CoinPayPortal client
 const mockCreatePayment = vi.fn();
 vi.mock('@/lib/coinpayportal', () => ({
-  getCoinPayPortalClient: vi.fn(() => ({
-    createPayment: mockCreatePayment,
-  })),
+  getCoinPayPortalClient: vi.fn(function() {
+    return {
+      createPayment: mockCreatePayment,
+    };
+  }),
 }));
 
 describe('Payment API Route', () => {

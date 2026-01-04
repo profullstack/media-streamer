@@ -14,15 +14,17 @@ let mockTorrents: unknown[] = [];
 
 // Mock WebTorrent before importing the module
 vi.mock('webtorrent', () => ({
-  default: vi.fn(() => ({
-    add: mockAdd,
-    remove: mockRemove,
-    destroy: mockDestroy,
-    get: mockGet,
-    get torrents() { return mockTorrents; },
-    on: vi.fn(),
-        removeListener: vi.fn(),
-  })),
+  default: vi.fn(function() {
+    return {
+      add: mockAdd,
+      remove: mockRemove,
+      destroy: mockDestroy,
+      get: mockGet,
+      get torrents() { return mockTorrents; },
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    };
+  }),
 }));
 
 // Import after mocking

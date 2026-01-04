@@ -10,13 +10,15 @@ const mockDestroy = vi.fn((callback?: () => void) => {
 
 // Mock WebTorrent before importing the module
 vi.mock('webtorrent', () => ({
-  default: vi.fn(() => ({
-    add: mockAdd,
-    remove: mockRemove,
-    destroy: mockDestroy,
-    torrents: [],
-    on: vi.fn(), // Add mock for client-level event listener
-  })),
+  default: vi.fn(function() {
+    return {
+      add: mockAdd,
+      remove: mockRemove,
+      destroy: mockDestroy,
+      torrents: [],
+      on: vi.fn(), // Add mock for client-level event listener
+    };
+  }),
 }));
 
 // Import after mocking

@@ -35,7 +35,9 @@
       "WebFetch",
       "WebSearch",
       "Bash(pnpm update:*)",
-      "Bash(pnpm info:*)"
+      "Bash(pnpm info:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm outdated:*)"
     ],
     "deny": [
       "Bash(npm:*)",

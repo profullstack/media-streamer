@@ -3,10 +3,12 @@ import type { TorrentMetadata } from '../torrent';
 
 // Mock dependencies with factory functions that don't reference external variables
 vi.mock('../torrent', () => ({
-  TorrentService: vi.fn(() => ({
-    fetchMetadata: vi.fn(),
-    destroy: vi.fn(),
-  })),
+  TorrentService: vi.fn(function() {
+    return {
+      fetchMetadata: vi.fn(),
+      destroy: vi.fn(),
+    };
+  }),
 }));
 
 vi.mock('../supabase', () => ({

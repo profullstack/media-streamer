@@ -28,14 +28,16 @@ vi.mock('@/lib/torrent-index', () => ({
 
 // Mock rate limiting
 vi.mock('@/lib/rate-limit', () => ({
-  createRateLimiter: vi.fn(() => ({
-    key: 'magnet',
-    maxRequests: 30,
-    windowMs: 60000,
-    algorithm: 'sliding-window',
-    requests: new Map(),
-  })),
-  checkRateLimit: vi.fn(() => ({ allowed: true, remaining: 10, resetAt: Date.now() + 60000, retryAfter: 0 })),
+  createRateLimiter: vi.fn(function() {
+    return {
+      key: 'magnet',
+      maxRequests: 30,
+      windowMs: 60000,
+      algorithm: 'sliding-window',
+      requests: new Map(),
+    };
+  }),
+  checkRateLimit: vi.fn(function() { return { allowed: true, remaining: 10, resetAt: Date.now() + 60000, retryAfter: 0 }; }),
   recordRequest: vi.fn(),
   DEFAULT_RATE_LIMITS: {
     magnet: { key: 'magnet', maxRequests: 30, windowMs: 60000, algorithm: 'sliding-window' },
@@ -60,7 +62,7 @@ const mockSubscriptionRepository = {
 };
 
 vi.mock('@/lib/subscription', () => ({
-  getSubscriptionRepository: vi.fn(() => mockSubscriptionRepository),
+  getSubscriptionRepository: vi.fn(function() { return mockSubscriptionRepository; }),
 }));
 
 import { ingestMagnet, validateMagnetUri, getTorrentByInfohash } from '@/lib/torrent-index';

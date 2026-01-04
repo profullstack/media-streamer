@@ -10,15 +10,23 @@ import { NextRequest } from 'next/server';
 
 // Mock the supabase module
 vi.mock('@/lib/supabase', () => ({
-  getServerClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-        })),
-      })),
-    })),
-  })),
+  getServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function() {
+        return {
+          select: vi.fn(function() {
+            return {
+              eq: vi.fn(function() {
+                return {
+                  single: vi.fn(),
+                };
+              }),
+            };
+          }),
+        };
+      }),
+    };
+  }),
 }));
 
 // Import after mocking

@@ -22,42 +22,58 @@ vi.mock('@/lib/metadata-enrichment', () => ({
 
 // Mock the supabase module
 vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({
-            data: {
-              id: 'torrent-123',
-              name: 'Test.Movie.2024.1080p.BluRay.x264',
-              infohash: 'abc123def456789012345678901234567890abcd',
-              status: 'pending',
-            },
-            error: null,
-          })),
-        })),
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ error: null })),
-      })),
-    })),
-  })),
+  createServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function() {
+        return {
+          select: vi.fn(function() {
+            return {
+              eq: vi.fn(function() {
+                return {
+                  single: vi.fn(function() {
+                    return Promise.resolve({
+                      data: {
+                        id: 'torrent-123',
+                        name: 'Test.Movie.2024.1080p.BluRay.x264',
+                        infohash: 'abc123def456789012345678901234567890abcd',
+                        status: 'pending',
+                      },
+                      error: null,
+                    });
+                  }),
+                };
+              }),
+            };
+          }),
+          update: vi.fn(function() {
+            return {
+              eq: vi.fn(function() { return Promise.resolve({ error: null }); }),
+            };
+          }),
+        };
+      }),
+    };
+  }),
 }));
 
 // Mock the logger
 vi.mock('@/lib/logger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    child: vi.fn(() => ({
+  createLogger: vi.fn(function() {
+    return {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
-    })),
-  })),
+      child: vi.fn(function() {
+        return {
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+          debug: vi.fn(),
+        };
+      }),
+    };
+  }),
 }));
 
 import { enrichTorrentMetadata, detectContentType } from '@/lib/metadata-enrichment';

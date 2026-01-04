@@ -20,42 +20,58 @@ const mockSingleTorrent = vi.fn().mockResolvedValue({ data: { id: 'torrent-123' 
 const mockSingleFile = vi.fn().mockResolvedValue({ data: { id: 'file-123', media_category: 'video' }, error: null });
 
 vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    from: vi.fn((table: string) => {
-      if (table === 'torrents') {
+  createServerClient: vi.fn(function() {
+    return {
+      from: vi.fn(function(table: string) {
+        if (table === 'torrents') {
+          return {
+            select: vi.fn(function() {
+              return {
+                eq: vi.fn(function() {
+                  return {
+                    single: mockSingleTorrent,
+                  };
+                }),
+              };
+            }),
+          };
+        }
+        if (table === 'torrent_files') {
+          return {
+            select: vi.fn(function() {
+              return {
+                eq: vi.fn(function() {
+                  return {
+                    eq: vi.fn(function() {
+                      return {
+                        single: mockSingleFile,
+                      };
+                    }),
+                  };
+                }),
+              };
+            }),
+          };
+        }
+        if (table === 'video_metadata' || table === 'audio_metadata') {
+          return {
+            upsert: mockUpsert,
+          };
+        }
         return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: mockSingleTorrent,
-            })),
-          })),
+          select: vi.fn(function() {
+            return {
+              eq: vi.fn(function() {
+                return {
+                  single: vi.fn(function() { return Promise.resolve({ data: null, error: null }); }),
+                };
+              }),
+            };
+          }),
         };
-      }
-      if (table === 'torrent_files') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: mockSingleFile,
-              })),
-            })),
-          })),
-        };
-      }
-      if (table === 'video_metadata' || table === 'audio_metadata') {
-        return {
-          upsert: mockUpsert,
-        };
-      }
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: null, error: null })),
-          })),
-        })),
-      };
-    }),
-  })),
+      }),
+    };
+  }),
 }));
 
 describe('/api/codec-info', () => {

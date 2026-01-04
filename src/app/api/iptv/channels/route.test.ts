@@ -23,15 +23,17 @@ vi.mock('@/lib/iptv', () => ({
   parseM3U: vi.fn(),
   searchChannels: vi.fn(),
   extractGroups: vi.fn(),
-  getProxiedUrl: vi.fn((url: string) =>
-    url.startsWith('http://') ? `/api/iptv-proxy?url=${encodeURIComponent(url)}` : url
-  ),
-  getPlaylistCache: vi.fn(() => ({
-    get: mockCacheGet,
-    set: mockCacheSet,
-  })),
+  getProxiedUrl: vi.fn(function(url: string) {
+    return url.startsWith('http://') ? `/api/iptv-proxy?url=${encodeURIComponent(url)}` : url;
+  }),
+  getPlaylistCache: vi.fn(function() {
+    return {
+      get: mockCacheGet,
+      set: mockCacheSet,
+    };
+  }),
   PlaylistCache: {
-    generateKey: vi.fn((url: string) => `key_${url}`),
+    generateKey: vi.fn(function(url: string) { return `key_${url}`; }),
   },
 }));
 

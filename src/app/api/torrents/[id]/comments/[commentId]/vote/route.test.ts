@@ -10,10 +10,12 @@ import { POST, DELETE } from './route';
 
 // Mock the comments service
 vi.mock('@/lib/comments', () => ({
-  getCommentsService: vi.fn(() => ({
-    voteOnComment: vi.fn(),
-    removeCommentVote: vi.fn(),
-  })),
+  getCommentsService: vi.fn(function() {
+    return {
+      voteOnComment: vi.fn(),
+      removeCommentVote: vi.fn(),
+    };
+  }),
 }));
 
 // Mock the auth helper

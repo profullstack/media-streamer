@@ -8,14 +8,16 @@ import { POST } from './route';
 
 // Mock the streaming service
 vi.mock('@/lib/streaming', () => ({
-  getStreamingService: vi.fn(() => ({
-    getStreamInfo: vi.fn().mockResolvedValue({
-      fileName: 'test-track.mp3',
-      size: 5000000,
-      mimeType: 'audio/mpeg',
-      mediaCategory: 'audio',
-    }),
-  })),
+  getStreamingService: vi.fn(function() {
+    return {
+      getStreamInfo: vi.fn().mockResolvedValue({
+        fileName: 'test-track.mp3',
+        size: 5000000,
+        mimeType: 'audio/mpeg',
+        mediaCategory: 'audio',
+      }),
+    };
+  }),
 }));
 
 // Mock the supabase client
@@ -27,19 +29,23 @@ vi.mock('@/lib/supabase', () => ({
 
 // Mock the logger
 vi.mock('@/lib/logger', () => ({
-  createLogger: vi.fn(() => ({
-    child: vi.fn(() => ({
+  createLogger: vi.fn(function() {
+    return {
+      child: vi.fn(function() {
+        return {
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+          debug: vi.fn(),
+        };
+      }),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
-    })),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-  generateRequestId: vi.fn(() => 'test-request-id'),
+    };
+  }),
+  generateRequestId: vi.fn(function() { return 'test-request-id'; }),
 }));
 
 describe('POST /api/stream/prefetch', () => {
