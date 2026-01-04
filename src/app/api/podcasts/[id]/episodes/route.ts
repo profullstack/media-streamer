@@ -30,7 +30,17 @@ export async function GET(
   request: NextRequest,
   { params }: RouteParams
 ): Promise<Response> {
-  const { id: podcastId } = await params;
+  const resolvedParams = await params;
+  const podcastId = resolvedParams?.id;
+  
+  // Validate podcast ID
+  if (!podcastId || podcastId === 'undefined') {
+    return NextResponse.json(
+      { error: 'Podcast ID is required' },
+      { status: 400 }
+    );
+  }
+  
   const { searchParams } = new URL(request.url);
   
   const limitParam = searchParams.get('limit');
@@ -66,7 +76,7 @@ export async function GET(
         title: ep.title,
         description: ep.description,
         audioUrl: ep.audio_url,
-        durationSeconds: ep.duration_seconds,
+        duration: ep.duration_seconds,
         imageUrl: ep.image_url,
         publishedAt: ep.published_at,
         seasonNumber: ep.season_number,

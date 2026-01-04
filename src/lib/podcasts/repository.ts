@@ -28,8 +28,10 @@ export interface UserPodcastSubscription {
   podcast_id: string;
   podcast_title: string;
   podcast_author: string | null;
+  podcast_description: string | null;
   podcast_image_url: string | null;
   podcast_feed_url: string;
+  podcast_website_url: string | null;
   notify_new_episodes: boolean;
   latest_episode_title: string | null;
   latest_episode_published_at: string | null;
@@ -235,6 +237,8 @@ export function createPodcastRepository(
 
     /**
      * Get user's podcast subscriptions with details
+     * Note: The RPC function returns additional fields (podcast_description, podcast_website_url)
+     * that are added in migration 20260104053300_update_podcast_subscriptions_rpc.sql
      */
     async getUserSubscriptions(userId: string): Promise<UserPodcastSubscription[]> {
       const { data, error } = await client.rpc('get_user_podcast_subscriptions', {
@@ -245,7 +249,9 @@ export function createPodcastRepository(
         throw new Error(error.message);
       }
 
-      return data ?? [];
+      // Cast to UserPodcastSubscription[] - the RPC function returns the correct shape
+      // after migration 20260104053300 is applied
+      return (data ?? []) as unknown as UserPodcastSubscription[];
     },
 
     /**

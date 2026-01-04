@@ -140,16 +140,16 @@ async function getUserIdFromRequest(request: NextRequest): Promise<string | null
 
 /**
  * GET /api/push/subscribe
- * 
+ *
  * Get the VAPID public key for client-side subscription.
  * No authentication required.
  */
 export async function GET(): Promise<Response> {
   try {
     const service = getPushNotificationService();
-    const publicKey = service.getVapidPublicKey();
-    
-    return NextResponse.json({ publicKey });
+    const vapidPublicKey = service.getVapidPublicKey();
+
+    return NextResponse.json({ vapidPublicKey });
   } catch (error) {
     console.error('[Push] Error getting VAPID key:', error);
     return NextResponse.json(

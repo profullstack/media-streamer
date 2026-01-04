@@ -114,7 +114,12 @@ describe('Podcast API Routes', () => {
           podcast_id: 'podcast-1',
           podcast_title: 'Podcast One',
           podcast_author: 'Author One',
+          podcast_description: 'A great podcast',
+          podcast_image_url: 'https://example.com/image.jpg',
+          podcast_feed_url: 'https://example.com/feed.xml',
+          podcast_website_url: 'https://example.com',
           notify_new_episodes: true,
+          subscribed_at: '2026-01-01T00:00:00.000Z',
         },
       ];
 
@@ -130,7 +135,65 @@ describe('Podcast API Routes', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.subscriptions).toEqual(mockSubscriptions);
+      // Should transform snake_case to camelCase for frontend
+      expect(data.subscriptions).toEqual([
+        {
+          id: 'podcast-1',
+          title: 'Podcast One',
+          author: 'Author One',
+          description: 'A great podcast',
+          imageUrl: 'https://example.com/image.jpg',
+          feedUrl: 'https://example.com/feed.xml',
+          website: 'https://example.com',
+          subscribedAt: '2026-01-01T00:00:00.000Z',
+          notificationsEnabled: true,
+        },
+      ]);
+    });
+
+    it('should handle subscriptions with null optional fields', async () => {
+      mockAuthenticatedUser('user-123');
+
+      const mockSubscriptions = [
+        {
+          subscription_id: 'sub-1',
+          podcast_id: 'podcast-1',
+          podcast_title: 'Podcast One',
+          podcast_author: null,
+          podcast_description: null,
+          podcast_image_url: null,
+          podcast_feed_url: 'https://example.com/feed.xml',
+          podcast_website_url: null,
+          notify_new_episodes: false,
+          subscribed_at: '2026-01-01T00:00:00.000Z',
+        },
+      ];
+
+      mockService.getUserSubscriptions.mockResolvedValue(mockSubscriptions);
+
+      const request = createRequest(
+        'GET',
+        'http://localhost:3000/api/podcasts',
+        undefined,
+        { Authorization: 'Bearer test-token' }
+      );
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.subscriptions).toEqual([
+        {
+          id: 'podcast-1',
+          title: 'Podcast One',
+          author: null,
+          description: null,
+          imageUrl: null,
+          feedUrl: 'https://example.com/feed.xml',
+          website: null,
+          subscribedAt: '2026-01-01T00:00:00.000Z',
+          notificationsEnabled: false,
+        },
+      ]);
     });
 
     it('should return 401 when getting subscriptions without auth', async () => {

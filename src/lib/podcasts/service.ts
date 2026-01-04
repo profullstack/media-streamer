@@ -155,6 +155,24 @@ function sanitizeQuery(query: string): string {
 }
 
 /**
+ * Strip CDATA wrappers from content
+ * CDATA sections look like: <![CDATA[content here]]>
+ * Also handles escaped end markers: ]]&gt;
+ */
+function stripCdata(content: string | null): string | null {
+  if (!content) return null;
+  
+  // Match CDATA wrapper and extract content
+  const cdataMatch = content.match(/^<!\[CDATA\[([\s\S]*)\]\]>$/);
+  if (cdataMatch) {
+    // Unescape any escaped end markers
+    return cdataMatch[1].replace(/\]\]&gt;/g, ']]>');
+  }
+  
+  return content;
+}
+
+/**
  * Parse RSS feed XML
  */
 function parseRssFeed(xml: string): ParsedPodcastFeed | null {
@@ -165,7 +183,9 @@ function parseRssFeed(xml: string): ParsedPodcastFeed | null {
     const getTagContent = (xml: string, tag: string): string | null => {
       const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i');
       const match = xml.match(regex);
-      return match ? match[1].trim() : null;
+      if (!match) return null;
+      // Strip CDATA wrappers from content
+      return stripCdata(match[1].trim());
     };
 
     const getAttributeValue = (xml: string, tag: string, attr: string): string | null => {

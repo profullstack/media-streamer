@@ -8,7 +8,7 @@
  * - Search podcasts via Castos API
  * - Subscribe to podcasts (saved in Supabase)
  * - View subscribed podcasts and episodes
- * - Audio player for podcast episodes
+ * - Audio player for podcast episodes (global, persists across routes)
  * - Push notification subscription for new episodes
  */
 
@@ -26,8 +26,10 @@ import {
   PlusIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  TrashIcon,
 } from '@/components/ui/icons';
 import { useAuth } from '@/hooks/use-auth';
+import { usePodcastPlayer } from '@/contexts/podcast-player';
 
 /**
  * Convert base64 VAPID key to Uint8Array for push subscription
@@ -173,16 +175,21 @@ export default function PodcastsPage(): React.ReactElement {
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
   const [episodesError, setEpisodesError] = useState<string | null>(null);
   
-  // Player state
-  const [currentEpisode, setCurrentEpisode] = useState<PodcastEpisode | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Global podcast player context
+  const {
+    currentEpisode,
+    isPlaying,
+    playEpisode,
+  } = usePodcastPlayer();
   
   // Subscribe action state
   const [subscribingFeedUrl, setSubscribingFeedUrl] = useState<string | null>(null);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
+  
+  // Unsubscribe action state
+  const [unsubscribingPodcastId, setUnsubscribingPodcastId] = useState<string | null>(null);
+  const [unsubscribeError, setUnsubscribeError] = useState<string | null>(null);
+  const [confirmUnsubscribeId, setConfirmUnsubscribeId] = useState<string | null>(null);
   
   // Push notification state
   const [isPushSupported, setIsPushSupported] = useState(false);
@@ -349,6 +356,9 @@ export default function PodcastsPage(): React.ReactElement {
 
   // Unsubscribe from podcast
   const handleUnsubscribe = useCallback(async (podcastId: string): Promise<void> => {
+    setUnsubscribingPodcastId(podcastId);
+    setUnsubscribeError(null);
+    
     try {
       const response = await fetch(`/api/podcasts?podcastId=${podcastId}`, {
         method: 'DELETE',
@@ -360,6 +370,7 @@ export default function PodcastsPage(): React.ReactElement {
       }
       
       setSubscriptions(prev => prev.filter(s => s.id !== podcastId));
+      setConfirmUnsubscribeId(null);
       
       if (selectedPodcast?.id === podcastId) {
         setSelectedPodcast(null);
@@ -367,68 +378,47 @@ export default function PodcastsPage(): React.ReactElement {
       }
     } catch (err) {
       console.error('[Podcasts] Unsubscribe error:', err);
+      setUnsubscribeError(err instanceof Error ? err.message : 'Failed to unsubscribe');
+    } finally {
+      setUnsubscribingPodcastId(null);
     }
   }, [selectedPodcast]);
 
-  // Play episode
+  // Cancel unsubscribe confirmation
+  const cancelUnsubscribe = useCallback((): void => {
+    setConfirmUnsubscribeId(null);
+    setUnsubscribeError(null);
+  }, []);
+
+  // Play episode using global context
   const handlePlayEpisode = useCallback((episode: PodcastEpisode): void => {
-    if (currentEpisode?.id === episode.id) {
-      if (isPlaying) {
-        audioRef.current?.pause();
-      } else {
-        void audioRef.current?.play();
+    if (!selectedPodcast) return;
+    
+    // Convert to the format expected by the global player
+    playEpisode(
+      {
+        id: episode.id,
+        guid: episode.guid,
+        title: episode.title,
+        description: episode.description,
+        audioUrl: episode.audioUrl,
+        duration: episode.duration,
+        publishedAt: episode.publishedAt,
+        imageUrl: episode.imageUrl,
+      },
+      {
+        id: selectedPodcast.id,
+        title: selectedPodcast.title,
+        author: selectedPodcast.author,
+        description: selectedPodcast.description,
+        imageUrl: selectedPodcast.imageUrl,
+        feedUrl: selectedPodcast.feedUrl,
+        website: selectedPodcast.website,
+        subscribedAt: selectedPodcast.subscribedAt,
+        notificationsEnabled: selectedPodcast.notificationsEnabled,
       }
-    } else {
-      setCurrentEpisode(episode);
-      setIsPlaying(true);
-      setCurrentTime(0);
-    }
-  }, [currentEpisode, isPlaying]);
-
-  // Audio event handlers
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    
-    const handleTimeUpdate = (): void => setCurrentTime(audio.currentTime);
-    const handleDurationChange = (): void => setDuration(audio.duration);
-    const handlePlay = (): void => setIsPlaying(true);
-    const handlePause = (): void => setIsPlaying(false);
-    const handleEnded = (): void => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-    
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('durationchange', handleDurationChange);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('ended', handleEnded);
-    
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('durationchange', handleDurationChange);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('ended', handleEnded);
-    };
-  }, []);
-
-  // Load and play new episode
-  useEffect(() => {
-    if (!currentEpisode || !audioRef.current) return;
-    audioRef.current.src = currentEpisode.audioUrl;
-    void audioRef.current.play();
-  }, [currentEpisode]);
-
-  // Seek handler
-  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
-    const time = parseFloat(e.target.value);
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-      setCurrentTime(time);
-    }
-  }, []);
+    );
+  }, [selectedPodcast, playEpisode]);
 
   // Enable push notifications
   const handleEnablePush = useCallback(async (): Promise<void> => {
@@ -480,10 +470,7 @@ export default function PodcastsPage(): React.ReactElement {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        {/* Hidden audio element */}
-        <audio ref={audioRef} className="hidden" />
-
+      <div className="space-y-6 pb-24">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -734,12 +721,45 @@ export default function PodcastsPage(): React.ReactElement {
                           {selectedPodcast.description}
                         </p>
                       )}
-                      <button
-                        onClick={() => void handleUnsubscribe(selectedPodcast.id)}
-                        className="mt-2 text-sm text-red-400 hover:text-red-300"
-                      >
-                        Unsubscribe
-                      </button>
+                      {/* Unsubscribe button with confirmation */}
+                      {confirmUnsubscribeId === selectedPodcast.id ? (
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-sm text-text-secondary">Unsubscribe?</span>
+                          <button
+                            onClick={() => void handleUnsubscribe(selectedPodcast.id)}
+                            disabled={unsubscribingPodcastId === selectedPodcast.id}
+                            className={cn(
+                              'flex items-center gap-1 rounded px-3 py-1 text-sm',
+                              'bg-red-500 text-white hover:bg-red-600 transition-colors',
+                              'disabled:opacity-50'
+                            )}
+                          >
+                            {unsubscribingPodcastId === selectedPodcast.id ? (
+                              <LoadingSpinner size={14} />
+                            ) : (
+                              <TrashIcon size={14} />
+                            )}
+                            <span>Yes</span>
+                          </button>
+                          <button
+                            onClick={cancelUnsubscribe}
+                            className="rounded px-3 py-1 text-sm bg-bg-tertiary text-text-secondary hover:bg-bg-hover transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmUnsubscribeId(selectedPodcast.id)}
+                          className="mt-3 flex items-center gap-1 text-sm text-red-400 hover:text-red-300 transition-colors"
+                        >
+                          <TrashIcon size={14} />
+                          <span>Unsubscribe</span>
+                        </button>
+                      )}
+                      {unsubscribeError && confirmUnsubscribeId === selectedPodcast.id && (
+                        <p className="mt-2 text-sm text-red-400">{unsubscribeError}</p>
+                      )}
                     </div>
                   </div>
 
@@ -833,52 +853,6 @@ export default function PodcastsPage(): React.ReactElement {
                   </p>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Now Playing Bar */}
-        {currentEpisode && (
-          <div className="fixed bottom-0 left-0 right-0 bg-bg-secondary border-t border-border-default p-4 z-50">
-            <div className="max-w-7xl mx-auto flex items-center gap-4">
-              {/* Episode Info */}
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <button
-                  onClick={() => handlePlayEpisode(currentEpisode)}
-                  className={cn(
-                    'flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0',
-                    'bg-accent-primary text-white hover:bg-accent-primary/90 transition-colors'
-                  )}
-                >
-                  {isPlaying ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-text-primary truncate text-sm">
-                    {currentEpisode.title}
-                  </h4>
-                  <p className="text-xs text-text-muted truncate">
-                    {selectedPodcast?.title}
-                  </p>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="flex items-center gap-2 flex-1 max-w-md">
-                <span className="text-xs text-text-muted w-12 text-right">
-                  {formatDuration(currentTime)}
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  value={currentTime}
-                  onChange={handleSeek}
-                  className="flex-1 h-1 bg-bg-tertiary rounded-full appearance-none cursor-pointer accent-accent-primary"
-                />
-                <span className="text-xs text-text-muted w-12">
-                  {formatDuration(duration)}
-                </span>
-              </div>
             </div>
           </div>
         )}

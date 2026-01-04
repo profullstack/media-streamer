@@ -314,6 +314,89 @@ describe('PodcastService', () => {
       expect(result!.episodes[1].durationSeconds).toBe(2730); // 45:30
       expect(result!.episodes[2].durationSeconds).toBe(3600); // 3600
     });
+
+    it('should strip CDATA wrappers from descriptions', async () => {
+      const mockRssFeed = `<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+          <channel>
+            <title>Test Podcast</title>
+            <description><![CDATA[This is the podcast description with <b>HTML</b> content.]]></description>
+            <item>
+              <title>Episode with CDATA</title>
+              <guid>ep-cdata</guid>
+              <enclosure url="https://example.com/ep.mp3" type="audio/mpeg"/>
+              <pubDate>Mon, 01 Jan 2026 00:00:00 GMT</pubDate>
+              <description><![CDATA[Episode description with <a href="https://example.com">link</a> and <p>paragraph</p>.]]></description>
+            </item>
+          </channel>
+        </rss>`;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve(mockRssFeed),
+      });
+
+      const result = await service.parseFeed('https://example.com/feed.xml');
+
+      expect(result).not.toBeNull();
+      // CDATA wrapper should be stripped
+      expect(result!.podcast.description).toBe('This is the podcast description with <b>HTML</b> content.');
+      expect(result!.episodes[0].description).toBe('Episode description with <a href="https://example.com">link</a> and <p>paragraph</p>.');
+    });
+
+    it('should handle nested CDATA sections', async () => {
+      const mockRssFeed = `<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+          <channel>
+            <title>Test</title>
+            <description><![CDATA[Content with ]]&gt; escaped end marker]]></description>
+            <item>
+              <title>Ep1</title>
+              <guid>1</guid>
+              <enclosure url="https://example.com/1.mp3" type="audio/mpeg"/>
+              <pubDate>Mon, 01 Jan 2026 00:00:00 GMT</pubDate>
+            </item>
+          </channel>
+        </rss>`;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve(mockRssFeed),
+      });
+
+      const result = await service.parseFeed('https://example.com/feed.xml');
+
+      expect(result).not.toBeNull();
+      expect(result!.podcast.description).toBe('Content with ]]> escaped end marker');
+    });
+
+    it('should handle descriptions without CDATA', async () => {
+      const mockRssFeed = `<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+          <channel>
+            <title>Test</title>
+            <description>Plain text description without CDATA</description>
+            <item>
+              <title>Ep1</title>
+              <guid>1</guid>
+              <enclosure url="https://example.com/1.mp3" type="audio/mpeg"/>
+              <pubDate>Mon, 01 Jan 2026 00:00:00 GMT</pubDate>
+              <description>Plain episode description</description>
+            </item>
+          </channel>
+        </rss>`;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve(mockRssFeed),
+      });
+
+      const result = await service.parseFeed('https://example.com/feed.xml');
+
+      expect(result).not.toBeNull();
+      expect(result!.podcast.description).toBe('Plain text description without CDATA');
+      expect(result!.episodes[0].description).toBe('Plain episode description');
+    });
   });
 
   describe('subscribeToPodcast', () => {

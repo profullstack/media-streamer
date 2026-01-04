@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getPodcastService } from '@/lib/podcasts';
+import type { UserPodcastSubscription } from '@/lib/podcasts/repository';
 
 /**
  * Cookie name for auth token
@@ -31,6 +32,40 @@ interface SessionToken {
 interface SubscribeRequest {
   feedUrl: string;
   notifyNewEpisodes?: boolean;
+}
+
+/**
+ * Transformed subscription response for frontend
+ * Matches the SubscribedPodcast interface expected by the frontend
+ */
+interface SubscribedPodcastResponse {
+  id: string;
+  title: string;
+  author: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  feedUrl: string;
+  website: string | null;
+  subscribedAt: string;
+  notificationsEnabled: boolean;
+}
+
+/**
+ * Transform UserPodcastSubscription (snake_case) to SubscribedPodcastResponse (camelCase)
+ * for frontend consumption
+ */
+function transformSubscription(sub: UserPodcastSubscription): SubscribedPodcastResponse {
+  return {
+    id: sub.podcast_id,
+    title: sub.podcast_title,
+    author: sub.podcast_author,
+    description: sub.podcast_description ?? null,
+    imageUrl: sub.podcast_image_url,
+    feedUrl: sub.podcast_feed_url,
+    website: sub.podcast_website_url ?? null,
+    subscribedAt: sub.subscribed_at,
+    notificationsEnabled: sub.notify_new_episodes,
+  };
 }
 
 /**
@@ -178,7 +213,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const subscriptions = await service.getUserSubscriptions(userId);
-    return NextResponse.json({ subscriptions });
+    // Transform snake_case to camelCase for frontend consumption
+    const transformedSubscriptions = subscriptions.map(transformSubscription);
+    return NextResponse.json({ subscriptions: transformedSubscriptions });
   } catch (error) {
     console.error('[Podcasts] Error fetching subscriptions:', error);
     return NextResponse.json(
