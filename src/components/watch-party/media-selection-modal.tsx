@@ -2,14 +2,17 @@
 
 /**
  * Media Selection Modal for Watch Party
- * 
+ *
  * Allows the host to browse torrents and select a media file
  * to share with the party.
+ *
+ * Automatically scales down on TV browsers to prevent scrolling.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
+import { useTvDetection } from '@/hooks/use-tv-detection';
 
 interface TorrentItem {
   id: string;
@@ -74,6 +77,7 @@ function isStreamable(mediaType: string): boolean {
 }
 
 export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectionModalProps): React.ReactElement | null {
+  const { isTv } = useTvDetection();
   const [torrents, setTorrents] = useState<TorrentItem[]>([]);
   const [selectedTorrent, setSelectedTorrent] = useState<TorrentItem | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -151,29 +155,47 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className={cn(
+      'fixed inset-0 z-50 flex items-center justify-center',
+      // Smaller padding on TV to maximize usable space
+      isTv ? 'p-1' : 'p-2 sm:p-4'
+    )}>
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={handleClose}
       />
       
-      {/* Modal */}
+      {/* Modal - smaller on TV to prevent scrolling */}
       <div className={cn(
-        'relative z-10 w-full max-w-4xl max-h-[80vh]',
+        'relative z-10 w-full',
+        // Smaller max-width and max-height on TV
+        isTv ? 'max-w-3xl max-h-[calc(100dvh-0.5rem)]' : 'max-w-4xl max-h-[80vh]',
         'bg-bg-secondary rounded-xl border border-border-subtle',
         'shadow-2xl overflow-hidden flex flex-col'
       )}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-          <h2 className="text-xl font-semibold text-text-primary">
+        {/* Header - smaller padding on TV */}
+        <div className={cn(
+          'flex items-center justify-between border-b border-border-subtle',
+          isTv ? 'p-2' : 'p-4'
+        )}>
+          <h2 className={cn(
+            'font-semibold text-text-primary',
+            isTv ? 'text-base' : 'text-xl'
+          )}>
             Select Media for Watch Party
           </h2>
           <button
             onClick={handleClose}
-            className="p-2 rounded-lg hover:bg-bg-tertiary transition-colors"
+            className={cn(
+              'rounded-lg hover:bg-bg-tertiary transition-colors',
+              isTv ? 'p-1' : 'p-2'
+            )}
           >
-            <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={cn(
+              'text-text-secondary',
+              isTv ? 'w-4 h-4' : 'w-5 h-5'
+            )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -181,9 +203,15 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex">
-          {/* Torrent List */}
-          <div className="w-1/2 border-r border-border-subtle overflow-y-auto p-4">
-            <h3 className="text-sm font-medium text-text-secondary mb-3">
+          {/* Torrent List - smaller padding on TV */}
+          <div className={cn(
+            'w-1/2 border-r border-border-subtle overflow-y-auto',
+            isTv ? 'p-2' : 'p-4'
+          )}>
+            <h3 className={cn(
+              'font-medium text-text-secondary',
+              isTv ? 'text-xs mb-2' : 'text-sm mb-3'
+            )}>
               Select a Torrent
             </h3>
             
@@ -226,50 +254,79 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
             )}
           </div>
 
-          {/* File List */}
-          <div className="w-1/2 overflow-y-auto p-4">
-            <h3 className="text-sm font-medium text-text-secondary mb-3">
+          {/* File List - smaller padding on TV */}
+          <div className={cn(
+            'w-1/2 overflow-y-auto',
+            isTv ? 'p-2' : 'p-4'
+          )}>
+            <h3 className={cn(
+              'font-medium text-text-secondary',
+              isTv ? 'text-xs mb-2' : 'text-sm mb-3'
+            )}>
               {selectedTorrent ? 'Select a Media File' : 'Files'}
             </h3>
 
             {!selectedTorrent ? (
-              <div className="text-center py-8 text-text-muted">
+              <div className={cn(
+                'text-center text-text-muted',
+                isTv ? 'py-4 text-xs' : 'py-8'
+              )}>
                 <p>Select a torrent to view files</p>
               </div>
             ) : isLoadingFiles ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin h-8 w-8 border-4 border-accent-primary border-t-transparent rounded-full" />
+              <div className={cn(
+                'flex items-center justify-center',
+                isTv ? 'py-4' : 'py-8'
+              )}>
+                <div className={cn(
+                  'animate-spin border-4 border-accent-primary border-t-transparent rounded-full',
+                  isTv ? 'h-6 w-6' : 'h-8 w-8'
+                )} />
               </div>
             ) : streamableFiles.length === 0 ? (
-              <div className="text-center py-8 text-text-muted">
+              <div className={cn(
+                'text-center text-text-muted',
+                isTv ? 'py-4 text-xs' : 'py-8'
+              )}>
                 <p>No streamable media files</p>
-                <p className="text-sm mt-1">Only audio and video files can be shared</p>
+                <p className={cn(
+                  'mt-1',
+                  isTv ? 'text-[10px]' : 'text-sm'
+                )}>Only audio and video files can be shared</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className={isTv ? 'space-y-1' : 'space-y-2'}>
                 {streamableFiles.map((file) => (
                   <button
                     key={file.id}
                     onClick={() => handleFileSelect(file)}
                     className={cn(
-                      'w-full text-left p-3 rounded-lg transition-colors',
+                      'w-full text-left rounded-lg transition-colors',
                       'bg-bg-tertiary border border-border-subtle',
                       'hover:border-accent-primary hover:bg-accent-primary/5',
-                      'flex items-center gap-3'
+                      'flex items-center',
+                      isTv ? 'p-2 gap-2' : 'p-3 gap-3'
                     )}
                   >
                     {getMediaIcon(file.media_type)}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-text-primary truncate">
+                      <p className={cn(
+                        'font-medium text-text-primary truncate',
+                        isTv && 'text-sm'
+                      )}>
                         {file.name}
                       </p>
-                      <p className="text-sm text-text-muted">
+                      <p className={cn(
+                        'text-text-muted',
+                        isTv ? 'text-xs' : 'text-sm'
+                      )}>
                         {formatBytes(file.size)} · {file.extension.toUpperCase()}
                       </p>
                     </div>
                     <span className={cn(
-                      'px-2 py-1 rounded text-xs font-medium',
-                      file.media_type === 'video' 
+                      'rounded font-medium',
+                      isTv ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs',
+                      file.media_type === 'video'
                         ? 'bg-blue-500/10 text-blue-500'
                         : 'bg-purple-500/10 text-purple-500'
                     )}>
@@ -282,9 +339,15 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-border-subtle bg-bg-tertiary">
-          <p className="text-sm text-text-muted text-center">
+        {/* Footer - smaller padding on TV */}
+        <div className={cn(
+          'border-t border-border-subtle bg-bg-tertiary',
+          isTv ? 'p-2' : 'p-4'
+        )}>
+          <p className={cn(
+            'text-text-muted text-center',
+            isTv ? 'text-xs' : 'text-sm'
+          )}>
             Select a video or audio file to share with your watch party
           </p>
         </div>

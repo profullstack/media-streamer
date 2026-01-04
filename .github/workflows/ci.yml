@@ -34,6 +34,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_ENV: development
 
       - name: Run ESLint
         run: pnpm lint
@@ -71,10 +73,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_ENV: development
 
       - name: Run Vitest tests
         run: pnpm test
         env:
+          NODE_ENV: test
           REDIS_URL: redis://localhost:6379
 
       - name: Upload coverage report
@@ -105,6 +110,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_ENV: development
 
       - name: Build application
         run: pnpm build
@@ -141,6 +148,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_ENV: development
 
       - name: Run security audit
         run: pnpm audit --audit-level=high

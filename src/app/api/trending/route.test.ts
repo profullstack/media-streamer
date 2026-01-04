@@ -243,6 +243,7 @@ describe('Trending API Route', () => {
 
     it('should return error when THETVDB_API_KEY is not configured', async () => {
       vi.unstubAllEnvs();
+      vi.stubEnv('THETVDB_API_KEY', '');
       vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co');
       vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'test-anon-key');
 

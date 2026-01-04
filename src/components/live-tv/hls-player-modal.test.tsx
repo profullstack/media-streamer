@@ -796,4 +796,122 @@ describe('HlsPlayerModal', () => {
       expect(screen.getByTestId('loading-indicator')).toBeInTheDocument();
     });
   });
+
+  describe('TV-specific sizing', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('uses smaller modal dimensions on TV browsers', async () => {
+      // Mock TV detection by setting a TV user agent
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Linux; Android 9; AFTN Build/NS6264) AppleWebKit/537.36 (KHTML, like Gecko) Silk/88.3.1 like Chrome/88.0.4324.152 Safari/537.36',
+        writable: true,
+        configurable: true,
+      });
+
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+
+      const modalContent = screen.getByTestId('modal-content');
+      // TV modal should have max-w-2xl class instead of max-w-4xl
+      expect(modalContent.className).toContain('max-w-2xl');
+      expect(modalContent.className).not.toContain('max-w-4xl');
+    });
+
+    it('uses standard modal dimensions on non-TV browsers', async () => {
+      // Mock non-TV user agent
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        writable: true,
+        configurable: true,
+      });
+
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+
+      const modalContent = screen.getByTestId('modal-content');
+      // Standard modal should have max-w-4xl class
+      expect(modalContent.className).toContain('max-w-4xl');
+      expect(modalContent.className).not.toContain('max-w-2xl');
+    });
+
+    it('uses smaller header padding on TV browsers', async () => {
+      // Mock TV detection
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Linux; Android 9; AFTN Build/NS6264) AppleWebKit/537.36 (KHTML, like Gecko) Silk/88.3.1 like Chrome/88.0.4324.152 Safari/537.36',
+        writable: true,
+        configurable: true,
+      });
+
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+
+      const header = screen.getByTestId('modal-header');
+      // TV header should have p-2 class instead of p-4
+      expect(header.className).toContain('p-2');
+      expect(header.className).not.toContain('p-4');
+    });
+
+    it('uses smaller channel logo on TV browsers', async () => {
+      // Mock TV detection
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Linux; Android 9; AFTN Build/NS6264) AppleWebKit/537.36 (KHTML, like Gecko) Silk/88.3.1 like Chrome/88.0.4324.152 Safari/537.36',
+        writable: true,
+        configurable: true,
+      });
+
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+
+      const logo = screen.getByAltText('ESPN HD logo');
+      // TV logo should have w-8 h-8 classes instead of w-10 h-10
+      expect(logo.className).toContain('w-8');
+      expect(logo.className).toContain('h-8');
+      expect(logo.className).not.toContain('w-10');
+      expect(logo.className).not.toContain('h-10');
+    });
+
+    it('uses smaller title text on TV browsers', async () => {
+      // Mock TV detection
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Linux; Android 9; AFTN Build/NS6264) AppleWebKit/537.36 (KHTML, like Gecko) Silk/88.3.1 like Chrome/88.0.4324.152 Safari/537.36',
+        writable: true,
+        configurable: true,
+      });
+
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={mockChannel}
+        />
+      );
+
+      const title = screen.getByText('ESPN HD');
+      // TV title should have text-base class instead of text-lg
+      expect(title.className).toContain('text-base');
+      expect(title.className).not.toContain('text-lg');
+    });
+  });
 });

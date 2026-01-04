@@ -16,6 +16,7 @@ import Hls from 'hls.js';
 // mpegts.js is dynamically imported to avoid SSR issues (it accesses window at module load)
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
+import { useTvDetection } from '@/hooks/use-tv-detection';
 
 // Type for mpegts.js player - dynamically imported
 type MpegtsPlayer = {
@@ -66,6 +67,7 @@ export function HlsPlayerModal({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { isTv } = useTvDetection();
 
   // The stream URL is already proxied by the channels API if needed
   // HTTP URLs are converted to /api/iptv-proxy?url=... by the server
@@ -365,22 +367,31 @@ export function HlsPlayerModal({
         onClick={handleBackdropClick}
       />
 
-      {/* Modal Content */}
+      {/* Modal Content - smaller on TV screens to avoid scrolling */}
       <div
         data-testid="modal-content"
-        className="relative z-10 w-full max-w-4xl mx-4 bg-zinc-900 rounded-lg shadow-2xl overflow-hidden"
+        className={`relative z-10 w-full mx-4 bg-zinc-900 rounded-lg shadow-2xl overflow-hidden ${
+          isTv ? 'max-w-2xl' : 'max-w-4xl'
+        }`}
         onClick={handleContentClick}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-          <div className="flex items-center gap-3">
-            {/* Channel Logo */}
+        {/* Header - smaller padding on TV */}
+        <div
+          data-testid="modal-header"
+          className={`flex items-center justify-between border-b border-zinc-800 ${
+            isTv ? 'p-2' : 'p-4'
+          }`}
+        >
+          <div className={`flex items-center ${isTv ? 'gap-2' : 'gap-3'}`}>
+            {/* Channel Logo - smaller on TV */}
             {channel.logo ? (
               /* eslint-disable-next-line @next/next/no-img-element -- External IPTV channel logos with onError fallback */
               <img
                 src={channel.logo}
                 alt={`${channel.name} logo`}
-                className="w-10 h-10 rounded object-contain bg-zinc-800"
+                className={`rounded object-contain bg-zinc-800 ${
+                  isTv ? 'w-8 h-8' : 'w-10 h-10'
+                }`}
                 onError={(e) => {
                   // Hide broken images
                   (e.target as HTMLImageElement).style.display = 'none';
@@ -389,16 +400,18 @@ export function HlsPlayerModal({
             ) : (
               <div
                 data-testid="channel-icon-placeholder"
-                className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center"
+                className={`rounded bg-zinc-800 flex items-center justify-center ${
+                  isTv ? 'w-8 h-8' : 'w-10 h-10'
+                }`}
               >
-                <TvIcon className="w-6 h-6 text-zinc-500" />
+                <TvIcon className={isTv ? 'w-5 h-5 text-zinc-500' : 'w-6 h-6 text-zinc-500'} />
               </div>
             )}
 
             <div>
               <h2
                 id="hls-player-title"
-                className="text-lg font-semibold text-white"
+                className={`font-semibold text-white ${isTv ? 'text-base' : 'text-lg'}`}
               >
                 {channel.name}
               </h2>
