@@ -1,17 +1,13 @@
 /**
  * News Section Component Tests
- * 
+ *
  * Tests for the news section that displays articles from TheNewsAPI
  * with a modal iframe for viewing full articles.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NewsSection } from './news-section';
-
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 describe('NewsSection', () => {
   const mockArticles = [
@@ -60,12 +56,13 @@ describe('NewsSection', () => {
     },
   };
 
+  let fetchSpy: MockInstance<typeof fetch>;
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockFetch.mockResolvedValue({
+    fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockApiResponse),
-    });
+    } as Response);
   });
 
   afterEach(() => {
@@ -166,10 +163,10 @@ describe('NewsSection', () => {
 
   describe('Error Handling', () => {
     it('should display error message when API fails', async () => {
-      mockFetch.mockResolvedValueOnce({
+      fetchSpy.mockResolvedValueOnce({
         ok: false,
         status: 500,
-      });
+      } as Response);
 
       render(<NewsSection />);
 
@@ -181,7 +178,7 @@ describe('NewsSection', () => {
     });
 
     it('should display error message when fetch throws', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      fetchSpy.mockRejectedValueOnce(new Error('Network error'));
 
       render(<NewsSection />);
 
@@ -191,10 +188,10 @@ describe('NewsSection', () => {
     });
 
     it('should show retry button on error', async () => {
-      mockFetch.mockResolvedValueOnce({
+      fetchSpy.mockResolvedValueOnce({
         ok: false,
         status: 500,
-      });
+      } as Response);
 
       render(<NewsSection />);
 
@@ -204,15 +201,15 @@ describe('NewsSection', () => {
     });
 
     it('should retry fetching when retry button is clicked', async () => {
-      mockFetch
+      fetchSpy
         .mockResolvedValueOnce({
           ok: false,
           status: 500,
-        })
+        } as Response)
         .mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(mockApiResponse),
-        });
+        } as Response);
 
       render(<NewsSection />);
 
@@ -226,7 +223,7 @@ describe('NewsSection', () => {
         expect(screen.getByText('Bitcoin Reaches New High')).toBeInTheDocument();
       });
 
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -360,7 +357,7 @@ describe('NewsSection', () => {
       render(<NewsSection />);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/news?limit=10');
+        expect(fetchSpy).toHaveBeenCalledWith('/api/news?limit=10');
       });
     });
 
@@ -368,7 +365,7 @@ describe('NewsSection', () => {
       render(<NewsSection searchTerm="bitcoin" />);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/news?limit=10&search=bitcoin');
+        expect(fetchSpy).toHaveBeenCalledWith('/api/news?limit=10&search=bitcoin');
       });
     });
 
@@ -376,17 +373,17 @@ describe('NewsSection', () => {
       render(<NewsSection limit={5} />);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/news?limit=5');
+        expect(fetchSpy).toHaveBeenCalledWith('/api/news?limit=5');
       });
     });
   });
 
   describe('Empty State', () => {
     it('should display empty state when no articles are returned', async () => {
-      mockFetch.mockResolvedValueOnce({
+      fetchSpy.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ articles: [], meta: { found: 0, returned: 0, limit: 10, page: 1 } }),
-      });
+      } as Response);
 
       render(<NewsSection />);
 
