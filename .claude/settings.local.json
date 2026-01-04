@@ -18,7 +18,8 @@
       "Bash(gh run view:*)",
       "Bash(pnpm test:*)",
       "Bash(node --version:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git push)"
     ]
   }
 }
