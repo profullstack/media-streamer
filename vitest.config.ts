@@ -16,6 +16,12 @@ export default defineConfig({
       ['**/*.test.tsx', 'jsdom'],
       ['**/hooks/*.test.ts', 'jsdom'],
     ],
+    environmentOptions: {
+      jsdom: {
+        resources: 'usable',
+        url: 'http://localhost:3000',
+      },
+    },
     watch: false,
     testTimeout: 5000, // 5 second timeout per test
     hookTimeout: 5000, // 5 second timeout for hooks
