@@ -8,9 +8,11 @@
  */
 
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
   HeartIcon,
+  HeartFilledIcon,
   MusicIcon,
   VideoIcon,
   BookIcon,
@@ -24,6 +26,7 @@ import type {
   HistoryItem,
   CollectionType,
 } from '@/lib/library';
+import type { TorrentFavoriteWithDetails } from '@/lib/favorites';
 
 type TabType = 'favorites' | 'collections' | 'history';
 type MediaType = 'all' | 'music' | 'video' | 'ebook';
@@ -32,6 +35,7 @@ interface LibraryContentProps {
   initialFavorites: Favorite[];
   initialCollections: Collection[];
   initialHistory: HistoryItem[];
+  initialTorrentFavorites: TorrentFavoriteWithDetails[];
 }
 
 function getMediaIcon(
@@ -78,12 +82,14 @@ export function LibraryContent({
   initialFavorites,
   initialCollections,
   initialHistory,
+  initialTorrentFavorites,
 }: LibraryContentProps): React.ReactElement {
   const [activeTab, setActiveTab] = useState<TabType>('favorites');
   const [mediaFilter, setMediaFilter] = useState<MediaType>('all');
   const [favorites, setFavorites] = useState<Favorite[]>(initialFavorites);
   const [collections, setCollections] = useState<Collection[]>(initialCollections);
   const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
+  const [torrentFavorites, setTorrentFavorites] = useState<TorrentFavoriteWithDetails[]>(initialTorrentFavorites);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionType, setNewCollectionType] = useState<CollectionType>('mixed');
@@ -119,6 +125,22 @@ export function LibraryContent({
       }
     } catch (error) {
       console.error('Failed to remove favorite:', error);
+    }
+  }, []);
+
+  const removeTorrentFavorite = useCallback(async (torrentId: string): Promise<void> => {
+    try {
+      const response = await fetch('/api/favorites/torrents', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ torrentId }),
+      });
+
+      if (response.ok) {
+        setTorrentFavorites((prev) => prev.filter((item) => item.torrent_id !== torrentId));
+      }
+    } catch (error) {
+      console.error('Failed to remove torrent favorite:', error);
     }
   }, []);
 
@@ -161,7 +183,7 @@ export function LibraryContent({
   }, []);
 
   const tabs: { id: TabType; label: string; count: number }[] = [
-    { id: 'favorites', label: 'Favorites', count: favorites.length },
+    { id: 'favorites', label: 'Favorites', count: favorites.length + torrentFavorites.length },
     { id: 'collections', label: 'Collections', count: collections.length },
     { id: 'history', label: 'History', count: history.length },
   ];
@@ -227,56 +249,139 @@ export function LibraryContent({
 
       {/* Favorites Tab */}
       {activeTab === 'favorites' && (
-        <div className="space-y-2">
-          {filteredFavorites.length === 0 ? (
+        <div className="space-y-6">
+          {/* Torrent Favorites Section */}
+          {torrentFavorites.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
+                <HeartFilledIcon size={14} className="text-red-400" />
+                Favorite Torrents ({torrentFavorites.length})
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {torrentFavorites.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                  >
+                    {/* Poster/Cover */}
+                    {item.torrents?.poster_url || item.torrents?.cover_url ? (
+                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.torrents?.poster_url ?? item.torrents?.cover_url ?? ''}
+                          alt={item.torrents?.name ?? 'Torrent'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                        <FolderIcon size={24} className="text-text-muted" />
+                      </div>
+                    )}
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        href={`/torrents/${item.torrents?.infohash}`}
+                        className="font-medium text-text-primary hover:text-accent-primary truncate block"
+                      >
+                        {item.torrents?.name ?? 'Unknown Torrent'}
+                      </Link>
+                      <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
+                        {item.torrents?.content_type && (
+                          <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                            {item.torrents.content_type}
+                          </span>
+                        )}
+                        {item.torrents?.year && (
+                          <span>{item.torrents.year}</span>
+                        )}
+                        {item.torrents?.file_count && (
+                          <span>{item.torrents.file_count} files</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-text-muted mt-1">
+                        Added {formatTimeAgo(item.created_at)}
+                      </p>
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                      onClick={() => removeTorrentFavorite(item.torrent_id)}
+                      className="p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Remove from favorites"
+                    >
+                      <CloseIcon size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* File Favorites Section */}
+          {filteredFavorites.length > 0 && (
+            <div className="space-y-2">
+              {torrentFavorites.length > 0 && (
+                <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider">
+                  Favorite Files ({filteredFavorites.length})
+                </h3>
+              )}
+              {filteredFavorites.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-4 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                >
+                  {/* Thumbnail placeholder */}
+                  <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-muted">
+                    {getMediaIcon(item.torrent_files?.media_category)}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-text-primary truncate">
+                      {item.torrent_files?.name ?? 'Unknown'}
+                    </h3>
+                    <p className="text-sm text-text-secondary truncate">
+                      {item.torrent_files?.torrents?.name ?? 'Unknown torrent'}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      className="p-2 rounded-full bg-accent-primary text-white hover:bg-accent-primary/80"
+                      title="Play"
+                    >
+                      <PlayIcon size={16} />
+                    </button>
+                    <button
+                      onClick={() => removeFavorite(item.file_id)}
+                      className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
+                      title="Remove from favorites"
+                    >
+                      <CloseIcon size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {torrentFavorites.length === 0 && filteredFavorites.length === 0 && (
             <div className="text-center py-12">
               <HeartIcon className="mx-auto text-text-muted mb-4" size={48} />
               <h3 className="text-lg font-medium text-text-primary mb-2">
                 No favorites yet
               </h3>
               <p className="text-text-secondary">
-                Click the heart icon on any media to add it to your favorites
+                Click the heart icon on any torrent or media to add it to your favorites
               </p>
             </div>
-          ) : (
-            filteredFavorites.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-4 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
-              >
-                {/* Thumbnail placeholder */}
-                <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-muted">
-                  {getMediaIcon(item.torrent_files?.media_category)}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-text-primary truncate">
-                    {item.torrent_files?.name ?? 'Unknown'}
-                  </h3>
-                  <p className="text-sm text-text-secondary truncate">
-                    {item.torrent_files?.torrents?.name ?? 'Unknown torrent'}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    className="p-2 rounded-full bg-accent-primary text-white hover:bg-accent-primary/80"
-                    title="Play"
-                  >
-                    <PlayIcon size={16} />
-                  </button>
-                  <button
-                    onClick={() => removeFavorite(item.file_id)}
-                    className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
-                    title="Remove from favorites"
-                  >
-                    <CloseIcon size={16} />
-                  </button>
-                </div>
-              </div>
-            ))
           )}
         </div>
       )}

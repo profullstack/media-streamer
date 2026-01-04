@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { EbookReader } from '@/components/ebook';
 import { ChevronLeftIcon, LoadingSpinner, BookIcon } from '@/components/ui/icons';
+import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
 import { formatBytes } from '@/lib/utils';
 
 /**
@@ -179,6 +180,13 @@ export default function ReaderPage(): React.ReactElement {
               <span className="uppercase">{fileInfo.extension}</span>
             </div>
           </div>
+
+          {/* Favorite Button */}
+          <FileFavoriteButton
+            fileId={fileInfo.id}
+            size="md"
+            className="flex-shrink-0 hover:bg-bg-tertiary rounded-full"
+          />
         </div>
 
         {/* Reader */}

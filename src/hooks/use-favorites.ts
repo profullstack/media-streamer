@@ -253,6 +253,52 @@ export function useTorrentFavorites(): UseTorrentFavoritesReturn {
  * @param playlistId - Optional playlist ID to filter by
  * @returns Favorites list, loading state, and helper functions
  */
+/**
+ * Hook for managing a single file's favorite state (library favorites)
+ *
+ * @param fileId - The file ID from torrent_files table
+ * @param initialFavorited - Initial favorite state
+ * @returns Favorite state and toggle function
+ */
+export function useFileFavorite(
+  fileId: string,
+  initialFavorited = false
+): UseFavoriteReturn {
+  const [isFavorited, setIsFavorited] = useState(initialFavorited);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = useCallback(async (): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const method = isFavorited ? 'DELETE' : 'POST';
+      const response = await fetch('/api/library/favorites', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        setError(data.error ?? 'Failed to update favorite');
+        return;
+      }
+
+      setIsFavorited(!isFavorited);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fileId, isFavorited]);
+
+  return { isFavorited, isLoading, error, toggle };
+}
+
 export function useIptvChannelFavorites(
   playlistId?: string
 ): UseIptvChannelFavoritesReturn {

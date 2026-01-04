@@ -119,6 +119,7 @@ describe('LibraryContent', () => {
           initialFavorites={mockFavorites}
           initialCollections={mockCollections}
           initialHistory={mockHistory}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -139,6 +140,7 @@ describe('LibraryContent', () => {
           initialFavorites={mockFavorites}
           initialCollections={mockCollections}
           initialHistory={mockHistory}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -162,6 +164,7 @@ describe('LibraryContent', () => {
           initialFavorites={mockFavorites}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -175,6 +178,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -188,6 +192,7 @@ describe('LibraryContent', () => {
           initialFavorites={mockFavorites}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -219,6 +224,7 @@ describe('LibraryContent', () => {
           initialFavorites={mockFavorites}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -249,6 +255,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={mockCollections}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -267,6 +274,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -297,6 +305,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -335,6 +344,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -360,6 +370,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={mockHistory}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -376,6 +387,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -391,6 +403,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={mockHistory}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -408,6 +421,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={mockHistory}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -436,6 +450,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={mockHistory}
+          initialTorrentFavorites={[]}
         />
       );
 
@@ -462,6 +477,7 @@ describe('LibraryContent', () => {
           initialFavorites={[]}
           initialCollections={[]}
           initialHistory={[]}
+          initialTorrentFavorites={[]}
         />
       );
 

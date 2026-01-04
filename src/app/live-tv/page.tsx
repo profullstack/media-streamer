@@ -16,9 +16,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner, EditIcon, TrashIcon } from '@/components/ui/icons';
+import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner, EditIcon, TrashIcon, HeartFilledIcon } from '@/components/ui/icons';
 import { AddPlaylistModal, EditPlaylistModal, HlsPlayerModal, type PlaylistData } from '@/components/live-tv';
 import { useAuth } from '@/hooks/use-auth';
+import { useIptvChannelFavorites } from '@/hooks/use-favorites';
 import type { Channel } from '@/lib/iptv';
 
 /**
@@ -72,6 +73,8 @@ function isPlaylistDataArray(data: unknown): data is PlaylistData[] {
 
 export default function LiveTvPage(): React.ReactElement {
   const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+  const { favorites, refetch: refetchFavorites, isLoading: isFavoritesLoading } = useIptvChannelFavorites();
+  const [showFavorites, setShowFavorites] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -351,6 +354,26 @@ export default function LiveTvPage(): React.ReactElement {
     setSelectedChannel(null);
   }, []);
 
+  // Handle favorite toggle - refetch favorites list
+  const handleFavoriteToggle = useCallback((): void => {
+    void refetchFavorites();
+  }, [refetchFavorites]);
+
+  // Play a favorite channel
+  const handlePlayFavorite = useCallback((favorite: typeof favorites[0]): void => {
+    const channel: Channel = {
+      id: favorite.channel_id,
+      name: favorite.channel_name,
+      url: favorite.channel_url,
+      logo: favorite.channel_logo ?? undefined,
+      group: favorite.channel_group ?? undefined,
+      tvgId: favorite.tvg_id ?? undefined,
+      tvgName: favorite.tvg_name ?? undefined,
+    };
+    setSelectedChannel(channel);
+    setIsPlayerOpen(true);
+  }, []);
+
   const handleLoadMore = useCallback((): void => {
     setOffset(prev => prev + 50);
   }, []);
@@ -435,17 +458,35 @@ export default function LiveTvPage(): React.ReactElement {
               Stream live channels from your IPTV playlists
             </p>
           </div>
-          <button
-            onClick={handleOpenAddPlaylistModal}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-2',
-              'bg-accent-primary text-white',
-              'hover:bg-accent-primary/90 transition-colors'
+          <div className="flex items-center gap-2">
+            {/* Favorites Toggle */}
+            {isLoggedIn && (
+              <button
+                onClick={() => setShowFavorites(!showFavorites)}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-4 py-2',
+                  'transition-colors',
+                  showFavorites
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/50'
+                    : 'bg-bg-secondary text-text-primary hover:bg-bg-hover border border-border-default'
+                )}
+              >
+                <HeartFilledIcon size={20} />
+                <span>Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}</span>
+              </button>
             )}
-          >
-            <PlusIcon size={20} />
-            <span>Add Playlist</span>
-          </button>
+            <button
+              onClick={handleOpenAddPlaylistModal}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-4 py-2',
+                'bg-accent-primary text-white',
+                'hover:bg-accent-primary/90 transition-colors'
+              )}
+            >
+              <PlusIcon size={20} />
+              <span>Add Playlist</span>
+            </button>
+          </div>
         </div>
 
         {/* Playlist Selector - Dropdown with Edit/Delete */}
@@ -503,6 +544,74 @@ export default function LiveTvPage(): React.ReactElement {
                   <TrashIcon size={18} />
                 </button>
               </div> : null}
+          </div>
+        )}
+
+        {/* Favorites Section */}
+        {showFavorites && isLoggedIn && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <HeartFilledIcon size={20} className="text-red-400" />
+                Favorite Channels
+              </h2>
+              {isFavoritesLoading && <LoadingSpinner size={16} className="text-red-400" />}
+            </div>
+
+            {favorites.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {favorites.map(favorite => (
+                  <div
+                    key={`${favorite.playlist_id}-${favorite.channel_id}`}
+                    onClick={() => handlePlayFavorite(favorite)}
+                    className={cn(
+                      'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-3',
+                      'hover:border-red-500/50 hover:bg-bg-hover transition-colors'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Channel Logo */}
+                      {favorite.channel_logo ? (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-tertiary overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- External IPTV channel logos with onError fallback */}
+                          <img
+                            src={favorite.channel_logo}
+                            alt={`${favorite.channel_name} logo`}
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              const parent = (e.target as HTMLImageElement).parentElement;
+                              if (parent) {
+                                parent.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-muted"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>';
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-tertiary">
+                          <TvIcon size={20} className="text-text-muted" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-text-primary text-sm truncate">{favorite.channel_name}</h3>
+                        {favorite.channel_group ? <p className="text-xs text-text-muted truncate">{favorite.channel_group}</p> : null}
+                      </div>
+                      {/* Play indicator on hover */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <PlayIcon size={16} className="text-red-400" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <HeartFilledIcon size={32} className="mx-auto text-text-muted mb-2" />
+                <p className="text-sm text-text-secondary">
+                  No favorite channels yet. Click the heart icon on a channel to add it to your favorites.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -790,6 +899,8 @@ export default function LiveTvPage(): React.ReactElement {
             isOpen={isPlayerOpen}
             onClose={handleClosePlayer}
             channel={selectedChannel}
+            playlistId={activePlaylist?.id}
+            onFavoriteToggle={handleFavoriteToggle}
           /> : null}
 
         {/* Edit Playlist Modal */}

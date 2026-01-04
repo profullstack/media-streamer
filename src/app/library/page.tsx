@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { getCurrentUser } from '@/lib/auth';
 import { getLibraryRepository } from '@/lib/library';
+import { getFavoritesService } from '@/lib/favorites';
 import { LibraryContent } from './library-content';
 
 /**
@@ -41,11 +42,13 @@ export default async function LibraryPage(): Promise<React.ReactElement> {
 
   // Fetch all library data server-side
   const libraryRepo = getLibraryRepository();
+  const favoritesService = getFavoritesService();
 
-  const [favorites, collections, history] = await Promise.all([
+  const [favorites, collections, history, torrentFavorites] = await Promise.all([
     libraryRepo.getUserFavorites(user.id).catch(() => []),
     libraryRepo.getUserCollections(user.id).catch(() => []),
     libraryRepo.getCombinedHistory(user.id, 50).catch(() => []),
+    favoritesService.getTorrentFavorites(user.id).catch(() => []),
   ]);
 
   return (
@@ -54,6 +57,7 @@ export default async function LibraryPage(): Promise<React.ReactElement> {
         initialFavorites={favorites}
         initialCollections={collections}
         initialHistory={history}
+        initialTorrentFavorites={torrentFavorites}
       />
     </MainLayout>
   );

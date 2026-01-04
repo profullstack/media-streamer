@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*:*)",
       "Bash(gh cache list:*)",
       "Bash(gh cache delete:*)",
       "Bash(gh workflow run:*)",
@@ -21,10 +20,26 @@
       "Bash(grep:*)",
       "Bash(git push)",
       "Bash(node -e:*)",
-      "Bash(npx tsc:*)",
       "Bash(pnpm exec tsc:*)",
       "Bash(pnpm run lint:*)",
-      "Bash(pnpm run build:*)"
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm tsc:*)",
+      "Bash(act:*)",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "WebFetch",
+      "WebSearch",
+      "Bash(pnpm update:*)",
+      "Bash(pnpm info:*)"
+    ],
+    "deny": [
+      "Bash(npm:*)",
+      "Bash(npx:*)"
     ]
   }
 }

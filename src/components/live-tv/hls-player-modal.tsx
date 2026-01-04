@@ -17,6 +17,7 @@ import Hls from 'hls.js';
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
 import { useTvDetection } from '@/hooks/use-tv-detection';
+import { IptvChannelFavoriteButton } from '@/components/ui/iptv-channel-favorite-button';
 
 // Type for mpegts.js player - dynamically imported
 type MpegtsPlayer = {
@@ -50,6 +51,10 @@ export interface HlsPlayerModalProps {
   onClose: () => void;
   /** The channel to play */
   channel: Channel;
+  /** Playlist ID for favorites (optional) */
+  playlistId?: string;
+  /** Callback when favorite state changes */
+  onFavoriteToggle?: (channelId: string, isFavorited: boolean) => void;
 }
 
 /**
@@ -59,6 +64,8 @@ export function HlsPlayerModal({
   isOpen,
   onClose,
   channel,
+  playlistId,
+  onFavoriteToggle,
 }: HlsPlayerModalProps): React.ReactElement | null {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -422,6 +429,23 @@ export function HlsPlayerModal({
                   {channel.group}
                 </span> : null}
             </div>
+
+            {/* Favorite Button */}
+            {playlistId && (
+              <IptvChannelFavoriteButton
+                playlistId={playlistId}
+                channelId={channel.id}
+                channelName={channel.name}
+                channelUrl={channel.url}
+                channelLogo={channel.logo}
+                channelGroup={channel.group}
+                tvgId={channel.tvgId}
+                tvgName={channel.tvgName}
+                size="md"
+                onToggle={onFavoriteToggle}
+                className="hover:bg-zinc-800"
+              />
+            )}
 
             {/* Refresh Button */}
             <button

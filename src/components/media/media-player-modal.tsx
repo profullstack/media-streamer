@@ -26,6 +26,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
+import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
 import { getMediaCategory } from '@/lib/utils';
 import { useAnalytics, useWebTorrent, isNativeCompatible } from '@/hooks';
 import type { TorrentFile } from '@/types';
@@ -777,6 +778,15 @@ export function MediaPlayerModal({
               </p>
             ) : null}
           </div>
+
+          {/* Favorite Button */}
+          {file.id && (
+            <FileFavoriteButton
+              fileId={file.id}
+              size="md"
+              className="flex-shrink-0 hover:bg-bg-tertiary rounded-full"
+            />
+          )}
         </div>
 
         {/* Swarm Stats Row - compact for TV */}

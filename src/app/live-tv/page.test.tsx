@@ -17,6 +17,14 @@ vi.mock('@/hooks/use-auth', () => ({
   })),
 }));
 
+vi.mock('@/hooks/use-favorites', () => ({
+  useIptvChannelFavorites: vi.fn(() => ({
+    favorites: [],
+    refetch: vi.fn(),
+    isLoading: false,
+  })),
+}));
+
 // Mock MainLayout
 vi.mock('@/components/layout', () => ({
   MainLayout: ({ children }: { children: React.ReactNode }) => <div data-testid="main-layout">{children}</div>,
