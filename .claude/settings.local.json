@@ -4,8 +4,13 @@
       "*",
       "Bash(pnpm test:*)",
       "Bash(node --version:*)",
-      "Bash(pnpm:*)"
+      "Bash(pnpm:*)",
+      "Bash(act:*)",
+      "Bash(gh api:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)"
     ]
-  },
-  "defaultMode": "bypassPermissions"
+  }
 }
