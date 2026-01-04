@@ -163,6 +163,7 @@ describe('NewsSection', () => {
 
   describe('Error Handling', () => {
     it('should display error message when API fails', async () => {
+      fetchSpy.mockReset();
       fetchSpy.mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -178,6 +179,7 @@ describe('NewsSection', () => {
     });
 
     it('should display error message when fetch throws', async () => {
+      fetchSpy.mockReset();
       fetchSpy.mockRejectedValueOnce(new Error('Network error'));
 
       render(<NewsSection />);
@@ -188,6 +190,7 @@ describe('NewsSection', () => {
     });
 
     it('should show retry button on error', async () => {
+      fetchSpy.mockReset();
       fetchSpy.mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -201,6 +204,7 @@ describe('NewsSection', () => {
     });
 
     it('should retry fetching when retry button is clicked', async () => {
+      fetchSpy.mockReset();
       fetchSpy
         .mockResolvedValueOnce({
           ok: false,
@@ -380,6 +384,7 @@ describe('NewsSection', () => {
 
   describe('Empty State', () => {
     it('should display empty state when no articles are returned', async () => {
+      fetchSpy.mockReset();
       fetchSpy.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ articles: [], meta: { found: 0, returned: 0, limit: 10, page: 1 } }),
