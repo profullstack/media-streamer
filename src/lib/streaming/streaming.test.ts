@@ -55,6 +55,32 @@ describe('StreamingService', () => {
       });
       expect(service).toBeInstanceOf(StreamingService);
     });
+
+    it('should configure WebTorrent client with WebSocket trackers for hybrid P2P', async () => {
+      // Import the WebTorrent mock dynamically to verify configuration
+      const webtorrentModule = await import('webtorrent');
+      const WebTorrent = vi.mocked(webtorrentModule.default);
+      
+      // Create a new service
+      new StreamingService();
+      
+      // Verify WebTorrent was called with tracker configuration
+      expect(WebTorrent).toHaveBeenCalled();
+      const constructorCall = WebTorrent.mock.calls[WebTorrent.mock.calls.length - 1];
+      const options = constructorCall[0] as Record<string, unknown>;
+      
+      // Verify tracker configuration includes WebSocket trackers
+      expect(options).toHaveProperty('tracker');
+      const trackerConfig = options.tracker as { announce?: string[] };
+      expect(trackerConfig).toHaveProperty('announce');
+      expect(Array.isArray(trackerConfig.announce)).toBe(true);
+      
+      // Verify WebSocket trackers are included
+      const announce = trackerConfig.announce as string[];
+      expect(announce.some((t: string) => t.startsWith('wss://'))).toBe(true);
+      expect(announce).toContain('wss://tracker.webtorrent.dev');
+      expect(announce).toContain('wss://tracker.openwebtorrent.com');
+    });
   });
 
   describe('createStream', () => {

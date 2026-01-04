@@ -505,13 +505,26 @@ export function MediaPlayerModal({
       // Stop P2P streaming
       webTorrentStopStream();
       
+      // CRITICAL: Clear the stream URL FIRST to ensure the player unmounts cleanly
+      // This prevents the "Try again" crash that occurs when the player tries to
+      // play from a stale P2P stream URL during the transition
+      setStreamUrl(null);
+      
+      // Reset player state to ensure clean transition
+      setIsPlayerReady(false);
+      setUserClickedPlay(false);
+      
       // Switch to server-side streaming
       setIsP2PStreaming(false);
       
+      // Increment retry count to force player remount with new URL
+      // This ensures the video element is recreated with the server stream URL
+      setRetryCount(prev => prev + 1);
+      
       // Build server-side stream URL (no transcoding needed since format is native-compatible)
-      const url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-      console.log('[MediaPlayerModal] Server stream URL (fallback):', url);
-      setStreamUrl(url);
+      // Note: The URL will be set by the main useEffect that watches codecCheckComplete
+      // because we've changed isP2PStreaming to false
+      console.log('[MediaPlayerModal] Triggering fallback to server streaming');
     }
   }, [isP2PStreaming, webTorrent.status, file, infohash, webTorrentStopStream]);
 

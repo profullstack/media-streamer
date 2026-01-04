@@ -75,10 +75,13 @@ const HTTP_TRACKERS = [
   'https://opentracker.i2p.rocks:443/announce',
 ];
 
-// WebSocket trackers - work in browsers and some cloud environments
+// WebSocket trackers - CRITICAL for hybrid P2P streaming
+// These are the SAME trackers used by browser WebTorrent clients
+// The server MUST announce to these trackers so browsers can discover it as a peer
+// Without this, browsers will only see other browser peers, not the server
 const WEBSOCKET_TRACKERS = [
-  'wss://tracker.openwebtorrent.com',
   'wss://tracker.webtorrent.dev',
+  'wss://tracker.openwebtorrent.com',
   'wss://tracker.btorrent.xyz',
   'wss://tracker.files.fm:7073/announce',
 ];
@@ -288,14 +291,24 @@ export class StreamingService {
     
     // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
     // Note: DHT requires UDP which may be blocked on cloud platforms
+    //
+    // CRITICAL: Configure WebSocket trackers for hybrid P2P streaming
+    // The server MUST announce to the same WebSocket trackers that browser clients use
+    // This enables browsers to discover the server as a WebRTC peer
+    // Without this, browsers will only see other browser peers, not the server
     this.client = new WebTorrent({
       dht: {
         bootstrap: DHT_BOOTSTRAP_NODES,
         // Increase concurrency for faster DHT bootstrapping
         concurrency: 32,
       },
-      // Enable all peer discovery methods
-      tracker: true,
+      // Configure tracker with WebSocket trackers for browser peer discovery
+      // This is CRITICAL for hybrid P2P streaming - the server must announce to
+      // the same WebSocket trackers that browser WebTorrent clients use
+      tracker: {
+        // Announce to WebSocket trackers so browsers can discover this server
+        announce: WEBSOCKET_TRACKERS,
+      },
       lsd: true, // Local Service Discovery
       webSeeds: true,
       // Increase max connections for better peer discovery
@@ -303,6 +316,11 @@ export class StreamingService {
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
     } as WebTorrent.Options);
+    
+    logger.info('WebTorrent client configured with WebSocket trackers for hybrid P2P', {
+      websocketTrackers: WEBSOCKET_TRACKERS,
+      note: 'Server will announce to these trackers so browsers can discover it as a WebRTC peer',
+    });
     
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
     this.streamTimeout = options.streamTimeout ?? 90000;
