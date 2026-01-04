@@ -1,16 +1,9 @@
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { FlatCompat } from '@eslint/eslintrc';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import nextTypescript from 'eslint-config-next/typescript';
 
 const eslintConfig = [
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...nextCoreWebVitals,
+  ...nextTypescript,
   {
     rules: {
       // TypeScript rules
@@ -23,11 +16,15 @@ const eslintConfig = [
         ignoreRestSiblings: true,
       }],
       '@typescript-eslint/no-unused-expressions': 'warn',
-      
+
       // React rules
       'react/jsx-no-leaked-render': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
-      
+      // New rules in react-hooks v7+ - downgrade to warn for existing code
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/static-components': 'warn',
+      'react-hooks/refs': 'warn',
+
       // General rules - allow console.log for debugging
       'no-console': 'off',
       'prefer-const': 'warn',

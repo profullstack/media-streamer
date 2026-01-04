@@ -37,7 +37,11 @@
       "Bash(pnpm update:*)",
       "Bash(pnpm info:*)",
       "Bash(pnpm add:*)",
-      "Bash(pnpm outdated:*)"
+      "Bash(pnpm outdated:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm build:*)"
     ],
     "deny": [
       "Bash(npm:*)",
