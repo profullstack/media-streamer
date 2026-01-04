@@ -76,7 +76,6 @@
     "dotenv": "^17.2.3",
     "eslint": "^9.17.0",
     "eslint-config-next": "15.1.2",
-    "happy-dom": "^20.0.11",
     "jsdom": "^27.4.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
