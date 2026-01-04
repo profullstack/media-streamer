@@ -6,7 +6,7 @@
  * Modal for submitting magnet URLs to index torrents with real-time progress.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { MagnetIcon, LoadingSpinner } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ interface AddMagnetModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (torrent: TorrentResult) => void;
+  initialMagnetUrl?: string;
 }
 
 interface TorrentResult {
@@ -60,13 +61,19 @@ export function AddMagnetModal({
   isOpen,
   onClose,
   onSuccess,
+  initialMagnetUrl,
 }: AddMagnetModalProps): React.ReactElement {
-  const [magnetUri, setMagnetUri] = useState('');
+  const [magnetUri, setMagnetUri] = useState(initialMagnetUrl ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Update magnetUri when initialMagnetUrl changes
+  useEffect(() => {
+    setMagnetUri(initialMagnetUrl ?? '');
+  }, [initialMagnetUrl]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent): Promise<void> => {

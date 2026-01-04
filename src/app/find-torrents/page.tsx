@@ -2,7 +2,7 @@
 
 /**
  * Find Torrents Page
- * 
+ *
  * Allows users to search for torrents across multiple providers
  * and add them to the catalog via magnet links.
  */
@@ -16,6 +16,7 @@ import {
   CheckIcon,
   GlobeIcon,
 } from '@/components/ui/icons';
+import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
 
 // Types for torrent search results
 interface TorrentResult {
@@ -73,8 +74,12 @@ export default function FindTorrentsPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [addedMagnets, setAddedMagnets] = useState<AddedMagnets>({});
-  const [addingMagnet, setAddingMagnet] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedMagnet, setSelectedMagnet] = useState<string | undefined>(undefined);
+  const [selectedTorrentName, setSelectedTorrentName] = useState<string>('');
 
   const handleSearch = useCallback(async (e?: FormEvent) => {
     if (e) {
@@ -141,41 +146,31 @@ export default function FindTorrentsPage(): React.ReactElement {
     }
   }, [query, sort, provider]);
 
-  const handleAddMagnet = useCallback(async (magnet: string, name: string) => {
-    setAddingMagnet(magnet);
-    setError(null);
-    setSuccessMessage(null);
+  const handleOpenAddModal = useCallback((magnet: string, name: string) => {
+    setSelectedMagnet(magnet);
+    setSelectedTorrentName(name);
+    setIsModalOpen(true);
+  }, []);
 
-    try {
-      const response = await fetch('/api/magnets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ magnetUri: magnet }),
-      });
+  const handleModalClose = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedMagnet(undefined);
+    setSelectedTorrentName('');
+  }, []);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to add magnet');
-        return;
-      }
-
-      // Mark this magnet as added
-      setAddedMagnets((prev) => ({ ...prev, [magnet]: true }));
-      setSuccessMessage(`"${name}" added successfully!`);
+  const handleModalSuccess = useCallback(() => {
+    // Mark the magnet as added
+    if (selectedMagnet) {
+      setAddedMagnets((prev) => ({ ...prev, [selectedMagnet]: true }));
+      setSuccessMessage(`"${selectedTorrentName}" added successfully!`);
 
       // Clear success message after 5 seconds
       setTimeout(() => {
         setSuccessMessage(null);
       }, 5000);
-    } catch {
-      setError('Failed to add magnet. Please try again.');
-    } finally {
-      setAddingMagnet(null);
     }
-  }, []);
+    handleModalClose();
+  }, [selectedMagnet, selectedTorrentName, handleModalClose]);
 
   const formatSeeders = (seeders: number): string => {
     if (seeders >= 1000) {
@@ -374,15 +369,10 @@ export default function FindTorrentsPage(): React.ReactElement {
                                 </span>
                               ) : (
                                 <button
-                                  onClick={() => handleAddMagnet(result.magnet, result.name)}
-                                  disabled={addingMagnet === result.magnet}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-accent-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90 disabled:opacity-50"
+                                  onClick={() => handleOpenAddModal(result.magnet, result.name)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-accent-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90"
                                 >
-                                  {addingMagnet === result.magnet ? (
-                                    <LoadingSpinner size={14} />
-                                  ) : (
-                                    <MagnetIcon size={14} />
-                                  )}
+                                  <MagnetIcon size={14} />
                                   <span>Add Magnet</span>
                                 </button>
                               )}
@@ -408,6 +398,14 @@ export default function FindTorrentsPage(): React.ReactElement {
             </p>
           </div>
         ) : null}
+
+        {/* Add Magnet Modal */}
+        <AddMagnetModal
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onSuccess={handleModalSuccess}
+          initialMagnetUrl={selectedMagnet}
+        />
       </div>
     </MainLayout>
   );

@@ -188,7 +188,7 @@ describe('FindTorrentsPage', () => {
     });
   });
 
-  it('should call add magnet API when clicking "Add Magnet" button', async () => {
+  it('should open add magnet modal with prefilled URL when clicking "Add Magnet" button', async () => {
     const user = userEvent.setup();
     const mockResults = {
       query: 'test',
@@ -216,12 +216,6 @@ describe('FindTorrentsPage', () => {
       json: () => Promise.resolve(mockResults),
     });
 
-    // Second call for adding magnet
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ success: true, torrentId: 'torrent-123' }),
-    });
-
     render(<FindTorrentsPage />);
 
     const input = screen.getByPlaceholderText(/search for torrents/i);
@@ -237,15 +231,17 @@ describe('FindTorrentsPage', () => {
     const addButton = screen.getByRole('button', { name: /add magnet/i });
     await user.click(addButton);
 
+    // Modal should be open with the magnet URL prefilled
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/magnets', expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('magnet:?xt=urn:btih:abc123'),
-      }));
+      expect(screen.getByText('Add Magnet Link')).toBeInTheDocument();
     });
+
+    // Check that the magnet URL is prefilled in the modal
+    const magnetInput = screen.getByLabelText(/magnet url/i);
+    expect(magnetInput).toHaveValue('magnet:?xt=urn:btih:abc123');
   });
 
-  it('should show success message after adding magnet', async () => {
+  it('should close modal when close button is clicked', async () => {
     const user = userEvent.setup();
     const mockResults = {
       query: 'test',
@@ -272,11 +268,6 @@ describe('FindTorrentsPage', () => {
       json: () => Promise.resolve(mockResults),
     });
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ success: true, torrentId: 'torrent-123' }),
-    });
-
     render(<FindTorrentsPage />);
 
     const input = screen.getByPlaceholderText(/search for torrents/i);
@@ -292,8 +283,18 @@ describe('FindTorrentsPage', () => {
     const addButton = screen.getByRole('button', { name: /add magnet/i });
     await user.click(addButton);
 
+    // Modal should be open
     await waitFor(() => {
-      expect(screen.getByText(/added successfully/i)).toBeInTheDocument();
+      expect(screen.getByText('Add Magnet Link')).toBeInTheDocument();
+    });
+
+    // Close the modal
+    const closeButton = screen.getByRole('button', { name: /close/i });
+    await user.click(closeButton);
+
+    // Modal should be closed
+    await waitFor(() => {
+      expect(screen.queryByText('Add Magnet Link')).not.toBeInTheDocument();
     });
   });
 
