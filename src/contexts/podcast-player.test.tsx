@@ -4,6 +4,7 @@
  * Tests for the global podcast player context that persists across routes.
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { PodcastPlayerProvider, usePodcastPlayer } from './podcast-player';

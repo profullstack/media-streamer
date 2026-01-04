@@ -5,6 +5,7 @@
  * with a modal iframe for viewing full articles.
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NewsSection } from './news-section';

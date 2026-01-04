@@ -4,6 +4,7 @@
  * Tests for the /reader/[id] page that displays ebook content.
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import ReaderPage from './page';
