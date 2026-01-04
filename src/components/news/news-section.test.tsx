@@ -71,12 +71,6 @@ describe('NewsSection', () => {
   });
 
   describe('Rendering', () => {
-    it('should render the news section with title', async () => {
-      render(<NewsSection />);
-
-      expect(screen.getByText('News')).toBeInTheDocument();
-    });
-
     it('should show loading state initially', () => {
       render(<NewsSection />);
 
@@ -126,11 +120,13 @@ describe('NewsSection', () => {
       });
     });
 
-    it('should display article description', async () => {
+    it('should display article snippet or description', async () => {
       render(<NewsSection />);
 
       await waitFor(() => {
-        expect(screen.getByText('Bitcoin has reached a new all-time high today.')).toBeInTheDocument();
+        // Component shows snippet if available, otherwise description
+        // First article has snippet, so we look for that
+        expect(screen.getByText(/Bitcoin has reached a new all-time high today, surpassing/)).toBeInTheDocument();
       });
     });
 

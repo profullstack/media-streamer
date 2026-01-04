@@ -97,11 +97,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
 
   if (loading) {
     return (
-      <section className="p-6">
-        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          <Newspaper className="w-6 h-6" />
-          News
-        </h2>
+      <section>
         <div data-testid="news-loading" className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
         </div>
@@ -111,11 +107,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
 
   if (error) {
     return (
-      <section className="p-6">
-        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          <Newspaper className="w-6 h-6" />
-          News
-        </h2>
+      <section>
         <div data-testid="news-error" className="text-center py-12">
           <p className="text-red-500 mb-4">Failed to load news: {error}</p>
           <button
@@ -132,11 +124,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
 
   if (articles.length === 0) {
     return (
-      <section className="p-6">
-        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          <Newspaper className="w-6 h-6" />
-          News
-        </h2>
+      <section>
         <div data-testid="news-empty" className="text-center py-12 text-gray-500">
           <Newspaper className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p>No news articles found</p>
@@ -146,22 +134,19 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
   }
 
   return (
-    <section className="p-6">
-      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        <Newspaper className="w-6 h-6" />
-        News
-      </h2>
+    <section>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col gap-2">
         {articles.map((article) => (
           <article
             key={article.uuid}
             data-testid="news-article"
             role="article"
-            className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-700 transition-colors cursor-pointer"
+            className="bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer flex items-center gap-3 p-3"
             onClick={() => setSelectedArticle(article)}
           >
-            {article.imageUrl ? <div className="aspect-video bg-gray-900">
+            {article.imageUrl ? (
+              <div className="w-16 h-16 flex-shrink-0 bg-gray-900 rounded overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element -- External news article images from TheNewsAPI */}
                 <img
                   src={article.imageUrl}
@@ -169,31 +154,37 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
-              </div> : null}
-            <div className="p-4">
-              <h3 className="font-semibold text-lg mb-2 line-clamp-2">{article.title}</h3>
-              
-              {article.snippet ? <p className="text-gray-400 text-sm mb-2 line-clamp-2">{article.snippet}</p> : null}
-              
-              {article.description ? <p className="text-gray-300 text-sm mb-3 line-clamp-2">{article.description}</p> : null}
+              </div>
+            ) : (
+              <div className="w-16 h-16 flex-shrink-0 bg-gray-900 rounded flex items-center justify-center">
+                <Newspaper className="w-6 h-6 text-gray-600" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-sm line-clamp-1">{article.title}</h3>
 
-              <div className="flex items-center justify-between text-xs text-gray-500">
+              {(article.snippet || article.description) && (
+                <p className="text-gray-400 text-xs line-clamp-1 mt-0.5">
+                  {article.snippet || article.description}
+                </p>
+              )}
+
+              <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                 <span>{article.source}</span>
                 <span>{formatDate(article.publishedAt)}</span>
+                {article.categories.length > 0 && (
+                  <div className="flex gap-1">
+                    {article.categories.slice(0, 2).map((category) => (
+                      <span
+                        key={category}
+                        className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs"
+                      >
+                        {category}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-
-              {article.categories.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {article.categories.map((category) => (
-                    <span
-                      key={category}
-                      className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs"
-                    >
-                      {category}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </article>
         ))}
