@@ -1,140 +1,158 @@
 /**
  * Trending API Route
  *
- * GET /api/trending - Fetch trending/popular content
+ * GET /api/trending - Fetch trending/popular content from multiple sources
+ *
+ * Returns separate sections for:
+ * - movies: Trending movies from TheTVDB
+ * - tv: Trending TV shows from TheTVDB
+ * - torrents: Popular torrents from our database
  *
  * Query parameters:
- * - type: 'movie' | 'tv' | 'music' | 'all' (default: 'all')
- * - timeWindow: 'day' | 'week' | 'month' (default: 'week')
- * - sort: 'popular' | 'recent' | 'seeded' (default: 'popular')
+ * - section: 'movies' | 'tv' | 'torrents' | 'all' (default: 'all')
  * - page: number (default: 1)
- * - pageSize: number (default: 20, max: 50)
+ * - details: 'true' | 'false' (default: 'false') - Include full details (cast, crew, etc.)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  fetchTrendingMovies,
+  fetchTrendingTVShows,
+  fetchTrendingWithDetails,
   fetchPopularContent,
-  fetchRecentlyAdded,
-  fetchMostSeeded,
-  type TrendingMediaType,
-  type TrendingTimeWindow,
+  type TheTVDBTrendingResult,
+  type TrendingResult,
 } from '@/lib/trending';
 
 /**
- * Valid media types
+ * Valid section options
  */
-const VALID_MEDIA_TYPES = ['movie', 'tv', 'music', 'all'] as const;
+const VALID_SECTIONS = ['movies', 'tv', 'torrents', 'all'] as const;
+type Section = (typeof VALID_SECTIONS)[number];
 
 /**
- * Valid time windows
+ * Type guard for section
  */
-const VALID_TIME_WINDOWS = ['day', 'week', 'month'] as const;
-
-/**
- * Valid sort options
- */
-const VALID_SORT_OPTIONS = ['popular', 'recent', 'seeded'] as const;
-
-/**
- * Type guard for media type
- */
-function isValidMediaType(value: string): value is TrendingMediaType {
-  return VALID_MEDIA_TYPES.includes(value as TrendingMediaType);
+function isValidSection(value: string): value is Section {
+  return VALID_SECTIONS.includes(value as Section);
 }
 
 /**
- * Type guard for time window
+ * Section result with optional error
  */
-function isValidTimeWindow(value: string): value is TrendingTimeWindow {
-  return VALID_TIME_WINDOWS.includes(value as TrendingTimeWindow);
+interface SectionResult<T> {
+  items: T extends TheTVDBTrendingResult ? TheTVDBTrendingResult['items'] : TrendingResult['items'];
+  page: number;
+  totalPages: number;
+  totalResults: number;
+  error?: string;
 }
 
 /**
- * Type guard for sort option
+ * Full trending response
  */
-function isValidSortOption(value: string): value is 'popular' | 'recent' | 'seeded' {
-  return VALID_SORT_OPTIONS.includes(value as 'popular' | 'recent' | 'seeded');
+interface TrendingResponse {
+  movies?: SectionResult<TheTVDBTrendingResult>;
+  tv?: SectionResult<TheTVDBTrendingResult>;
+  torrents?: SectionResult<TrendingResult>;
+}
+
+/**
+ * Create empty section result with error
+ */
+function createEmptyResult(error: string): SectionResult<TheTVDBTrendingResult> {
+  return {
+    items: [],
+    page: 1,
+    totalPages: 0,
+    totalResults: 0,
+    error,
+  };
 }
 
 /**
  * GET /api/trending
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    const { searchParams } = new URL(request.url);
-    
-    // Parse query parameters
-    const typeParam = searchParams.get('type') ?? 'all';
-    const timeWindowParam = searchParams.get('timeWindow') ?? 'week';
-    const sortParam = searchParams.get('sort') ?? 'popular';
-    const pageParam = searchParams.get('page') ?? '1';
-    const pageSizeParam = searchParams.get('pageSize') ?? '20';
-    
-    // Validate media type
-    if (!isValidMediaType(typeParam)) {
-      return NextResponse.json(
-        { error: `Invalid type. Must be one of: ${VALID_MEDIA_TYPES.join(', ')}` },
-        { status: 400 }
-      );
-    }
-    
-    // Validate time window
-    if (!isValidTimeWindow(timeWindowParam)) {
-      return NextResponse.json(
-        { error: `Invalid timeWindow. Must be one of: ${VALID_TIME_WINDOWS.join(', ')}` },
-        { status: 400 }
-      );
-    }
-    
-    // Validate sort option
-    if (!isValidSortOption(sortParam)) {
-      return NextResponse.json(
-        { error: `Invalid sort. Must be one of: ${VALID_SORT_OPTIONS.join(', ')}` },
-        { status: 400 }
-      );
-    }
-    
-    // Parse and validate page
-    const page = parseInt(pageParam, 10);
-    if (isNaN(page) || page < 1) {
-      return NextResponse.json(
-        { error: 'Invalid page. Must be a positive integer.' },
-        { status: 400 }
-      );
-    }
-    
-    // Parse and validate page size
-    let pageSize = parseInt(pageSizeParam, 10);
-    if (isNaN(pageSize) || pageSize < 1) {
-      return NextResponse.json(
-        { error: 'Invalid pageSize. Must be a positive integer.' },
-        { status: 400 }
-      );
-    }
-    // Cap page size at 50
-    pageSize = Math.min(pageSize, 50);
-    
-    // Fetch content based on sort option
-    let result;
-    switch (sortParam) {
-      case 'recent':
-        result = await fetchRecentlyAdded(typeParam, page, pageSize);
-        break;
-      case 'seeded':
-        result = await fetchMostSeeded(typeParam, page, pageSize);
-        break;
-      case 'popular':
-      default:
-        result = await fetchPopularContent(typeParam, timeWindowParam, page, pageSize);
-        break;
-    }
-    
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('Error fetching trending content:', error);
+  const { searchParams } = new URL(request.url);
+
+  // Parse query parameters
+  const sectionParam = searchParams.get('section') ?? 'all';
+  const pageParam = searchParams.get('page') ?? '1';
+  const detailsParam = searchParams.get('details') ?? 'false';
+
+  // Validate section
+  if (!isValidSection(sectionParam)) {
     return NextResponse.json(
-      { error: 'Failed to fetch trending content' },
-      { status: 500 }
+      { error: `Invalid section. Must be one of: ${VALID_SECTIONS.join(', ')}` },
+      { status: 400 }
     );
   }
+
+  // Parse and validate page
+  const page = parseInt(pageParam, 10);
+  if (isNaN(page) || page < 1) {
+    return NextResponse.json({ error: 'Invalid page. Must be a positive integer.' }, { status: 400 });
+  }
+
+  const includeDetails = detailsParam === 'true';
+  const response: TrendingResponse = {};
+
+  // Get TheTVDB API key from environment
+  const thetvdbApiKey = process.env.THETVDB_API_KEY;
+
+  // Fetch movies section
+  if (sectionParam === 'all' || sectionParam === 'movies') {
+    if (!thetvdbApiKey) {
+      response.movies = createEmptyResult('THETVDB_API_KEY is not configured');
+    } else {
+      try {
+        if (includeDetails) {
+          response.movies = await fetchTrendingWithDetails(thetvdbApiKey, 'movie', page);
+        } else {
+          response.movies = await fetchTrendingMovies(thetvdbApiKey, page);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        response.movies = createEmptyResult(errorMessage);
+      }
+    }
+  }
+
+  // Fetch TV section
+  if (sectionParam === 'all' || sectionParam === 'tv') {
+    if (!thetvdbApiKey) {
+      response.tv = createEmptyResult('THETVDB_API_KEY is not configured');
+    } else {
+      try {
+        if (includeDetails) {
+          response.tv = await fetchTrendingWithDetails(thetvdbApiKey, 'tv', page);
+        } else {
+          response.tv = await fetchTrendingTVShows(thetvdbApiKey, page);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        response.tv = createEmptyResult(errorMessage);
+      }
+    }
+  }
+
+  // Fetch torrents section
+  if (sectionParam === 'all' || sectionParam === 'torrents') {
+    try {
+      // For torrents, we use 'week' as default since 'day' might have too few results
+      response.torrents = await fetchPopularContent('all', 'week', page, 20);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      response.torrents = {
+        items: [],
+        page: 1,
+        totalPages: 0,
+        totalResults: 0,
+        error: errorMessage,
+      };
+    }
+  }
+
+  return NextResponse.json(response);
 }

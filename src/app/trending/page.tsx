@@ -3,12 +3,18 @@
 /**
  * Trending Page
  *
- * Shows popular and trending content from our database.
- * Features: filter by media type, sort by popularity/recent/seeded, pagination.
+ * Shows trending content from multiple sources:
+ * - Movies: Trending movies from TheTVDB
+ * - TV Shows: Trending TV shows from TheTVDB
+ * - Torrents: Popular torrents from our database
+ *
+ * Features: separate sections, rich metadata (cast, directors, description),
+ * "Find Torrent" button to search for torrents.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { MediaThumbnail } from '@/components/ui/media-placeholder';
 import { cn, formatBytes } from '@/lib/utils';
@@ -16,12 +22,34 @@ import {
   TrendingIcon,
   MovieIcon,
   TvIcon,
-  MusicIcon,
+  SearchIcon,
+  StarIcon,
   ClockIcon,
-  FireIcon,
 } from '@/components/ui/icons';
 
-interface TrendingItem {
+/**
+ * TheTVDB trending item (movies/TV)
+ */
+interface TheTVDBItem {
+  id: number;
+  title: string;
+  mediaType: 'movie' | 'tv';
+  year?: number;
+  posterUrl?: string;
+  overview?: string;
+  rating?: number;
+  runtime?: number;
+  status?: string;
+  network?: string;
+  genres?: string[];
+  cast?: string[];
+  directors?: string[];
+}
+
+/**
+ * Torrent item from our database
+ */
+interface TorrentItem {
   id: string;
   infohash: string;
   title: string;
@@ -36,157 +64,341 @@ interface TrendingItem {
   indexedAt: string;
 }
 
-interface TrendingResponse {
-  items: TrendingItem[];
+/**
+ * Section result from API
+ */
+interface SectionResult<T> {
+  items: T[];
   page: number;
   totalPages: number;
   totalResults: number;
+  error?: string;
 }
 
-type MediaType = 'all' | 'movie' | 'tv' | 'music';
-type SortOption = 'popular' | 'recent' | 'seeded';
-type TimeWindow = 'day' | 'week' | 'month';
+/**
+ * Full API response
+ */
+interface TrendingResponse {
+  movies?: SectionResult<TheTVDBItem>;
+  tv?: SectionResult<TheTVDBItem>;
+  torrents?: SectionResult<TorrentItem>;
+}
 
-const MEDIA_TYPE_OPTIONS: { key: MediaType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+type ActiveSection = 'all' | 'movies' | 'tv' | 'torrents';
+
+const SECTION_OPTIONS: { key: ActiveSection; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { key: 'all', label: 'All', icon: TrendingIcon },
-  { key: 'movie', label: 'Movies', icon: MovieIcon },
+  { key: 'movies', label: 'Movies', icon: MovieIcon },
   { key: 'tv', label: 'TV Shows', icon: TvIcon },
-  { key: 'music', label: 'Music', icon: MusicIcon },
+  { key: 'torrents', label: 'Torrents', icon: SearchIcon },
 ];
-
-const SORT_OPTIONS: { key: SortOption; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
-  { key: 'popular', label: 'Popular', icon: FireIcon },
-  { key: 'recent', label: 'Recent', icon: ClockIcon },
-  { key: 'seeded', label: 'Most Seeded', icon: TrendingIcon },
-];
-
-const TIME_WINDOW_OPTIONS: { key: TimeWindow; label: string }[] = [
-  { key: 'day', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-];
-
-const PAGE_SIZE = 20;
 
 /**
- * Format date for display
+ * Format rating for display
  */
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+function formatRating(rating?: number): string {
+  if (rating === undefined) return 'N/A';
+  return rating.toFixed(1);
 }
 
 /**
- * Get content type for MediaThumbnail
+ * Build search query for finding torrents
  */
-function getContentType(mediaType: string): 'movie' | 'tvshow' | 'music' | 'other' {
-  switch (mediaType) {
-    case 'movie':
-      return 'movie';
-    case 'tv':
-      return 'tvshow';
-    case 'music':
-      return 'music';
-    default:
-      return 'other';
+function buildSearchQuery(item: TheTVDBItem): string {
+  const parts = [item.title];
+  if (item.year) {
+    parts.push(String(item.year));
   }
+  return parts.join(' ');
+}
+
+/**
+ * TheTVDB Item Card Component
+ */
+function TheTVDBItemCard({ item, onFindTorrent }: { item: TheTVDBItem; onFindTorrent: (query: string) => void }): React.ReactElement {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="group relative overflow-hidden rounded-lg bg-bg-secondary border border-border-primary hover:border-accent-primary transition-all">
+      <div className="flex flex-col sm:flex-row">
+        {/* Poster */}
+        <div className="relative w-full sm:w-40 flex-shrink-0">
+          <MediaThumbnail
+            src={item.posterUrl}
+            alt={item.title}
+            contentType={item.mediaType === 'movie' ? 'movie' : 'tvshow'}
+            className="aspect-[2/3] w-full sm:h-60"
+          />
+          {/* Rating badge */}
+          {item.rating !== undefined && (
+            <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-yellow-400">
+              <StarIcon size={12} />
+              {formatRating(item.rating)}
+            </div>
+          )}
+          {/* Media type badge */}
+          <div className="absolute bottom-2 left-2 rounded bg-accent-primary/90 px-1.5 py-0.5 text-xs font-medium text-white uppercase">
+            {item.mediaType}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 p-4 space-y-3">
+          {/* Title and Year */}
+          <div>
+            <h3 className="text-lg font-semibold text-text-primary group-hover:text-accent-primary transition-colors">
+              {item.title}
+            </h3>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary mt-1">
+              {item.year && <span>{item.year}</span>}
+              {item.runtime && (
+                <span className="flex items-center gap-1">
+                  <ClockIcon size={14} />
+                  {item.runtime} min
+                </span>
+              )}
+              {item.status && (
+                <span className="text-accent-secondary">{item.status}</span>
+              )}
+              {item.network && (
+                <span className="text-accent-secondary">{item.network}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Genres */}
+          {item.genres && item.genres.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {item.genres.slice(0, 4).map((genre) => (
+                <span
+                  key={genre}
+                  className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs text-text-secondary"
+                >
+                  {genre}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Description/Overview */}
+          {item.overview && (
+            <p className={cn(
+              'text-sm text-text-secondary',
+              !isExpanded && 'line-clamp-2'
+            )}>
+              {item.overview}
+            </p>
+          )}
+          {item.overview && item.overview.length > 150 && (
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-xs text-accent-primary hover:underline"
+            >
+              {isExpanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+
+          {/* Cast */}
+          {item.cast && item.cast.length > 0 && (
+            <div className="text-sm">
+              <span className="text-text-muted">Cast: </span>
+              <span className="text-text-secondary">
+                {item.cast.slice(0, 3).join(', ')}
+              </span>
+            </div>
+          )}
+
+          {/* Directors/Creators */}
+          {item.directors && item.directors.length > 0 && (
+            <div className="text-sm">
+              <span className="text-text-muted">
+                {item.mediaType === 'tv' ? 'Created by: ' : 'Director: '}
+              </span>
+              <span className="text-text-secondary">
+                {item.directors.join(', ')}
+              </span>
+            </div>
+          )}
+
+          {/* Find Torrent Button */}
+          <button
+            type="button"
+            onClick={() => onFindTorrent(buildSearchQuery(item))}
+            className="inline-flex items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 transition-colors"
+          >
+            <SearchIcon size={16} />
+            Find Torrent
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Torrent Item Card Component
+ */
+function TorrentItemCard({ item }: { item: TorrentItem }): React.ReactElement {
+  return (
+    <Link
+      href={`/torrents/${item.id}`}
+      className="group block overflow-hidden rounded-lg bg-bg-secondary border border-border-primary hover:border-accent-primary transition-all"
+    >
+      <div className="flex flex-col sm:flex-row">
+        {/* Poster */}
+        <div className="relative w-full sm:w-32 flex-shrink-0">
+          <MediaThumbnail
+            src={item.posterUrl ?? undefined}
+            alt={item.cleanTitle ?? item.title}
+            contentType={item.mediaType === 'movie' ? 'movie' : item.mediaType === 'tv' ? 'tvshow' : item.mediaType === 'music' ? 'music' : 'other'}
+            className="aspect-[2/3] w-full sm:h-48"
+          />
+          {/* Seeder badge */}
+          {item.seeders !== null && item.seeders > 0 && (
+            <div
+              className={cn(
+                'absolute top-2 right-2 rounded px-1.5 py-0.5 text-xs font-medium',
+                item.seeders > 100
+                  ? 'bg-green-500/90 text-white'
+                  : item.seeders > 10
+                  ? 'bg-yellow-500/90 text-black'
+                  : 'bg-red-500/90 text-white'
+              )}
+            >
+              {item.seeders} S
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 p-3 space-y-2">
+          <h3 className="font-medium text-text-primary group-hover:text-accent-primary transition-colors line-clamp-2">
+            {item.cleanTitle ?? item.title}
+          </h3>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+            {item.year && <span>{item.year}</span>}
+            <span className="capitalize">{item.mediaType === 'tv' ? 'TV' : item.mediaType}</span>
+            <span>{formatBytes(item.totalSize)}</span>
+          </div>
+          {item.description && (
+            <p className="text-xs text-text-muted line-clamp-2">{item.description}</p>
+          )}
+          <div className="flex items-center gap-3 text-xs text-text-muted">
+            {item.seeders !== null && <span className="text-green-500">{item.seeders} seeders</span>}
+            {item.leechers !== null && <span className="text-yellow-500">{item.leechers} leechers</span>}
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * Section Header Component
+ */
+function SectionHeader({ 
+  title, 
+  icon: Icon, 
+  count,
+  error 
+}: { 
+  title: string; 
+  icon: React.ComponentType<{ size?: number; className?: string }>; 
+  count?: number;
+  error?: string;
+}): React.ReactElement {
+  return (
+    <div className="flex items-center justify-between">
+      <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+        <Icon size={24} className="text-accent-primary" />
+        {title}
+        {count !== undefined && count > 0 && (
+          <span className="text-sm font-normal text-text-muted">({count})</span>
+        )}
+      </h2>
+      {error && (
+        <span className="text-xs text-red-400">{error}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Loading Skeleton Component
+ */
+function LoadingSkeleton(): React.ReactElement {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="animate-pulse flex gap-4 rounded-lg bg-bg-secondary p-4">
+          <div className="w-32 h-48 rounded bg-bg-tertiary flex-shrink-0" />
+          <div className="flex-1 space-y-3">
+            <div className="h-6 w-3/4 rounded bg-bg-tertiary" />
+            <div className="h-4 w-1/2 rounded bg-bg-tertiary" />
+            <div className="h-16 w-full rounded bg-bg-tertiary" />
+            <div className="h-4 w-2/3 rounded bg-bg-tertiary" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function TrendingPage(): React.ReactElement {
-  const [items, setItems] = useState<TrendingItem[]>([]);
-  const [totalResults, setTotalResults] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const router = useRouter();
+  const [data, setData] = useState<TrendingResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [mediaType, setMediaType] = useState<MediaType>('all');
-  const [sortOption, setSortOption] = useState<SortOption>('popular');
-  const [timeWindow, setTimeWindow] = useState<TimeWindow>('week');
+  const [activeSection, setActiveSection] = useState<ActiveSection>('all');
 
-  const fetchTrending = useCallback(
-    async (pageNum: number, append: boolean = false): Promise<void> => {
-      try {
-        if (append) {
-          setIsLoadingMore(true);
-        } else {
-          setIsLoading(true);
-        }
+  const fetchTrending = useCallback(async (): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        details: 'true', // Get full details including cast/crew
+      });
 
-        const params = new URLSearchParams({
-          type: mediaType,
-          sort: sortOption,
-          timeWindow,
-          page: String(pageNum),
-          pageSize: String(PAGE_SIZE),
-        });
-
-        const response = await fetch(`/api/trending?${params.toString()}`);
-
-        if (!response.ok) {
-          if (!append) {
-            setItems([]);
-          }
-          return;
-        }
-
-        const data: TrendingResponse = await response.json();
-
-        if (append) {
-          setItems((prev) => [...prev, ...data.items]);
-        } else {
-          setItems(data.items);
-        }
-
-        setTotalResults(data.totalResults);
-        setTotalPages(data.totalPages);
-        setPage(pageNum);
-      } catch {
-        if (!append) {
-          setItems([]);
-        }
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
+      // Only fetch specific section if not 'all'
+      if (activeSection !== 'all') {
+        params.set('section', activeSection);
       }
-    },
-    [mediaType, sortOption, timeWindow]
-  );
 
-  // Initial fetch and refetch when filters change
-  useEffect(() => {
-    fetchTrending(1, false);
-  }, [mediaType, sortOption, timeWindow]); // eslint-disable-line react-hooks/exhaustive-deps
+      const response = await fetch(`/api/trending?${params.toString()}`);
 
-  const handleLoadMore = useCallback((): void => {
-    if (!isLoadingMore && page < totalPages) {
-      fetchTrending(page + 1, true);
+      if (!response.ok) {
+        setData(null);
+        return;
+      }
+
+      const result: TrendingResponse = await response.json();
+      setData(result);
+    } catch {
+      setData(null);
+    } finally {
+      setIsLoading(false);
     }
-  }, [fetchTrending, page, totalPages, isLoadingMore]);
+  }, [activeSection]);
 
-  const handleMediaTypeChange = useCallback((type: MediaType): void => {
-    setMediaType(type);
-    setPage(1);
+  useEffect(() => {
+    fetchTrending();
+  }, [fetchTrending]);
+
+  const handleFindTorrent = useCallback((query: string): void => {
+    // Navigate to find-torrents page with the search query
+    router.push(`/find-torrents?q=${encodeURIComponent(query)}`);
+  }, [router]);
+
+  const handleSectionChange = useCallback((section: ActiveSection): void => {
+    setActiveSection(section);
   }, []);
 
-  const handleSortChange = useCallback((sort: SortOption): void => {
-    setSortOption(sort);
-    setPage(1);
-  }, []);
-
-  const handleTimeWindowChange = useCallback((window: TimeWindow): void => {
-    setTimeWindow(window);
-    setPage(1);
-  }, []);
-
-  const hasMore = page < totalPages;
+  const showMovies = activeSection === 'all' || activeSection === 'movies';
+  const showTV = activeSection === 'all' || activeSection === 'tv';
+  const showTorrents = activeSection === 'all' || activeSection === 'torrents';
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
@@ -194,25 +406,25 @@ export default function TrendingPage(): React.ReactElement {
             Trending
           </h1>
           <p className="text-sm text-text-secondary mt-1">
-            Discover popular content based on seeder activity
+            Discover trending movies, TV shows, and popular torrents
           </p>
         </div>
 
         {/* Filters */}
         <div className="space-y-4">
-          {/* Media Type Filter */}
+          {/* Section Filter */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-text-muted">Type:</span>
-            {MEDIA_TYPE_OPTIONS.map((option) => {
+            <span className="text-xs text-text-muted">Section:</span>
+            {SECTION_OPTIONS.map((option) => {
               const Icon = option.icon;
               return (
                 <button
                   key={option.key}
                   type="button"
-                  onClick={() => handleMediaTypeChange(option.key)}
+                  onClick={() => handleSectionChange(option.key)}
                   className={cn(
                     'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors',
-                    mediaType === option.key
+                    activeSection === option.key
                       ? 'bg-accent-primary text-white'
                       : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                   )}
@@ -223,180 +435,110 @@ export default function TrendingPage(): React.ReactElement {
               );
             })}
           </div>
-
-          {/* Sort and Time Window */}
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Sort Options */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-text-muted">Sort:</span>
-              {SORT_OPTIONS.map((option) => {
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => handleSortChange(option.key)}
-                    className={cn(
-                      'flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors',
-                      sortOption === option.key
-                        ? 'bg-accent-primary/20 text-accent-primary'
-                        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                    )}
-                  >
-                    <Icon size={14} />
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Time Window (only for popular sort) */}
-            {sortOption === 'popular' && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-text-muted">Period:</span>
-                {TIME_WINDOW_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => handleTimeWindowChange(option.key)}
-                    className={cn(
-                      'rounded px-2 py-1 text-xs transition-colors',
-                      timeWindow === option.key
-                        ? 'bg-accent-primary/20 text-accent-primary'
-                        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Results count */}
-        {!isLoading && totalResults > 0 && (
-          <p className="text-sm text-text-muted">
-            {totalResults.toLocaleString()} results
-          </p>
-        )}
-
         {/* Loading */}
-        {isLoading && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-[2/3] rounded-lg bg-bg-tertiary" />
-                <div className="mt-2 h-4 w-3/4 rounded bg-bg-tertiary" />
-                <div className="mt-1 h-3 w-1/2 rounded bg-bg-tertiary" />
-              </div>
-            ))}
-          </div>
-        )}
+        {isLoading && <LoadingSkeleton />}
 
-        {/* Content Grid */}
-        {!isLoading && items.length > 0 && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {items.map((item) => (
-              <Link
-                key={item.id}
-                href={`/torrents/${item.id}`}
-                className="group block"
-              >
-                <div className="relative overflow-hidden rounded-lg bg-bg-tertiary transition-transform group-hover:scale-105">
-                  <MediaThumbnail
-                    src={item.posterUrl ?? undefined}
-                    alt={item.cleanTitle ?? item.title}
-                    contentType={getContentType(item.mediaType)}
-                    className="aspect-[2/3] w-full"
-                  />
-                  {/* Seeder badge */}
-                  {item.seeders !== null && item.seeders > 0 && (
-                    <div
-                      className={cn(
-                        'absolute right-2 top-2 rounded px-1.5 py-0.5 text-xs font-medium',
-                        item.seeders > 100
-                          ? 'bg-green-500/90 text-white'
-                          : item.seeders > 10
-                          ? 'bg-yellow-500/90 text-black'
-                          : 'bg-red-500/90 text-white'
-                      )}
-                    >
-                      {item.seeders} S
-                    </div>
-                  )}
-                  {/* Media type badge */}
-                  <div className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-xs capitalize text-white">
-                    {item.mediaType === 'tv' ? 'TV' : item.mediaType}
+        {/* Content */}
+        {!isLoading && data && (
+          <div className="space-y-10">
+            {/* Movies Section */}
+            {showMovies && data.movies && (
+              <section className="space-y-4">
+                <SectionHeader
+                  title="Trending Movies"
+                  icon={MovieIcon}
+                  count={data.movies.totalResults}
+                  error={data.movies.error}
+                />
+                {data.movies.items.length > 0 ? (
+                  <div className="space-y-4">
+                    {data.movies.items.map((item) => (
+                      <TheTVDBItemCard
+                        key={item.id}
+                        item={item}
+                        onFindTorrent={handleFindTorrent}
+                      />
+                    ))}
                   </div>
-                </div>
-                <div className="mt-2">
-                  <h3 className="truncate text-sm font-medium text-text-primary group-hover:text-accent-primary">
-                    {item.cleanTitle ?? item.title}
-                  </h3>
-                  <div className="flex items-center gap-2 text-xs text-text-muted">
-                    {item.year && <span>{item.year}</span>}
-                    <span>{formatBytes(item.totalSize)}</span>
+                ) : (
+                  <p className="text-text-muted text-sm py-4">
+                    {data.movies.error || 'No trending movies found. Make sure THETVDB_API_KEY is configured.'}
+                  </p>
+                )}
+              </section>
+            )}
+
+            {/* TV Shows Section */}
+            {showTV && data.tv && (
+              <section className="space-y-4">
+                <SectionHeader
+                  title="Trending TV Shows"
+                  icon={TvIcon}
+                  count={data.tv.totalResults}
+                  error={data.tv.error}
+                />
+                {data.tv.items.length > 0 ? (
+                  <div className="space-y-4">
+                    {data.tv.items.map((item) => (
+                      <TheTVDBItemCard
+                        key={item.id}
+                        item={item}
+                        onFindTorrent={handleFindTorrent}
+                      />
+                    ))}
                   </div>
-                </div>
-              </Link>
-            ))}
+                ) : (
+                  <p className="text-text-muted text-sm py-4">
+                    {data.tv.error || 'No trending TV shows found. Make sure THETVDB_API_KEY is configured.'}
+                  </p>
+                )}
+              </section>
+            )}
+
+            {/* Torrents Section */}
+            {showTorrents && data.torrents && (
+              <section className="space-y-4">
+                <SectionHeader
+                  title="Popular Torrents"
+                  icon={TrendingIcon}
+                  count={data.torrents.totalResults}
+                  error={data.torrents.error}
+                />
+                {data.torrents.items.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {data.torrents.items.map((item) => (
+                      <TorrentItemCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-text-muted text-sm py-4">
+                    {data.torrents.error || 'No popular torrents found in our database.'}
+                  </p>
+                )}
+              </section>
+            )}
           </div>
         )}
 
         {/* Empty state */}
-        {!isLoading && items.length === 0 && (
+        {!isLoading && !data && (
           <div className="py-12 text-center">
             <TrendingIcon size={48} className="mx-auto text-text-muted opacity-50" />
             <p className="mt-4 text-text-muted">
-              No trending content found for the selected filters.
+              Unable to load trending content.
             </p>
             <p className="mt-2 text-sm text-text-muted">
-              Try changing the media type or time period.
+              Please check your API configuration and try again.
             </p>
-          </div>
-        )}
-
-        {/* Load more button */}
-        {hasMore && !isLoading && (
-          <div className="flex justify-center pt-4">
             <button
               type="button"
-              onClick={handleLoadMore}
-              disabled={isLoadingMore}
-              className="btn-secondary px-6 py-2 text-sm disabled:opacity-50"
+              onClick={fetchTrending}
+              className="mt-4 btn-primary px-4 py-2 text-sm"
             >
-              {isLoadingMore ? (
-                <span className="flex items-center gap-2">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Loading...
-                </span>
-              ) : (
-                `Load more (${items.length} of ${totalResults.toLocaleString()})`
-              )}
+              Retry
             </button>
-          </div>
-        )}
-
-        {/* Show count when all loaded */}
-        {!hasMore && items.length > 0 && !isLoading && (
-          <div className="text-center text-xs text-text-secondary">
-            Showing all {items.length.toLocaleString()} results
           </div>
         )}
       </div>
