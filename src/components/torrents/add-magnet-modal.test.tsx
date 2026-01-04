@@ -2,6 +2,12 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// Mock useTvDetection hook to avoid issues in test environment
+vi.mock('@/hooks/use-tv-detection', () => ({
+  useTvDetection: () => ({ isTv: false, isLoading: false, browserType: null }),
+}));
+
 import { AddMagnetModal } from './add-magnet-modal';
 
 // Mock fetch

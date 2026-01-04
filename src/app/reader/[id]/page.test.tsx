@@ -7,6 +7,12 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+
+// Mock useTvDetection hook to avoid issues in test environment
+vi.mock('@/hooks/use-tv-detection', () => ({
+  useTvDetection: () => ({ isTv: false, isLoading: false, browserType: null }),
+}));
+
 import ReaderPage from './page';
 
 // Mock next/navigation

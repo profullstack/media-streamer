@@ -55,6 +55,8 @@ interface FileTreeProps {
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
+  /** Callback when "Read" is clicked for an ebook file (epub/pdf) */
+  onFileRead?: (file: TorrentFile) => void;
   /** Callback when "Play All" is clicked for a folder or the entire collection */
   onPlayAll?: (files: TorrentFile[]) => void;
   className?: string;
@@ -181,6 +183,7 @@ export function FileTree({
   onFileSelect,
   onFilePlay,
   onFileDownload,
+  onFileRead,
   onPlayAll,
   className,
 }: FileTreeProps): React.ReactElement {
@@ -198,6 +201,7 @@ export function FileTree({
           onFileSelect={onFileSelect}
           onFilePlay={onFilePlay}
           onFileDownload={onFileDownload}
+          onFileRead={onFileRead}
           onPlayAll={onPlayAll}
         />
       ))}
@@ -212,6 +216,7 @@ interface FileTreeNodeComponentProps {
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
+  onFileRead?: (file: TorrentFile) => void;
   onPlayAll?: (files: TorrentFile[]) => void;
 }
 
@@ -222,6 +227,7 @@ function FileTreeNodeComponent({
   onFileSelect,
   onFilePlay,
   onFileDownload,
+  onFileRead,
   onPlayAll,
 }: FileTreeNodeComponentProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(depth < 2);
@@ -251,6 +257,13 @@ function FileTreeNodeComponent({
     e.stopPropagation();
     if (node.file && onFilePlay) {
       onFilePlay(node.file);
+    }
+  };
+
+  const handleRead = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    if (node.file && onFileRead) {
+      onFileRead(node.file);
     }
   };
 
@@ -296,6 +309,7 @@ function FileTreeNodeComponent({
       : 'text-text-secondary';
 
   const isPlayable = node.file && (node.file.mediaCategory === 'audio' || node.file.mediaCategory === 'video');
+  const isReadable = node.file && node.file.mediaCategory === 'ebook';
 
   return (
     <div className="overflow-hidden w-full">
@@ -344,7 +358,7 @@ function FileTreeNodeComponent({
             </>
           ) : (
             <>
-              {/* Play button for playable files */}
+              {/* Play button for playable files (audio/video) */}
               {isPlayable && onFilePlay ? (
                 <button
                   type="button"
@@ -354,6 +368,18 @@ function FileTreeNodeComponent({
                   aria-label={`Play ${node.name}`}
                 >
                   <PlayIcon size={20} />
+                </button>
+              ) : null}
+              {/* Read button for ebook files (epub/pdf) */}
+              {isReadable && onFileRead ? (
+                <button
+                  type="button"
+                  onClick={handleRead}
+                  className="rounded-lg p-2 bg-accent-ebook/10 text-accent-ebook hover:bg-accent-ebook/30 active:bg-accent-ebook/40 transition-colors"
+                  title="Read"
+                  aria-label={`Read ${node.name}`}
+                >
+                  <BookIcon size={20} />
                 </button>
               ) : null}
               {/* Download button for files */}
@@ -368,8 +394,8 @@ function FileTreeNodeComponent({
                   <DownloadIcon size={20} />
                 </button>
               ) : null}
-              {/* Spacer if no buttons */}
-              {!isPlayable && !onFilePlay && !onFileDownload && <span className="w-5" />}
+              {/* Spacer if no action buttons */}
+              {!isPlayable && !isReadable && !onFileDownload && <span className="w-5" />}
             </>
           )}
         </div>
@@ -419,6 +445,7 @@ function FileTreeNodeComponent({
               onFileSelect={onFileSelect}
               onFilePlay={onFilePlay}
               onFileDownload={onFileDownload}
+              onFileRead={onFileRead}
               onPlayAll={onPlayAll}
             />
           ))}

@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
@@ -89,6 +89,7 @@ function findFolderMetadataForFiles(
 
 export default function TorrentDetailPage(): React.ReactElement {
   const params = useParams();
+  const router = useRouter();
   const torrentId = params.id as string;
   const { user } = useAuth();
 
@@ -193,6 +194,11 @@ export default function TorrentDetailPage(): React.ReactElement {
       setIsModalOpen(true);
     }
   }, [torrent]);
+
+  // Handle file read - navigates to reader page for ebooks
+  const handleFileRead = useCallback((file: TorrentFile) => {
+    router.push(`/reader/${file.id}`);
+  }, [router]);
 
   // Handle modal close
   const handleModalClose = useCallback(() => {
@@ -513,6 +519,7 @@ export default function TorrentDetailPage(): React.ReactElement {
                 folders={folders}
                 onFilePlay={handleFilePlay}
                 onFileDownload={handleFileDownload}
+                onFileRead={handleFileRead}
                 onPlayAll={handlePlayAll}
               />
             ) : (
