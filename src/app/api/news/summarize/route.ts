@@ -2,17 +2,18 @@
  * News Article Summarization API Route
  *
  * Server-side endpoint that uses OpenAI to summarize news articles.
- * Fetches article content using Readability for clean extraction.
+ * Uses the shared article extractor which falls back to Puppeteer
+ * for sites that block regular fetch requests.
  * Only available to users with premium/trial/family subscription tiers.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { Readability } from '@mozilla/readability';
-import { parseHTML } from 'linkedom';
 import { getCurrentUser } from '@/lib/auth';
 import { getSubscriptionRepository } from '@/lib/subscription';
 import { getNewsSummaryCache, type ArticleSummary } from '@/lib/news/summary-cache';
+import { getNewsContentCache } from '@/lib/news/content-cache';
+import { extractArticle } from '@/lib/news/article-extractor';
 
 interface SummarizeRequest {
   url: string;
@@ -88,9 +89,9 @@ export async function POST(
       );
     }
 
-    // Check cache first to avoid AI costs
-    const cache = getNewsSummaryCache();
-    const cachedSummary = await cache.get(url);
+    // Check summary cache first to avoid AI costs
+    const summaryCache = getNewsSummaryCache();
+    const cachedSummary = await summaryCache.get(url);
     if (cachedSummary) {
       console.log('[Summarize] Returning cached summary for:', url);
       return NextResponse.json({
@@ -100,67 +101,38 @@ export async function POST(
       });
     }
 
-    // Fetch the article HTML
-    console.log('[Summarize] Fetching article:', url);
-    let articleHtml: string;
-    try {
-      const articleResponse = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
-          'Accept': 'text/html,application/xhtml+xml',
-        },
-        signal: AbortSignal.timeout(30000), // 30 second timeout
-      });
-
-      if (!articleResponse.ok) {
-        console.log('[Summarize] Article fetch failed:', articleResponse.status);
-        return NextResponse.json(
-          { success: false, error: 'Failed to fetch article' },
-          { status: 502 }
-        );
-      }
-
-      articleHtml = await articleResponse.text();
-      console.log('[Summarize] Article fetched, length:', articleHtml.length);
-    } catch (fetchError) {
-      console.error('[Summarize] Article fetch error:', fetchError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch article' },
-        { status: 502 }
-      );
-    }
-
-    // Limit HTML size to prevent blocking the event loop
-    const maxHtmlSize = 500000; // 500KB max
-    if (articleHtml.length > maxHtmlSize) {
-      console.log('[Summarize] HTML too large, truncating:', articleHtml.length);
-      articleHtml = articleHtml.substring(0, maxHtmlSize);
-    }
-
-    // Parse with Readability using linkedom (much faster than JSDOM)
-    console.log('[Summarize] Parsing with Readability...');
+    // Check if we have cached content from a previous extraction
+    const contentCache = getNewsContentCache();
     let articleTitle: string | undefined;
     let articleByline: string | undefined;
     let articleText: string | undefined;
 
-    try {
-      const { document } = parseHTML(articleHtml);
-      // Set the document URL for Readability
-      Object.defineProperty(document, 'URL', { value: url, writable: false });
+    const cachedContent = await contentCache.get(url);
+    if (cachedContent) {
+      console.log('[Summarize] Using cached content for:', url);
+      articleTitle = cachedContent.title;
+      articleByline = cachedContent.byline ?? undefined;
+      articleText = cachedContent.textContent;
+    } else {
+      // Extract article content (with Puppeteer fallback)
+      console.log('[Summarize] Extracting article:', url);
+      const extractResult = await extractArticle(url);
 
-      const reader = new Readability(document);
-      const parsed = reader.parse();
-      if (parsed) {
-        articleTitle = parsed.title ?? undefined;
-        articleByline = parsed.byline ?? undefined;
-        articleText = parsed.textContent ?? undefined;
+      if (!extractResult.success || !extractResult.content) {
+        console.log('[Summarize] Extraction failed:', extractResult.error);
+        return NextResponse.json(
+          { success: false, error: extractResult.error || 'Failed to fetch article' },
+          { status: extractResult.errorCode || 502 }
+        );
       }
-    } catch (parseError) {
-      console.error('[Summarize] Parse error:', parseError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to parse article' },
-        { status: 422 }
-      );
+
+      // Cache the extracted content for future use
+      await contentCache.set(url, extractResult.content);
+      console.log('[Summarize] Cached extracted content for:', url);
+
+      articleTitle = extractResult.content.title;
+      articleByline = extractResult.content.byline ?? undefined;
+      articleText = extractResult.content.textContent;
     }
 
     if (!articleText) {
@@ -170,7 +142,7 @@ export async function POST(
         { status: 422 }
       );
     }
-    console.log('[Summarize] Article parsed, content length:', articleText.length);
+    console.log('[Summarize] Article content length:', articleText.length);
 
     // Truncate content if too long (OpenAI has token limits)
     const maxContentLength = 15000;
@@ -254,7 +226,7 @@ ${truncatedContent}`;
     summaryData.images = summaryData.images || [];
 
     // Cache the summary for 8 hours to avoid repeated AI costs
-    await cache.set(url, summaryData);
+    await summaryCache.set(url, summaryData);
     console.log('[Summarize] Cached summary for:', url);
 
     return NextResponse.json({

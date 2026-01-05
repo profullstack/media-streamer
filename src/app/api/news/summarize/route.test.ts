@@ -2,7 +2,7 @@
  * News Summarize API Route Tests
  *
  * Tests for the article summarization endpoint that uses
- * Readability for content extraction and OpenAI for summarization.
+ * the article extractor (with Puppeteer fallback) and OpenAI for summarization.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -13,9 +13,15 @@ const mocks = vi.hoisted(() => {
   const mockOpenAICreate = vi.fn();
   const mockGetCurrentUser = vi.fn();
   const mockGetSubscriptionStatus = vi.fn();
+  const mockExtractArticle = vi.fn();
+  const mockSummaryCacheGet = vi.fn();
+  const mockSummaryCacheSet = vi.fn();
+  const mockContentCacheGet = vi.fn();
+  const mockContentCacheSet = vi.fn();
 
   class MockAPIError extends Error {
     status: number;
+    code?: string;
     constructor(status: number, message: string) {
       super(message);
       this.name = 'APIError';
@@ -35,11 +41,33 @@ const mocks = vi.hoisted(() => {
   }
   MockOpenAI.APIError = MockAPIError;
 
-  return { mockOpenAICreate, MockAPIError, mockGetCurrentUser, mockGetSubscriptionStatus, MockOpenAI };
+  return {
+    mockOpenAICreate,
+    MockAPIError,
+    mockGetCurrentUser,
+    mockGetSubscriptionStatus,
+    MockOpenAI,
+    mockExtractArticle,
+    mockSummaryCacheGet,
+    mockSummaryCacheSet,
+    mockContentCacheGet,
+    mockContentCacheSet,
+  };
 });
 
 // Destructure for convenience
-const { mockOpenAICreate, MockAPIError, mockGetCurrentUser, mockGetSubscriptionStatus, MockOpenAI } = mocks;
+const {
+  mockOpenAICreate,
+  MockAPIError,
+  mockGetCurrentUser,
+  mockGetSubscriptionStatus,
+  MockOpenAI,
+  mockExtractArticle,
+  mockSummaryCacheGet,
+  mockSummaryCacheSet,
+  mockContentCacheGet,
+  mockContentCacheSet,
+} = mocks;
 
 // Mock auth
 vi.mock('@/lib/auth', () => ({
@@ -58,15 +86,31 @@ vi.mock('openai', () => ({
   default: mocks.MockOpenAI,
 }));
 
-// Mock summary cache (Redis-based) to avoid Redis connection issues in tests
+// Mock summary cache
 vi.mock('@/lib/news/summary-cache', () => ({
   getNewsSummaryCache: () => ({
-    get: vi.fn().mockResolvedValue(null), // Always cache miss for testing
-    set: vi.fn().mockResolvedValue(true),
+    get: mocks.mockSummaryCacheGet,
+    set: mocks.mockSummaryCacheSet,
     delete: vi.fn().mockResolvedValue(true),
     isAvailable: vi.fn().mockResolvedValue(true),
     close: vi.fn().mockResolvedValue(undefined),
   }),
+}));
+
+// Mock content cache
+vi.mock('@/lib/news/content-cache', () => ({
+  getNewsContentCache: () => ({
+    get: mocks.mockContentCacheGet,
+    set: mocks.mockContentCacheSet,
+    delete: vi.fn().mockResolvedValue(true),
+    isAvailable: vi.fn().mockResolvedValue(true),
+    close: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+// Mock article extractor
+vi.mock('@/lib/news/article-extractor', () => ({
+  extractArticle: mocks.mockExtractArticle,
 }));
 
 // Store original env
@@ -78,10 +122,20 @@ describe('News Summarize API Route', () => {
     mockOpenAICreate.mockReset();
     mockGetCurrentUser.mockReset();
     mockGetSubscriptionStatus.mockReset();
+    mockExtractArticle.mockReset();
+    mockSummaryCacheGet.mockReset();
+    mockSummaryCacheSet.mockReset();
+    mockContentCacheGet.mockReset();
+    mockContentCacheSet.mockReset();
 
     // Default: authenticated user with active subscription
     mockGetCurrentUser.mockResolvedValue({ id: 'user-1', email: 'test@example.com' });
     mockGetSubscriptionStatus.mockResolvedValue({ is_active: true, tier: 'premium' });
+    // Default: no cached data
+    mockSummaryCacheGet.mockResolvedValue(null);
+    mockSummaryCacheSet.mockResolvedValue(true);
+    mockContentCacheGet.mockResolvedValue(null);
+    mockContentCacheSet.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -97,21 +151,17 @@ describe('News Summarize API Route', () => {
     });
   }
 
-  const mockArticleHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head><title>Test Article Title</title></head>
-    <body>
-      <article>
-        <h1>Test Article Title</h1>
-        <p class="byline">By John Doe</p>
-        <p>This is the first paragraph of the article content. It contains important information about the topic being discussed.</p>
-        <p>This is the second paragraph with more details about the subject matter.</p>
-        <p>The article concludes with some final thoughts and analysis.</p>
-      </article>
-    </body>
-    </html>
-  `;
+  const mockExtractedContent = {
+    title: 'Test Article Title',
+    byline: 'John Doe',
+    content: '<p>This is the article content.</p>',
+    textContent: 'This is the first paragraph of the article content. It contains important information about the topic being discussed. This is the second paragraph with more details about the subject matter. The article concludes with some final thoughts and analysis.',
+    excerpt: 'Article excerpt',
+    siteName: 'Example News',
+    length: 500,
+    extractedAt: Date.now(),
+    fetchMethod: 'fetch' as const,
+  };
 
   const mockOpenAIResponse = {
     choices: [
@@ -224,40 +274,37 @@ describe('News Summarize API Route', () => {
     });
   });
 
-  describe('Article Fetching', () => {
-    it('should return 502 when article fetch fails', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-      });
+  describe('Summary Caching', () => {
+    it('should return cached summary when available', async () => {
+      const cachedSummary = {
+        title: 'Cached Summary',
+        summary: 'This is a cached summary.',
+        keyPoints: ['Point 1'],
+        images: [],
+        publishedDate: null,
+        author: 'Jane Doe',
+        source: 'example.com',
+      };
+      mockSummaryCacheGet.mockResolvedValue(cachedSummary);
 
       const { POST } = await import('./route');
       const request = createRequest({ url: 'https://example.com/article' });
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(502);
-      expect(data.success).toBe(false);
-      expect(data.error).toBe('Failed to fetch article');
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.cached).toBe(true);
+      expect(data.data).toEqual(cachedSummary);
+      // Should not call extractor or OpenAI
+      expect(mockExtractArticle).not.toHaveBeenCalled();
+      expect(mockOpenAICreate).not.toHaveBeenCalled();
     });
 
-    it('should return 502 when fetch throws an error', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-
-      const { POST } = await import('./route');
-      const request = createRequest({ url: 'https://example.com/article' });
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(502);
-      expect(data.success).toBe(false);
-      expect(data.error).toBe('Failed to fetch article');
-    });
-
-    it('should fetch article with proper headers', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve(mockArticleHtml),
+    it('should cache summary after successful generation', async () => {
+      mockExtractArticle.mockResolvedValue({
+        success: true,
+        content: mockExtractedContent,
       });
       mockOpenAICreate.mockResolvedValue(mockOpenAIResponse);
 
@@ -265,29 +312,91 @@ describe('News Summarize API Route', () => {
       const request = createRequest({ url: 'https://example.com/article' });
       await POST(request);
 
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(mockSummaryCacheSet).toHaveBeenCalledWith(
         'https://example.com/article',
         expect.objectContaining({
-          headers: expect.objectContaining({
-            'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
-            'Accept': 'text/html,application/xhtml+xml',
-          }),
+          title: 'Test Article Title',
+          summary: expect.any(String),
         })
       );
     });
   });
 
-  describe('Content Extraction', () => {
-    it('should return 422 when Readability cannot extract content', async () => {
-      // Completely empty HTML that Readability definitely cannot parse as an article
-      const emptyHtml = '<!DOCTYPE html><html><head></head><body></body></html>';
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve(emptyHtml),
-      });
+  describe('Content Caching', () => {
+    it('should use cached content when available', async () => {
+      mockContentCacheGet.mockResolvedValue(mockExtractedContent);
+      mockOpenAICreate.mockResolvedValue(mockOpenAIResponse);
 
       const { POST } = await import('./route');
       const request = createRequest({ url: 'https://example.com/article' });
+      const response = await POST(request);
+
+      expect(response.status).toBe(200);
+      // Should not call extractor when content is cached
+      expect(mockExtractArticle).not.toHaveBeenCalled();
+      // Should still call OpenAI for summarization
+      expect(mockOpenAICreate).toHaveBeenCalled();
+    });
+
+    it('should cache content after extraction', async () => {
+      mockExtractArticle.mockResolvedValue({
+        success: true,
+        content: mockExtractedContent,
+      });
+      mockOpenAICreate.mockResolvedValue(mockOpenAIResponse);
+
+      const { POST } = await import('./route');
+      const request = createRequest({ url: 'https://example.com/article' });
+      await POST(request);
+
+      expect(mockContentCacheSet).toHaveBeenCalledWith(
+        'https://example.com/article',
+        mockExtractedContent
+      );
+    });
+  });
+
+  describe('Article Extraction with Puppeteer Fallback', () => {
+    it('should use article extractor for content extraction', async () => {
+      mockExtractArticle.mockResolvedValue({
+        success: true,
+        content: mockExtractedContent,
+      });
+      mockOpenAICreate.mockResolvedValue(mockOpenAIResponse);
+
+      const { POST } = await import('./route');
+      const request = createRequest({ url: 'https://example.com/article' });
+      await POST(request);
+
+      expect(mockExtractArticle).toHaveBeenCalledWith('https://example.com/article');
+    });
+
+    it('should return 502 when extraction fails with network error', async () => {
+      mockExtractArticle.mockResolvedValue({
+        success: false,
+        error: 'Failed to fetch article from any source',
+        errorCode: 502,
+      });
+
+      const { POST } = await import('./route');
+      const request = createRequest({ url: 'https://example.com/blocked' });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(502);
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Failed to fetch article from any source');
+    });
+
+    it('should return 422 when content cannot be extracted', async () => {
+      mockExtractArticle.mockResolvedValue({
+        success: false,
+        error: 'Could not extract article content',
+        errorCode: 422,
+      });
+
+      const { POST } = await import('./route');
+      const request = createRequest({ url: 'https://example.com/empty' });
       const response = await POST(request);
       const data = await response.json();
 
@@ -295,13 +404,38 @@ describe('News Summarize API Route', () => {
       expect(data.success).toBe(false);
       expect(data.error).toBe('Could not extract article content');
     });
+
+    it('should handle extraction via Puppeteer fallback', async () => {
+      const puppeteerContent = {
+        ...mockExtractedContent,
+        fetchMethod: 'puppeteer' as const,
+      };
+      mockExtractArticle.mockResolvedValue({
+        success: true,
+        content: puppeteerContent,
+      });
+      mockOpenAICreate.mockResolvedValue(mockOpenAIResponse);
+
+      const { POST } = await import('./route');
+      const request = createRequest({ url: 'https://example.com/403-blocked' });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      // Content was cached
+      expect(mockContentCacheSet).toHaveBeenCalledWith(
+        'https://example.com/403-blocked',
+        expect.objectContaining({ fetchMethod: 'puppeteer' })
+      );
+    });
   });
 
   describe('Successful Summarization', () => {
     beforeEach(() => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve(mockArticleHtml),
+      mockExtractArticle.mockResolvedValue({
+        success: true,
+        content: mockExtractedContent,
       });
     });
 
@@ -416,9 +550,9 @@ describe('News Summarize API Route', () => {
 
   describe('OpenAI Error Handling', () => {
     beforeEach(() => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve(mockArticleHtml),
+      mockExtractArticle.mockResolvedValue({
+        success: true,
+        content: mockExtractedContent,
       });
     });
 
@@ -516,22 +650,16 @@ describe('News Summarize API Route', () => {
 
   describe('Content Truncation', () => {
     it('should truncate very long content', async () => {
-      // Generate HTML with very long content
-      const longContent = 'A'.repeat(20000);
-      const longHtml = `
-        <html>
-        <body>
-          <article>
-            <h1>Long Article</h1>
-            <p>${longContent}</p>
-          </article>
-        </body>
-        </html>
-      `;
+      // Generate content longer than 15000 chars
+      const longTextContent = 'A'.repeat(20000);
+      const longContent = {
+        ...mockExtractedContent,
+        textContent: longTextContent,
+      };
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve(longHtml),
+      mockExtractArticle.mockResolvedValue({
+        success: true,
+        content: longContent,
       });
       mockOpenAICreate.mockResolvedValue(mockOpenAIResponse);
 

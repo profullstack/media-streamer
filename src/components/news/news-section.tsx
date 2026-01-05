@@ -2,13 +2,16 @@
 
 /**
  * News Section Component
- * 
+ *
  * Displays news articles from TheNewsAPI with a modal iframe for viewing full articles.
  * Shows title, snippet, source, description, and categories for each article.
+ *
+ * When iframe fails to load, automatically extracts and displays article content
+ * using Readability (with Puppeteer fallback for blocked sites).
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, ExternalLink, RefreshCw, Newspaper, Sparkles, FileText, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, ExternalLink, RefreshCw, Newspaper, Sparkles, FileText, Loader2, ChevronUp, ChevronDown, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 
 // Supported categories from TheNewsAPI
@@ -59,6 +62,18 @@ interface ArticleSummary {
   source: string | null;
 }
 
+interface ArticleContent {
+  title: string;
+  byline: string | null;
+  content: string;
+  textContent: string;
+  excerpt: string | null;
+  siteName: string | null;
+  length: number;
+  extractedAt: number;
+  fetchMethod: 'fetch' | 'puppeteer';
+}
+
 export interface NewsSectionProps {
   searchTerm?: string;
   limit?: number;
@@ -77,7 +92,13 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
+
+  // Iframe and content extraction state
   const [iframeBlocked, setIframeBlocked] = useState(false);
+  const [extractedContent, setExtractedContent] = useState<ArticleContent | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
+  const [showExtractedContent, setShowExtractedContent] = useState(false);
 
   // Scroll refs for TV navigation
   const contentRef = useRef<HTMLDivElement>(null);
@@ -161,6 +182,43 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
     });
   };
 
+  // Extract article content when iframe fails
+  const handleExtractContent = useCallback(async (): Promise<void> => {
+    if (!selectedArticle) return;
+
+    setIsExtracting(true);
+    setExtractionError(null);
+
+    try {
+      const response = await fetch('/api/news/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: selectedArticle.url }),
+      });
+
+      const data = await response.json() as { success: boolean; data?: ArticleContent; error?: string };
+
+      if (!response.ok || !data.success) {
+        setExtractionError(data.error || 'Failed to extract article content');
+        return;
+      }
+
+      setExtractedContent(data.data || null);
+      setShowExtractedContent(true);
+    } catch (err) {
+      setExtractionError(err instanceof Error ? err.message : 'Failed to extract article content');
+    } finally {
+      setIsExtracting(false);
+    }
+  }, [selectedArticle]);
+
+  // Auto-extract content when iframe is blocked
+  useEffect(() => {
+    if (iframeBlocked && selectedArticle && !extractedContent && !isExtracting && !extractionError) {
+      void handleExtractContent();
+    }
+  }, [iframeBlocked, selectedArticle, extractedContent, isExtracting, extractionError, handleExtractContent]);
+
   const handleSummarize = async (): Promise<void> => {
     if (!selectedArticle) return;
 
@@ -196,6 +254,35 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
     setSummaryError(null);
     setShowSummary(false);
     setIframeBlocked(false);
+    setExtractedContent(null);
+    setExtractionError(null);
+    setShowExtractedContent(false);
+    setIsExtracting(false);
+  };
+
+  // Handle iframe load error - also detect X-Frame-Options blocking
+  const handleIframeError = (): void => {
+    setIframeBlocked(true);
+  };
+
+  // Detect iframe blocking via load event (some sites load but show blank)
+  const handleIframeLoad = (): void => {
+    // Check if iframe content is accessible (same-origin only)
+    // Cross-origin iframes will throw an error when accessing contentDocument
+    try {
+      const iframe = iframeRef.current;
+      if (iframe) {
+        // Try to access the iframe content - this will fail for cross-origin
+        // but that's expected. We only care about detecting X-Frame-Options blocking.
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc && doc.body && doc.body.innerHTML === '') {
+          // Empty body might indicate blocking
+          setIframeBlocked(true);
+        }
+      }
+    } catch {
+      // Cross-origin error is expected - iframe loaded successfully
+    }
   };
 
   if (loading) {
@@ -451,41 +538,121 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                 </div>
               </div>
             ) : iframeBlocked ? (
-              /* Iframe Blocked Fallback */
-              <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 bg-gray-800 overflow-y-auto">
-                <div className="text-center max-w-md">
-                  <Newspaper className="w-16 h-16 mx-auto mb-4 text-gray-500" />
-                  <h3 className="text-xl font-semibold mb-2">Article Preview Blocked</h3>
-                  <p className="text-gray-400 mb-6">
-                    This website doesn&apos;t allow embedding. You can open the article in a new tab or use AI to summarize it.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    {isPremium && !summary && (
+              /* Iframe Blocked - Show extracted content or loading/error state */
+              isExtracting ? (
+                /* Loading state while extracting content */
+                <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 bg-gray-800">
+                  <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4" />
+                  <p className="text-gray-300">Fetching article content...</p>
+                  <p className="text-gray-500 text-sm mt-2">This may take a moment for some sites</p>
+                </div>
+              ) : extractionError ? (
+                /* Extraction failed - show error */
+                <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 bg-gray-800 overflow-y-auto">
+                  <div className="text-center max-w-md">
+                    <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-500" />
+                    <h3 className="text-xl font-semibold mb-2">Unable to Load Article</h3>
+                    <p className="text-gray-400 mb-2">
+                      This website doesn&apos;t allow embedding and we couldn&apos;t fetch the content.
+                    </p>
+                    <p className="text-red-400 text-sm mb-6">{extractionError}</p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
                       <button
-                        onClick={() => void handleSummarize()}
-                        disabled={isSummarizing}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                        onClick={() => {
+                          setExtractionError(null);
+                          void handleExtractContent();
+                        }}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                       >
-                        {isSummarizing ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-5 h-5" />
-                        )}
-                        <span>{isSummarizing ? 'Summarizing...' : 'Summarize with AI'}</span>
+                        <RefreshCw className="w-5 h-5" />
+                        <span>Retry</span>
                       </button>
-                    )}
-                    <a
-                      href={selectedArticle.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                    >
-                      <ExternalLink className="w-5 h-5" />
-                      <span>Open in New Tab</span>
-                    </a>
+                      <a
+                        href={selectedArticle.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                      >
+                        <ExternalLink className="w-5 h-5" />
+                        <span>Open in New Tab</span>
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : extractedContent ? (
+                /* Show extracted article content */
+                <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-800">
+                  {/* Article Image */}
+                  {selectedArticle.imageUrl && (
+                    <div className="mb-4 rounded-lg overflow-hidden bg-gray-900 float-right ml-4 w-32">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedArticle.imageUrl}
+                        alt={extractedContent.title}
+                        className="w-full h-24 object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+
+                  {/* Article Header */}
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold mb-2">{extractedContent.title}</h2>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                      <span>{extractedContent.siteName || selectedArticle.source}</span>
+                      {extractedContent.byline && <span>By {extractedContent.byline}</span>}
+                      <span>{formatDate(selectedArticle.publishedAt)}</span>
+                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
+                        via {extractedContent.fetchMethod === 'puppeteer' ? 'Browser' : 'Direct'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Article Content */}
+                  <div
+                    className="prose prose-invert prose-sm max-w-none text-gray-200 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: extractedContent.content }}
+                  />
+
+                  {/* Actions Footer */}
+                  <div className="mt-8 pt-4 border-t border-gray-700 pb-16">
+                    <div className="flex flex-wrap items-center gap-4">
+                      {isPremium && !summary && (
+                        <button
+                          onClick={() => void handleSummarize()}
+                          disabled={isSummarizing}
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                        >
+                          {isSummarizing ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-5 h-5" />
+                          )}
+                          <span>{isSummarizing ? 'Summarizing...' : 'Get AI Summary'}</span>
+                        </button>
+                      )}
+                      <a
+                        href={selectedArticle.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                      >
+                        <ExternalLink className="w-5 h-5" />
+                        <span>View Original</span>
+                      </a>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-4">
+                      Content extracted via Readability. Some formatting may differ from the original.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Fallback - waiting for extraction to start */
+                <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 bg-gray-800">
+                  <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4" />
+                  <p className="text-gray-300">Preparing content...</p>
+                </div>
+              )
             ) : (
               /* Iframe View - container is scrollable, iframe is tall to allow panning for TV */
               <div
@@ -500,7 +667,8 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                   style={{ height: '300vh' }}
                   title={selectedArticle.title}
                   sandbox="allow-scripts allow-same-origin allow-popups"
-                  onError={() => setIframeBlocked(true)}
+                  onError={handleIframeError}
+                  onLoad={handleIframeLoad}
                 />
               </div>
             )}
@@ -509,7 +677,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           </div>
 
           {/* Scroll Buttons for TV - shown for both summary and iframe views */}
-          {((showSummary && summary) || (!showSummary && !iframeBlocked)) && (
+          {((showSummary && summary) || (iframeBlocked && extractedContent) || (!showSummary && !iframeBlocked)) && (
             <div className="fixed bottom-8 right-8 flex flex-col gap-2 z-[60]">
               <button
                 onClick={() => scrollContent('up')}
