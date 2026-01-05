@@ -82,12 +82,14 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
   // Scroll refs for TV navigation
   const contentRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeContainerRef = useRef<HTMLDivElement>(null);
 
+  // Scroll content - works for both summary div and iframe container
   const scrollContent = (direction: 'up' | 'down'): void => {
     const scrollAmount = 200;
     const scrollDelta = direction === 'down' ? scrollAmount : -scrollAmount;
 
-    // Try to scroll the summary content div
+    // Scroll the summary content div
     if (contentRef.current) {
       contentRef.current.scrollBy({
         top: scrollDelta,
@@ -95,16 +97,12 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
       });
     }
 
-    // Try to scroll the iframe content (will fail silently for cross-origin)
-    if (iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.scrollBy({
-          top: scrollDelta,
-          behavior: 'smooth',
-        });
-      } catch {
-        // Cross-origin restriction - cannot scroll iframe content
-      }
+    // Scroll the iframe container (workaround for cross-origin restriction)
+    if (iframeContainerRef.current) {
+      iframeContainerRef.current.scrollBy({
+        top: scrollDelta,
+        behavior: 'smooth',
+      });
     }
   };
 
@@ -489,13 +487,17 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                 </div>
               </div>
             ) : (
-              /* Iframe View */
-              <div className="flex-1 min-h-0 bg-white relative overflow-hidden">
+              /* Iframe View - container is scrollable, iframe is tall to allow panning for TV */
+              <div
+                ref={iframeContainerRef}
+                className="flex-1 min-h-0 bg-white relative overflow-y-auto"
+              >
                 <iframe
                   ref={iframeRef}
                   data-testid="news-iframe"
                   src={selectedArticle.url}
-                  className="w-full h-full border-0"
+                  className="w-full border-0"
+                  style={{ height: '300vh' }}
                   title={selectedArticle.title}
                   sandbox="allow-scripts allow-same-origin allow-popups"
                   onError={() => setIframeBlocked(true)}
@@ -506,7 +508,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           </div>
           </div>
 
-          {/* Scroll Buttons for TV - Fixed position outside modal */}
+          {/* Scroll Buttons for TV - shown for both summary and iframe views */}
           {((showSummary && summary) || (!showSummary && !iframeBlocked)) && (
             <div className="fixed bottom-8 right-8 flex flex-col gap-2 z-[60]">
               <button
