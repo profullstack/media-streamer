@@ -133,15 +133,62 @@ async function getUserIdFromRequest(request: NextRequest): Promise<string | null
 }
 
 /**
+ * GET /api/podcasts/progress?podcastId={id}
+ *
+ * Get listen progress for all episodes of a podcast.
+ *
+ * Query params:
+ * - podcastId: (required) ID of the podcast
+ *
+ * Returns:
+ * - 200: Array of episode progress objects
+ * - 400: Missing podcastId
+ * - 401: Authentication required
+ */
+export async function GET(request: NextRequest): Promise<Response> {
+  const userId = await getUserIdFromRequest(request);
+
+  if (!userId) {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const podcastId = searchParams.get('podcastId');
+
+  if (!podcastId) {
+    return NextResponse.json(
+      { error: 'Missing required query parameter: podcastId' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const service = getPodcastService();
+    const progress = await service.getListenProgressForPodcast(userId, podcastId);
+
+    return NextResponse.json({ progress });
+  } catch (error) {
+    console.error('[Podcasts] Error fetching progress:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch progress' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * POST /api/podcasts/progress
- * 
+ *
  * Update listen progress for an episode.
- * 
+ *
  * Request body:
  * - episodeId: (required) ID of the episode
  * - currentTimeSeconds: (required) Current playback position in seconds
  * - durationSeconds: (optional) Total duration of the episode in seconds
- * 
+ *
  * Returns:
  * - 200: Progress updated successfully
  * - 400: Invalid request body

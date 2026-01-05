@@ -36,6 +36,7 @@ function createMockRepository(): PodcastRepository {
     getEpisodeByGuid: vi.fn(),
     updateListenProgress: vi.fn(),
     getListenProgress: vi.fn(),
+    getListenProgressForPodcast: vi.fn(),
     getUsersToNotify: vi.fn(),
   };
 }
@@ -734,6 +735,94 @@ describe('PodcastService', () => {
       await service.getEpisodes(podcastId, 10, 20);
 
       expect(mockRepository.getEpisodesByPodcast).toHaveBeenCalledWith(podcastId, 10, 20);
+    });
+  });
+
+  describe('getListenProgressForPodcast', () => {
+    it('should return listen progress for all episodes of a podcast', async () => {
+      const userId = 'user-123';
+      const podcastId = 'podcast-456';
+      const mockProgressList = [
+        {
+          id: 'progress-1',
+          user_id: userId,
+          episode_id: 'episode-1',
+          current_time_seconds: 1800,
+          duration_seconds: 3600,
+          percentage: 50,
+          completed: false,
+          last_listened_at: '2026-01-01T12:00:00Z',
+        },
+        {
+          id: 'progress-2',
+          user_id: userId,
+          episode_id: 'episode-2',
+          current_time_seconds: 3500,
+          duration_seconds: 3600,
+          percentage: 97.22,
+          completed: true,
+          last_listened_at: '2026-01-01T14:00:00Z',
+        },
+      ];
+
+      (mockRepository.getListenProgressForPodcast as ReturnType<typeof vi.fn>).mockResolvedValue(mockProgressList);
+
+      const result = await service.getListenProgressForPodcast(userId, podcastId);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        episodeId: 'episode-1',
+        currentTimeSeconds: 1800,
+        durationSeconds: 3600,
+        percentage: 50,
+        completed: false,
+        lastListenedAt: '2026-01-01T12:00:00Z',
+      });
+      expect(result[1]).toEqual({
+        episodeId: 'episode-2',
+        currentTimeSeconds: 3500,
+        durationSeconds: 3600,
+        percentage: 97.22,
+        completed: true,
+        lastListenedAt: '2026-01-01T14:00:00Z',
+      });
+      expect(mockRepository.getListenProgressForPodcast).toHaveBeenCalledWith(userId, podcastId);
+    });
+
+    it('should return empty array when no progress exists', async () => {
+      const userId = 'user-123';
+      const podcastId = 'podcast-456';
+
+      (mockRepository.getListenProgressForPodcast as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      const result = await service.getListenProgressForPodcast(userId, podcastId);
+
+      expect(result).toEqual([]);
+      expect(mockRepository.getListenProgressForPodcast).toHaveBeenCalledWith(userId, podcastId);
+    });
+
+    it('should handle null duration_seconds', async () => {
+      const userId = 'user-123';
+      const podcastId = 'podcast-456';
+      const mockProgressList = [
+        {
+          id: 'progress-1',
+          user_id: userId,
+          episode_id: 'episode-1',
+          current_time_seconds: 600,
+          duration_seconds: null,
+          percentage: 0,
+          completed: false,
+          last_listened_at: '2026-01-01T12:00:00Z',
+        },
+      ];
+
+      (mockRepository.getListenProgressForPodcast as ReturnType<typeof vi.fn>).mockResolvedValue(mockProgressList);
+
+      const result = await service.getListenProgressForPodcast(userId, podcastId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].durationSeconds).toBeNull();
     });
   });
 });

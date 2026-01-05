@@ -87,6 +87,7 @@ export interface PodcastRepository {
   // Listen progress operations
   updateListenProgress(data: ListenProgressUpdate): Promise<PodcastListenProgress>;
   getListenProgress(userId: string, episodeId: string): Promise<PodcastListenProgress | null>;
+  getListenProgressForPodcast(userId: string, podcastId: string): Promise<PodcastListenProgress[]>;
 
   // Notification operations
   getUsersToNotify(podcastId: string, episodeId: string): Promise<UserToNotify[]>;
@@ -403,6 +404,37 @@ export function createPodcastRepository(
       }
 
       return data;
+    },
+
+    /**
+     * Get listen progress for all episodes of a podcast for a user
+     */
+    async getListenProgressForPodcast(userId: string, podcastId: string): Promise<PodcastListenProgress[]> {
+      // Join with podcast_episodes to filter by podcast_id
+      const { data, error } = await client
+        .from('podcast_listen_progress')
+        .select(`
+          *,
+          podcast_episodes!inner(podcast_id)
+        `)
+        .eq('user_id', userId)
+        .eq('podcast_episodes.podcast_id', podcastId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Strip the joined data and return just the progress records
+      return (data ?? []).map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        episode_id: item.episode_id,
+        current_time_seconds: item.current_time_seconds,
+        duration_seconds: item.duration_seconds,
+        percentage: item.percentage,
+        completed: item.completed,
+        last_listened_at: item.last_listened_at,
+      }));
     },
 
     /**

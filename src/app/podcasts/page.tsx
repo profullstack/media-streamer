@@ -27,6 +27,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   TrashIcon,
+  CheckIcon,
 } from '@/components/ui/icons';
 import { useAuth } from '@/hooks/use-auth';
 import { usePodcastPlayer } from '@/contexts/podcast-player';
@@ -85,6 +86,18 @@ interface PodcastEpisode {
   duration: number | null;
   publishedAt: string;
   imageUrl: string | null;
+}
+
+/**
+ * Episode listen progress from API
+ */
+interface EpisodeProgress {
+  episodeId: string;
+  currentTimeSeconds: number;
+  durationSeconds: number | null;
+  percentage: number;
+  completed: boolean;
+  lastListenedAt: string;
 }
 
 /**
@@ -174,6 +187,9 @@ export default function PodcastsPage(): React.ReactElement {
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
   const [episodesError, setEpisodesError] = useState<string | null>(null);
+
+  // Episode progress state
+  const [episodeProgress, setEpisodeProgress] = useState<Map<string, EpisodeProgress>>(new Map());
   
   // Global podcast player context
   const {
@@ -244,27 +260,42 @@ export default function PodcastsPage(): React.ReactElement {
     void loadSubscriptions();
   }, [isLoggedIn, isAuthLoading, selectedPodcast]);
 
-  // Load episodes when podcast is selected
+  // Load episodes and progress when podcast is selected
   useEffect(() => {
     if (!selectedPodcast) {
       setEpisodes([]);
+      setEpisodeProgress(new Map());
       return;
     }
-    
-    const loadEpisodes = async (): Promise<void> => {
+
+    const loadEpisodesAndProgress = async (): Promise<void> => {
       setIsLoadingEpisodes(true);
       setEpisodesError(null);
-      
+
       try {
-        const response = await fetch(`/api/podcasts/${selectedPodcast.id}/episodes`);
-        
-        if (!response.ok) {
-          const data = await response.json() as { error?: string };
+        // Fetch episodes and progress in parallel
+        const [episodesResponse, progressResponse] = await Promise.all([
+          fetch(`/api/podcasts/${selectedPodcast.id}/episodes`),
+          fetch(`/api/podcasts/progress?podcastId=${selectedPodcast.id}`),
+        ]);
+
+        if (!episodesResponse.ok) {
+          const data = await episodesResponse.json() as { error?: string };
           throw new Error(data.error ?? 'Failed to load episodes');
         }
-        
-        const data = await response.json() as EpisodesResponse;
-        setEpisodes(data.episodes);
+
+        const episodesData = await episodesResponse.json() as EpisodesResponse;
+        setEpisodes(episodesData.episodes);
+
+        // Load progress if authenticated (might return 401 if not logged in)
+        if (progressResponse.ok) {
+          const progressData = await progressResponse.json() as { progress: EpisodeProgress[] };
+          const progressMap = new Map<string, EpisodeProgress>();
+          for (const p of progressData.progress) {
+            progressMap.set(p.episodeId, p);
+          }
+          setEpisodeProgress(progressMap);
+        }
       } catch (err) {
         console.error('[Podcasts] Error loading episodes:', err);
         setEpisodesError(err instanceof Error ? err.message : 'Failed to load episodes');
@@ -272,8 +303,8 @@ export default function PodcastsPage(): React.ReactElement {
         setIsLoadingEpisodes(false);
       }
     };
-    
-    void loadEpisodes();
+
+    void loadEpisodesAndProgress();
   }, [selectedPodcast]);
 
   // Search podcasts with debounce
@@ -393,7 +424,14 @@ export default function PodcastsPage(): React.ReactElement {
   // Play episode using global context
   const handlePlayEpisode = useCallback((episode: PodcastEpisode): void => {
     if (!selectedPodcast) return;
-    
+
+    // Get saved progress for this episode (to resume from last position)
+    const progress = episodeProgress.get(episode.id);
+    // Only resume if not completed and has some progress
+    const startTime = progress && !progress.completed && progress.currentTimeSeconds > 10
+      ? progress.currentTimeSeconds
+      : undefined;
+
     // Convert to the format expected by the global player
     playEpisode(
       {
@@ -416,9 +454,10 @@ export default function PodcastsPage(): React.ReactElement {
         website: selectedPodcast.website,
         subscribedAt: selectedPodcast.subscribedAt,
         notificationsEnabled: selectedPodcast.notificationsEnabled,
-      }
+      },
+      startTime
     );
-  }, [selectedPodcast, playEpisode]);
+  }, [selectedPodcast, playEpisode, episodeProgress]);
 
   // Enable push notifications
   const handleEnablePush = useCallback(async (): Promise<void> => {
@@ -768,65 +807,108 @@ export default function PodcastsPage(): React.ReactElement {
                       <p className="text-sm text-text-secondary py-4">No episodes found</p>
                     ) : (
                       <div className="space-y-2">
-                        {episodes.map((episode) => (
-                          <div
-                            key={episode.id}
-                            className={cn(
-                              'rounded-lg border bg-bg-secondary p-4 transition-colors',
-                              currentEpisode?.id === episode.id
-                                ? 'border-accent-primary/50'
-                                : 'border-border-subtle hover:border-border-default'
-                            )}
-                          >
-                            <div className="flex items-start gap-4">
-                              <button
-                                onClick={() => handlePlayEpisode(episode)}
-                                className={cn(
-                                  'flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0',
-                                  'bg-accent-primary text-white hover:bg-accent-primary/90 transition-colors'
-                                )}
-                              >
-                                {currentEpisode?.id === episode.id && isPlaying ? (
-                                  <PauseIcon size={20} />
-                                ) : (
-                                  <PlayIcon size={20} />
-                                )}
-                              </button>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-text-primary">{episode.title}</h4>
-                                <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
-                                  <span>{formatDate(episode.publishedAt)}</span>
-                                  <span>•</span>
-                                  <span>{formatDuration(episode.duration)}</span>
-                                </div>
-                                {episode.description ? <div className="mt-2">
-                                    <p className={cn(
-                                      'text-sm text-text-secondary',
-                                      expandedEpisodeId !== episode.id && 'line-clamp-2'
+                        {episodes.map((episode) => {
+                          const progress = episodeProgress.get(episode.id);
+                          const isCompleted = progress?.completed ?? false;
+                          const progressPercent = progress?.percentage ?? 0;
+                          const hasProgress = progressPercent > 0 && !isCompleted;
+
+                          return (
+                            <div
+                              key={episode.id}
+                              className={cn(
+                                'rounded-lg border bg-bg-secondary p-4 transition-colors',
+                                currentEpisode?.id === episode.id
+                                  ? 'border-accent-primary/50'
+                                  : isCompleted
+                                    ? 'border-green-500/30'
+                                    : 'border-border-subtle hover:border-border-default'
+                              )}
+                            >
+                              <div className="flex items-start gap-4">
+                                <button
+                                  onClick={() => handlePlayEpisode(episode)}
+                                  className={cn(
+                                    'flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 transition-colors',
+                                    isCompleted
+                                      ? 'bg-green-500 text-white hover:bg-green-600'
+                                      : 'bg-accent-primary text-white hover:bg-accent-primary/90'
+                                  )}
+                                >
+                                  {isCompleted ? (
+                                    <CheckIcon size={20} />
+                                  ) : currentEpisode?.id === episode.id && isPlaying ? (
+                                    <PauseIcon size={20} />
+                                  ) : (
+                                    <PlayIcon size={20} />
+                                  )}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className={cn(
+                                      'font-medium',
+                                      isCompleted ? 'text-text-muted' : 'text-text-primary'
                                     )}>
-                                      {episode.description}
-                                    </p>
-                                    <button
-                                      onClick={() => toggleEpisodeExpand(episode.id)}
-                                      className="text-xs text-accent-primary hover:underline mt-1 flex items-center gap-1"
-                                    >
-                                      {expandedEpisodeId === episode.id ? (
-                                        <>
-                                          <ChevronUpIcon size={12} />
-                                          <span>Show less</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <ChevronDownIcon size={12} />
-                                          <span>Show more</span>
-                                        </>
-                                      )}
-                                    </button>
-                                  </div> : null}
+                                      {episode.title}
+                                    </h4>
+                                    {isCompleted && (
+                                      <span className="text-xs text-green-500 font-medium">Played</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
+                                    <span>{formatDate(episode.publishedAt)}</span>
+                                    <span>•</span>
+                                    <span>{formatDuration(episode.duration)}</span>
+                                    {hasProgress && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="text-accent-primary">{Math.round(progressPercent)}% played</span>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Progress bar */}
+                                  {(hasProgress || isCompleted) && (
+                                    <div className="mt-2 h-1 w-full rounded-full bg-bg-tertiary overflow-hidden">
+                                      <div
+                                        className={cn(
+                                          'h-full rounded-full transition-all',
+                                          isCompleted ? 'bg-green-500' : 'bg-accent-primary'
+                                        )}
+                                        style={{ width: `${isCompleted ? 100 : progressPercent}%` }}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {episode.description ? <div className="mt-2">
+                                      <p className={cn(
+                                        'text-sm text-text-secondary',
+                                        expandedEpisodeId !== episode.id && 'line-clamp-2'
+                                      )}>
+                                        {episode.description}
+                                      </p>
+                                      <button
+                                        onClick={() => toggleEpisodeExpand(episode.id)}
+                                        className="text-xs text-accent-primary hover:underline mt-1 flex items-center gap-1"
+                                      >
+                                        {expandedEpisodeId === episode.id ? (
+                                          <>
+                                            <ChevronUpIcon size={12} />
+                                            <span>Show less</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ChevronDownIcon size={12} />
+                                            <span>Show more</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div> : null}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -5,6 +5,7 @@
  *
  * Global context for podcast audio playback that persists across routes.
  * Provides play/pause controls, seeking, and progress tracking.
+ * Automatically saves listen progress to the server.
  */
 
 import {
@@ -16,6 +17,13 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Save progress every 15 seconds during playback */
+const PROGRESS_SAVE_INTERVAL = 15000;
 
 // ============================================================================
 // Types
@@ -64,8 +72,8 @@ export interface PodcastPlayerContextValue {
   currentTime: number;
   /** Total duration in seconds */
   duration: number;
-  /** Play a specific episode */
-  playEpisode: (episode: PodcastEpisodePlayback, podcast: PodcastPlayback) => void;
+  /** Play a specific episode, optionally starting at a specific time */
+  playEpisode: (episode: PodcastEpisodePlayback, podcast: PodcastPlayback, startTime?: number) => void;
   /** Toggle play/pause */
   togglePlayPause: () => void;
   /** Seek to a specific time */
@@ -95,46 +103,80 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  
+
   // Audio element ref
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  
+
+  // Progress save interval ref
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Track last saved time to avoid duplicate saves
+  const lastSavedTimeRef = useRef<number>(0);
+
+  // Save progress to server
+  const saveProgress = useCallback(async (
+    episodeId: string,
+    timeSeconds: number,
+    durationSeconds: number
+  ): Promise<void> => {
+    // Don't save if time hasn't changed significantly (within 2 seconds)
+    if (Math.abs(timeSeconds - lastSavedTimeRef.current) < 2) {
+      return;
+    }
+
+    lastSavedTimeRef.current = timeSeconds;
+
+    try {
+      await fetch('/api/podcasts/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episodeId,
+          currentTimeSeconds: Math.floor(timeSeconds),
+          durationSeconds: Math.floor(durationSeconds),
+        }),
+      });
+    } catch (error) {
+      console.error('[PodcastPlayer] Failed to save progress:', error);
+    }
+  }, []);
+
   // Initialize audio element
   useEffect(() => {
     audioRef.current = new Audio();
-    
+
     const audio = audioRef.current;
-    
+
     // Event handlers
     const handleTimeUpdate = (): void => {
       setCurrentTime(audio.currentTime);
     };
-    
+
     const handleDurationChange = (): void => {
       if (!isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
     };
-    
+
     const handleLoadedMetadata = (): void => {
       if (!isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
     };
-    
+
     const handlePlay = (): void => {
       setIsPlaying(true);
     };
-    
+
     const handlePause = (): void => {
       setIsPlaying(false);
     };
-    
+
     const handleEnded = (): void => {
       setIsPlaying(false);
       setCurrentTime(0);
     };
-    
+
     // Add event listeners
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
@@ -142,7 +184,7 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('ended', handleEnded);
-    
+
     // Cleanup
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
@@ -155,12 +197,50 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
       audio.src = '';
     };
   }, []);
-  
+
+  // Auto-save progress during playback
+  useEffect(() => {
+    // Clear existing interval
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+
+    // Start interval when playing
+    if (isPlaying && currentEpisode) {
+      const episodeId = currentEpisode.id;
+
+      progressIntervalRef.current = setInterval(() => {
+        const audio = audioRef.current;
+        if (audio && !isNaN(audio.currentTime) && !isNaN(audio.duration)) {
+          void saveProgress(episodeId, audio.currentTime, audio.duration);
+        }
+      }, PROGRESS_SAVE_INTERVAL);
+    }
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, [isPlaying, currentEpisode, saveProgress]);
+
+  // Save progress when pausing or when episode ends
+  useEffect(() => {
+    if (!isPlaying && currentEpisode) {
+      const audio = audioRef.current;
+      if (audio && !isNaN(audio.currentTime) && !isNaN(audio.duration) && audio.currentTime > 0) {
+        void saveProgress(currentEpisode.id, audio.currentTime, audio.duration);
+      }
+    }
+  }, [isPlaying, currentEpisode, saveProgress]);
+
   // Play episode
-  const playEpisode = useCallback((episode: PodcastEpisodePlayback, podcast: PodcastPlayback): void => {
+  const playEpisode = useCallback((episode: PodcastEpisodePlayback, podcast: PodcastPlayback, startTime?: number): void => {
     const audio = audioRef.current;
     if (!audio) return;
-    
+
     // If same episode, just toggle play/pause
     if (currentEpisode?.id === episode.id) {
       if (audio.paused) {
@@ -170,16 +250,29 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
       }
       return;
     }
-    
+
+    // Reset last saved time for new episode
+    lastSavedTimeRef.current = 0;
+
     // Set new episode
     setCurrentEpisode(episode);
     setCurrentPodcast(podcast);
-    setCurrentTime(0);
+    setCurrentTime(startTime ?? 0);
     setDuration(episode.duration ?? 0);
-    
+
     // Load and play
     audio.src = episode.audioUrl;
     audio.load();
+
+    // If we have a start time (resume position), seek to it after loading
+    if (startTime && startTime > 0) {
+      const handleCanPlay = (): void => {
+        audio.currentTime = startTime;
+        audio.removeEventListener('canplay', handleCanPlay);
+      };
+      audio.addEventListener('canplay', handleCanPlay);
+    }
+
     void audio.play();
   }, [currentEpisode]);
   

@@ -89,6 +89,18 @@ export interface ListenProgressInput {
 }
 
 /**
+ * Episode progress response for API
+ */
+export interface EpisodeProgressResponse {
+  episodeId: string;
+  currentTimeSeconds: number;
+  durationSeconds: number | null;
+  percentage: number;
+  completed: boolean;
+  lastListenedAt: string;
+}
+
+/**
  * Podcast service interface
  */
 export interface PodcastService {
@@ -99,6 +111,7 @@ export interface PodcastService {
   getUserSubscriptions(userId: string): Promise<UserPodcastSubscription[]>;
   refreshPodcastFeed(podcastId: string): Promise<PodcastEpisode[]>;
   updateListenProgress(data: ListenProgressInput): Promise<PodcastListenProgress>;
+  getListenProgressForPodcast(userId: string, podcastId: string): Promise<EpisodeProgressResponse[]>;
   getEpisodes(podcastId: string, limit?: number, offset?: number): Promise<PodcastEpisode[]>;
   getPodcastById(podcastId: string): Promise<Podcast | null>;
 }
@@ -502,10 +515,10 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
      * Update listen progress for an episode
      */
     async updateListenProgress(data: ListenProgressInput): Promise<PodcastListenProgress> {
-      const percentage = data.durationSeconds 
-        ? (data.currentTimeSeconds / data.durationSeconds) * 100 
+      const percentage = data.durationSeconds
+        ? (data.currentTimeSeconds / data.durationSeconds) * 100
         : 0;
-      
+
       const completed = percentage >= COMPLETION_THRESHOLD * 100;
 
       return repository.updateListenProgress({
@@ -516,6 +529,22 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
         percentage,
         completed,
       });
+    },
+
+    /**
+     * Get listen progress for all episodes of a podcast
+     */
+    async getListenProgressForPodcast(userId: string, podcastId: string): Promise<EpisodeProgressResponse[]> {
+      const progressList = await repository.getListenProgressForPodcast(userId, podcastId);
+
+      return progressList.map(progress => ({
+        episodeId: progress.episode_id,
+        currentTimeSeconds: progress.current_time_seconds,
+        durationSeconds: progress.duration_seconds,
+        percentage: progress.percentage,
+        completed: progress.completed,
+        lastListenedAt: progress.last_listened_at,
+      }));
     },
 
     /**
