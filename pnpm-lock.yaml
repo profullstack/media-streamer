@@ -92,6 +92,9 @@ importers:
       resend:
         specifier: ^6.6.0
         version: 6.6.0
+      sax:
+        specifier: ^1.4.3
+        version: 1.4.3
       tailwind-merge:
         specifier: ^2.6.0
         version: 2.6.0
@@ -132,6 +135,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.2
         version: 19.2.3(@types/react@19.2.7)
+      '@types/sax':
+        specifier: ^1.2.7
+        version: 1.2.7
       '@types/web-push':
         specifier: ^3.6.4
         version: 3.6.4
@@ -1565,6 +1571,9 @@ packages:
 
   '@types/react@19.2.7':
     resolution: {integrity: sha512-MWtvHrGZLFttgeEj28VXHxpmwYbor/ATPYbBfSFZEIRK0ecCFLl2Qo55z52Hss+UV9CRN7trSeq1zbgx7YDWWg==}
+
+  '@types/sax@1.2.7':
+    resolution: {integrity: sha512-rO73L89PJxeYM3s3pPPjiPgVVcymqU490g0YO5n5By0k2Erzj6tay/4lr1CHAAU4JyOWd1rpQ8bCf6cZfHU96A==}
 
   '@types/simple-peer@9.11.9':
     resolution: {integrity: sha512-6Gdl7TSS5oh9nuwKD4Pl8cSmaxWycYeZz9HLnJBNvIwWjZuGVsmHe9RwW3+9RxfhC1aIR9Z83DvaJoMw6rhkbg==}
@@ -5804,6 +5813,10 @@ snapshots:
   '@types/react@19.2.7':
     dependencies:
       csstype: 3.2.3
+
+  '@types/sax@1.2.7':
+    dependencies:
+      '@types/node': 25.0.3
 
   '@types/simple-peer@9.11.9':
     dependencies:

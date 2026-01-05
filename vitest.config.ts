@@ -28,7 +28,7 @@ export default defineConfig({
     },
     teardownTimeout: 5000,
     passWithNoTests: true,
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts', 'workers/**/*.test.ts'],
     exclude: [
       'node_modules',
       '.next',

@@ -818,9 +818,66 @@ ${LOG_FILE} ${ERROR_LOG_FILE} {
 }
 EOF
 
-# Reload systemd and enable service
+# Create/update IPTV Cache Worker systemd service
+IPTV_WORKER_SERVICE="${SERVICE_NAME}-iptv-worker"
+IPTV_WORKER_LOG="/var/log/${SERVICE_NAME}-iptv-worker.log"
+IPTV_WORKER_ERROR_LOG="/var/log/${SERVICE_NAME}-iptv-worker.error.log"
+
+echo "=== Setting up IPTV Cache Worker service ==="
+sudo touch "${IPTV_WORKER_LOG}" "${IPTV_WORKER_ERROR_LOG}"
+sudo chown ${VPS_USER}:${VPS_USER} "${IPTV_WORKER_LOG}" "${IPTV_WORKER_ERROR_LOG}"
+sudo chmod 644 "${IPTV_WORKER_LOG}" "${IPTV_WORKER_ERROR_LOG}"
+
+sudo tee /etc/systemd/system/${IPTV_WORKER_SERVICE}.service > /dev/null << EOF
+[Unit]
+Description=BitTorrented IPTV Cache Worker
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=${VPS_USER}
+WorkingDirectory=${DEPLOY_PATH}
+ExecStart=${PNPM_HOME}/pnpm iptv-worker
+Restart=on-failure
+RestartSec=30
+Environment=NODE_ENV=production
+Environment=PATH=${PNPM_HOME}:/usr/local/bin:/usr/bin:/bin
+
+# Load environment variables from .env
+EnvironmentFile=${DEPLOY_PATH}/.env
+
+# Log to files
+StandardOutput=append:${IPTV_WORKER_LOG}
+StandardError=append:${IPTV_WORKER_ERROR_LOG}
+
+# Increase file descriptor limits
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Add IPTV worker logs to logrotate
+echo "=== Setting up IPTV worker log rotation ==="
+sudo tee /etc/logrotate.d/${IPTV_WORKER_SERVICE} > /dev/null << EOF
+${IPTV_WORKER_LOG} ${IPTV_WORKER_ERROR_LOG} {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 ${VPS_USER} ${VPS_USER}
+    postrotate
+        systemctl reload ${IPTV_WORKER_SERVICE} > /dev/null 2>&1 || true
+    endscript
+}
+EOF
+
+# Reload systemd and enable services
 sudo systemctl daemon-reload
 sudo systemctl enable ${SERVICE_NAME} 2>/dev/null || true
+sudo systemctl enable ${IPTV_WORKER_SERVICE} 2>/dev/null || true
 
 echo ""
 echo "=== Setup Complete! ==="
@@ -853,4 +910,12 @@ echo "  Restart: sudo systemctl restart ${SERVICE_NAME}"
 echo "  Status:  sudo systemctl status ${SERVICE_NAME}"
 echo "  Logs:    tail -f ${LOG_FILE}"
 echo "  Errors:  tail -f ${ERROR_LOG_FILE}"
+echo ""
+echo "IPTV Cache Worker:"
+echo "  Start:   sudo systemctl start ${IPTV_WORKER_SERVICE}"
+echo "  Stop:    sudo systemctl stop ${IPTV_WORKER_SERVICE}"
+echo "  Restart: sudo systemctl restart ${IPTV_WORKER_SERVICE}"
+echo "  Status:  sudo systemctl status ${IPTV_WORKER_SERVICE}"
+echo "  Logs:    tail -f ${IPTV_WORKER_LOG}"
+echo "  Errors:  tail -f ${IPTV_WORKER_ERROR_LOG}"
 

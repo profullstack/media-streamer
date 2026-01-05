@@ -130,15 +130,19 @@ jobs:
             echo "✓ Build complete"
             
             echo ""
-            echo "=== Restarting service ==="
-            sudo systemctl restart bittorrented || echo "Warning: Could not restart service"
-            echo "✓ Service restart attempted"
+            echo "=== Restarting services ==="
+            sudo systemctl restart bittorrented || echo "Warning: Could not restart main service"
+            echo "✓ Main service restart attempted"
+
+            sudo systemctl restart bittorrented-iptv-worker || echo "Warning: Could not restart IPTV worker"
+            echo "✓ IPTV worker restart attempted"
             
             sleep 3
             
             echo ""
             echo "=== Verifying deployment ==="
-            systemctl is-active bittorrented || echo "Service status unknown"
+            systemctl is-active bittorrented || echo "Main service status unknown"
+            systemctl is-active bittorrented-iptv-worker || echo "IPTV worker status unknown"
             
             echo ""
             echo "=== Deployment complete! ==="

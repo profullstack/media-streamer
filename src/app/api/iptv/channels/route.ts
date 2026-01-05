@@ -1,9 +1,13 @@
 /**
  * IPTV Channels API Route
  *
+ * GET /api/iptv/channels?playlistId=<id>&q=<search>&group=<group>&limit=<n>&offset=<n>
  * GET /api/iptv/channels?m3uUrl=<url>&q=<search>&group=<group>&limit=<n>&offset=<n>
  *
- * Fetches and parses M3U playlists with Redis caching (5 min TTL).
+ * Supports two modes:
+ * 1. Worker cache mode (playlistId): Fast reads from worker-populated Redis cache
+ * 2. On-demand mode (m3uUrl): Fetches and parses M3U with 5-min request cache
+ *
  * Supports server-side search with word-order-independent matching.
  */
 
@@ -18,6 +22,7 @@ import {
   PlaylistCache,
   type Channel,
 } from '@/lib/iptv';
+import { getIptvCacheReader } from '@/lib/iptv/cache-reader';
 
 /**
  * Undici agent that ignores SSL certificate errors.
@@ -69,9 +74,10 @@ function applyProxyToChannels(channels: Channel[]): Channel[] {
 
 /**
  * GET /api/iptv/channels
- * 
+ *
  * Query parameters:
- * - m3uUrl: (required) The M3U playlist URL to fetch
+ * - playlistId: (preferred) Playlist ID for worker cache reads
+ * - m3uUrl: (fallback) The M3U playlist URL to fetch on-demand
  * - q: (optional) Search query (words can be in any order)
  * - group: (optional) Filter by group/category
  * - limit: (optional) Number of results to return (default: 50, max: 200)
@@ -79,6 +85,7 @@ function applyProxyToChannels(channels: Channel[]): Channel[] {
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const { searchParams } = new URL(request.url);
+  const playlistId = searchParams.get('playlistId');
   const m3uUrl = searchParams.get('m3uUrl');
   const query = searchParams.get('q') ?? '';
   const group = searchParams.get('group') ?? undefined;
@@ -88,98 +95,151 @@ export async function GET(request: NextRequest): Promise<Response> {
   );
   const offset = parseInt(searchParams.get('offset') ?? '0', 10) || 0;
 
-  // Validate m3uUrl parameter
-  if (!m3uUrl) {
+  // Validate that at least one identifier is provided
+  if (!playlistId && !m3uUrl) {
     return NextResponse.json(
-      { error: 'Missing required parameter: m3uUrl' },
+      { error: 'Missing required parameter: playlistId or m3uUrl' },
       { status: 400 }
     );
   }
 
-  if (!isValidUrl(m3uUrl)) {
-    return NextResponse.json(
-      { error: 'Invalid m3uUrl parameter' },
-      { status: 400 }
-    );
-  }
-
-  const cache = getPlaylistCache();
-  const cacheKey = PlaylistCache.generateKey(m3uUrl);
-
-  // Try to get from cache
-  let playlist = await cache.get(cacheKey);
+  let channels: Channel[] = [];
+  let groups: string[] = [];
   let cached = false;
+  let fetchedAt = Date.now();
 
-  if (playlist) {
-    cached = true;
-  } else {
-    // Fetch and parse the M3U playlist
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+  // Try worker cache first if playlistId is provided
+  if (playlistId) {
+    const cacheReader = getIptvCacheReader();
 
-      const response = await undiciFetch(m3uUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; IPTV/1.0)',
-        },
-        dispatcher: insecureAgent,
+    // Try to get channels from worker cache
+    if (group) {
+      // Efficient group-specific query
+      const result = await cacheReader.getChannelsByGroup(playlistId, group);
+      if (result.success && result.data) {
+        channels = result.data;
+        cached = true;
+      }
+    } else {
+      // Get all channels
+      const result = await cacheReader.getPlaylistChannels(playlistId);
+      if (result.success && result.data) {
+        channels = result.data;
+        cached = true;
+      }
+    }
+
+    // Get groups
+    const groupsResult = await cacheReader.getPlaylistGroups(playlistId);
+    if (groupsResult.success && groupsResult.data) {
+      groups = groupsResult.data;
+    }
+
+    // Get metadata for fetchedAt
+    const metaResult = await cacheReader.getPlaylistMeta(playlistId);
+    if (metaResult.success && metaResult.data) {
+      fetchedAt = metaResult.data.fetchedAt;
+    }
+
+    if (cached) {
+      console.log('[IPTV Channels] Serving from worker cache:', {
+        playlistId,
+        channelCount: channels.length,
+        groupCount: groups.length,
       });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        return NextResponse.json(
-          { error: `Failed to fetch M3U playlist: ${response.status} ${response.statusText}` },
-          { status: 502 }
-        );
-      }
-
-      const m3uContent = await response.text();
-      const channels = parseM3U(m3uContent);
-      const groups = extractGroups(channels);
-
-      playlist = {
-        channels,
-        groups,
-        fetchedAt: Date.now(),
-        m3uUrl,
-      };
-
-      // Cache the playlist
-      await cache.set(cacheKey, playlist);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return NextResponse.json(
-          { error: 'Request timeout while fetching M3U playlist' },
-          { status: 504 }
-        );
-      }
-
-      console.error('[IPTV Channels] Error fetching playlist:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch M3U playlist' },
-        { status: 502 }
-      );
     }
   }
 
-  // Search and filter channels
-  console.log('[IPTV Channels] Searching:', {
-    query,
-    group,
-    totalChannels: playlist.channels.length,
-    sampleChannelNames: playlist.channels.slice(0, 5).map(c => c.name),
-  });
-  
-  const filteredChannels = searchChannels(playlist.channels, query, group);
+  // Fall back to on-demand fetch if worker cache miss or m3uUrl provided
+  if (!cached && m3uUrl) {
+    if (!isValidUrl(m3uUrl)) {
+      return NextResponse.json(
+        { error: 'Invalid m3uUrl parameter' },
+        { status: 400 }
+      );
+    }
+
+    const cache = getPlaylistCache();
+    const cacheKey = PlaylistCache.generateKey(m3uUrl);
+
+    // Try to get from request cache
+    let playlist = await cache.get(cacheKey);
+
+    if (playlist) {
+      cached = true;
+      channels = playlist.channels;
+      groups = playlist.groups;
+      fetchedAt = playlist.fetchedAt;
+    } else {
+      // Fetch and parse the M3U playlist
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+        const response = await undiciFetch(m3uUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; IPTV/1.0)',
+          },
+          dispatcher: insecureAgent,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          return NextResponse.json(
+            { error: `Failed to fetch M3U playlist: ${response.status} ${response.statusText}` },
+            { status: 502 }
+          );
+        }
+
+        const m3uContent = await response.text();
+        channels = parseM3U(m3uContent);
+        groups = extractGroups(channels);
+        fetchedAt = Date.now();
+
+        // Cache the playlist
+        await cache.set(cacheKey, {
+          channels,
+          groups,
+          fetchedAt,
+          m3uUrl,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return NextResponse.json(
+            { error: 'Request timeout while fetching M3U playlist' },
+            { status: 504 }
+          );
+        }
+
+        console.error('[IPTV Channels] Error fetching playlist:', error);
+        return NextResponse.json(
+          { error: 'Failed to fetch M3U playlist' },
+          { status: 502 }
+        );
+      }
+    }
+  }
+
+  // If still no channels, return error
+  if (channels.length === 0 && !cached) {
+    return NextResponse.json(
+      { error: 'No channels found. Playlist may not be cached yet.' },
+      { status: 404 }
+    );
+  }
+
+  // Search and filter channels (only if not already filtered by group from worker cache)
+  let filteredChannels = channels;
+  if (query || (group && !playlistId)) {
+    filteredChannels = searchChannels(channels, query, group);
+  } else if (query) {
+    // Apply search even when group was already filtered
+    filteredChannels = searchChannels(channels, query);
+  }
+
   const total = filteredChannels.length;
-  
-  console.log('[IPTV Channels] Search results:', {
-    query,
-    matchedCount: total,
-    sampleMatches: filteredChannels.slice(0, 3).map(c => c.name),
-  });
 
   // Apply pagination
   const paginatedChannels = filteredChannels.slice(offset, offset + limit);
@@ -189,11 +249,12 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   return NextResponse.json({
     channels: proxiedChannels,
-    groups: playlist.groups,
+    groups,
     total,
     limit,
     offset,
     cached,
-    fetchedAt: playlist.fetchedAt,
+    fetchedAt,
+    workerCached: playlistId ? cached : undefined,
   });
 }
