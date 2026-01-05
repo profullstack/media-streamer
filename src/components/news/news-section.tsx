@@ -359,12 +359,12 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
               <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-800">
                 {/* Article Image - Use original article image */}
                 {selectedArticle.imageUrl && (
-                  <div className="mb-6 rounded-lg overflow-hidden bg-gray-900">
+                  <div className="mb-4 rounded-lg overflow-hidden bg-gray-900 float-right ml-4 w-32">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selectedArticle.imageUrl}
                       alt={summary.title}
-                      className="w-full max-h-64 object-cover"
+                      className="w-full h-24 object-cover"
                       loading="lazy"
                     />
                   </div>
@@ -457,27 +457,28 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
               </div>
             )}
 
-            {/* Scroll Buttons for TV - Show for both AI Summary and Iframe views */}
-            {((showSummary && summary) || (!showSummary && !iframeBlocked)) && (
-              <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-20">
-                <button
-                  onClick={() => scrollContent('up')}
-                  className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  aria-label="Scroll up"
-                >
-                  <ChevronUp className="w-6 h-6" />
-                </button>
-                <button
-                  onClick={() => scrollContent('down')}
-                  className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  aria-label="Scroll down"
-                >
-                  <ChevronDown className="w-6 h-6" />
-                </button>
-              </div>
-            )}
           </div>
           </div>
+
+          {/* Scroll Buttons for TV - Fixed position outside modal */}
+          {((showSummary && summary) || (!showSummary && !iframeBlocked)) && (
+            <div className="fixed bottom-8 right-8 flex flex-col gap-2 z-[60]">
+              <button
+                onClick={() => scrollContent('up')}
+                className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                aria-label="Scroll up"
+              >
+                <ChevronUp className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => scrollContent('down')}
+                className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                aria-label="Scroll down"
+              >
+                <ChevronDown className="w-6 h-6" />
+              </button>
+            </div>
+          )}
         </div> : null}
     </section>
   );
