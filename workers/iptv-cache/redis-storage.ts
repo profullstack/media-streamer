@@ -16,6 +16,11 @@ import type {
 } from './types';
 
 /**
+ * Maximum items per batch for Redis operations to avoid stack overflow
+ */
+const BATCH_SIZE = 10000;
+
+/**
  * Redis storage manager for the IPTV cache worker
  */
 export class RedisStorage {
@@ -108,23 +113,31 @@ export class RedisStorage {
       JSON.stringify(fullMeta)
     );
 
-    // Store channels as hash
+    // Store channels as hash (batch to handle very large playlists)
     const channelsKey = REDIS_KEYS.playlistChannels(playlistId);
     pipeline.del(channelsKey);
     if (channels.length > 0) {
-      const channelData: Record<string, string> = {};
-      for (const channel of channels) {
-        channelData[channel.id] = JSON.stringify(channel);
+      // Batch hset operations to avoid memory issues with large playlists
+      for (let i = 0; i < channels.length; i += BATCH_SIZE) {
+        const batch = channels.slice(i, i + BATCH_SIZE);
+        const channelData: Record<string, string> = {};
+        for (const channel of batch) {
+          channelData[channel.id] = JSON.stringify(channel);
+        }
+        pipeline.hset(channelsKey, channelData);
       }
-      pipeline.hset(channelsKey, channelData);
       pipeline.expire(channelsKey, CACHE_TTL_SECONDS);
     }
 
-    // Store groups as set
+    // Store groups as set (batch to avoid stack overflow with large arrays)
     const groupsKey = REDIS_KEYS.playlistGroups(playlistId);
     pipeline.del(groupsKey);
     if (groups.length > 0) {
-      pipeline.sadd(groupsKey, ...groups);
+      // Batch groups to avoid spread operator stack overflow
+      for (let i = 0; i < groups.length; i += BATCH_SIZE) {
+        const batch = groups.slice(i, i + BATCH_SIZE);
+        pipeline.sadd(groupsKey, ...batch);
+      }
       pipeline.expire(groupsKey, CACHE_TTL_SECONDS);
     }
 
@@ -141,7 +154,11 @@ export class RedisStorage {
     for (const [group, channelIds] of groupChannels) {
       const groupKey = REDIS_KEYS.playlistGroupChannels(playlistId, group);
       pipeline.del(groupKey);
-      pipeline.sadd(groupKey, ...channelIds);
+      // Batch channel IDs to avoid spread operator stack overflow
+      for (let i = 0; i < channelIds.length; i += BATCH_SIZE) {
+        const batch = channelIds.slice(i, i + BATCH_SIZE);
+        pipeline.sadd(groupKey, ...batch);
+      }
       pipeline.expire(groupKey, CACHE_TTL_SECONDS);
     }
 
@@ -230,12 +247,19 @@ export class RedisStorage {
       const key = REDIS_KEYS.epgByChannel(playlistId, channelId);
       pipeline.del(key);
 
-      const members: (string | number)[] = [];
-      for (const program of channelPrograms) {
-        members.push(program.start, JSON.stringify(program));
+      // Batch zadd to avoid stack overflow with many programs per channel
+      const ZADD_BATCH = 5000; // score + value pairs, so 5000 pairs = 10000 args
+      for (let i = 0; i < channelPrograms.length; i += ZADD_BATCH) {
+        const batch = channelPrograms.slice(i, i + ZADD_BATCH);
+        const members: (string | number)[] = [];
+        for (const program of batch) {
+          members.push(program.start, JSON.stringify(program));
+        }
+        if (members.length > 0) {
+          pipeline.zadd(key, ...members);
+        }
       }
-      if (members.length > 0) {
-        pipeline.zadd(key, ...members);
+      if (channelPrograms.length > 0) {
         pipeline.expire(key, CACHE_TTL_SECONDS);
       }
 
@@ -252,11 +276,15 @@ export class RedisStorage {
       }
     }
 
-    // Store all programs as a list for bulk access
+    // Store all programs as a list for bulk access (batch to avoid stack overflow)
     const allProgramsKey = REDIS_KEYS.epgPrograms(playlistId);
     pipeline.del(allProgramsKey);
     if (programs.length > 0) {
-      pipeline.rpush(allProgramsKey, ...programs.map((p) => JSON.stringify(p)));
+      const serialized = programs.map((p) => JSON.stringify(p));
+      for (let i = 0; i < serialized.length; i += BATCH_SIZE) {
+        const batch = serialized.slice(i, i + BATCH_SIZE);
+        pipeline.rpush(allProgramsKey, ...batch);
+      }
       pipeline.expire(allProgramsKey, CACHE_TTL_SECONDS);
     }
 

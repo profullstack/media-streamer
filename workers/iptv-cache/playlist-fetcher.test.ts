@@ -72,6 +72,7 @@ http://example.com/2.m3u8`;
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        headers: { get: vi.fn().mockReturnValue(null) },
         text: vi.fn().mockResolvedValue(m3uContent),
       });
 
@@ -87,6 +88,7 @@ http://example.com/2.m3u8`;
     it('returns error for empty playlist content', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        headers: { get: vi.fn().mockReturnValue(null) },
         text: vi.fn().mockResolvedValue(''),
       });
 
@@ -99,6 +101,7 @@ http://example.com/2.m3u8`;
     it('returns error for invalid M3U format', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        headers: { get: vi.fn().mockReturnValue(null) },
         text: vi.fn().mockResolvedValue('This is not an M3U file'),
       });
 
@@ -129,6 +132,7 @@ http://example.com/2.m3u8`;
         .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce({
           ok: true,
+          headers: { get: vi.fn().mockReturnValue(null) },
           text: vi.fn().mockResolvedValue(m3uContent),
         });
 
