@@ -12,37 +12,13 @@ import { Search } from 'lucide-react';
 import { MainLayout } from '@/components/layout';
 import { NewsSection } from '@/components/news';
 
-const CATEGORY_PILLS = [
-  { label: 'Top News', search: 'breaking news' },
-  { label: 'World', search: 'world news' },
-  { label: 'Politics', search: 'politics' },
-  { label: 'Business', search: 'business' },
-  { label: 'Tech', search: 'technology' },
-  { label: 'Science', search: 'science' },
-  { label: 'Health', search: 'healthcare' },
-  { label: 'Sports', search: 'sports' },
-  { label: 'Entertainment', search: 'entertainment' },
-  { label: 'Environment', search: 'environment climate' },
-  { label: 'Crypto', search: 'cryptocurrency bitcoin' },
-];
-
 export default function NewsPage(): React.ReactElement {
-  const [searchTerm, setSearchTerm] = useState('breaking news');
+  const [searchTerm, setSearchTerm] = useState('');
   const [customSearch, setCustomSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('breaking news');
-
-  const handleCategoryClick = (search: string): void => {
-    setActiveCategory(search);
-    setSearchTerm(search);
-    setCustomSearch('');
-  };
 
   const handleCustomSearch = (e: React.FormEvent): void => {
     e.preventDefault();
-    if (customSearch.trim()) {
-      setActiveCategory('');
-      setSearchTerm(customSearch.trim());
-    }
+    setSearchTerm(customSearch.trim());
   };
 
   return (
@@ -74,23 +50,6 @@ export default function NewsPage(): React.ReactElement {
             Search
           </button>
         </form>
-
-        {/* Category Pills */}
-        <div className="flex flex-wrap gap-2">
-          {CATEGORY_PILLS.map((pill) => (
-            <button
-              key={pill.search}
-              onClick={() => handleCategoryClick(pill.search)}
-              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                activeCategory === pill.search
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              {pill.label}
-            </button>
-          ))}
-        </div>
 
         <NewsSection searchTerm={searchTerm} limit={50} />
       </div>
