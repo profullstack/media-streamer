@@ -261,7 +261,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           />
 
           {/* Modal Content */}
-          <div className="relative w-full max-w-4xl max-h-[85vh] bg-gray-900 rounded-lg overflow-hidden flex flex-col">
+          <div className="relative w-full max-w-4xl h-[80vh] bg-gray-900 rounded-lg overflow-hidden flex flex-col">
             {/* Header */}
             <div
               data-testid="modal-header"
@@ -326,7 +326,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
             {/* Content Area */}
             {showSummary && summary ? (
               /* AI Summary View */
-              <div className="flex-1 overflow-y-auto p-6 bg-gray-800">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-800">
                 {/* Summary Header */}
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold mb-2">{summary.title}</h2>
@@ -382,7 +382,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
               </div>
             ) : iframeBlocked ? (
               /* Iframe Blocked Fallback */
-              <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gray-800">
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 bg-gray-800 overflow-y-auto">
                 <div className="text-center max-w-md">
                   <Newspaper className="w-16 h-16 mx-auto mb-4 text-gray-500" />
                   <h3 className="text-xl font-semibold mb-2">Article Preview Blocked</h3>
@@ -418,11 +418,11 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
               </div>
             ) : (
               /* Iframe View */
-              <div className="flex-1 bg-white relative">
+              <div className="flex-1 min-h-0 bg-white relative overflow-auto">
                 <iframe
                   data-testid="news-iframe"
                   src={selectedArticle.url}
-                  className="w-full h-full border-0"
+                  className="w-full h-full min-h-[60vh] border-0"
                   title={selectedArticle.title}
                   sandbox="allow-scripts allow-same-origin allow-popups"
                   onError={() => setIframeBlocked(true)}

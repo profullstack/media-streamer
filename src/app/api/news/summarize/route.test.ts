@@ -483,7 +483,7 @@ describe('News Summarize API Route', () => {
 
       expect(response.status).toBe(503);
       expect(data.success).toBe(false);
-      expect(data.error).toBe('AI service temporarily unavailable');
+      expect(data.error).toContain('AI service error');
     });
 
     it('should return 500 for non-OpenAI errors', async () => {

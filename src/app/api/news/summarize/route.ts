@@ -210,11 +210,20 @@ ${truncatedContent}`;
 
     // Handle OpenAI-specific errors
     if (error instanceof OpenAI.APIError) {
+      console.error('OpenAI API Error:', {
+        status: error.status,
+        message: error.message,
+        code: error.code,
+      });
       return NextResponse.json(
-        { success: false, error: 'AI service temporarily unavailable' },
+        { success: false, error: `AI service error: ${error.message}` },
         { status: 503 }
       );
     }
+
+    // Log the full error for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Non-OpenAI error:', errorMessage);
 
     return NextResponse.json(
       { success: false, error: 'Failed to summarize article' },
