@@ -304,6 +304,15 @@ export default function SettingsPage(): React.ReactElement {
                   Your IPTV playlists are managed from the Live TV page. You can add, edit, and delete playlists there.
                 </p>
 
+                <div className="rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4">
+                  <p className="text-sm text-text-primary">
+                    Need an IPTV subscription?{' '}
+                    <Link href="/account" className="text-accent-primary hover:underline font-medium">
+                      Purchase one from your account settings
+                    </Link>.
+                  </p>
+                </div>
+
                 {!isLoggedIn && !isAuthLoading && (
                   <div className="rounded-lg border border-border-default bg-bg-tertiary p-4">
                     <p className="text-sm text-text-muted">

@@ -21,6 +21,7 @@ import { AddPlaylistModal, EditPlaylistModal, HlsPlayerModal, type PlaylistData 
 import { useAuth } from '@/hooks/use-auth';
 import { useIptvChannelFavorites } from '@/hooks/use-favorites';
 import type { Channel } from '@/lib/iptv';
+import Link from 'next/link';
 
 /**
  * localStorage key for persisting playlists (guest users only)
@@ -477,7 +478,11 @@ export default function LiveTvPage(): React.ReactElement {
           <div>
             <h1 className="text-2xl font-bold text-text-primary">Live TV</h1>
             <p className="text-sm text-text-secondary">
-              Stream live channels from your IPTV playlists
+              Stream live channels from your IPTV playlists.{' '}
+              <Link href="/account" className="text-accent-primary hover:underline">
+                Purchase an IPTV subscription
+              </Link>{' '}
+              from your account settings.
             </p>
           </div>
           <div className="flex items-center gap-2">
