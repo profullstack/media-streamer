@@ -107,6 +107,7 @@ export function LibraryContent({
 
   const filteredFavorites = favorites.filter((item) => {
     if (mediaFilter === 'all') return true;
+    if (mediaFilter === 'livetv') return false;
     const category = item.torrent_files?.media_category;
     if (mediaFilter === 'music') return category === 'audio';
     if (mediaFilter === 'video') return category === 'video';
@@ -116,10 +117,21 @@ export function LibraryContent({
 
   const filteredHistory = history.filter((item) => {
     if (mediaFilter === 'all') return true;
+    if (mediaFilter === 'livetv') return false;
     const category = item.file?.media_category;
     if (mediaFilter === 'music') return category === 'audio';
     if (mediaFilter === 'video') return category === 'video';
     if (mediaFilter === 'ebook') return category === 'ebook';
+    return true;
+  });
+
+  const filteredTorrentFavorites = torrentFavorites.filter((item) => {
+    if (mediaFilter === 'all') return true;
+    if (mediaFilter === 'livetv') return false;
+    const contentType = item.torrents?.content_type;
+    if (mediaFilter === 'music') return contentType === 'music';
+    if (mediaFilter === 'video') return contentType === 'movie' || contentType === 'tvshow';
+    if (mediaFilter === 'ebook') return contentType === 'book';
     return true;
   });
 
@@ -312,14 +324,14 @@ export function LibraryContent({
       {activeTab === 'favorites' && (
         <div className="space-y-6">
           {/* Torrent Favorites Section */}
-          {torrentFavorites.length > 0 && (mediaFilter === 'all' || mediaFilter === 'music' || mediaFilter === 'video' || mediaFilter === 'ebook') && (
+          {filteredTorrentFavorites.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
                 <HeartFilledIcon size={14} className="text-red-400" />
-                Favorite Torrents ({torrentFavorites.length})
+                Favorite Torrents ({filteredTorrentFavorites.length})
               </h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {torrentFavorites.map((item) => (
+                {filteredTorrentFavorites.map((item) => (
                   <div
                     key={item.id}
                     className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"

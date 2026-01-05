@@ -22,7 +22,7 @@ vi.mock('@/components/live-tv', () => ({
 
 import { LibraryContent } from './library-content';
 import type { Favorite, Collection, HistoryItem } from '@/lib/library';
-import type { IptvChannelFavoriteWithDetails } from '@/lib/favorites';
+import type { TorrentFavoriteWithDetails, IptvChannelFavoriteWithDetails } from '@/lib/favorites';
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -111,6 +111,65 @@ const mockHistory: HistoryItem[] = [
     } as HistoryItem['file'],
     current_page: 50,
     total_pages: 200,
+  },
+];
+
+const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
+  {
+    id: 'tf-1',
+    user_id: 'user-123',
+    torrent_id: 'torrent-music-1',
+    created_at: '2024-01-15T00:00:00Z',
+    torrents: {
+      id: 'torrent-music-1',
+      name: 'Greatest Hits Album',
+      infohash: 'abc123',
+      content_type: 'music',
+      poster_url: null,
+      cover_url: null,
+    },
+  },
+  {
+    id: 'tf-2',
+    user_id: 'user-123',
+    torrent_id: 'torrent-movie-1',
+    created_at: '2024-01-14T00:00:00Z',
+    torrents: {
+      id: 'torrent-movie-1',
+      name: 'Action Movie 2024',
+      infohash: 'def456',
+      content_type: 'movie',
+      poster_url: 'http://example.com/poster.jpg',
+      cover_url: null,
+    },
+  },
+  {
+    id: 'tf-3',
+    user_id: 'user-123',
+    torrent_id: 'torrent-tvshow-1',
+    created_at: '2024-01-13T00:00:00Z',
+    torrents: {
+      id: 'torrent-tvshow-1',
+      name: 'Drama Series Season 1',
+      infohash: 'ghi789',
+      content_type: 'tvshow',
+      poster_url: null,
+      cover_url: null,
+    },
+  },
+  {
+    id: 'tf-4',
+    user_id: 'user-123',
+    torrent_id: 'torrent-book-1',
+    created_at: '2024-01-12T00:00:00Z',
+    torrents: {
+      id: 'torrent-book-1',
+      name: 'Programming Guide eBook',
+      infohash: 'jkl012',
+      content_type: 'book',
+      poster_url: null,
+      cover_url: null,
+    },
   },
 ];
 
@@ -651,6 +710,189 @@ describe('LibraryContent', () => {
 
       // Total count should include file favorites (2) + IPTV favorites (2) = 4
       expect(screen.getByText('(4)')).toBeInTheDocument();
+    });
+  });
+
+  describe('Torrent Favorites Filtering', () => {
+    it('displays all torrent favorites when All filter is selected', () => {
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // All torrent favorites should be visible
+      expect(screen.getByText('Greatest Hits Album')).toBeInTheDocument();
+      expect(screen.getByText('Action Movie 2024')).toBeInTheDocument();
+      expect(screen.getByText('Drama Series Season 1')).toBeInTheDocument();
+      expect(screen.getByText('Programming Guide eBook')).toBeInTheDocument();
+    });
+
+    it('filters torrent favorites to show only music when Music filter is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      await user.click(screen.getByText('Music'));
+
+      // Only music torrent should be visible
+      expect(screen.getByText('Greatest Hits Album')).toBeInTheDocument();
+      // Others should not be visible
+      expect(screen.queryByText('Action Movie 2024')).not.toBeInTheDocument();
+      expect(screen.queryByText('Drama Series Season 1')).not.toBeInTheDocument();
+      expect(screen.queryByText('Programming Guide eBook')).not.toBeInTheDocument();
+    });
+
+    it('filters torrent favorites to show movies and tvshows when Videos filter is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      await user.click(screen.getByText('Videos'));
+
+      // Movie and TV show torrents should be visible
+      expect(screen.getByText('Action Movie 2024')).toBeInTheDocument();
+      expect(screen.getByText('Drama Series Season 1')).toBeInTheDocument();
+      // Others should not be visible
+      expect(screen.queryByText('Greatest Hits Album')).not.toBeInTheDocument();
+      expect(screen.queryByText('Programming Guide eBook')).not.toBeInTheDocument();
+    });
+
+    it('filters torrent favorites to show only books when Ebooks filter is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      await user.click(screen.getByText('Ebooks'));
+
+      // Only book torrent should be visible
+      expect(screen.getByText('Programming Guide eBook')).toBeInTheDocument();
+      // Others should not be visible
+      expect(screen.queryByText('Greatest Hits Album')).not.toBeInTheDocument();
+      expect(screen.queryByText('Action Movie 2024')).not.toBeInTheDocument();
+      expect(screen.queryByText('Drama Series Season 1')).not.toBeInTheDocument();
+    });
+
+    it('hides all torrent favorites when Live TV filter is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={mockIptvChannelFavorites}
+        />
+      );
+
+      await user.click(screen.getByText('Live TV'));
+
+      // No torrent favorites should be visible
+      expect(screen.queryByText('Greatest Hits Album')).not.toBeInTheDocument();
+      expect(screen.queryByText('Action Movie 2024')).not.toBeInTheDocument();
+      expect(screen.queryByText('Drama Series Season 1')).not.toBeInTheDocument();
+      expect(screen.queryByText('Programming Guide eBook')).not.toBeInTheDocument();
+      // But IPTV channels should be visible
+      expect(screen.getByText('ESPN HD')).toBeInTheDocument();
+    });
+
+    it('removes torrent favorite when clicking remove button', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Find and click the remove button for the first torrent favorite
+      const removeButtons = screen.getAllByTitle('Remove from favorites');
+      await user.click(removeButtons[0]);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/favorites/torrents', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ torrentId: 'torrent-music-1' }),
+        });
+      });
+
+      // Torrent favorite should be removed from the list
+      await waitFor(() => {
+        expect(screen.queryByText('Greatest Hits Album')).not.toBeInTheDocument();
+      });
+    });
+
+    it('includes torrent favorites count in favorites tab total', () => {
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Total count should include file favorites (2) + torrent favorites (4) = 6
+      expect(screen.getByText('(6)')).toBeInTheDocument();
+    });
+
+    it('displays correct filtered count in section header', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={mockTorrentFavorites}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // All filter should show 4 torrents
+      expect(screen.getByText('Favorite Torrents (4)')).toBeInTheDocument();
+
+      // Videos filter should show 2 torrents (movie + tvshow)
+      await user.click(screen.getByText('Videos'));
+      expect(screen.getByText('Favorite Torrents (2)')).toBeInTheDocument();
+
+      // Music filter should show 1 torrent
+      await user.click(screen.getByText('Music'));
+      expect(screen.getByText('Favorite Torrents (1)')).toBeInTheDocument();
     });
   });
 });
