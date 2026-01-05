@@ -17,19 +17,6 @@ import {
 } from '@/lib/argontv';
 import { getCoinPayPortalClient, type CryptoBlockchain } from '@/lib/coinpayportal';
 
-// Valid crypto types - mapped to CoinPayPortal blockchain codes
-const VALID_CRYPTO_TYPES = ['BTC', 'ETH', 'LTC', 'USDT', 'USDC'] as const;
-type ValidCryptoType = typeof VALID_CRYPTO_TYPES[number];
-
-// Map our crypto types to CoinPayPortal blockchain codes
-const BLOCKCHAIN_MAP: Record<ValidCryptoType, CryptoBlockchain> = {
-  BTC: 'BTC',
-  ETH: 'ETH',
-  LTC: 'BTC', // LTC not supported, use BTC
-  USDT: 'USDC_ETH', // Use USDC on Ethereum for stablecoins
-  USDC: 'USDC_ETH',
-};
-
 interface ExtendRequestBody {
   packageKey: string;
   cryptoType: string;
@@ -72,10 +59,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Validate crypto type
-    if (!cryptoType || !VALID_CRYPTO_TYPES.includes(cryptoType as ValidCryptoType)) {
+    // Validate crypto type is provided (actual coin validation is done by the API)
+    if (!cryptoType) {
       return NextResponse.json(
-        { error: 'Invalid crypto type. Must be BTC, ETH, LTC, USDT, or USDC' },
+        { error: 'Crypto type is required' },
         { status: 400 }
       );
     }
@@ -107,8 +94,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Map crypto type to CoinPayPortal blockchain code
-    const blockchain = BLOCKCHAIN_MAP[cryptoType as ValidCryptoType];
+    // Use crypto type directly as the blockchain code (validated by CoinPayPortal API)
+    const blockchain = cryptoType as CryptoBlockchain;
 
     // Create payment via CoinPayPortal API
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

@@ -18,7 +18,8 @@ export type PaymentStatus =
   | 'failed';
 
 export type SubscriptionPlan = 'premium' | 'family';
-export type CryptoType = 'BTC' | 'ETH' | 'LTC' | 'USDT' | 'USDC';
+// CryptoType accepts any string as validation is done by CoinPayPortal API
+export type CryptoType = string;
 
 export interface PaymentRequest {
   id: string;

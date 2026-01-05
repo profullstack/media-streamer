@@ -175,15 +175,14 @@ describe('Payment API Route', () => {
       expect(data.error).toContain('Invalid plan');
     });
 
-    it('should reject invalid crypto type', async () => {
+    it('should reject missing crypto type', async () => {
       const { POST } = await import('./route');
-      
+
       const request = new Request('http://localhost:3000/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plan: 'premium',
-          cryptoType: 'DOGE',
         }),
       });
 
@@ -191,12 +190,13 @@ describe('Payment API Route', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toContain('Invalid crypto type');
+      expect(data.error).toContain('Crypto type is required');
     });
 
-    it('should accept all valid crypto types', async () => {
+    it('should accept any crypto type (validation done by CoinPayPortal API)', async () => {
       const { POST } = await import('./route');
-      const validCryptos = ['BTC', 'ETH', 'LTC', 'USDT', 'USDC'];
+      // These are the valid CryptoBlockchain types from CoinPayPortal
+      const validCryptos = ['BTC', 'ETH', 'POL', 'SOL', 'USDC_ETH', 'USDC_POL', 'USDC_SOL'];
 
       for (const cryptoType of validCryptos) {
         const request = new Request('http://localhost:3000/api/payments', {
