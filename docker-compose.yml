@@ -41,6 +41,22 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # IPTV Cache Worker - caches channel lists every 15 minutes
+  iptv-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.iptv-worker
+    container_name: bittorrented-iptv-worker
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - NODE_ENV=production
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   # Application (optional - for full local deployment)
   # Uncomment to run the app in Docker
   # app:

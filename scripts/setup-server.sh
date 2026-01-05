@@ -837,14 +837,12 @@ After=network.target redis-server.service
 Type=simple
 User=${VPS_USER}
 WorkingDirectory=${DEPLOY_PATH}
-ExecStart=${PNPM_HOME}/pnpm iptv-worker
+# Use bash to source .env file properly (handles quotes and complex values)
+ExecStart=/bin/bash -c 'set -a; source ${DEPLOY_PATH}/.env; set +a; exec ${PNPM_HOME}/pnpm iptv-worker'
 Restart=on-failure
 RestartSec=30
 Environment=NODE_ENV=production
 Environment=PATH=${PNPM_HOME}:/usr/local/bin:/usr/bin:/bin
-
-# Load environment variables from .env
-EnvironmentFile=${DEPLOY_PATH}/.env
 
 # Log to files
 StandardOutput=append:${IPTV_WORKER_LOG}
