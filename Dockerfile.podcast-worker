@@ -1,0 +1,33 @@
+# Podcast Notifier Worker Dockerfile
+# Background worker for checking podcast RSS feeds and sending notifications
+
+FROM node:22-alpine
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install all dependencies (need dev deps for tsx)
+RUN pnpm install --frozen-lockfile
+
+# Copy worker source files
+COPY workers ./workers
+COPY src/lib/supabase ./src/lib/supabase
+COPY src/lib/podcasts ./src/lib/podcasts
+COPY src/lib/push-notifications ./src/lib/push-notifications
+COPY tsconfig.json ./
+
+# Set environment
+ENV NODE_ENV=production
+
+# Health check - verify worker ran within last 2 hours (refresh interval is 1 hour)
+# Note: Unlike IPTV worker, podcast worker doesn't use Redis for status tracking
+# so we just check if the process is running
+HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
+  CMD pgrep -f "podcast-notifier" > /dev/null || exit 1
+
+# Run the worker
+CMD ["pnpm", "podcast-worker"]

@@ -57,6 +57,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Podcast Notifier Worker - checks RSS feeds every 60 minutes and sends push notifications
+  podcast-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.podcast-worker
+    container_name: bittorrented-podcast-worker
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@bittorrented.com}
+      - NODE_ENV=production
+    restart: unless-stopped
+
   # Application (optional - for full local deployment)
   # Uncomment to run the app in Docker
   # app:

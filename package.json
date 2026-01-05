@@ -25,7 +25,9 @@
     "enrich-folders:dry-run": "tsx --env-file=.env scripts/enrich-folder-metadata.ts --all-status --dry-run",
     "enrich-folders:force": "tsx --env-file=.env scripts/enrich-folder-metadata.ts --all-status --force",
     "iptv-worker": "tsx --env-file=.env workers/iptv-cache/index.ts",
-    "iptv-worker:dev": "tsx --watch --env-file=.env workers/iptv-cache/index.ts"
+    "iptv-worker:dev": "tsx --watch --env-file=.env workers/iptv-cache/index.ts",
+    "podcast-worker": "tsx --env-file=.env workers/podcast-notifier/index.ts",
+    "podcast-worker:dev": "tsx --watch --env-file=.env workers/podcast-notifier/index.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

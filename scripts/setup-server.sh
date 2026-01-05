@@ -872,10 +872,65 @@ ${IPTV_WORKER_LOG} ${IPTV_WORKER_ERROR_LOG} {
 }
 EOF
 
+# Create/update Podcast Notifier Worker systemd service
+PODCAST_WORKER_SERVICE="${SERVICE_NAME}-podcast-worker"
+PODCAST_WORKER_LOG="/var/log/${SERVICE_NAME}-podcast-worker.log"
+PODCAST_WORKER_ERROR_LOG="/var/log/${SERVICE_NAME}-podcast-worker.error.log"
+
+echo "=== Setting up Podcast Notifier Worker service ==="
+sudo touch "${PODCAST_WORKER_LOG}" "${PODCAST_WORKER_ERROR_LOG}"
+sudo chown ${VPS_USER}:${VPS_USER} "${PODCAST_WORKER_LOG}" "${PODCAST_WORKER_ERROR_LOG}"
+sudo chmod 644 "${PODCAST_WORKER_LOG}" "${PODCAST_WORKER_ERROR_LOG}"
+
+sudo tee /etc/systemd/system/${PODCAST_WORKER_SERVICE}.service > /dev/null << EOF
+[Unit]
+Description=BitTorrented Podcast Notifier Worker
+After=network.target
+
+[Service]
+Type=simple
+User=${VPS_USER}
+WorkingDirectory=${DEPLOY_PATH}
+# Use bash to source .env file properly (handles quotes and complex values)
+ExecStart=/bin/bash -c 'set -a; source ${DEPLOY_PATH}/.env; set +a; exec ${PNPM_HOME}/pnpm podcast-worker'
+Restart=on-failure
+RestartSec=30
+Environment=NODE_ENV=production
+Environment=PATH=${PNPM_HOME}:/usr/local/bin:/usr/bin:/bin
+
+# Log to files
+StandardOutput=append:${PODCAST_WORKER_LOG}
+StandardError=append:${PODCAST_WORKER_ERROR_LOG}
+
+# Increase file descriptor limits
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Add Podcast worker logs to logrotate
+echo "=== Setting up Podcast worker log rotation ==="
+sudo tee /etc/logrotate.d/${PODCAST_WORKER_SERVICE} > /dev/null << EOF
+${PODCAST_WORKER_LOG} ${PODCAST_WORKER_ERROR_LOG} {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 ${VPS_USER} ${VPS_USER}
+    postrotate
+        systemctl reload ${PODCAST_WORKER_SERVICE} > /dev/null 2>&1 || true
+    endscript
+}
+EOF
+
 # Reload systemd and enable services
 sudo systemctl daemon-reload
 sudo systemctl enable ${SERVICE_NAME} 2>/dev/null || true
 sudo systemctl enable ${IPTV_WORKER_SERVICE} 2>/dev/null || true
+sudo systemctl enable ${PODCAST_WORKER_SERVICE} 2>/dev/null || true
 
 echo ""
 echo "=== Setup Complete! ==="
@@ -916,4 +971,12 @@ echo "  Restart: sudo systemctl restart ${IPTV_WORKER_SERVICE}"
 echo "  Status:  sudo systemctl status ${IPTV_WORKER_SERVICE}"
 echo "  Logs:    tail -f ${IPTV_WORKER_LOG}"
 echo "  Errors:  tail -f ${IPTV_WORKER_ERROR_LOG}"
+echo ""
+echo "Podcast Notifier Worker:"
+echo "  Start:   sudo systemctl start ${PODCAST_WORKER_SERVICE}"
+echo "  Stop:    sudo systemctl stop ${PODCAST_WORKER_SERVICE}"
+echo "  Restart: sudo systemctl restart ${PODCAST_WORKER_SERVICE}"
+echo "  Status:  sudo systemctl status ${PODCAST_WORKER_SERVICE}"
+echo "  Logs:    tail -f ${PODCAST_WORKER_LOG}"
+echo "  Errors:  tail -f ${PODCAST_WORKER_ERROR_LOG}"
 
