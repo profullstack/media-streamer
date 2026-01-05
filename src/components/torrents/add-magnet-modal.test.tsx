@@ -78,6 +78,46 @@ describe('AddMagnetModal', () => {
     expect(newInput).toHaveValue('');
   });
 
+  it('should repopulate input when modal is closed and reopened with the same initialMagnetUrl', async () => {
+    const user = userEvent.setup();
+    const magnetUrl = 'magnet:?xt=urn:btih:abc123&dn=Test+Torrent';
+    const { rerender } = render(<AddMagnetModal {...defaultProps} initialMagnetUrl={magnetUrl} />);
+
+    const input = screen.getByLabelText(/magnet url/i);
+    expect(input).toHaveValue(magnetUrl);
+
+    // User clears the input manually (simulating what happens internally when modal closes)
+    await user.clear(input);
+    expect(input).toHaveValue('');
+
+    // Close the modal
+    rerender(<AddMagnetModal {...defaultProps} isOpen={false} initialMagnetUrl={undefined} />);
+
+    // Reopen with the same magnet URL (simulating clicking Add Magnet on search results again)
+    rerender(<AddMagnetModal {...defaultProps} isOpen={true} initialMagnetUrl={magnetUrl} />);
+
+    const newInput = screen.getByLabelText(/magnet url/i);
+    expect(newInput).toHaveValue(magnetUrl);
+  });
+
+  it('should populate input when modal opens even if initialMagnetUrl was set before isOpen', async () => {
+    // This tests the scenario where initialMagnetUrl is set, then isOpen becomes true
+    // The useEffect should trigger when isOpen changes to true
+    const magnetUrl = 'magnet:?xt=urn:btih:abc123&dn=Test+Torrent';
+
+    // Start with modal closed but initialMagnetUrl already set
+    const { rerender } = render(<AddMagnetModal {...defaultProps} isOpen={false} initialMagnetUrl={magnetUrl} />);
+
+    // Modal is closed, so input shouldn't be visible
+    expect(screen.queryByLabelText(/magnet url/i)).not.toBeInTheDocument();
+
+    // Open the modal - the input should be populated with the magnet URL
+    rerender(<AddMagnetModal {...defaultProps} isOpen={true} initialMagnetUrl={magnetUrl} />);
+
+    const input = screen.getByLabelText(/magnet url/i);
+    expect(input).toHaveValue(magnetUrl);
+  });
+
   it('should have submit button disabled when input is empty', () => {
     render(<AddMagnetModal {...defaultProps} />);
 

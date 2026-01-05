@@ -70,10 +70,12 @@ export function AddMagnetModal({
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Update magnetUri when initialMagnetUrl changes
+  // Update magnetUri when initialMagnetUrl changes or when modal opens
   useEffect(() => {
-    setMagnetUri(initialMagnetUrl ?? '');
-  }, [initialMagnetUrl]);
+    if (isOpen) {
+      setMagnetUri(initialMagnetUrl ?? '');
+    }
+  }, [initialMagnetUrl, isOpen]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent): Promise<void> => {
