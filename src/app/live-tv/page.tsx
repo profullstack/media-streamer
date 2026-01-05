@@ -255,19 +255,25 @@ export default function LiveTvPage(): React.ReactElement {
       
       try {
         const params = new URLSearchParams({
-          m3uUrl: activePlaylist.m3uUrl,
           limit: '50',
           offset: String(offset),
         });
-        
+
+        // Use playlistId for worker cache (fast), fall back to m3uUrl for on-demand fetch
+        if (activePlaylist.id && isLoggedIn) {
+          params.set('playlistId', activePlaylist.id);
+        } else {
+          params.set('m3uUrl', activePlaylist.m3uUrl);
+        }
+
         if (debouncedQuery) {
           params.set('q', debouncedQuery);
         }
-        
+
         if (selectedGroup) {
           params.set('group', selectedGroup);
         }
-        
+
         const response = await fetch(`/api/iptv/channels?${params.toString()}`);
         
         if (!response.ok) {
@@ -300,7 +306,7 @@ export default function LiveTvPage(): React.ReactElement {
     };
 
     void fetchChannels();
-  }, [activePlaylist, debouncedQuery, selectedGroup, offset, refreshKey, isPlaylistLoaded]);
+  }, [activePlaylist, debouncedQuery, selectedGroup, offset, refreshKey, isPlaylistLoaded, isLoggedIn]);
 
   // Reset offset when group changes
   useEffect(() => {
