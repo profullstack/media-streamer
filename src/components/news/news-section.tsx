@@ -251,7 +251,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           data-testid="news-modal"
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8"
         >
           {/* Backdrop */}
           <div
@@ -261,7 +261,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           />
 
           {/* Modal Content */}
-          <div className="relative w-full max-w-6xl h-[90vh] mx-4 bg-gray-900 rounded-lg overflow-hidden flex flex-col">
+          <div className="relative w-full max-w-4xl max-h-[85vh] bg-gray-900 rounded-lg overflow-hidden flex flex-col">
             {/* Header */}
             <div
               data-testid="modal-header"
