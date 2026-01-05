@@ -45,6 +45,7 @@ vi.mock('../../src/lib/iptv/m3u-parser', () => ({
 
 describe('PlaylistFetcher', () => {
   let fetchAndParsePlaylist: typeof import('./playlist-fetcher').fetchAndParsePlaylist;
+  let fetchAndParsePlaylistStreaming: typeof import('./playlist-fetcher').fetchAndParsePlaylistStreaming;
   let fetchActivePlaylists: typeof import('./playlist-fetcher').fetchActivePlaylists;
 
   beforeEach(async () => {
@@ -54,6 +55,7 @@ describe('PlaylistFetcher', () => {
 
     const module = await import('./playlist-fetcher');
     fetchAndParsePlaylist = module.fetchAndParsePlaylist;
+    fetchAndParsePlaylistStreaming = module.fetchAndParsePlaylistStreaming;
     fetchActivePlaylists = module.fetchActivePlaylists;
   });
 
@@ -174,6 +176,38 @@ http://example.com/2.m3u8`;
       const result = await fetchActivePlaylists();
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('fetchAndParsePlaylistStreaming', () => {
+    // Note: Full streaming tests require complex Web Streams API mocking
+    // The streaming functionality is tested via integration tests and the
+    // underlying parseM3UStreamingBatched is tested through fetchAndParsePlaylist
+
+    it('returns error on fetch failure after retries', async () => {
+      // Mock all 3 retry attempts to fail
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'));
+
+      const batches: unknown[] = [];
+      const result = await fetchAndParsePlaylistStreaming(
+        'http://example.com/fail.m3u',
+        async (batch) => {
+          batches.push(batch);
+        }
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+      expect(batches.length).toBe(0);
+    });
+
+    it('is exported and callable', () => {
+      // Verify the function is exported and has the right signature
+      expect(typeof fetchAndParsePlaylistStreaming).toBe('function');
+      expect(fetchAndParsePlaylistStreaming.length).toBe(2); // Takes 2 args: url and callback
     });
   });
 

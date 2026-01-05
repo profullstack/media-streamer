@@ -23,6 +23,7 @@ const mockPipeline = {
 const mockRedis = {
   get: vi.fn(),
   set: vi.fn(),
+  setex: vi.fn().mockResolvedValue('OK'),
   hgetall: vi.fn(),
   hget: vi.fn(),
   hmget: vi.fn(),
@@ -121,6 +122,110 @@ describe('RedisStorage', () => {
       expect(mockPipeline.hset).toHaveBeenCalled();
       expect(mockPipeline.sadd).toHaveBeenCalled();
       expect(mockPipeline.exec).toHaveBeenCalled();
+    });
+  });
+
+  describe('Streaming Storage', () => {
+    describe('beginPlaylistStream', () => {
+      it('clears existing data and sets initial metadata', async () => {
+        mockRedis.del.mockResolvedValue(1);
+
+        await storage.beginPlaylistStream('test-playlist', testMeta);
+
+        // Should delete existing channel and group keys
+        expect(mockRedis.del).toHaveBeenCalledWith('iptv:worker:playlist:test-playlist:channels');
+        expect(mockRedis.del).toHaveBeenCalledWith('iptv:worker:playlist:test-playlist:groups');
+      });
+    });
+
+    describe('storeChannelBatch', () => {
+      it('stores a batch of channels to Redis', async () => {
+        await storage.storeChannelBatch('test-playlist', testChannels, 0);
+
+        expect(mockRedis.pipeline).toHaveBeenCalled();
+        expect(mockPipeline.hset).toHaveBeenCalled();
+        expect(mockPipeline.sadd).toHaveBeenCalled();
+        expect(mockPipeline.exec).toHaveBeenCalled();
+      });
+
+      it('stores channels grouped by their group field', async () => {
+        await storage.storeChannelBatch('test-playlist', testChannels, 0);
+
+        // Should add channel IDs to group sets
+        expect(mockPipeline.sadd).toHaveBeenCalled();
+      });
+
+      it('handles empty batch gracefully', async () => {
+        await storage.storeChannelBatch('test-playlist', [], 0);
+
+        // Should not call pipeline for empty batch
+        expect(mockPipeline.hset).not.toHaveBeenCalled();
+      });
+
+      it('logs progress for every 10th batch', async () => {
+        const consoleSpy = vi.spyOn(console, 'log');
+
+        // Batch 10 should log
+        await storage.storeChannelBatch('test-playlist', testChannels, 10);
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Stored batch 10')
+        );
+
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('finalizePlaylistStream', () => {
+      it('updates metadata with final counts', async () => {
+        await storage.finalizePlaylistStream('test-playlist', testMeta, 1000, ['Sports', 'News']);
+
+        expect(mockRedis.pipeline).toHaveBeenCalled();
+        expect(mockPipeline.setex).toHaveBeenCalled();
+        expect(mockPipeline.expire).toHaveBeenCalled();
+        expect(mockPipeline.exec).toHaveBeenCalled();
+      });
+
+      it('sets TTL on all group keys', async () => {
+        await storage.finalizePlaylistStream('test-playlist', testMeta, 100, ['Sports', 'News', 'Movies']);
+
+        // Should set expire on channels key, groups key, and each group channel key
+        expect(mockPipeline.expire).toHaveBeenCalled();
+      });
+
+      it('logs completion message with channel count', async () => {
+        const consoleSpy = vi.spyOn(console, 'log');
+
+        await storage.finalizePlaylistStream('test-playlist', testMeta, 1200000, ['Sports']);
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('1,200,000 channels')
+        );
+
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('Full streaming flow', () => {
+      it('can store playlist in streaming mode', async () => {
+        mockRedis.del.mockResolvedValue(1);
+
+        // Begin stream
+        await storage.beginPlaylistStream('test-playlist', testMeta);
+
+        // Store batches
+        await storage.storeChannelBatch('test-playlist', [testChannels[0]], 0);
+        await storage.storeChannelBatch('test-playlist', [testChannels[1]], 1);
+
+        // Finalize
+        await storage.finalizePlaylistStream('test-playlist', testMeta, 2, ['Sports', 'News']);
+
+        // Verify the flow completed
+        expect(mockRedis.del).toHaveBeenCalled();
+        expect(mockPipeline.hset).toHaveBeenCalled();
+        expect(mockPipeline.setex).toHaveBeenCalled();
+        expect(mockPipeline.expire).toHaveBeenCalled();
+      });
     });
   });
 

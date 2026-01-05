@@ -190,19 +190,34 @@ async function streamToFile(response: UndiciResponse, filePath: string): Promise
 }
 
 /**
- * Yield to event loop periodically to prevent blocking
+ * Batch size for streaming channel processing
  */
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
+const CHANNEL_BATCH_SIZE = 10000;
+
+/**
+ * Result from streaming M3U parsing
+ */
+export interface StreamingParseResult {
+  totalChannels: number;
+  groups: string[];
 }
 
 /**
- * Parse M3U file using streaming (line by line)
- * Yields to event loop periodically to prevent blocking on large playlists
+ * Callback for processing a batch of channels
  */
-async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[]; groups: string[] }> {
-  const channels: Channel[] = [];
+export type ChannelBatchCallback = (batch: Channel[], batchNumber: number) => Promise<void>;
+
+/**
+ * Parse M3U file using true streaming - processes channels in batches
+ * and calls the callback for each batch, never holding all channels in memory
+ */
+async function parseM3UStreamingBatched(
+  filePath: string,
+  onBatch: ChannelBatchCallback
+): Promise<StreamingParseResult> {
   const groups = new Set<string>();
+  let currentBatch: Channel[] = [];
+  let batchNumber = 0;
 
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' });
   const rl = createInterface({
@@ -214,7 +229,7 @@ async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[
   let channelIndex = 0;
   let hasValidHeader = false;
   let lastLogTime = Date.now();
-  const LOG_INTERVAL_MS = 5000; // Log progress every 5 seconds
+  const LOG_INTERVAL_MS = 5000;
 
   for await (const rawLine of rl) {
     const line = rawLine.trim();
@@ -240,16 +255,17 @@ async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[
         tvgName: extractAttribute(currentExtinf, 'tvg-name'),
       };
 
-      channels.push(channel);
+      currentBatch.push(channel);
       if (group) {
         groups.add(group);
       }
       channelIndex++;
       currentExtinf = null;
 
-      // Yield to event loop every 10k channels to prevent blocking
-      if (channelIndex % 10000 === 0) {
-        await yieldToEventLoop();
+      // When batch is full, send it and clear
+      if (currentBatch.length >= CHANNEL_BATCH_SIZE) {
+        await onBatch(currentBatch, batchNumber++);
+        currentBatch = []; // Clear batch - let GC reclaim memory
 
         // Log progress periodically
         const now = Date.now();
@@ -261,15 +277,37 @@ async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[
     }
   }
 
+  // Send any remaining channels in the last batch
+  if (currentBatch.length > 0) {
+    await onBatch(currentBatch, batchNumber);
+  }
+
   if (!hasValidHeader) {
     throw new Error('Invalid M3U format: missing #EXTM3U or #EXTINF');
   }
 
-  console.log(`${LOG_PREFIX} Parsing complete: ${channels.length.toLocaleString()} channels`);
+  console.log(`${LOG_PREFIX} Parsing complete: ${channelIndex.toLocaleString()} channels in ${batchNumber + 1} batches`);
+
+  return {
+    totalChannels: channelIndex,
+    groups: Array.from(groups).sort(),
+  };
+}
+
+/**
+ * Legacy function for backward compatibility - loads all channels into memory
+ * Use parseM3UStreamingBatched for large playlists
+ */
+async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[]; groups: string[] }> {
+  const channels: Channel[] = [];
+
+  const result = await parseM3UStreamingBatched(filePath, async (batch) => {
+    channels.push(...batch);
+  });
 
   return {
     channels,
-    groups: Array.from(groups).sort(),
+    groups: result.groups,
   };
 }
 
@@ -381,6 +419,70 @@ export async function fetchAndParsePlaylist(
         durationMs: Date.now() - startTime,
       };
     }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    console.error(`${LOG_PREFIX} Failed to fetch playlist:`, errorMessage);
+
+    return {
+      success: false,
+      error: errorMessage,
+      durationMs: Date.now() - startTime,
+    };
+  } finally {
+    // Clean up temp file
+    if (tempFilePath) {
+      try {
+        unlinkSync(tempFilePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }
+}
+
+/**
+ * Result from streaming playlist fetch
+ */
+export interface StreamingFetchResult {
+  success: boolean;
+  totalChannels?: number;
+  groups?: string[];
+  error?: string;
+  durationMs: number;
+}
+
+/**
+ * Fetch and parse an M3U playlist with true streaming
+ * Calls onBatch for each batch of channels, never holding all channels in memory
+ * Use this for very large playlists (100k+ channels)
+ */
+export async function fetchAndParsePlaylistStreaming(
+  m3uUrl: string,
+  onBatch: ChannelBatchCallback
+): Promise<StreamingFetchResult> {
+  const startTime = Date.now();
+  let tempFilePath: string | null = null;
+
+  try {
+    console.log(`${LOG_PREFIX} Fetching playlist (streaming mode) from: ${m3uUrl}`);
+
+    const response = await fetchWithRetry(m3uUrl);
+
+    // Always stream to disk first for streaming mode
+    tempFilePath = join(tmpdir(), `iptv-playlist-${Date.now()}.m3u`);
+    const actualSize = await streamToFile(response, tempFilePath);
+    console.log(`${LOG_PREFIX} Downloaded ${Math.round(actualSize / 1024 / 1024)}MB to ${tempFilePath}`);
+
+    // Parse with batched streaming - each batch is written to Redis immediately
+    const result = await parseM3UStreamingBatched(tempFilePath, onBatch);
+
+    return {
+      success: true,
+      totalChannels: result.totalChannels,
+      groups: result.groups,
+      durationMs: Date.now() - startTime,
+    };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';

@@ -109,8 +109,135 @@ export class RedisStorage {
   // ============================================================================
 
   /**
+   * Begin streaming storage for a playlist - clears existing data and sets up metadata
+   * Call this before streaming channel batches
+   */
+  async beginPlaylistStream(
+    playlistId: string,
+    meta: Omit<CachedPlaylistMeta, 'channelCount' | 'groupCount'>
+  ): Promise<void> {
+    const channelsKey = REDIS_KEYS.playlistChannels(playlistId);
+    const groupsKey = REDIS_KEYS.playlistGroups(playlistId);
+
+    // Clear existing data
+    await this.redis.del(channelsKey);
+    await this.redis.del(groupsKey);
+
+    // Store initial metadata (will be updated at end with final counts)
+    const initialMeta: CachedPlaylistMeta = {
+      ...meta,
+      channelCount: 0,
+      groupCount: 0,
+    };
+    await this.redis.setex(
+      REDIS_KEYS.playlistMeta(playlistId),
+      CACHE_TTL_SECONDS,
+      JSON.stringify(initialMeta)
+    );
+  }
+
+  /**
+   * Store a batch of channels during streaming
+   * Call this for each batch of channels parsed
+   */
+  async storeChannelBatch(
+    playlistId: string,
+    channels: Channel[],
+    batchNumber: number
+  ): Promise<void> {
+    if (channels.length === 0) return;
+
+    const channelsKey = REDIS_KEYS.playlistChannels(playlistId);
+    const groupsKey = REDIS_KEYS.playlistGroups(playlistId);
+
+    const pipeline = this.redis.pipeline();
+
+    // Store channels as hash
+    const channelData: Record<string, string> = {};
+    const batchGroups = new Set<string>();
+
+    for (const channel of channels) {
+      channelData[channel.id] = JSON.stringify(channel);
+      if (channel.group) {
+        batchGroups.add(channel.group);
+      }
+    }
+
+    pipeline.hset(channelsKey, channelData);
+
+    // Add groups from this batch
+    if (batchGroups.size > 0) {
+      pipeline.sadd(groupsKey, ...Array.from(batchGroups));
+    }
+
+    // Store channel IDs by group for this batch
+    const groupChannels = new Map<string, string[]>();
+    for (const channel of channels) {
+      if (channel.group) {
+        const existing = groupChannels.get(channel.group) ?? [];
+        existing.push(channel.id);
+        groupChannels.set(channel.group, existing);
+      }
+    }
+
+    for (const [group, channelIds] of groupChannels) {
+      const groupKey = REDIS_KEYS.playlistGroupChannels(playlistId, group);
+      pipeline.sadd(groupKey, ...channelIds);
+    }
+
+    await pipeline.exec();
+
+    if (batchNumber > 0 && batchNumber % 10 === 0) {
+      console.log(`${LOG_PREFIX} Stored batch ${batchNumber} (${channels.length} channels)`);
+    }
+  }
+
+  /**
+   * Finalize streaming storage - update metadata and set TTLs
+   * Call this after all channel batches have been stored
+   */
+  async finalizePlaylistStream(
+    playlistId: string,
+    meta: Omit<CachedPlaylistMeta, 'channelCount' | 'groupCount'>,
+    totalChannels: number,
+    groups: string[]
+  ): Promise<void> {
+    const pipeline = this.redis.pipeline();
+
+    // Update metadata with final counts
+    const fullMeta: CachedPlaylistMeta = {
+      ...meta,
+      channelCount: totalChannels,
+      groupCount: groups.length,
+    };
+    pipeline.setex(
+      REDIS_KEYS.playlistMeta(playlistId),
+      CACHE_TTL_SECONDS,
+      JSON.stringify(fullMeta)
+    );
+
+    // Set TTLs on all keys
+    const channelsKey = REDIS_KEYS.playlistChannels(playlistId);
+    const groupsKey = REDIS_KEYS.playlistGroups(playlistId);
+
+    pipeline.expire(channelsKey, CACHE_TTL_SECONDS);
+    pipeline.expire(groupsKey, CACHE_TTL_SECONDS);
+
+    // Set TTL on group channel keys
+    for (const group of groups) {
+      const groupKey = REDIS_KEYS.playlistGroupChannels(playlistId, group);
+      pipeline.expire(groupKey, CACHE_TTL_SECONDS);
+    }
+
+    await pipeline.exec();
+
+    console.log(`${LOG_PREFIX} Finalized playlist storage: ${totalChannels.toLocaleString()} channels, ${groups.length} groups`);
+  }
+
+  /**
    * Store a complete playlist with channels and groups
    * Uses chunked pipeline execution to handle very large playlists (1M+ channels)
+   * NOTE: For very large playlists, prefer using beginPlaylistStream/storeChannelBatch/finalizePlaylistStream
    */
   async storePlaylist(
     playlistId: string,

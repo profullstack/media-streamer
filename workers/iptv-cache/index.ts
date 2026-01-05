@@ -25,7 +25,7 @@ import { REFRESH_INTERVAL_MS, LOG_PREFIX } from './config';
 import { RedisStorage } from './redis-storage';
 import {
   fetchActivePlaylists,
-  fetchAndParsePlaylist,
+  fetchAndParsePlaylistStreaming,
   createWorkerSupabaseClient,
 } from './playlist-fetcher';
 import { fetchAndParseEpg, isValidEpgUrl } from './epg-fetcher';
@@ -71,26 +71,14 @@ let refreshTimer: NodeJS.Timeout | null = null;
 let storage: RedisStorage | null = null;
 
 /**
- * Process a single playlist
+ * Process a single playlist using true streaming
+ * Parses and stores channels in batches, never holding all channels in memory
  */
 async function processPlaylist(
   playlist: IptvPlaylist,
   storage: RedisStorage
 ): Promise<{ success: boolean; channelCount: number; programCount: number }> {
   console.log(`${LOG_PREFIX} Processing playlist: ${playlist.name} (${playlist.id})`);
-
-  // Fetch and parse M3U
-  const playlistResult = await fetchAndParsePlaylist(playlist.m3u_url);
-
-  if (!playlistResult.success || !playlistResult.channels) {
-    console.error(
-      `${LOG_PREFIX} Failed to fetch playlist ${playlist.name}: ${playlistResult.error}`
-    );
-    await storage.logError(
-      `Playlist ${playlist.name}: ${playlistResult.error}`
-    );
-    return { success: false, channelCount: 0, programCount: 0 };
-  }
 
   // Build metadata
   const meta: Omit<CachedPlaylistMeta, 'channelCount' | 'groupCount'> = {
@@ -103,11 +91,33 @@ async function processPlaylist(
     hasEpg: false,
   };
 
-  // Store playlist data
-  await storage.storePlaylist(
+  // Begin streaming storage
+  await storage.beginPlaylistStream(playlist.id, meta);
+
+  // Fetch and parse M3U with true streaming - each batch is stored immediately
+  const playlistResult = await fetchAndParsePlaylistStreaming(
+    playlist.m3u_url,
+    async (batch, batchNumber) => {
+      // Store this batch of channels to Redis immediately
+      await storage.storeChannelBatch(playlist.id, batch, batchNumber);
+    }
+  );
+
+  if (!playlistResult.success) {
+    console.error(
+      `${LOG_PREFIX} Failed to fetch playlist ${playlist.name}: ${playlistResult.error}`
+    );
+    await storage.logError(
+      `Playlist ${playlist.name}: ${playlistResult.error}`
+    );
+    return { success: false, channelCount: 0, programCount: 0 };
+  }
+
+  // Finalize playlist storage (set TTLs, update metadata with counts)
+  await storage.finalizePlaylistStream(
     playlist.id,
     meta,
-    playlistResult.channels,
+    playlistResult.totalChannels ?? 0,
     playlistResult.groups ?? []
   );
 
@@ -132,10 +142,10 @@ async function processPlaylist(
         epgFetchedAt: Date.now(),
       };
 
-      await storage.storePlaylist(
+      await storage.finalizePlaylistStream(
         playlist.id,
         updatedMeta,
-        playlistResult.channels,
+        playlistResult.totalChannels ?? 0,
         playlistResult.groups ?? []
       );
 
@@ -150,12 +160,12 @@ async function processPlaylist(
   }
 
   console.log(
-    `${LOG_PREFIX} Cached playlist: ${playlistResult.channels.length} channels, ${playlistResult.groups?.length ?? 0} groups`
+    `${LOG_PREFIX} Cached playlist: ${(playlistResult.totalChannels ?? 0).toLocaleString()} channels, ${playlistResult.groups?.length ?? 0} groups`
   );
 
   return {
     success: true,
-    channelCount: playlistResult.channels.length,
+    channelCount: playlistResult.totalChannels ?? 0,
     programCount,
   };
 }
