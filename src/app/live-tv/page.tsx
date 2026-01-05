@@ -107,6 +107,7 @@ export default function LiveTvPage(): React.ReactElement {
   
   // Player state
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [selectedChannelPlaylistId, setSelectedChannelPlaylistId] = useState<string | undefined>(undefined);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   
   // Debounce timer ref
@@ -355,12 +356,14 @@ export default function LiveTvPage(): React.ReactElement {
 
   const handleChannelClick = useCallback((channel: Channel): void => {
     setSelectedChannel(channel);
+    setSelectedChannelPlaylistId(activePlaylist?.id);
     setIsPlayerOpen(true);
-  }, []);
+  }, [activePlaylist?.id]);
 
   const handleClosePlayer = useCallback((): void => {
     setIsPlayerOpen(false);
     setSelectedChannel(null);
+    setSelectedChannelPlaylistId(undefined);
   }, []);
 
   // Handle favorite toggle - refetch favorites list
@@ -380,6 +383,7 @@ export default function LiveTvPage(): React.ReactElement {
       tvgName: favorite.tvg_name ?? undefined,
     };
     setSelectedChannel(channel);
+    setSelectedChannelPlaylistId(favorite.playlist_id);
     setIsPlayerOpen(true);
   }, []);
 
@@ -917,9 +921,9 @@ export default function LiveTvPage(): React.ReactElement {
             isOpen={isPlayerOpen}
             onClose={handleClosePlayer}
             channel={selectedChannel}
-            playlistId={activePlaylist?.id}
+            playlistId={selectedChannelPlaylistId}
             initialFavorited={favorites.some(
-              f => f.playlist_id === activePlaylist?.id && f.channel_id === selectedChannel.id
+              f => f.playlist_id === selectedChannelPlaylistId && f.channel_id === selectedChannel.id
             )}
             onFavoriteToggle={handleFavoriteToggle}
           /> : null}
