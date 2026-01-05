@@ -13,6 +13,11 @@ import { FETCH_CONFIG, EPG_CONFIG, LOG_PREFIX } from './config';
 import type { EpgFetchResult, EpgProgram, EpgChannel } from './types';
 
 /**
+ * Maximum time to parse EPG XML (5 minutes)
+ */
+const EPG_PARSE_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
  * HTTP agent that skips SSL validation
  */
 const insecureAgent = new Agent({
@@ -114,6 +119,7 @@ async function fetchWithRetry(
 
 /**
  * Parse XMLTV EPG data using SAX streaming parser
+ * Includes timeout to prevent hanging on malformed XML
  */
 function parseXmltvStream(
   stream: Readable,
@@ -122,6 +128,18 @@ function parseXmltvStream(
   return new Promise((resolve, reject) => {
     const channels: Record<string, EpgChannel> = {};
     const programs: EpgProgram[] = [];
+    let isResolved = false;
+    let lastActivityTime = Date.now();
+
+    // Timeout to prevent hanging on malformed/incomplete XML
+    const timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn(`${LOG_PREFIX} EPG parsing timed out after ${EPG_PARSE_TIMEOUT_MS / 1000}s, returning partial results (${programs.length} programs)`);
+        stream.destroy();
+        resolve({ channels, programs });
+      }
+    }, EPG_PARSE_TIMEOUT_MS);
 
     // Time boundaries for filtering
     const now = Math.floor(Date.now() / 1000);
@@ -138,8 +156,10 @@ function parseXmltvStream(
     let currentChannel: Partial<EpgChannel> | null = null;
     let currentProgram: Partial<EpgProgram> | null = null;
     let textBuffer = '';
+    let programCount = 0;
 
     parser.on('opentag', (node) => {
+      lastActivityTime = Date.now();
       currentElement = node.name;
       textBuffer = '';
 
@@ -181,6 +201,11 @@ function parseXmltvStream(
       } else if (name === 'programme' && currentProgram?.channelId) {
         if (currentProgram.title && programs.length < maxPrograms) {
           programs.push(currentProgram as EpgProgram);
+          programCount++;
+          // Log progress for large EPG files
+          if (programCount % 50000 === 0) {
+            console.log(`${LOG_PREFIX} EPG parsing progress: ${programCount.toLocaleString()} programs...`);
+          }
         }
         currentProgram = null;
       } else if (currentChannel) {
@@ -210,10 +235,21 @@ function parseXmltvStream(
     });
 
     parser.on('end', () => {
-      resolve({ channels, programs });
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timeoutId);
+        resolve({ channels, programs });
+      }
     });
 
-    stream.on('error', reject);
+    stream.on('error', (err) => {
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timeoutId);
+        reject(err);
+      }
+    });
+
     stream.pipe(parser);
   });
 }

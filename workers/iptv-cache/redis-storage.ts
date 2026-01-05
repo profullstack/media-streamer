@@ -27,6 +27,18 @@ const BATCH_SIZE = 10000;
 const PIPELINE_EXEC_THRESHOLD = 50000;
 
 /**
+ * How often to yield to event loop during long operations
+ */
+const YIELD_INTERVAL = 10000;
+
+/**
+ * Yield to event loop to prevent blocking
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+/**
  * Redis storage manager for the IPTV cache worker
  */
 export class RedisStorage {
@@ -171,14 +183,23 @@ export class RedisStorage {
       commandCount++;
     }
 
-    // Build group -> channel ID mappings
+    // Build group -> channel ID mappings (yield periodically for large playlists)
     const groupChannels = new Map<string, string[]>();
+    let groupBuildCount = 0;
     for (const channel of channels) {
       if (channel.group) {
         const existing = groupChannels.get(channel.group) ?? [];
         existing.push(channel.id);
         groupChannels.set(channel.group, existing);
       }
+      groupBuildCount++;
+      if (groupBuildCount % YIELD_INTERVAL === 0) {
+        await yieldToEventLoop();
+      }
+    }
+
+    if (channels.length > 100000) {
+      console.log(`${LOG_PREFIX} Built group mappings for ${channels.length.toLocaleString()} channels (${groupChannels.size} groups)`);
     }
 
     // Store channel IDs by group for efficient filtering
@@ -285,12 +306,21 @@ export class RedisStorage {
       }
     };
 
-    // Group programs by channel
+    // Group programs by channel (yield periodically for large EPG data)
     const programsByChannel = new Map<string, EpgProgram[]>();
+    let programGroupCount = 0;
     for (const program of programs) {
       const existing = programsByChannel.get(program.channelId) ?? [];
       existing.push(program);
       programsByChannel.set(program.channelId, existing);
+      programGroupCount++;
+      if (programGroupCount % YIELD_INTERVAL === 0) {
+        await yieldToEventLoop();
+      }
+    }
+
+    if (programs.length > 10000) {
+      console.log(`${LOG_PREFIX} Storing ${programs.length.toLocaleString()} EPG programs across ${programsByChannel.size} channels`);
     }
 
     // Store programs by channel as sorted sets (score = start time)

@@ -32,6 +32,37 @@ import { fetchAndParseEpg, isValidEpgUrl } from './epg-fetcher';
 import type { CachedPlaylistMeta, IptvPlaylist } from './types';
 
 /**
+ * Maximum time to process a single playlist (10 minutes)
+ * This prevents a single slow/hanging playlist from blocking the entire worker
+ */
+const PLAYLIST_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Wrap a promise with a timeout
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
+
+    promise
+      .then((result) => {
+        clearTimeout(timeoutId);
+        resolve(result);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
+/**
  * Worker state
  */
 let isRunning = false;
@@ -176,13 +207,24 @@ async function refreshAllPlaylists(): Promise<void> {
         break;
       }
 
-      const result = await processPlaylist(playlist, storage);
+      try {
+        const result = await withTimeout(
+          processPlaylist(playlist, storage),
+          PLAYLIST_TIMEOUT_MS,
+          `Playlist ${playlist.name} timed out after ${PLAYLIST_TIMEOUT_MS / 1000 / 60} minutes`
+        );
 
-      if (result.success) {
-        successCount++;
-        totalChannels += result.channelCount;
-        totalPrograms += result.programCount;
-      } else {
+        if (result.success) {
+          successCount++;
+          totalChannels += result.channelCount;
+          totalPrograms += result.programCount;
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`${LOG_PREFIX} Failed to process playlist ${playlist.name}: ${errorMessage}`);
+        await storage.logError(`Playlist ${playlist.name}: ${errorMessage}`);
         failCount++;
       }
     }

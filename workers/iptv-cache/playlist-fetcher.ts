@@ -190,7 +190,15 @@ async function streamToFile(response: UndiciResponse, filePath: string): Promise
 }
 
 /**
+ * Yield to event loop periodically to prevent blocking
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+/**
  * Parse M3U file using streaming (line by line)
+ * Yields to event loop periodically to prevent blocking on large playlists
  */
 async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[]; groups: string[] }> {
   const channels: Channel[] = [];
@@ -205,6 +213,8 @@ async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[
   let currentExtinf: string | null = null;
   let channelIndex = 0;
   let hasValidHeader = false;
+  let lastLogTime = Date.now();
+  const LOG_INTERVAL_MS = 5000; // Log progress every 5 seconds
 
   for await (const rawLine of rl) {
     const line = rawLine.trim();
@@ -236,12 +246,26 @@ async function parseM3UStreaming(filePath: string): Promise<{ channels: Channel[
       }
       channelIndex++;
       currentExtinf = null;
+
+      // Yield to event loop every 10k channels to prevent blocking
+      if (channelIndex % 10000 === 0) {
+        await yieldToEventLoop();
+
+        // Log progress periodically
+        const now = Date.now();
+        if (now - lastLogTime > LOG_INTERVAL_MS) {
+          console.log(`${LOG_PREFIX} Parsing progress: ${channelIndex.toLocaleString()} channels...`);
+          lastLogTime = now;
+        }
+      }
     }
   }
 
   if (!hasValidHeader) {
     throw new Error('Invalid M3U format: missing #EXTM3U or #EXTINF');
   }
+
+  console.log(`${LOG_PREFIX} Parsing complete: ${channels.length.toLocaleString()} channels`);
 
   return {
     channels,
