@@ -21,6 +21,12 @@ import type {
 const BATCH_SIZE = 10000;
 
 /**
+ * Maximum pipeline commands before executing to avoid memory issues
+ * with very large playlists (1M+ channels)
+ */
+const PIPELINE_EXEC_THRESHOLD = 50000;
+
+/**
  * Redis storage manager for the IPTV cache worker
  */
 export class RedisStorage {
@@ -92,6 +98,7 @@ export class RedisStorage {
 
   /**
    * Store a complete playlist with channels and groups
+   * Uses chunked pipeline execution to handle very large playlists (1M+ channels)
    */
   async storePlaylist(
     playlistId: string,
@@ -99,7 +106,19 @@ export class RedisStorage {
     channels: Channel[],
     groups: string[]
   ): Promise<void> {
-    const pipeline = this.redis.pipeline();
+    let pipeline = this.redis.pipeline();
+    let commandCount = 0;
+
+    // Helper to execute and reset pipeline when threshold reached
+    const maybeExecPipeline = async (force = false): Promise<void> => {
+      if (force || commandCount >= PIPELINE_EXEC_THRESHOLD) {
+        if (commandCount > 0) {
+          await pipeline.exec();
+          pipeline = this.redis.pipeline();
+          commandCount = 0;
+        }
+      }
+    };
 
     // Store metadata
     const fullMeta: CachedPlaylistMeta = {
@@ -112,10 +131,13 @@ export class RedisStorage {
       CACHE_TTL_SECONDS,
       JSON.stringify(fullMeta)
     );
+    commandCount++;
 
     // Store channels as hash (batch to handle very large playlists)
     const channelsKey = REDIS_KEYS.playlistChannels(playlistId);
     pipeline.del(channelsKey);
+    commandCount++;
+
     if (channels.length > 0) {
       // Batch hset operations to avoid memory issues with large playlists
       for (let i = 0; i < channels.length; i += BATCH_SIZE) {
@@ -125,23 +147,31 @@ export class RedisStorage {
           channelData[channel.id] = JSON.stringify(channel);
         }
         pipeline.hset(channelsKey, channelData);
+        commandCount++;
+        await maybeExecPipeline();
       }
       pipeline.expire(channelsKey, CACHE_TTL_SECONDS);
+      commandCount++;
     }
 
     // Store groups as set (batch to avoid stack overflow with large arrays)
     const groupsKey = REDIS_KEYS.playlistGroups(playlistId);
     pipeline.del(groupsKey);
+    commandCount++;
+
     if (groups.length > 0) {
       // Batch groups to avoid spread operator stack overflow
       for (let i = 0; i < groups.length; i += BATCH_SIZE) {
         const batch = groups.slice(i, i + BATCH_SIZE);
         pipeline.sadd(groupsKey, ...batch);
+        commandCount++;
+        await maybeExecPipeline();
       }
       pipeline.expire(groupsKey, CACHE_TTL_SECONDS);
+      commandCount++;
     }
 
-    // Store channel IDs by group for efficient filtering
+    // Build group -> channel ID mappings
     const groupChannels = new Map<string, string[]>();
     for (const channel of channels) {
       if (channel.group) {
@@ -151,18 +181,26 @@ export class RedisStorage {
       }
     }
 
+    // Store channel IDs by group for efficient filtering
     for (const [group, channelIds] of groupChannels) {
       const groupKey = REDIS_KEYS.playlistGroupChannels(playlistId, group);
       pipeline.del(groupKey);
+      commandCount++;
+
       // Batch channel IDs to avoid spread operator stack overflow
       for (let i = 0; i < channelIds.length; i += BATCH_SIZE) {
         const batch = channelIds.slice(i, i + BATCH_SIZE);
         pipeline.sadd(groupKey, ...batch);
+        commandCount++;
+        await maybeExecPipeline();
       }
       pipeline.expire(groupKey, CACHE_TTL_SECONDS);
+      commandCount++;
+      await maybeExecPipeline();
     }
 
-    await pipeline.exec();
+    // Execute any remaining commands
+    await maybeExecPipeline(true);
   }
 
   /**
@@ -225,14 +263,27 @@ export class RedisStorage {
 
   /**
    * Store EPG data for a playlist
+   * Uses chunked pipeline execution to handle large EPG data
    */
   async storeEpg(
     playlistId: string,
     channels: Record<string, EpgChannel>,
     programs: EpgProgram[]
   ): Promise<void> {
-    const pipeline = this.redis.pipeline();
+    let pipeline = this.redis.pipeline();
+    let commandCount = 0;
     const now = Math.floor(Date.now() / 1000);
+
+    // Helper to execute and reset pipeline when threshold reached
+    const maybeExecPipeline = async (force = false): Promise<void> => {
+      if (force || commandCount >= PIPELINE_EXEC_THRESHOLD) {
+        if (commandCount > 0) {
+          await pipeline.exec();
+          pipeline = this.redis.pipeline();
+          commandCount = 0;
+        }
+      }
+    };
 
     // Group programs by channel
     const programsByChannel = new Map<string, EpgProgram[]>();
@@ -246,6 +297,7 @@ export class RedisStorage {
     for (const [channelId, channelPrograms] of programsByChannel) {
       const key = REDIS_KEYS.epgByChannel(playlistId, channelId);
       pipeline.del(key);
+      commandCount++;
 
       // Batch zadd to avoid stack overflow with many programs per channel
       const ZADD_BATCH = 5000; // score + value pairs, so 5000 pairs = 10000 args
@@ -257,10 +309,13 @@ export class RedisStorage {
         }
         if (members.length > 0) {
           pipeline.zadd(key, ...members);
+          commandCount++;
+          await maybeExecPipeline();
         }
       }
       if (channelPrograms.length > 0) {
         pipeline.expire(key, CACHE_TTL_SECONDS);
+        commandCount++;
       }
 
       // Store current program (now playing)
@@ -273,22 +328,31 @@ export class RedisStorage {
           CACHE_TTL_SECONDS,
           JSON.stringify(currentProgram)
         );
+        commandCount++;
       }
+
+      await maybeExecPipeline();
     }
 
     // Store all programs as a list for bulk access (batch to avoid stack overflow)
     const allProgramsKey = REDIS_KEYS.epgPrograms(playlistId);
     pipeline.del(allProgramsKey);
+    commandCount++;
+
     if (programs.length > 0) {
       const serialized = programs.map((p) => JSON.stringify(p));
       for (let i = 0; i < serialized.length; i += BATCH_SIZE) {
         const batch = serialized.slice(i, i + BATCH_SIZE);
         pipeline.rpush(allProgramsKey, ...batch);
+        commandCount++;
+        await maybeExecPipeline();
       }
       pipeline.expire(allProgramsKey, CACHE_TTL_SECONDS);
+      commandCount++;
     }
 
-    await pipeline.exec();
+    // Execute any remaining commands
+    await maybeExecPipeline(true);
   }
 
   /**
