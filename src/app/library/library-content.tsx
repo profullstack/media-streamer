@@ -21,6 +21,8 @@ import {
   CloseIcon,
   TvIcon,
 } from '@/components/ui/icons';
+import { HlsPlayerModal } from '@/components/live-tv';
+import type { Channel } from '@/lib/iptv';
 import type {
   Favorite,
   Collection,
@@ -98,6 +100,10 @@ export function LibraryContent({
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionType, setNewCollectionType] = useState<CollectionType>('mixed');
 
+  // IPTV Player state
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+
   const filteredFavorites = favorites.filter((item) => {
     if (mediaFilter === 'all') return true;
     const category = item.torrent_files?.media_category;
@@ -164,6 +170,26 @@ export function LibraryContent({
     } catch (error) {
       console.error('Failed to remove IPTV channel favorite:', error);
     }
+  }, []);
+
+  // Play an IPTV channel favorite
+  const handlePlayChannel = useCallback((favorite: IptvChannelFavoriteWithDetails): void => {
+    const channel: Channel = {
+      id: favorite.channel_id,
+      name: favorite.channel_name,
+      url: favorite.channel_url,
+      logo: favorite.channel_logo ?? undefined,
+      group: favorite.channel_group ?? undefined,
+      tvgId: favorite.tvg_id ?? undefined,
+      tvgName: favorite.tvg_name ?? undefined,
+    };
+    setSelectedChannel(channel);
+    setIsPlayerOpen(true);
+  }, []);
+
+  const handleClosePlayer = useCallback((): void => {
+    setIsPlayerOpen(false);
+    setSelectedChannel(null);
   }, []);
 
   const createCollection = useCallback(async (): Promise<void> => {
@@ -439,13 +465,13 @@ export function LibraryContent({
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link
-                        href="/live-tv"
+                      <button
+                        onClick={() => handlePlayChannel(item)}
                         className="p-2 rounded-full bg-accent-primary text-white hover:bg-accent-primary/80"
-                        title="Watch on Live TV"
+                        title="Play channel"
                       >
                         <PlayIcon size={16} />
-                      </Link>
+                      </button>
                       <button
                         onClick={() => removeIptvChannelFavorite(item.playlist_id, item.channel_id)}
                         className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
@@ -619,6 +645,16 @@ export function LibraryContent({
           )}
         </div>
       )}
+
+      {/* HLS Player Modal for IPTV channels */}
+      {selectedChannel ? (
+        <HlsPlayerModal
+          isOpen={isPlayerOpen}
+          onClose={handleClosePlayer}
+          channel={selectedChannel}
+          initialFavorited={true}
+        />
+      ) : null}
     </div>
   );
 }

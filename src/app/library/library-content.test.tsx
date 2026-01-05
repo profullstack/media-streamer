@@ -13,8 +13,16 @@ vi.mock('@/hooks/use-tv-detection', () => ({
   useTvDetection: () => ({ isTv: false, isLoading: false, browserType: null }),
 }));
 
+// Mock HlsPlayerModal component
+vi.mock('@/components/live-tv', () => ({
+  HlsPlayerModal: ({ isOpen, channel }: { isOpen: boolean; channel: { name: string } }) => {
+    return isOpen ? <div data-testid="hls-player-modal">Playing: {channel.name}</div> : null;
+  },
+}));
+
 import { LibraryContent } from './library-content';
 import type { Favorite, Collection, HistoryItem } from '@/lib/library';
+import type { IptvChannelFavoriteWithDetails } from '@/lib/favorites';
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -103,6 +111,35 @@ const mockHistory: HistoryItem[] = [
     } as HistoryItem['file'],
     current_page: 50,
     total_pages: 200,
+  },
+];
+
+const mockIptvChannelFavorites: IptvChannelFavoriteWithDetails[] = [
+  {
+    id: 'iptv-fav-1',
+    user_id: 'user-123',
+    playlist_id: 'playlist-1',
+    channel_id: 'channel-1',
+    channel_name: 'ESPN HD',
+    channel_url: 'http://example.com/espn.m3u8',
+    channel_logo: 'http://example.com/espn-logo.png',
+    channel_group: 'Sports',
+    tvg_id: 'espn.us',
+    tvg_name: 'ESPN HD',
+    created_at: '2024-01-15T00:00:00Z',
+  },
+  {
+    id: 'iptv-fav-2',
+    user_id: 'user-123',
+    playlist_id: 'playlist-1',
+    channel_id: 'channel-2',
+    channel_name: 'CNN International',
+    channel_url: 'http://example.com/cnn.m3u8',
+    channel_logo: null,
+    channel_group: 'News',
+    tvg_id: null,
+    tvg_name: null,
+    created_at: '2024-01-14T00:00:00Z',
   },
 ];
 
@@ -501,6 +538,119 @@ describe('LibraryContent', () => {
       expect(
         screen.getByText('Your favorites, collections, and watch history')
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('IPTV Channel Favorites', () => {
+    it('displays IPTV channel favorites', () => {
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={mockIptvChannelFavorites}
+        />
+      );
+
+      expect(screen.getByText('ESPN HD')).toBeInTheDocument();
+      expect(screen.getByText('CNN International')).toBeInTheDocument();
+      expect(screen.getByText('Sports')).toBeInTheDocument();
+      expect(screen.getByText('News')).toBeInTheDocument();
+    });
+
+    it('shows IPTV channels when Live TV filter is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={mockIptvChannelFavorites}
+        />
+      );
+
+      // Click Live TV filter
+      await user.click(screen.getByText('Live TV'));
+
+      // IPTV channels should be visible
+      expect(screen.getByText('ESPN HD')).toBeInTheDocument();
+      expect(screen.getByText('CNN International')).toBeInTheDocument();
+
+      // File favorites should not be visible
+      expect(screen.queryByText('Song.mp3')).not.toBeInTheDocument();
+    });
+
+    it('opens HLS player modal when clicking play on IPTV channel', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={mockIptvChannelFavorites}
+        />
+      );
+
+      // Find and click the play button for ESPN HD
+      const playButtons = screen.getAllByTitle('Play channel');
+      await user.click(playButtons[0]);
+
+      // HLS player modal should be open with the channel name
+      expect(screen.getByTestId('hls-player-modal')).toBeInTheDocument();
+      expect(screen.getByText('Playing: ESPN HD')).toBeInTheDocument();
+    });
+
+    it('removes IPTV channel favorite when clicking remove button', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+
+      render(
+        <LibraryContent
+          initialFavorites={[]}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={mockIptvChannelFavorites}
+        />
+      );
+
+      // Find and click the remove button for the first IPTV channel
+      const removeButtons = screen.getAllByTitle('Remove from favorites');
+      await user.click(removeButtons[0]);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/favorites/iptv-channels', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playlistId: 'playlist-1', channelId: 'channel-1' }),
+        });
+      });
+
+      // Channel should be removed from the list
+      await waitFor(() => {
+        expect(screen.queryByText('ESPN HD')).not.toBeInTheDocument();
+      });
+    });
+
+    it('includes IPTV channel count in favorites tab', () => {
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={mockIptvChannelFavorites}
+        />
+      );
+
+      // Total count should include file favorites (2) + IPTV favorites (2) = 4
+      expect(screen.getByText('(4)')).toBeInTheDocument();
     });
   });
 });
