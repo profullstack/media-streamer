@@ -72,6 +72,8 @@ export interface PodcastPlayerContextValue {
   currentTime: number;
   /** Total duration in seconds */
   duration: number;
+  /** ID of episode that was just completed (changes when an episode ends) */
+  lastCompletedEpisodeId: string | null;
   /** Play a specific episode, optionally starting at a specific time */
   playEpisode: (episode: PodcastEpisodePlayback, podcast: PodcastPlayback, startTime?: number) => void;
   /** Toggle play/pause */
@@ -103,6 +105,7 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [lastCompletedEpisodeId, setLastCompletedEpisodeId] = useState<string | null>(null);
 
   // Audio element ref
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -112,6 +115,14 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
 
   // Track last saved time to avoid duplicate saves
   const lastSavedTimeRef = useRef<number>(0);
+
+  // Refs for accessing current values in event handlers
+  const currentEpisodeRef = useRef<PodcastEpisodePlayback | null>(null);
+
+  // Keep episode ref in sync with state
+  useEffect(() => {
+    currentEpisodeRef.current = currentEpisode;
+  }, [currentEpisode]);
 
   // Save progress to server
   const saveProgress = useCallback(async (
@@ -173,6 +184,27 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
     };
 
     const handleEnded = (): void => {
+      // Save progress at 100% before resetting - this marks the episode as completed
+      const episode = currentEpisodeRef.current;
+      if (episode && !isNaN(audio.duration) && audio.duration > 0) {
+        // Force save at exactly the duration (100% completion)
+        lastSavedTimeRef.current = 0; // Reset to ensure save happens
+        fetch('/api/podcasts/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            episodeId: episode.id,
+            currentTimeSeconds: Math.floor(audio.duration),
+            durationSeconds: Math.floor(audio.duration),
+          }),
+        }).then(() => {
+          // Notify that this episode was completed so UI can refresh
+          setLastCompletedEpisodeId(episode.id);
+        }).catch(error => {
+          console.error('[PodcastPlayer] Failed to save completion progress:', error);
+        });
+      }
+
       setIsPlaying(false);
       setCurrentTime(0);
     };
@@ -319,6 +351,7 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
     isPlaying,
     currentTime,
     duration,
+    lastCompletedEpisodeId,
     playEpisode,
     togglePlayPause,
     seek,

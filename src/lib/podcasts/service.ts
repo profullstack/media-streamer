@@ -171,18 +171,32 @@ function sanitizeQuery(query: string): string {
  * Strip CDATA wrappers from content
  * CDATA sections look like: <![CDATA[content here]]>
  * Also handles escaped end markers: ]]&gt;
+ * Handles multiple CDATA sections and whitespace around them
  */
 function stripCdata(content: string | null): string | null {
   if (!content) return null;
-  
-  // Match CDATA wrapper and extract content
-  const cdataMatch = content.match(/^<!\[CDATA\[([\s\S]*)\]\]>$/);
-  if (cdataMatch) {
-    // Unescape any escaped end markers
-    return cdataMatch[1].replace(/\]\]&gt;/g, ']]>');
-  }
-  
-  return content;
+
+  let result = content.trim();
+
+  // Handle multiple CDATA sections by replacing all of them
+  // Match CDATA wrapper patterns (with optional whitespace)
+  result = result.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1');
+
+  // Also handle HTML-encoded CDATA markers
+  result = result.replace(/&lt;!\[CDATA\[([\s\S]*?)\]\]&gt;/gi, '$1');
+
+  // Unescape any escaped end markers
+  result = result.replace(/\]\]&gt;/g, ']]>');
+
+  // Convert common HTML entities that might be in CDATA
+  result = result.replace(/&amp;/g, '&');
+  result = result.replace(/&lt;/g, '<');
+  result = result.replace(/&gt;/g, '>');
+  result = result.replace(/&quot;/g, '"');
+  result = result.replace(/&#39;/g, "'");
+  result = result.replace(/&apos;/g, "'");
+
+  return result;
 }
 
 /**

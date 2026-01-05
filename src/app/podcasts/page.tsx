@@ -14,6 +14,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import DOMPurify from 'isomorphic-dompurify';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import {
@@ -31,6 +32,19 @@ import {
 } from '@/components/ui/icons';
 import { useAuth } from '@/hooks/use-auth';
 import { usePodcastPlayer } from '@/contexts/podcast-player';
+
+/**
+ * Sanitize HTML content from RSS feeds for safe rendering
+ * Allows basic formatting tags but strips potentially dangerous content
+ */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'span'],
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
+    ADD_ATTR: ['target'],
+    FORCE_BODY: true,
+  });
+}
 
 /**
  * Convert base64 VAPID key to Uint8Array for push subscription
@@ -196,6 +210,7 @@ export default function PodcastsPage(): React.ReactElement {
     currentEpisode,
     isPlaying,
     playEpisode,
+    lastCompletedEpisodeId,
   } = usePodcastPlayer();
   
   // Subscribe action state
@@ -306,6 +321,29 @@ export default function PodcastsPage(): React.ReactElement {
 
     void loadEpisodesAndProgress();
   }, [selectedPodcast]);
+
+  // Refresh progress when an episode is completed
+  useEffect(() => {
+    if (!lastCompletedEpisodeId || !selectedPodcast) return;
+
+    const refreshProgress = async (): Promise<void> => {
+      try {
+        const progressResponse = await fetch(`/api/podcasts/progress?podcastId=${selectedPodcast.id}`);
+        if (progressResponse.ok) {
+          const progressData = await progressResponse.json() as { progress: EpisodeProgress[] };
+          const progressMap = new Map<string, EpisodeProgress>();
+          for (const p of progressData.progress) {
+            progressMap.set(p.episodeId, p);
+          }
+          setEpisodeProgress(progressMap);
+        }
+      } catch (err) {
+        console.error('[Podcasts] Error refreshing progress:', err);
+      }
+    };
+
+    void refreshProgress();
+  }, [lastCompletedEpisodeId, selectedPodcast]);
 
   // Search podcasts with debounce
   const handleSearch = useCallback((query: string): void => {
@@ -881,12 +919,15 @@ export default function PodcastsPage(): React.ReactElement {
                                   )}
 
                                   {episode.description ? <div className="mt-2">
-                                      <p className={cn(
-                                        'text-sm text-text-secondary',
-                                        expandedEpisodeId !== episode.id && 'line-clamp-2'
-                                      )}>
-                                        {episode.description}
-                                      </p>
+                                      <div
+                                        className={cn(
+                                          'text-sm text-text-secondary prose prose-sm prose-invert max-w-none',
+                                          '[&_a]:text-accent-primary [&_a]:hover:underline',
+                                          '[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1',
+                                          expandedEpisodeId !== episode.id && 'line-clamp-2'
+                                        )}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(episode.description) }}
+                                      />
                                       <button
                                         onClick={() => toggleEpisodeExpand(episode.id)}
                                         className="text-xs text-accent-primary hover:underline mt-1 flex items-center gap-1"

@@ -50,6 +50,7 @@
     "framer-motion": "^12.23.26",
     "hls.js": "^1.6.15",
     "ioredis": "^5.8.2",
+    "isomorphic-dompurify": "^2.35.0",
     "linkedom": "^0.18.12",
     "lucide-react": "^0.468.0",
     "mpegts.js": "^1.8.0",

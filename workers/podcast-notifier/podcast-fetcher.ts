@@ -91,16 +91,31 @@ function parseDuration(duration: string | null): number | null {
 
 /**
  * Strip CDATA wrappers from content
+ * Handles multiple CDATA sections and whitespace around them
  */
 function stripCdata(content: string | null): string | null {
   if (!content) return null;
 
-  const cdataMatch = content.match(/^<!\[CDATA\[([\s\S]*)\]\]>$/);
-  if (cdataMatch) {
-    return cdataMatch[1].replace(/\]\]&gt;/g, ']]>');
-  }
+  let result = content.trim();
 
-  return content;
+  // Handle multiple CDATA sections by replacing all of them
+  result = result.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1');
+
+  // Also handle HTML-encoded CDATA markers
+  result = result.replace(/&lt;!\[CDATA\[([\s\S]*?)\]\]&gt;/gi, '$1');
+
+  // Unescape any escaped end markers
+  result = result.replace(/\]\]&gt;/g, ']]>');
+
+  // Convert common HTML entities that might be in CDATA
+  result = result.replace(/&amp;/g, '&');
+  result = result.replace(/&lt;/g, '<');
+  result = result.replace(/&gt;/g, '>');
+  result = result.replace(/&quot;/g, '"');
+  result = result.replace(/&#39;/g, "'");
+  result = result.replace(/&apos;/g, "'");
+
+  return result;
 }
 
 /**
