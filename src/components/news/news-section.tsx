@@ -11,6 +11,22 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, ExternalLink, RefreshCw, Newspaper, Sparkles, FileText, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 
+// Supported categories from TheNewsAPI
+const NEWS_CATEGORIES = [
+  'general',
+  'science',
+  'sports',
+  'business',
+  'health',
+  'entertainment',
+  'tech',
+  'politics',
+  'food',
+  'travel',
+] as const;
+
+type NewsCategory = typeof NEWS_CATEGORIES[number];
+
 interface NewsArticle {
   uuid: string;
   title: string;
@@ -54,6 +70,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<NewsCategory | null>(null);
 
   // AI Summary state
   const [summary, setSummary] = useState<ArticleSummary | null>(null);
@@ -101,6 +118,9 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
       if (searchTerm) {
         params.set('search', searchTerm);
       }
+      if (selectedCategory) {
+        params.set('category', selectedCategory);
+      }
 
       const response = await fetch(`/api/news?${params.toString()}`);
 
@@ -115,7 +135,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, limit]);
+  }, [searchTerm, limit, selectedCategory]);
 
   useEffect(() => {
     void fetchNews();
@@ -220,6 +240,32 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
 
   return (
     <section>
+      {/* Category Filter */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          onClick={() => setSelectedCategory(null)}
+          className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+            selectedCategory === null
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          }`}
+        >
+          All
+        </button>
+        {NEWS_CATEGORIES.map((category) => (
+          <button
+            key={category}
+            onClick={() => setSelectedCategory(category)}
+            className={`px-3 py-1.5 rounded-full text-sm capitalize transition-colors ${
+              selectedCategory === category
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
 
       <div className="flex flex-col gap-2">
         {articles.map((article) => (

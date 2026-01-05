@@ -13,6 +13,22 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 const MIN_LIMIT = 1;
 
+// Supported categories from TheNewsAPI
+export const NEWS_CATEGORIES = [
+  'general',
+  'science',
+  'sports',
+  'business',
+  'health',
+  'entertainment',
+  'tech',
+  'politics',
+  'food',
+  'travel',
+] as const;
+
+export type NewsCategory = typeof NEWS_CATEGORIES[number];
+
 interface TheNewsApiArticle {
   uuid: string;
   title: string;
@@ -86,7 +102,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get('search') || DEFAULT_SEARCH_TERM;
   const page = searchParams.get('page') || '1';
-  
+  const category = searchParams.get('category');
+
   // Parse and clamp limit
   let limit = parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10);
   if (isNaN(limit) || limit < MIN_LIMIT) {
@@ -102,6 +119,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   url.searchParams.set('language', 'en');
   url.searchParams.set('limit', String(limit));
   url.searchParams.set('page', page);
+
+  // Add category filter if provided and valid
+  if (category && NEWS_CATEGORIES.includes(category as NewsCategory)) {
+    url.searchParams.set('categories', category);
+  }
 
   try {
     const response = await fetch(url.toString(), {
