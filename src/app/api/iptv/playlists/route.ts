@@ -461,7 +461,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     name,
     m3u_url: m3uUrl,
     epg_url: epgUrl ?? null,
-    is_active: false,
+    is_active: true,
   };
 
   const { data, error } = await supabase
