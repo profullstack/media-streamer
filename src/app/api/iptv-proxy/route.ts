@@ -34,6 +34,10 @@ import {
 const insecureAgent = new Agent({
   connect: {
     rejectUnauthorized: false,
+    // Allow legacy TLS versions that some IPTV providers use
+    minVersion: 'TLSv1' as const,
+    // Don't fail on self-signed or expired certs
+    checkServerIdentity: () => undefined,
   },
 });
 

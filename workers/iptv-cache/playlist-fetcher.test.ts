@@ -8,8 +8,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock undici
 const mockFetch = vi.fn();
+const mockAgentConstructor = vi.fn(() => ({}));
 vi.mock('undici', () => ({
-  Agent: vi.fn(() => ({})),
+  Agent: mockAgentConstructor,
   fetch: (...args: unknown[]) => mockFetch(...args),
 }));
 
@@ -173,6 +174,83 @@ http://example.com/2.m3u8`;
       const result = await fetchActivePlaylists();
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('SSL Configuration', () => {
+    it('should configure Agent with SSL bypass options', async () => {
+      // The Agent is created at module load time, so we verify it was called
+      // with the expected configuration by checking the mock was called
+      // The module was already imported in beforeEach, so we check the call history
+      vi.resetModules();
+      mockAgentConstructor.mockClear();
+
+      await import('./playlist-fetcher');
+
+      expect(mockAgentConstructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connect: expect.objectContaining({
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1',
+          }),
+        })
+      );
+
+      // Also verify checkServerIdentity is a function that returns undefined
+      const calls = mockAgentConstructor.mock.calls as unknown as Array<[{ connect: { checkServerIdentity?: () => undefined } }]>;
+      const agentConfig = calls[0]?.[0];
+      expect(agentConfig?.connect.checkServerIdentity).toBeDefined();
+      expect(typeof agentConfig?.connect.checkServerIdentity).toBe('function');
+      expect(agentConfig?.connect.checkServerIdentity?.()).toBeUndefined();
+    });
+
+    it('should handle SSL certificate errors and return error result', async () => {
+      // Simulate SSL certificate error
+      const sslError = new Error('unable to verify the first certificate');
+      mockFetch.mockRejectedValue(sslError);
+
+      const result = await fetchAndParsePlaylist('https://bad-cert.example.com/playlist.m3u');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('unable to verify');
+    });
+
+    it('should handle self-signed certificate errors', async () => {
+      const selfSignedError = new Error('self signed certificate');
+      mockFetch.mockRejectedValue(selfSignedError);
+
+      const result = await fetchAndParsePlaylist('https://self-signed.example.com/playlist.m3u');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('self signed');
+    });
+
+    it('should handle expired certificate errors', async () => {
+      const expiredCertError = new Error('certificate has expired');
+      mockFetch.mockRejectedValue(expiredCertError);
+
+      const result = await fetchAndParsePlaylist('https://expired.example.com/playlist.m3u');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('expired');
+    });
+
+    it('should use insecure agent dispatcher for fetch requests', async () => {
+      const m3uContent = '#EXTM3U\n#EXTINF:-1,Test\nhttp://test.m3u8';
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: { get: vi.fn().mockReturnValue(null) },
+        text: vi.fn().mockResolvedValue(m3uContent),
+      });
+
+      await fetchAndParsePlaylist('https://example.com/playlist.m3u');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://example.com/playlist.m3u',
+        expect.objectContaining({
+          dispatcher: expect.anything(),
+        })
+      );
     });
   });
 });

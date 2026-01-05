@@ -10,8 +10,9 @@ import { NextRequest } from 'next/server';
 
 // Mock undici module
 const mockFetch = vi.fn();
+const mockAgentConstructor = vi.fn().mockImplementation(() => ({}));
 vi.mock('undici', () => ({
-  Agent: vi.fn().mockImplementation(() => ({})),
+  Agent: mockAgentConstructor,
   fetch: mockFetch,
 }));
 
@@ -425,6 +426,117 @@ segment002.ts
       expect(response.status).toBe(200);
       expect(response.headers.get('content-type')).toBe('application/octet-stream');
     });
+  });
+});
+
+describe('IPTV Proxy API - SSL Configuration', () => {
+  beforeEach(() => {
+    vi.stubEnv('NODE_ENV', 'development');
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('should configure Agent with SSL bypass options', async () => {
+    vi.resetModules();
+    mockAgentConstructor.mockClear();
+
+    await import('./route');
+
+    expect(mockAgentConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connect: expect.objectContaining({
+          rejectUnauthorized: false,
+          minVersion: 'TLSv1',
+        }),
+      })
+    );
+
+    // Also verify checkServerIdentity is a function that returns undefined
+    const calls = mockAgentConstructor.mock.calls as unknown as Array<[{ connect: { checkServerIdentity?: () => undefined } }]>;
+    const agentConfig = calls[0]?.[0];
+    expect(agentConfig?.connect.checkServerIdentity).toBeDefined();
+    expect(typeof agentConfig?.connect.checkServerIdentity).toBe('function');
+    expect(agentConfig?.connect.checkServerIdentity?.()).toBeUndefined();
+  });
+
+  it('should use insecure agent for all fetch requests', async () => {
+    const { GET } = await import('./route');
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        'content-type': 'video/mp2t',
+      }),
+      body: new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    });
+
+    const request = new NextRequest(
+      `http://localhost/api/iptv-proxy?url=${encodeURIComponent('http://example.com/stream.ts')}`
+    );
+    await GET(request);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://example.com/stream.ts',
+      expect.objectContaining({
+        dispatcher: expect.anything(),
+      })
+    );
+  });
+
+  it('should handle SSL certificate errors gracefully', async () => {
+    const { GET } = await import('./route');
+
+    // Simulate SSL certificate error
+    const sslError = new Error('unable to verify the first certificate');
+    sslError.name = 'Error';
+    mockFetch.mockRejectedValueOnce(sslError);
+
+    const request = new NextRequest(
+      `http://localhost/api/iptv-proxy?url=${encodeURIComponent('https://bad-cert.example.com/stream.m3u8')}`
+    );
+    const response = await GET(request);
+
+    // Should return 504 for connection errors
+    expect(response.status).toBe(504);
+  });
+
+  it('should handle self-signed certificate scenarios', async () => {
+    const { GET } = await import('./route');
+
+    // Simulate self-signed cert error
+    const selfSignedError = new Error('self signed certificate');
+    mockFetch.mockRejectedValueOnce(selfSignedError);
+
+    const request = new NextRequest(
+      `http://localhost/api/iptv-proxy?url=${encodeURIComponent('https://self-signed.example.com/stream.m3u8')}`
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(504);
+  });
+
+  it('should handle expired certificate scenarios', async () => {
+    const { GET } = await import('./route');
+
+    // Simulate expired cert error
+    const expiredCertError = new Error('certificate has expired');
+    mockFetch.mockRejectedValueOnce(expiredCertError);
+
+    const request = new NextRequest(
+      `http://localhost/api/iptv-proxy?url=${encodeURIComponent('https://expired-cert.example.com/stream.m3u8')}`
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(504);
   });
 });
 

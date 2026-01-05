@@ -9,8 +9,9 @@ import { Readable } from 'stream';
 
 // Mock undici
 const mockFetch = vi.fn();
+const mockAgentConstructor = vi.fn(() => ({}));
 vi.mock('undici', () => ({
-  Agent: vi.fn(() => ({})),
+  Agent: mockAgentConstructor,
   fetch: (...args: unknown[]) => mockFetch(...args),
 }));
 
@@ -217,6 +218,104 @@ describe('EpgFetcher', () => {
 
       expect(result.success).toBe(false);
       expect(mockFetch).toHaveBeenCalledTimes(3); // maxRetries = 3
+    });
+  });
+
+  describe('SSL Configuration', () => {
+    it('should configure Agent with SSL bypass options', async () => {
+      // The Agent is created at module load time, so we verify it was called
+      // with the expected configuration by resetting modules and reimporting
+      vi.resetModules();
+      mockAgentConstructor.mockClear();
+
+      await import('./epg-fetcher');
+
+      expect(mockAgentConstructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connect: expect.objectContaining({
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1',
+          }),
+        })
+      );
+
+      // Also verify checkServerIdentity is a function that returns undefined
+      const calls = mockAgentConstructor.mock.calls as unknown as Array<[{ connect: { checkServerIdentity?: () => undefined } }]>;
+      const agentConfig = calls[0]?.[0];
+      expect(agentConfig?.connect.checkServerIdentity).toBeDefined();
+      expect(typeof agentConfig?.connect.checkServerIdentity).toBe('function');
+      expect(agentConfig?.connect.checkServerIdentity?.()).toBeUndefined();
+    });
+
+    it('should handle SSL certificate errors and return error result', async () => {
+      // Simulate SSL certificate error
+      const sslError = new Error('unable to verify the first certificate');
+      mockFetch.mockRejectedValue(sslError);
+
+      const result = await fetchAndParseEpg('https://bad-cert.example.com/epg.xml');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('unable to verify');
+    });
+
+    it('should handle self-signed certificate errors', async () => {
+      const selfSignedError = new Error('self signed certificate');
+      mockFetch.mockRejectedValue(selfSignedError);
+
+      const result = await fetchAndParseEpg('https://self-signed.example.com/epg.xml');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('self signed');
+    });
+
+    it('should handle expired certificate errors', async () => {
+      const expiredCertError = new Error('certificate has expired');
+      mockFetch.mockRejectedValue(expiredCertError);
+
+      const result = await fetchAndParseEpg('https://expired.example.com/epg.xml');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('expired');
+    });
+
+    it('should use insecure agent dispatcher for fetch requests', async () => {
+      const xmlContent = `<?xml version="1.0"?><tv></tv>`;
+      const chunks = [new TextEncoder().encode(xmlContent)];
+      let chunkIndex = 0;
+
+      const mockReader = {
+        read: vi.fn().mockImplementation(async () => {
+          if (chunkIndex < chunks.length) {
+            return { done: false, value: chunks[chunkIndex++] };
+          }
+          return { done: true, value: undefined };
+        }),
+      };
+
+      const mockBody = {
+        getReader: vi.fn().mockReturnValue(mockReader),
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: mockBody,
+        headers: {
+          get: (name: string) => {
+            if (name === 'content-type') return 'application/xml';
+            if (name === 'content-encoding') return '';
+            return null;
+          },
+        },
+      });
+
+      await fetchAndParseEpg('https://example.com/epg.xml');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://example.com/epg.xml',
+        expect.objectContaining({
+          dispatcher: expect.anything(),
+        })
+      );
     });
   });
 });
