@@ -328,6 +328,9 @@ describe('News Summarize API Route', () => {
           response_format: { type: 'json_object' },
           max_tokens: 1500,
           temperature: 0.3,
+        }),
+        expect.objectContaining({
+          timeout: 60000,
         })
       );
     });

@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Readability } from '@mozilla/readability';
-import { JSDOM } from 'jsdom';
+import { parseHTML } from 'linkedom';
 import { getCurrentUser } from '@/lib/auth';
 import { getSubscriptionRepository } from '@/lib/subscription';
 
@@ -36,19 +36,26 @@ interface SummarizeResponse {
 export async function POST(
   request: NextRequest
 ): Promise<NextResponse<SummarizeResponse>> {
+  console.log('[Summarize] Request received');
+
   try {
     // Check authentication
+    console.log('[Summarize] Checking authentication...');
     const user = await getCurrentUser();
     if (!user) {
+      console.log('[Summarize] No user found');
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
+    console.log('[Summarize] User authenticated:', user.id);
 
     // Check subscription tier
+    console.log('[Summarize] Checking subscription...');
     const subscriptionRepo = getSubscriptionRepository();
     const subscription = await subscriptionRepo.getSubscriptionStatus(user.id);
+    console.log('[Summarize] Subscription status:', subscription?.is_active);
 
     if (!subscription || !subscription.is_active) {
       return NextResponse.json(
@@ -90,6 +97,7 @@ export async function POST(
     }
 
     // Fetch the article HTML
+    console.log('[Summarize] Fetching article:', url);
     let articleHtml: string;
     try {
       const articleResponse = await fetch(url, {
@@ -97,9 +105,11 @@ export async function POST(
           'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
           'Accept': 'text/html,application/xhtml+xml',
         },
+        signal: AbortSignal.timeout(30000), // 30 second timeout
       });
 
       if (!articleResponse.ok) {
+        console.log('[Summarize] Article fetch failed:', articleResponse.status);
         return NextResponse.json(
           { success: false, error: 'Failed to fetch article' },
           { status: 502 }
@@ -107,31 +117,62 @@ export async function POST(
       }
 
       articleHtml = await articleResponse.text();
+      console.log('[Summarize] Article fetched, length:', articleHtml.length);
     } catch (fetchError) {
-      console.error('Article fetch error:', fetchError);
+      console.error('[Summarize] Article fetch error:', fetchError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch article' },
         { status: 502 }
       );
     }
 
-    // Parse with Readability
-    const dom = new JSDOM(articleHtml, { url });
-    const reader = new Readability(dom.window.document);
-    const article = reader.parse();
+    // Limit HTML size to prevent blocking the event loop
+    const maxHtmlSize = 500000; // 500KB max
+    if (articleHtml.length > maxHtmlSize) {
+      console.log('[Summarize] HTML too large, truncating:', articleHtml.length);
+      articleHtml = articleHtml.substring(0, maxHtmlSize);
+    }
 
-    if (!article || !article.textContent) {
+    // Parse with Readability using linkedom (much faster than JSDOM)
+    console.log('[Summarize] Parsing with Readability...');
+    let articleTitle: string | undefined;
+    let articleByline: string | undefined;
+    let articleText: string | undefined;
+
+    try {
+      const { document } = parseHTML(articleHtml);
+      // Set the document URL for Readability
+      Object.defineProperty(document, 'URL', { value: url, writable: false });
+
+      const reader = new Readability(document);
+      const parsed = reader.parse();
+      if (parsed) {
+        articleTitle = parsed.title ?? undefined;
+        articleByline = parsed.byline ?? undefined;
+        articleText = parsed.textContent ?? undefined;
+      }
+    } catch (parseError) {
+      console.error('[Summarize] Parse error:', parseError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to parse article' },
+        { status: 422 }
+      );
+    }
+
+    if (!articleText) {
+      console.log('[Summarize] Failed to extract article content');
       return NextResponse.json(
         { success: false, error: 'Could not extract article content' },
         { status: 422 }
       );
     }
+    console.log('[Summarize] Article parsed, content length:', articleText.length);
 
     // Truncate content if too long (OpenAI has token limits)
     const maxContentLength = 15000;
-    const truncatedContent = article.textContent.length > maxContentLength
-      ? article.textContent.substring(0, maxContentLength) + '...'
-      : article.textContent;
+    const truncatedContent = articleText.length > maxContentLength
+      ? articleText.substring(0, maxContentLength) + '...'
+      : articleText;
 
     // Initialize OpenAI client
     const openai = new OpenAI({
@@ -160,23 +201,30 @@ Guidelines:
 
     const userPrompt = `Please summarize the following article:
 
-Title: ${article.title || 'Unknown'}
-Author: ${article.byline || 'Unknown'}
+Title: ${articleTitle || 'Unknown'}
+Author: ${articleByline || 'Unknown'}
 
 Content:
 ${truncatedContent}`;
 
-    // Call OpenAI API
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      max_tokens: 1500,
-      temperature: 0.3,
-    });
+    // Call OpenAI API with timeout
+    console.log('[Summarize] Calling OpenAI API...');
+    const completion = await openai.chat.completions.create(
+      {
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 1500,
+        temperature: 0.3,
+      },
+      {
+        timeout: 60000, // 60 second timeout
+      }
+    );
+    console.log('[Summarize] OpenAI response received');
 
     const content = completion.choices[0]?.message?.content;
     if (!content) {
