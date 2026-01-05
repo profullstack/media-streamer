@@ -10,9 +10,10 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } fr
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NewsSection } from './news-section';
 
-// Mock useAuth to prevent it from making fetch calls
+// Mock useAuth - default to non-premium, can be overridden per test
+const mockUseAuth = vi.fn(() => ({ isPremium: false }));
 vi.mock('@/hooks/use-auth', () => ({
-  useAuth: () => ({ isPremium: false }),
+  useAuth: () => mockUseAuth(),
 }));
 
 describe('NewsSection', () => {
@@ -65,6 +66,7 @@ describe('NewsSection', () => {
   let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(() => {
+    mockUseAuth.mockReturnValue({ isPremium: false });
     fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockApiResponse),
@@ -474,6 +476,243 @@ describe('NewsSection', () => {
         expect(modal).toHaveAttribute('role', 'dialog');
         expect(modal).toHaveAttribute('aria-modal', 'true');
       });
+    });
+  });
+
+  describe('Scroll Buttons', () => {
+    const mockSummaryResponse = {
+      success: true,
+      data: {
+        title: 'Bitcoin Reaches New High',
+        summary: 'This is a test summary of the article about Bitcoin reaching new highs.',
+        keyPoints: ['Key point 1', 'Key point 2', 'Key point 3'],
+        images: [],
+        publishedDate: null,
+        author: 'John Doe',
+        source: 'cryptonews.com',
+      },
+    };
+
+    it('should show scroll buttons when viewing iframe', async () => {
+      render(<NewsSection />);
+
+      let articleTitle: HTMLElement;
+      await waitFor(() => {
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
+      });
+
+      fireEvent.click(articleTitle!);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('news-iframe')).toBeInTheDocument();
+      });
+
+      // Scroll buttons should be present in iframe view for TV navigation
+      expect(screen.getByRole('button', { name: /scroll up/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /scroll down/i })).toBeInTheDocument();
+    });
+
+    it('should show scroll buttons when viewing AI summary', async () => {
+      mockUseAuth.mockReturnValue({ isPremium: true });
+
+      fetchSpy.mockReset();
+      fetchSpy
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockApiResponse),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockSummaryResponse),
+        } as Response);
+
+      render(<NewsSection />);
+
+      let articleTitle: HTMLElement;
+      await waitFor(() => {
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
+      });
+
+      fireEvent.click(articleTitle!);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('news-modal')).toBeInTheDocument();
+      });
+
+      // Click the summarize button
+      const summarizeButton = screen.getByRole('button', { name: /summarize/i });
+      fireEvent.click(summarizeButton);
+
+      // Wait for summary to load and scroll buttons to appear
+      await waitFor(() => {
+        expect(screen.getByText(/This is a test summary/)).toBeInTheDocument();
+      });
+
+      expect(screen.getByRole('button', { name: /scroll up/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /scroll down/i })).toBeInTheDocument();
+    });
+
+    it('should have correct aria-labels on scroll buttons', async () => {
+      mockUseAuth.mockReturnValue({ isPremium: true });
+
+      fetchSpy.mockReset();
+      fetchSpy
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockApiResponse),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockSummaryResponse),
+        } as Response);
+
+      render(<NewsSection />);
+
+      let articleTitle: HTMLElement;
+      await waitFor(() => {
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
+      });
+
+      fireEvent.click(articleTitle!);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('news-modal')).toBeInTheDocument();
+      });
+
+      const summarizeButton = screen.getByRole('button', { name: /summarize/i });
+      fireEvent.click(summarizeButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/This is a test summary/)).toBeInTheDocument();
+      });
+
+      const scrollUpButton = screen.getByRole('button', { name: /scroll up/i });
+      const scrollDownButton = screen.getByRole('button', { name: /scroll down/i });
+
+      expect(scrollUpButton).toHaveAttribute('aria-label', 'Scroll up');
+      expect(scrollDownButton).toHaveAttribute('aria-label', 'Scroll down');
+    });
+
+    it('should call scrollBy when scroll buttons are clicked', async () => {
+      mockUseAuth.mockReturnValue({ isPremium: true });
+
+      fetchSpy.mockReset();
+      fetchSpy
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockApiResponse),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockSummaryResponse),
+        } as Response);
+
+      render(<NewsSection />);
+
+      let articleTitle: HTMLElement;
+      await waitFor(() => {
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
+      });
+
+      fireEvent.click(articleTitle!);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('news-modal')).toBeInTheDocument();
+      });
+
+      const summarizeButton = screen.getByRole('button', { name: /summarize/i });
+      fireEvent.click(summarizeButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/This is a test summary/)).toBeInTheDocument();
+      });
+
+      // Mock scrollBy on the content element
+      const scrollByMock = vi.fn();
+      const summaryContent = screen.getByText(/This is a test summary/).closest('.overflow-y-auto');
+      if (summaryContent) {
+        summaryContent.scrollBy = scrollByMock;
+      }
+
+      const scrollDownButton = screen.getByRole('button', { name: /scroll down/i });
+      fireEvent.click(scrollDownButton);
+
+      expect(scrollByMock).toHaveBeenCalledWith({
+        top: 200,
+        behavior: 'smooth',
+      });
+
+      const scrollUpButton = screen.getByRole('button', { name: /scroll up/i });
+      fireEvent.click(scrollUpButton);
+
+      expect(scrollByMock).toHaveBeenCalledWith({
+        top: -200,
+        behavior: 'smooth',
+      });
+    });
+
+    it('should keep scroll buttons visible when switching from summary to iframe view', async () => {
+      mockUseAuth.mockReturnValue({ isPremium: true });
+
+      fetchSpy.mockReset();
+      fetchSpy
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockApiResponse),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockSummaryResponse),
+        } as Response);
+
+      render(<NewsSection />);
+
+      let articleTitle: HTMLElement;
+      await waitFor(() => {
+        articleTitle = screen.getByText((content, element) => {
+          return element?.tagName.toLowerCase() === 'h3' && content === 'Bitcoin Reaches New High';
+        });
+        expect(articleTitle).toBeInTheDocument();
+      });
+
+      fireEvent.click(articleTitle!);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('news-modal')).toBeInTheDocument();
+      });
+
+      const summarizeButton = screen.getByRole('button', { name: /summarize/i });
+      fireEvent.click(summarizeButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/This is a test summary/)).toBeInTheDocument();
+      });
+
+      // Scroll buttons should be visible in summary view
+      expect(screen.getByRole('button', { name: /scroll up/i })).toBeInTheDocument();
+
+      // Click the toggle button to switch back to iframe view (FileText icon button)
+      const toggleButton = screen.getByTitle(/show original article/i);
+      fireEvent.click(toggleButton);
+
+      // Scroll buttons should remain visible in iframe view for TV navigation
+      await waitFor(() => {
+        expect(screen.getByTestId('news-iframe')).toBeInTheDocument();
+      });
+      expect(screen.getByRole('button', { name: /scroll up/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /scroll down/i })).toBeInTheDocument();
     });
   });
 });
