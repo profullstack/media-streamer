@@ -102,6 +102,7 @@ export function LibraryContent({
 
   // IPTV Player state
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [selectedChannelPlaylistId, setSelectedChannelPlaylistId] = useState<string | undefined>(undefined);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
   const filteredFavorites = favorites.filter((item) => {
@@ -184,13 +185,24 @@ export function LibraryContent({
       tvgName: favorite.tvg_name ?? undefined,
     };
     setSelectedChannel(channel);
+    setSelectedChannelPlaylistId(favorite.playlist_id);
     setIsPlayerOpen(true);
   }, []);
 
   const handleClosePlayer = useCallback((): void => {
     setIsPlayerOpen(false);
     setSelectedChannel(null);
+    setSelectedChannelPlaylistId(undefined);
   }, []);
+
+  // Handle favorite toggle from modal - remove from local state if unfavorited
+  const handleFavoriteToggle = useCallback((channelId: string, isFavorited: boolean): void => {
+    if (!isFavorited && selectedChannelPlaylistId) {
+      setIptvChannelFavorites((prev) => prev.filter((item) =>
+        !(item.playlist_id === selectedChannelPlaylistId && item.channel_id === channelId)
+      ));
+    }
+  }, [selectedChannelPlaylistId]);
 
   const createCollection = useCallback(async (): Promise<void> => {
     if (!newCollectionName.trim()) return;
@@ -652,7 +664,9 @@ export function LibraryContent({
           isOpen={isPlayerOpen}
           onClose={handleClosePlayer}
           channel={selectedChannel}
+          playlistId={selectedChannelPlaylistId}
           initialFavorited={true}
+          onFavoriteToggle={handleFavoriteToggle}
         />
       ) : null}
     </div>
