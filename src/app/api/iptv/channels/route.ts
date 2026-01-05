@@ -23,6 +23,7 @@ import {
   type Channel,
 } from '@/lib/iptv';
 import { getIptvCacheReader } from '@/lib/iptv/cache-reader';
+import { createServerClient } from '@/lib/supabase';
 
 /**
  * Undici agent that ignores SSL certificate errors.
@@ -150,9 +151,40 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
   }
 
-  // Fall back to on-demand fetch if worker cache miss or m3uUrl provided
-  if (!cached && m3uUrl) {
-    if (!isValidUrl(m3uUrl)) {
+  // Fall back to on-demand fetch if worker cache miss
+  let effectiveM3uUrl = m3uUrl;
+
+  // If we have a playlistId but no cached data, try to get m3uUrl from metadata or database
+  if (!cached && playlistId && !effectiveM3uUrl) {
+    // First try cache metadata (might have m3uUrl even if channels aren't cached)
+    const cacheReader = getIptvCacheReader();
+    const metaResult = await cacheReader.getPlaylistMeta(playlistId);
+
+    if (metaResult.success && metaResult.data?.m3uUrl) {
+      effectiveM3uUrl = metaResult.data.m3uUrl;
+      console.log('[IPTV Channels] Got m3uUrl from cache metadata:', playlistId);
+    } else {
+      // Fall back to database lookup
+      try {
+        const supabase = createServerClient();
+        const { data: playlist, error } = await supabase
+          .from('iptv_playlists')
+          .select('m3u_url')
+          .eq('id', playlistId)
+          .single();
+
+        if (!error && playlist?.m3u_url) {
+          effectiveM3uUrl = playlist.m3u_url;
+          console.log('[IPTV Channels] Got m3uUrl from database:', playlistId);
+        }
+      } catch (dbError) {
+        console.error('[IPTV Channels] Error fetching playlist from database:', dbError);
+      }
+    }
+  }
+
+  if (!cached && effectiveM3uUrl) {
+    if (!isValidUrl(effectiveM3uUrl)) {
       return NextResponse.json(
         { error: 'Invalid m3uUrl parameter' },
         { status: 400 }
@@ -160,10 +192,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const cache = getPlaylistCache();
-    const cacheKey = PlaylistCache.generateKey(m3uUrl);
+    const cacheKey = PlaylistCache.generateKey(effectiveM3uUrl);
 
     // Try to get from request cache
-    let playlist = await cache.get(cacheKey);
+    const playlist = await cache.get(cacheKey);
 
     if (playlist) {
       cached = true;
@@ -176,7 +208,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-        const response = await undiciFetch(m3uUrl, {
+        const response = await undiciFetch(effectiveM3uUrl, {
           signal: controller.signal,
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; IPTV/1.0)',
@@ -203,7 +235,7 @@ export async function GET(request: NextRequest): Promise<Response> {
           channels,
           groups,
           fetchedAt,
-          m3uUrl,
+          m3uUrl: effectiveM3uUrl,
         });
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -224,8 +256,11 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // If still no channels, return error
   if (channels.length === 0 && !cached) {
+    const errorMsg = playlistId && !effectiveM3uUrl
+      ? 'Playlist not found in cache or database'
+      : 'No channels found in playlist';
     return NextResponse.json(
-      { error: 'No channels found. Playlist may not be cached yet.' },
+      { error: errorMsg },
       { status: 404 }
     );
   }

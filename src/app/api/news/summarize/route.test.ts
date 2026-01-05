@@ -58,6 +58,17 @@ vi.mock('openai', () => ({
   default: mocks.MockOpenAI,
 }));
 
+// Mock summary cache (Redis-based) to avoid Redis connection issues in tests
+vi.mock('@/lib/news/summary-cache', () => ({
+  getNewsSummaryCache: () => ({
+    get: vi.fn().mockResolvedValue(null), // Always cache miss for testing
+    set: vi.fn().mockResolvedValue(true),
+    delete: vi.fn().mockResolvedValue(true),
+    isAvailable: vi.fn().mockResolvedValue(true),
+    close: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 // Store original env
 const originalEnv = process.env;
 

@@ -12,16 +12,7 @@ import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import { getCurrentUser } from '@/lib/auth';
 import { getSubscriptionRepository } from '@/lib/subscription';
-
-interface ArticleSummary {
-  title: string;
-  summary: string;
-  keyPoints: string[];
-  images: string[];
-  publishedDate: string | null;
-  author: string | null;
-  source: string | null;
-}
+import { getNewsSummaryCache, type ArticleSummary } from '@/lib/news/summary-cache';
 
 interface SummarizeRequest {
   url: string;
@@ -30,6 +21,7 @@ interface SummarizeRequest {
 interface SummarizeResponse {
   success: boolean;
   data?: ArticleSummary;
+  cached?: boolean;
   error?: string;
 }
 
@@ -94,6 +86,18 @@ export async function POST(
         { success: false, error: 'Invalid URL format' },
         { status: 400 }
       );
+    }
+
+    // Check cache first to avoid AI costs
+    const cache = getNewsSummaryCache();
+    const cachedSummary = await cache.get(url);
+    if (cachedSummary) {
+      console.log('[Summarize] Returning cached summary for:', url);
+      return NextResponse.json({
+        success: true,
+        data: cachedSummary,
+        cached: true,
+      });
     }
 
     // Fetch the article HTML
@@ -249,9 +253,14 @@ ${truncatedContent}`;
     summaryData.keyPoints = summaryData.keyPoints || [];
     summaryData.images = summaryData.images || [];
 
+    // Cache the summary for 8 hours to avoid repeated AI costs
+    await cache.set(url, summaryData);
+    console.log('[Summarize] Cached summary for:', url);
+
     return NextResponse.json({
       success: true,
       data: summaryData,
+      cached: false,
     });
   } catch (error) {
     console.error('Article summarization error:', error);
