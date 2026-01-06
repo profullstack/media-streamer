@@ -7,8 +7,8 @@
  * Includes account info, subscription management, IPTV, and security settings.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { useAuth } from '@/hooks/use-auth';
@@ -47,10 +47,12 @@ interface SubscriptionStatus {
   daysRemaining: number | null;
 }
 
-export default function AccountPage(): React.ReactElement {
+function AccountPageContent(): React.ReactElement {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isLoggedIn, isLoading, user } = useAuth();
   const [activeTab, setActiveTab] = useState<AccountTab>('account');
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   
   // Subscription management state
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
@@ -71,6 +73,16 @@ export default function AccountPage(): React.ReactElement {
       router.push('/login');
     }
   }, [isLoading, isLoggedIn, router]);
+
+  // Handle payment success redirect
+  useEffect(() => {
+    if (searchParams.get('payment') === 'success') {
+      setPaymentSuccess(true);
+      setActiveTab('subscription');
+      // Clean up the URL
+      router.replace('/account', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   // Fetch subscription status
   const fetchSubscriptionStatus = useCallback(async () => {
@@ -375,7 +387,30 @@ export default function AccountPage(): React.ReactElement {
             {activeTab === 'subscription' && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-text-primary mb-4">Subscription Management</h2>
-                
+
+                {/* Payment Success Message */}
+                {paymentSuccess && (
+                  <div className="rounded-lg border border-status-success bg-status-success/10 p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-status-success">Payment successful!</p>
+                        <p className="text-sm text-status-success/80 mt-1">
+                          Your subscription is being activated. This may take a few moments.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setPaymentSuccess(false)}
+                        className="text-status-success/60 hover:text-status-success"
+                        aria-label="Dismiss"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Messages */}
                 {actionError ? <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">
                     {actionError}
@@ -692,5 +727,24 @@ export default function AccountPage(): React.ReactElement {
         </div>
       </div>
     </MainLayout>
+  );
+}
+
+export default function AccountPage(): React.ReactElement {
+  return (
+    <Suspense
+      fallback={
+        <MainLayout>
+          <div className="flex items-center justify-center py-12">
+            <div
+              data-testid="loading-spinner"
+              className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent"
+            />
+          </div>
+        </MainLayout>
+      }
+    >
+      <AccountPageContent />
+    </Suspense>
   );
 }
