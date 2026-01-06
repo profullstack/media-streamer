@@ -474,7 +474,7 @@ function AccountPageContent(): React.ReactElement {
                         {canUpgradeToPremium ? <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-text-primary">Premium</p>
-                              <p className="text-sm text-text-muted">$9.99/month - Unlimited streaming, high quality</p>
+                              <p className="text-sm text-text-muted">$4.99/year - Unlimited streaming, high quality</p>
                             </div>
                             <button
                               onClick={() => handleUpgrade('premium')}
@@ -492,7 +492,7 @@ function AccountPageContent(): React.ReactElement {
                         {canUpgradeToFamily ? <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-text-primary">Family</p>
-                              <p className="text-sm text-text-muted">$14.99/month - Up to 5 members, all premium features</p>
+                              <p className="text-sm text-text-muted">$9.99/year - Up to 10 family members, all premium features</p>
                             </div>
                             <button
                               onClick={() => handleUpgrade('family')}
@@ -516,7 +516,7 @@ function AccountPageContent(): React.ReactElement {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-text-primary">Premium</p>
-                          <p className="text-sm text-text-muted">$9.99/month - Downgrade takes effect at end of billing period</p>
+                          <p className="text-sm text-text-muted">$4.99/year - Downgrade takes effect at end of billing period</p>
                         </div>
                         <button
                           onClick={() => handleDowngrade('premium')}

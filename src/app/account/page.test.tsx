@@ -345,7 +345,7 @@ describe('Account Settings Page', () => {
                   {
                     id: 'payment-1',
                     plan: 'premium',
-                    amountUsd: 99.99,
+                    amountUsd: 4.99,
                     status: 'confirmed',
                     createdAt: '2026-01-01T00:00:00Z',
                   },
@@ -388,7 +388,7 @@ describe('Account Settings Page', () => {
         
         await waitFor(() => {
           expect(screen.getByText(/billing history/i)).toBeInTheDocument();
-          expect(screen.getByText(/\$99\.99/)).toBeInTheDocument();
+          expect(screen.getByText(/\$4\.99/)).toBeInTheDocument();
         });
       });
     });
