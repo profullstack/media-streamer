@@ -95,6 +95,7 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Preconnect to analytics */}
         <link rel="preconnect" href="https://datafa.st" />
+        <link rel="preconnect" href="https://analytics.ahrefs.com" />
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
         <Providers>
@@ -109,6 +110,13 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
           data-website-id="dfid_tUS5tnJRx0ruOfjt5GwLm"
           data-domain="bittorrented.com"
           src="https://datafa.st/js/script.js"
+          strategy="afterInteractive"
+        />
+
+        {/* Ahrefs Analytics */}
+        <Script
+          src="https://analytics.ahrefs.com/analytics.js"
+          data-key="fpLXhgbOcWxpK8y1xzpbAQ"
           strategy="afterInteractive"
         />
       </body>
