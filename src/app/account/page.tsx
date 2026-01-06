@@ -704,6 +704,10 @@ function AccountPageContent(): React.ReactElement {
                                 <p className="text-xs text-text-muted">
                                   {formatDate(payment.createdAt)}
                                 </p>
+                                {/* DEBUG: Show raw values */}
+                                <p className="text-xs text-yellow-500">
+                                  DEBUG: txHash={payment.txHash || 'null'}, blockchain={payment.blockchain || 'null'}, crypto={payment.cryptoCurrency || 'null'}
+                                </p>
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                   {incomingTxUrl ? <a
                                       href={incomingTxUrl}
