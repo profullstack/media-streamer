@@ -297,18 +297,32 @@ function AccountPageContent(): React.ReactElement {
     const chain = blockchain || cryptoCurrency;
     if (!chain) return null;
 
+    const chainUpper = chain.toUpperCase();
+
+    // Map various chain names/codes to explorer URLs
     const explorers: Record<string, string> = {
+      // Ethereum
       'ETH': `https://etherscan.io/tx/${txHash}`,
+      'ETHEREUM': `https://etherscan.io/tx/${txHash}`,
+      // Bitcoin
       'BTC': `https://mempool.space/tx/${txHash}`,
+      'BITCOIN': `https://mempool.space/tx/${txHash}`,
+      // USDC variants
       'USDC_ETH': `https://etherscan.io/tx/${txHash}`,
       'USDC_POL': `https://polygonscan.com/tx/${txHash}`,
       'USDC_SOL': `https://solscan.io/tx/${txHash}`,
+      'USDC': `https://etherscan.io/tx/${txHash}`,
+      // Solana
       'SOL': `https://solscan.io/tx/${txHash}`,
+      'SOLANA': `https://solscan.io/tx/${txHash}`,
+      // Polygon
       'MATIC': `https://polygonscan.com/tx/${txHash}`,
       'POL': `https://polygonscan.com/tx/${txHash}`,
+      'POLYGON': `https://polygonscan.com/tx/${txHash}`,
+      'POLYGON-POS': `https://polygonscan.com/tx/${txHash}`,
     };
 
-    return explorers[chain.toUpperCase()] || null;
+    return explorers[chainUpper] || null;
   };
 
   return (

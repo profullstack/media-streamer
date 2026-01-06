@@ -101,8 +101,12 @@ interface CoinPayPortalWebhookBody {
   status?: string;
   // Number of confirmations
   confirmations?: number;
-  // Transaction hash
+  // Transaction hash (incoming payment)
   tx_hash?: string;
+  // Merchant transaction hash (forwarded payment)
+  merchant_tx_hash?: string;
+  // Platform fee transaction hash
+  platform_tx_hash?: string;
   // Error or info message
   message?: string;
   // Timestamp (CoinPayPortal uses 'timestamp')
@@ -122,6 +126,8 @@ interface CoinPayPortalWebhookBody {
     status?: string;
     confirmations?: number;
     tx_hash?: string;
+    merchant_tx_hash?: string;
+    platform_tx_hash?: string;
     message?: string;
     metadata?: Record<string, string>;
   };
@@ -159,6 +165,8 @@ function validateWebhookPayload(
   const status = rawData.status || rawData.data?.status;
   const confirmations = rawData.confirmations ?? rawData.data?.confirmations;
   const txHash = rawData.tx_hash || rawData.data?.tx_hash;
+  const merchantTxHash = rawData.merchant_tx_hash || rawData.data?.merchant_tx_hash;
+  const platformTxHash = rawData.platform_tx_hash || rawData.data?.platform_tx_hash;
   const message = rawData.message || rawData.data?.message;
   const metadata = rawData.metadata || rawData.data?.metadata;
   const createdAt = rawData.timestamp || rawData.created_at;
@@ -224,6 +232,8 @@ function validateWebhookPayload(
         status: status ?? '',
         confirmations,
         tx_hash: txHash,
+        merchant_tx_hash: merchantTxHash,
+        platform_tx_hash: platformTxHash,
         message,
         metadata,
       },
