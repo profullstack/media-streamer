@@ -29,6 +29,8 @@ interface PaymentHistoryItem {
   cryptoCurrency: string | null;
   blockchain: string | null;
   txHash: string | null;
+  merchantTxHash: string | null;
+  platformTxHash: string | null;
   status: string;
   periodStart: string | null;
   periodEnd: string | null;
@@ -654,7 +656,9 @@ function AccountPageContent(): React.ReactElement {
                     ) : (
                       <div className="space-y-2">
                         {paymentHistory.map((payment) => {
-                          const explorerUrl = getExplorerUrl(payment.txHash, payment.blockchain, payment.cryptoCurrency);
+                          const incomingTxUrl = getExplorerUrl(payment.txHash, payment.blockchain, payment.cryptoCurrency);
+                          const merchantTxUrl = getExplorerUrl(payment.merchantTxHash, payment.blockchain, payment.cryptoCurrency);
+                          const platformTxUrl = getExplorerUrl(payment.platformTxHash, payment.blockchain, payment.cryptoCurrency);
                           return (
                             <div
                               key={payment.id}
@@ -664,17 +668,33 @@ function AccountPageContent(): React.ReactElement {
                                 <p className="text-sm font-medium text-text-primary">
                                   {payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan
                                 </p>
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xs text-text-muted">
-                                    {formatDate(payment.createdAt)}
-                                  </p>
-                                  {explorerUrl ? <a
-                                      href={explorerUrl}
+                                <p className="text-xs text-text-muted">
+                                  {formatDate(payment.createdAt)}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  {incomingTxUrl ? <a
+                                      href={incomingTxUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-xs text-accent-primary hover:underline"
                                     >
-                                      View on Explorer ↗
+                                      Incoming TX ↗
+                                    </a> : null}
+                                  {merchantTxUrl ? <a
+                                      href={merchantTxUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-accent-primary hover:underline"
+                                    >
+                                      Merchant TX ↗
+                                    </a> : null}
+                                  {platformTxUrl ? <a
+                                      href={platformTxUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-accent-primary hover:underline"
+                                    >
+                                      Platform TX ↗
                                     </a> : null}
                                 </div>
                               </div>
@@ -684,9 +704,9 @@ function AccountPageContent(): React.ReactElement {
                                 </p>
                                 <span className={cn(
                                   'text-xs px-2 py-0.5 rounded',
-                                  payment.status === 'confirmed'
+                                  payment.status === 'confirmed' || payment.status === 'forwarded'
                                     ? 'bg-status-success/10 text-status-success'
-                                    : payment.status === 'pending'
+                                    : payment.status === 'pending' || payment.status === 'detected'
                                       ? 'bg-status-warning/10 text-status-warning'
                                       : 'bg-status-error/10 text-status-error'
                                 )}>

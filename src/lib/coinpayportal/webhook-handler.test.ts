@@ -92,6 +92,8 @@ describe('WebhookHandler', () => {
         crypto_currency: 'ETH',
         blockchain: 'ETH',
         tx_hash: '0xabc123',
+        merchant_tx_hash: null,
+        platform_tx_hash: null,
         payment_address: '0x1234567890abcdef',
         status: 'detected',
         plan: 'premium',
@@ -155,6 +157,8 @@ describe('WebhookHandler', () => {
         crypto_currency: 'ETH',
         blockchain: 'ETH',
         tx_hash: '0xabc123',
+        merchant_tx_hash: null,
+        platform_tx_hash: null,
         payment_address: '0x1234567890abcdef',
         status: 'confirmed',
         plan: 'premium',
@@ -237,6 +241,8 @@ describe('WebhookHandler', () => {
         crypto_currency: 'ETH',
         blockchain: 'ETH',
         tx_hash: '0xdef456',
+        merchant_tx_hash: null,
+        platform_tx_hash: null,
         payment_address: '0x1234567890abcdef',
         status: 'confirmed',
         plan: 'family',
@@ -316,6 +322,8 @@ describe('WebhookHandler', () => {
         crypto_currency: null,
         blockchain: 'ETH',
         tx_hash: null,
+        merchant_tx_hash: null,
+        platform_tx_hash: null,
         payment_address: '0x1234567890abcdef',
         status: 'failed',
         plan: 'premium',
@@ -374,6 +382,8 @@ describe('WebhookHandler', () => {
         crypto_currency: null,
         blockchain: 'ETH',
         tx_hash: null,
+        merchant_tx_hash: null,
+        platform_tx_hash: null,
         payment_address: '0x1234567890abcdef',
         status: 'expired',
         plan: 'premium',
@@ -403,6 +413,134 @@ describe('WebhookHandler', () => {
       );
       expect(result.success).toBe(true);
       expect(result.action).toBe('payment_expired');
+    });
+  });
+
+  describe('handlePaymentForwarded', () => {
+    it('should update payment status with merchant and platform tx hashes', async () => {
+      const payload: WebhookPayload = {
+        id: 'webhook-123',
+        type: 'payment.forwarded',
+        data: {
+          payment_id: 'cpp-pay-123',
+          amount_crypto: '0.0015',
+          amount_usd: '4.99',
+          currency: 'ETH',
+          status: 'forwarded',
+          tx_hash: '0xabc123',
+          merchant_tx_hash: '0xmerchant456',
+          platform_tx_hash: '0xplatform789',
+          metadata: { user_id: 'user-123', plan: 'premium' },
+        },
+        created_at: new Date().toISOString(),
+        business_id: 'biz-123',
+      };
+
+      const mockPayment: PaymentHistory = {
+        id: 'pay-123',
+        user_id: 'user-123',
+        coinpayportal_payment_id: 'cpp-pay-123',
+        amount_usd: 4.99,
+        amount_crypto: '0.0015',
+        crypto_currency: 'ETH',
+        blockchain: 'ETH',
+        tx_hash: '0xabc123',
+        merchant_tx_hash: '0xmerchant456',
+        platform_tx_hash: '0xplatform789',
+        payment_address: '0x1234567890abcdef',
+        status: 'forwarded',
+        plan: 'premium',
+        duration_months: 12,
+        period_start: null,
+        period_end: null,
+        webhook_received_at: new Date().toISOString(),
+        webhook_event_type: 'payment.forwarded',
+        metadata: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        completed_at: null,
+      };
+
+      mockPaymentRepo._mocks.updatePaymentStatus.mockResolvedValue(mockPayment);
+
+      const { createWebhookHandler } = await import('./webhook-handler');
+      const handler = createWebhookHandler(mockPaymentRepo, mockSubscriptionRepo);
+      const result = await handler.handleWebhook(payload);
+
+      expect(mockPaymentRepo._mocks.updatePaymentStatus).toHaveBeenCalledWith(
+        'cpp-pay-123',
+        expect.objectContaining({
+          status: 'forwarded',
+          txHash: '0xabc123',
+          merchantTxHash: '0xmerchant456',
+          platformTxHash: '0xplatform789',
+          webhookEventType: 'payment.forwarded',
+        })
+      );
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('payment_forwarded');
+    });
+
+    it('should handle forwarded event without platform tx hash', async () => {
+      const payload: WebhookPayload = {
+        id: 'webhook-123',
+        type: 'payment.forwarded',
+        data: {
+          payment_id: 'cpp-pay-123',
+          amount_crypto: '0.0015',
+          amount_usd: '4.99',
+          currency: 'ETH',
+          status: 'forwarded',
+          tx_hash: '0xabc123',
+          merchant_tx_hash: '0xmerchant456',
+          metadata: { user_id: 'user-123', plan: 'premium' },
+        },
+        created_at: new Date().toISOString(),
+        business_id: 'biz-123',
+      };
+
+      const mockPayment: PaymentHistory = {
+        id: 'pay-123',
+        user_id: 'user-123',
+        coinpayportal_payment_id: 'cpp-pay-123',
+        amount_usd: 4.99,
+        amount_crypto: '0.0015',
+        crypto_currency: 'ETH',
+        blockchain: 'ETH',
+        tx_hash: '0xabc123',
+        merchant_tx_hash: '0xmerchant456',
+        platform_tx_hash: null,
+        payment_address: '0x1234567890abcdef',
+        status: 'forwarded',
+        plan: 'premium',
+        duration_months: 12,
+        period_start: null,
+        period_end: null,
+        webhook_received_at: new Date().toISOString(),
+        webhook_event_type: 'payment.forwarded',
+        metadata: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        completed_at: null,
+      };
+
+      mockPaymentRepo._mocks.updatePaymentStatus.mockResolvedValue(mockPayment);
+
+      const { createWebhookHandler } = await import('./webhook-handler');
+      const handler = createWebhookHandler(mockPaymentRepo, mockSubscriptionRepo);
+      const result = await handler.handleWebhook(payload);
+
+      expect(mockPaymentRepo._mocks.updatePaymentStatus).toHaveBeenCalledWith(
+        'cpp-pay-123',
+        expect.objectContaining({
+          status: 'forwarded',
+          txHash: '0xabc123',
+          merchantTxHash: '0xmerchant456',
+          webhookEventType: 'payment.forwarded',
+        })
+      );
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('payment_forwarded');
     });
   });
 
@@ -515,6 +653,8 @@ describe('WebhookHandler', () => {
         crypto_currency: 'ETH',
         blockchain: 'ETH',
         tx_hash: '0xabc123',
+        merchant_tx_hash: null,
+        platform_tx_hash: null,
         payment_address: '0x1234567890abcdef',
         status: 'confirmed',
         plan: 'premium',

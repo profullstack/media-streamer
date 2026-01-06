@@ -72,6 +72,8 @@ export interface WebhookPayload {
     status: string;
     confirmations?: number;
     tx_hash?: string;
+    merchant_tx_hash?: string;
+    platform_tx_hash?: string;
     message?: string;
     metadata?: Record<string, string>;
   };

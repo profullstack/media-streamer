@@ -36,6 +36,8 @@ export interface CreatePaymentData {
 export interface UpdatePaymentStatusData {
   status: string;
   txHash?: string;
+  merchantTxHash?: string;
+  platformTxHash?: string;
   amountCrypto?: string;
   cryptoCurrency?: string;
   webhookEventType?: string;
@@ -163,6 +165,14 @@ export function createPaymentHistoryRepository(
 
       if (data.txHash) {
         updateData.tx_hash = data.txHash;
+      }
+
+      if (data.merchantTxHash) {
+        updateData.merchant_tx_hash = data.merchantTxHash;
+      }
+
+      if (data.platformTxHash) {
+        updateData.platform_tx_hash = data.platformTxHash;
       }
 
       if (data.amountCrypto) {

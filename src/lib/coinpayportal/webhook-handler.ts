@@ -370,17 +370,21 @@ async function handlePaymentForwarded(
   paymentRepo: PaymentHistoryRepository,
   payload: WebhookPayload
 ): Promise<WebhookHandlerResult> {
-  const { payment_id, tx_hash } = payload.data;
+  const { payment_id, tx_hash, merchant_tx_hash, platform_tx_hash } = payload.data;
 
   log('INFO', 'Processing payment.forwarded', {
     paymentId: payment_id,
     txHash: tx_hash,
+    merchantTxHash: merchant_tx_hash,
+    platformTxHash: platform_tx_hash,
   });
 
   try {
     await paymentRepo.updatePaymentStatus(payment_id, {
       status: 'forwarded',
       txHash: tx_hash,
+      merchantTxHash: merchant_tx_hash,
+      platformTxHash: platform_tx_hash,
       webhookEventType: 'payment.forwarded',
     });
 

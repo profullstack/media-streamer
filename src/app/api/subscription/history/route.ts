@@ -22,6 +22,8 @@ interface PaymentHistoryItem {
   cryptoCurrency: string | null;
   blockchain: string | null;
   txHash: string | null;
+  merchantTxHash: string | null;
+  platformTxHash: string | null;
   status: string;
   periodStart: string | null;
   periodEnd: string | null;
@@ -68,6 +70,8 @@ export async function GET(): Promise<NextResponse<PaymentHistoryResponse | { err
       cryptoCurrency: payment.crypto_currency,
       blockchain: payment.blockchain,
       txHash: payment.tx_hash,
+      merchantTxHash: payment.merchant_tx_hash,
+      platformTxHash: payment.platform_tx_hash,
       status: payment.status,
       periodStart: payment.period_start,
       periodEnd: payment.period_end,

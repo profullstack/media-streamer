@@ -675,6 +675,8 @@ export type Database = {
           crypto_currency: string | null;
           blockchain: string | null;
           tx_hash: string | null;
+          merchant_tx_hash: string | null;
+          platform_tx_hash: string | null;
           payment_address: string | null;
           status: string;
           plan: 'premium' | 'family';
@@ -697,6 +699,8 @@ export type Database = {
           crypto_currency?: string | null;
           blockchain?: string | null;
           tx_hash?: string | null;
+          merchant_tx_hash?: string | null;
+          platform_tx_hash?: string | null;
           payment_address?: string | null;
           status?: string;
           plan: 'premium' | 'family';
@@ -719,6 +723,8 @@ export type Database = {
           crypto_currency?: string | null;
           blockchain?: string | null;
           tx_hash?: string | null;
+          merchant_tx_hash?: string | null;
+          platform_tx_hash?: string | null;
           payment_address?: string | null;
           status?: string;
           plan?: 'premium' | 'family';
