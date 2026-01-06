@@ -70,9 +70,50 @@ function log(
 // Types
 // ============================================================================
 
-interface WebhookRequestBody {
-  id?: string;
+/**
+ * CoinPayPortal sends webhooks in a flat format:
+ * {
+ *   "event": "payment.forwarded",
+ *   "payment_id": "uuid",
+ *   "business_id": "uuid",
+ *   "amount_crypto": "0.00154297",
+ *   "currency": "ETH",
+ *   "status": "forwarded",
+ *   "timestamp": "2026-01-06T20:58:17.411Z"
+ * }
+ */
+interface CoinPayPortalWebhookBody {
+  // CoinPayPortal uses 'event' for the webhook type
+  event?: string;
+  // Legacy field name (keeping for backwards compatibility)
   type?: string;
+  // Payment ID at root level
+  payment_id?: string;
+  // Business ID
+  business_id?: string;
+  // Amount in crypto
+  amount_crypto?: string;
+  // Amount in USD
+  amount_usd?: string;
+  // Cryptocurrency code (ETH, BTC, etc.)
+  currency?: string;
+  // Payment status
+  status?: string;
+  // Number of confirmations
+  confirmations?: number;
+  // Transaction hash
+  tx_hash?: string;
+  // Error or info message
+  message?: string;
+  // Timestamp (CoinPayPortal uses 'timestamp')
+  timestamp?: string;
+  // Legacy field name
+  created_at?: string;
+  // Webhook ID
+  id?: string;
+  // Metadata passed when creating payment
+  metadata?: Record<string, string>;
+  // Legacy nested data format (for backwards compatibility)
   data?: {
     payment_id?: string;
     amount_crypto?: string;
@@ -84,8 +125,6 @@ interface WebhookRequestBody {
     message?: string;
     metadata?: Record<string, string>;
   };
-  created_at?: string;
-  business_id?: string;
 }
 
 // ============================================================================
@@ -106,34 +145,48 @@ function validateWebhookPayload(
     return { valid: false, error: 'Invalid request body' };
   }
 
-  const data = body as WebhookRequestBody;
+  const rawData = body as CoinPayPortalWebhookBody;
+
+  // CoinPayPortal uses 'event' instead of 'type'
+  const eventType = rawData.event || rawData.type;
+
+  // CoinPayPortal sends flat payloads, not nested in 'data'
+  // Support both flat format and legacy nested format
+  const paymentId = rawData.payment_id || rawData.data?.payment_id;
+  const amountCrypto = rawData.amount_crypto || rawData.data?.amount_crypto;
+  const amountUsd = rawData.amount_usd || rawData.data?.amount_usd;
+  const currency = rawData.currency || rawData.data?.currency;
+  const status = rawData.status || rawData.data?.status;
+  const confirmations = rawData.confirmations ?? rawData.data?.confirmations;
+  const txHash = rawData.tx_hash || rawData.data?.tx_hash;
+  const message = rawData.message || rawData.data?.message;
+  const metadata = rawData.metadata || rawData.data?.metadata;
+  const createdAt = rawData.timestamp || rawData.created_at;
 
   // Log the raw payload structure
   log(requestId, 'DEBUG', 'Raw payload received', {
-    hasId: !!data.id,
-    hasType: !!data.type,
-    type: data.type,
-    hasData: !!data.data,
-    hasBusinessId: !!data.business_id,
-    businessId: data.business_id,
-    createdAt: data.created_at,
+    hasEvent: !!rawData.event,
+    hasType: !!rawData.type,
+    eventType,
+    hasPaymentId: !!paymentId,
+    paymentId,
+    hasData: !!rawData.data,
+    hasBusinessId: !!rawData.business_id,
+    businessId: rawData.business_id,
+    timestamp: rawData.timestamp,
+    createdAt: rawData.created_at,
   });
 
-  if (!data.type) {
-    log(requestId, 'ERROR', 'Missing required field: type');
-    return { valid: false, error: 'Missing required field: type' };
+  if (!eventType) {
+    log(requestId, 'ERROR', 'Missing required field: event/type');
+    return { valid: false, error: 'Missing required field: event/type' };
   }
 
-  if (!data.data) {
-    log(requestId, 'ERROR', 'Missing required field: data');
-    return { valid: false, error: 'Missing required field: data' };
-  }
-
-  if (!data.data.payment_id) {
-    log(requestId, 'ERROR', 'Missing required field: data.payment_id', {
-      dataKeys: Object.keys(data.data),
+  if (!paymentId) {
+    log(requestId, 'ERROR', 'Missing required field: payment_id', {
+      rawKeys: Object.keys(rawData),
     });
-    return { valid: false, error: 'Missing required field: data.payment_id' };
+    return { valid: false, error: 'Missing required field: payment_id' };
   }
 
   // Validate type is one of the expected values
@@ -145,37 +198,37 @@ function validateWebhookPayload(
     'payment.expired',
     'test.webhook',
   ];
-  if (!validTypes.includes(data.type)) {
+  if (!validTypes.includes(eventType)) {
     log(requestId, 'ERROR', 'Invalid webhook type', {
-      receivedType: data.type,
+      receivedType: eventType,
       validTypes,
     });
-    return { valid: false, error: `Invalid webhook type: ${data.type}` };
+    return { valid: false, error: `Invalid webhook type: ${eventType}` };
   }
 
   log(requestId, 'INFO', 'Payload validation successful', {
-    type: data.type,
-    paymentId: data.data.payment_id,
+    type: eventType,
+    paymentId,
   });
 
   return {
     valid: true,
     payload: {
-      id: data.id ?? '',
-      type: data.type as WebhookPayload['type'],
+      id: rawData.id ?? '',
+      type: eventType as WebhookPayload['type'],
       data: {
-        payment_id: data.data.payment_id,
-        amount_crypto: data.data.amount_crypto ?? '0',
-        amount_usd: data.data.amount_usd ?? '0',
-        currency: data.data.currency ?? '',
-        status: data.data.status ?? '',
-        confirmations: data.data.confirmations,
-        tx_hash: data.data.tx_hash,
-        message: data.data.message,
-        metadata: data.data.metadata,
+        payment_id: paymentId,
+        amount_crypto: amountCrypto ?? '0',
+        amount_usd: amountUsd ?? '0',
+        currency: currency ?? '',
+        status: status ?? '',
+        confirmations,
+        tx_hash: txHash,
+        message,
+        metadata,
       },
-      created_at: data.created_at ?? new Date().toISOString(),
-      business_id: data.business_id ?? '',
+      created_at: createdAt ?? new Date().toISOString(),
+      business_id: rawData.business_id ?? '',
     },
   };
 }

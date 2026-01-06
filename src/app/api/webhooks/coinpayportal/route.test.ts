@@ -40,6 +40,30 @@ describe('POST /api/webhooks/coinpayportal', () => {
     });
   }
 
+  /**
+   * Create a payload in CoinPayPortal's actual flat format
+   */
+  function createFlatPayload(
+    event: string = 'payment.confirmed',
+    overrides: Record<string, unknown> = {}
+  ): Record<string, unknown> {
+    return {
+      event,
+      payment_id: 'pay-456',
+      business_id: 'biz-789',
+      amount_crypto: '0.001',
+      amount_usd: '50.00',
+      currency: 'BTC',
+      status: 'confirmed',
+      tx_hash: 'tx-abc123',
+      timestamp: new Date().toISOString(),
+      ...overrides,
+    };
+  }
+
+  /**
+   * Create a payload in the legacy nested format (for backwards compatibility tests)
+   */
   function createValidPayload(
     type: WebhookPayload['type'] = 'payment.confirmed',
     overrides: Partial<WebhookPayload['data']> = {}
@@ -61,7 +85,72 @@ describe('POST /api/webhooks/coinpayportal', () => {
     };
   }
 
-  describe('successful webhook processing', () => {
+  describe('CoinPayPortal flat format webhooks', () => {
+    it('should process flat format payment.confirmed webhook', async () => {
+      const payload = createFlatPayload('payment.confirmed');
+      mockHandleWebhook.mockResolvedValue({
+        success: true,
+        action: 'subscription_activated',
+        paymentId: 'pay-456',
+        userId: 'user-123',
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.action).toBe('subscription_activated');
+    });
+
+    it('should process flat format payment.forwarded webhook', async () => {
+      const payload = createFlatPayload('payment.forwarded', { status: 'forwarded' });
+      mockHandleWebhook.mockResolvedValue({
+        success: true,
+        action: 'payment_forwarded',
+        paymentId: 'pay-456',
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.action).toBe('payment_forwarded');
+    });
+
+    it('should process flat format payment.detected webhook', async () => {
+      const payload = createFlatPayload('payment.detected', { status: 'detected' });
+      mockHandleWebhook.mockResolvedValue({
+        success: true,
+        action: 'payment_updated',
+        paymentId: 'pay-456',
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+    });
+  });
+
+  describe('successful webhook processing (legacy nested format)', () => {
     it('should process payment.confirmed webhook and return 200', async () => {
       const payload = createValidPayload('payment.confirmed');
       mockHandleWebhook.mockResolvedValue({
@@ -202,15 +291,15 @@ describe('POST /api/webhooks/coinpayportal', () => {
       expect(data.requestId).toBeDefined();
     });
 
-    it('should return 400 for missing type field', async () => {
+    it('should return 400 for missing event/type field', async () => {
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: 'webhook-123',
-          data: { payment_id: 'pay-456' },
+          payment_id: 'pay-456',
+          business_id: 'biz-789',
         }),
       });
 
@@ -218,18 +307,18 @@ describe('POST /api/webhooks/coinpayportal', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('Missing required field: type');
+      expect(data.error).toBe('Missing required field: event/type');
     });
 
-    it('should return 400 for missing data field', async () => {
+    it('should return 400 for missing payment_id', async () => {
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: 'webhook-123',
-          type: 'payment.confirmed',
+          event: 'payment.confirmed',
+          business_id: 'biz-789',
         }),
       });
 
@@ -237,27 +326,7 @@ describe('POST /api/webhooks/coinpayportal', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('Missing required field: data');
-    });
-
-    it('should return 400 for missing payment_id in data', async () => {
-      const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: 'webhook-123',
-          type: 'payment.confirmed',
-          data: { amount_crypto: '0.001' },
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data.error).toBe('Missing required field: data.payment_id');
+      expect(data.error).toBe('Missing required field: payment_id');
     });
 
     it('should return 400 for invalid webhook type', async () => {
