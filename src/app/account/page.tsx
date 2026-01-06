@@ -283,6 +283,24 @@ function AccountPageContent(): React.ReactElement {
     }).format(amount);
   };
 
+  // Get blockchain explorer URL for a transaction
+  const getExplorerUrl = (txHash: string | null, blockchain: string | null): string | null => {
+    if (!txHash || !blockchain) return null;
+
+    const explorers: Record<string, string> = {
+      'ETH': `https://etherscan.io/tx/${txHash}`,
+      'BTC': `https://mempool.space/tx/${txHash}`,
+      'USDC_ETH': `https://etherscan.io/tx/${txHash}`,
+      'USDC_POL': `https://polygonscan.com/tx/${txHash}`,
+      'USDC_SOL': `https://solscan.io/tx/${txHash}`,
+      'SOL': `https://solscan.io/tx/${txHash}`,
+      'MATIC': `https://polygonscan.com/tx/${txHash}`,
+      'POL': `https://polygonscan.com/tx/${txHash}`,
+    };
+
+    return explorers[blockchain.toUpperCase()] || null;
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -627,36 +645,49 @@ function AccountPageContent(): React.ReactElement {
                       <p className="text-sm text-text-muted">No payment history yet.</p>
                     ) : (
                       <div className="space-y-2">
-                        {paymentHistory.map((payment) => (
-                          <div
-                            key={payment.id}
-                            className="flex items-center justify-between rounded-lg border border-border-default bg-bg-tertiary p-3"
-                          >
-                            <div>
-                              <p className="text-sm font-medium text-text-primary">
-                                {payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan
-                              </p>
-                              <p className="text-xs text-text-muted">
-                                {formatDate(payment.createdAt)}
-                              </p>
+                        {paymentHistory.map((payment) => {
+                          const explorerUrl = getExplorerUrl(payment.txHash, payment.blockchain);
+                          return (
+                            <div
+                              key={payment.id}
+                              className="flex items-center justify-between rounded-lg border border-border-default bg-bg-tertiary p-3"
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-text-primary">
+                                  {payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-text-muted">
+                                    {formatDate(payment.createdAt)}
+                                  </p>
+                                  {explorerUrl ? <a
+                                      href={explorerUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-accent-primary hover:underline"
+                                    >
+                                      View on Explorer ↗
+                                    </a> : null}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-medium text-text-primary">
+                                  {formatCurrency(payment.amountUsd)}
+                                </p>
+                                <span className={cn(
+                                  'text-xs px-2 py-0.5 rounded',
+                                  payment.status === 'confirmed'
+                                    ? 'bg-status-success/10 text-status-success'
+                                    : payment.status === 'pending'
+                                      ? 'bg-status-warning/10 text-status-warning'
+                                      : 'bg-status-error/10 text-status-error'
+                                )}>
+                                  {payment.status}
+                                </span>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-text-primary">
-                                {formatCurrency(payment.amountUsd)}
-                              </p>
-                              <span className={cn(
-                                'text-xs px-2 py-0.5 rounded',
-                                payment.status === 'confirmed' 
-                                  ? 'bg-status-success/10 text-status-success'
-                                  : payment.status === 'pending'
-                                    ? 'bg-status-warning/10 text-status-warning'
-                                    : 'bg-status-error/10 text-status-error'
-                              )}>
-                                {payment.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
