@@ -160,18 +160,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Create user subscription record (trial tier)
+  // Use upsert to handle cases where user re-signs up (e.g., unconfirmed email retry)
   const trialExpiresAt = new Date();
   trialExpiresAt.setDate(trialExpiresAt.getDate() + 14); // 14-day trial
 
   const { error: subscriptionError } = await supabase
     .from('user_subscriptions')
-    .insert({
-      user_id: data.user.id,
-      tier: 'trial',
-      status: 'active',
-      trial_started_at: new Date().toISOString(),
-      trial_expires_at: trialExpiresAt.toISOString(),
-    });
+    .upsert(
+      {
+        user_id: data.user.id,
+        tier: 'trial',
+        status: 'active',
+        trial_started_at: new Date().toISOString(),
+        trial_expires_at: trialExpiresAt.toISOString(),
+      },
+      {
+        onConflict: 'user_id',
+        ignoreDuplicates: true, // Don't update if already exists
+      }
+    );
 
   if (subscriptionError) {
     console.error('[Signup] Subscription creation error:', subscriptionError.message);

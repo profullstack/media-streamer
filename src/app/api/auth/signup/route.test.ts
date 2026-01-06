@@ -101,9 +101,9 @@ describe('Signup API - POST /api/auth/signup', () => {
         error: null,
       });
 
-      // Mock subscription creation
+      // Mock subscription creation (upsert)
       mockFrom.mockReturnValueOnce({
-        insert: vi.fn().mockResolvedValueOnce({ error: null }),
+        upsert: vi.fn().mockResolvedValueOnce({ error: null }),
       });
 
       const { POST } = await import('./route');
@@ -133,9 +133,9 @@ describe('Signup API - POST /api/auth/signup', () => {
         error: null,
       });
 
-      // Mock subscription creation
+      // Mock subscription creation (upsert)
       mockFrom.mockReturnValueOnce({
-        insert: vi.fn().mockResolvedValueOnce({ error: null }),
+        upsert: vi.fn().mockResolvedValueOnce({ error: null }),
       });
 
       const { POST } = await import('./route');

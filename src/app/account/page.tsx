@@ -284,8 +284,16 @@ function AccountPageContent(): React.ReactElement {
   };
 
   // Get blockchain explorer URL for a transaction
-  const getExplorerUrl = (txHash: string | null, blockchain: string | null): string | null => {
-    if (!txHash || !blockchain) return null;
+  const getExplorerUrl = (
+    txHash: string | null,
+    blockchain: string | null,
+    cryptoCurrency: string | null
+  ): string | null => {
+    if (!txHash) return null;
+
+    // Use blockchain first, then fall back to cryptoCurrency
+    const chain = blockchain || cryptoCurrency;
+    if (!chain) return null;
 
     const explorers: Record<string, string> = {
       'ETH': `https://etherscan.io/tx/${txHash}`,
@@ -298,7 +306,7 @@ function AccountPageContent(): React.ReactElement {
       'POL': `https://polygonscan.com/tx/${txHash}`,
     };
 
-    return explorers[blockchain.toUpperCase()] || null;
+    return explorers[chain.toUpperCase()] || null;
   };
 
   return (
@@ -646,7 +654,7 @@ function AccountPageContent(): React.ReactElement {
                     ) : (
                       <div className="space-y-2">
                         {paymentHistory.map((payment) => {
-                          const explorerUrl = getExplorerUrl(payment.txHash, payment.blockchain);
+                          const explorerUrl = getExplorerUrl(payment.txHash, payment.blockchain, payment.cryptoCurrency);
                           return (
                             <div
                               key={payment.id}
