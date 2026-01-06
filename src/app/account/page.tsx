@@ -114,6 +114,7 @@ function AccountPageContent(): React.ReactElement {
         throw new Error('Failed to fetch payment history');
       }
       const data = await response.json() as { payments: PaymentHistoryItem[]; total: number };
+      console.log('[DEBUG fetchPaymentHistory] API Response:', JSON.stringify(data, null, 2));
       setPaymentHistory(data.payments);
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : 'Failed to load payment history');
@@ -291,13 +292,21 @@ function AccountPageContent(): React.ReactElement {
     blockchain: string | null,
     cryptoCurrency: string | null
   ): string | null => {
-    if (!txHash) return null;
+    console.log('[DEBUG getExplorerUrl]', { txHash, blockchain, cryptoCurrency });
+    if (!txHash) {
+      console.log('[DEBUG getExplorerUrl] No txHash, returning null');
+      return null;
+    }
 
     // Use blockchain first, then fall back to cryptoCurrency
     const chain = blockchain || cryptoCurrency;
-    if (!chain) return null;
+    if (!chain) {
+      console.log('[DEBUG getExplorerUrl] No chain, returning null');
+      return null;
+    }
 
     const chainUpper = chain.toUpperCase();
+    console.log('[DEBUG getExplorerUrl] chainUpper:', chainUpper);
 
     // Map various chain names/codes to explorer URLs
     const explorers: Record<string, string> = {
@@ -322,7 +331,9 @@ function AccountPageContent(): React.ReactElement {
       'POLYGON-POS': `https://polygonscan.com/tx/${txHash}`,
     };
 
-    return explorers[chainUpper] || null;
+    const result = explorers[chainUpper] || null;
+    console.log('[DEBUG getExplorerUrl] Result:', result ? 'URL found' : 'No match for chain');
+    return result;
   };
 
   return (
@@ -670,6 +681,14 @@ function AccountPageContent(): React.ReactElement {
                     ) : (
                       <div className="space-y-2">
                         {paymentHistory.map((payment) => {
+                          console.log('[DEBUG Payment Item]', {
+                            id: payment.id,
+                            txHash: payment.txHash,
+                            blockchain: payment.blockchain,
+                            cryptoCurrency: payment.cryptoCurrency,
+                            merchantTxHash: payment.merchantTxHash,
+                            platformTxHash: payment.platformTxHash,
+                          });
                           const incomingTxUrl = getExplorerUrl(payment.txHash, payment.blockchain, payment.cryptoCurrency);
                           const merchantTxUrl = getExplorerUrl(payment.merchantTxHash, payment.blockchain, payment.cryptoCurrency);
                           const platformTxUrl = getExplorerUrl(payment.platformTxHash, payment.blockchain, payment.cryptoCurrency);
