@@ -13,6 +13,12 @@ vi.mock('@/hooks/use-tv-detection', () => ({
   useTvDetection: () => ({ isTv: false, isLoading: false, browserType: null }),
 }));
 
+// Mock useRouter for navigation testing
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
 // Mock HlsPlayerModal component
 vi.mock('@/components/live-tv', () => ({
   HlsPlayerModal: ({ isOpen, channel }: { isOpen: boolean; channel: { name: string } }) => {
@@ -42,6 +48,7 @@ const mockFavorites = [
       torrents: {
         id: 'torrent-1',
         name: 'Test Album',
+        infohash: 'audio123hash',
       },
     },
   },
@@ -57,6 +64,23 @@ const mockFavorites = [
       torrents: {
         id: 'torrent-2',
         name: 'Test Movie',
+        infohash: 'video456hash',
+      },
+    },
+  },
+  {
+    id: 'fav-3',
+    user_id: 'user-123',
+    file_id: 'file-ebook-1',
+    created_at: '2024-01-13T00:00:00Z',
+    torrent_files: {
+      id: 'file-ebook-1',
+      name: 'Programming.epub',
+      media_category: 'ebook',
+      torrents: {
+        id: 'torrent-3',
+        name: 'Programming Guide',
+        infohash: 'ebook789hash',
       },
     },
   },
@@ -206,6 +230,7 @@ describe('LibraryContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    mockPush.mockReset();
   });
 
   describe('Tabs', () => {
@@ -225,9 +250,11 @@ describe('LibraryContent', () => {
       expect(screen.getByText('Collections')).toBeInTheDocument();
       expect(screen.getByText('History')).toBeInTheDocument();
       
-      // Check that counts are displayed (all tabs have count 2)
-      const countElements = screen.getAllByText('(2)');
-      expect(countElements).toHaveLength(3);
+      // Check that counts are displayed
+      // Favorites: 3 (mockFavorites), Collections: 2, History: 2
+      expect(screen.getByText('(3)')).toBeInTheDocument(); // Favorites
+      const countTwoElements = screen.getAllByText('(2)');
+      expect(countTwoElements).toHaveLength(2); // Collections and History
     });
 
     it('switches between tabs', async () => {
@@ -708,8 +735,8 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Total count should include file favorites (2) + IPTV favorites (2) = 4
-      expect(screen.getByText('(4)')).toBeInTheDocument();
+      // Total count should include file favorites (3) + IPTV favorites (2) = 5
+      expect(screen.getByText('(5)')).toBeInTheDocument();
     });
   });
 
@@ -867,8 +894,8 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Total count should include file favorites (2) + torrent favorites (4) = 6
-      expect(screen.getByText('(6)')).toBeInTheDocument();
+      // Total count should include file favorites (3) + torrent favorites (4) = 7
+      expect(screen.getByText('(7)')).toBeInTheDocument();
     });
 
     it('displays correct filtered count in section header', async () => {
@@ -893,6 +920,151 @@ describe('LibraryContent', () => {
       // Music filter should show 1 torrent
       await user.click(screen.getByText('Music'));
       expect(screen.getByText('Favorite Torrents (1)')).toBeInTheDocument();
+    });
+  });
+
+  describe('File Favorites Navigation', () => {
+    it('displays ebook favorites with Book icon', () => {
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Ebook should be visible
+      expect(screen.getByText('Programming.epub')).toBeInTheDocument();
+
+      // Should have a "Read" button for ebook
+      expect(screen.getByTitle('Read')).toBeInTheDocument();
+
+      // Should have "Play" buttons for audio/video
+      const playButtons = screen.getAllByTitle('Play');
+      expect(playButtons).toHaveLength(2);
+    });
+
+    it('navigates to ebook reader when clicking Read button on ebook', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Click the Read button for ebook
+      await user.click(screen.getByTitle('Read'));
+
+      // Should navigate to reader page with file ID
+      expect(mockPush).toHaveBeenCalledWith('/reader/file-ebook-1');
+    });
+
+    it('navigates to torrent details when clicking Play button on audio file', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Click the first Play button (for audio file)
+      const playButtons = screen.getAllByTitle('Play');
+      await user.click(playButtons[0]);
+
+      // Should navigate to torrent details page with infohash
+      expect(mockPush).toHaveBeenCalledWith('/torrents/audio123hash');
+    });
+
+    it('navigates to torrent details when clicking Play button on video file', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Click the second Play button (for video file)
+      const playButtons = screen.getAllByTitle('Play');
+      await user.click(playButtons[1]);
+
+      // Should navigate to torrent details page with infohash
+      expect(mockPush).toHaveBeenCalledWith('/torrents/video456hash');
+    });
+
+    it('file names link to torrent details page', () => {
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Check that file names are links to torrent details
+      const songLink = screen.getByRole('link', { name: 'Song.mp3' });
+      expect(songLink).toHaveAttribute('href', '/torrents/audio123hash');
+
+      const movieLink = screen.getByRole('link', { name: 'Movie.mp4' });
+      expect(movieLink).toHaveAttribute('href', '/torrents/video456hash');
+
+      const ebookLink = screen.getByRole('link', { name: 'Programming.epub' });
+      expect(ebookLink).toHaveAttribute('href', '/torrents/ebook789hash');
+    });
+
+    it('torrent names link to torrent details page', () => {
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Check that torrent names are links to torrent details
+      const albumLink = screen.getByRole('link', { name: 'Test Album' });
+      expect(albumLink).toHaveAttribute('href', '/torrents/audio123hash');
+
+      const guideLink = screen.getByRole('link', { name: 'Programming Guide' });
+      expect(guideLink).toHaveAttribute('href', '/torrents/ebook789hash');
+    });
+
+    it('filters ebooks correctly when Ebooks filter is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <LibraryContent
+          initialFavorites={mockFavorites}
+          initialCollections={[]}
+          initialHistory={[]}
+          initialTorrentFavorites={[]}
+          initialIptvChannelFavorites={[]}
+        />
+      );
+
+      // Click Ebooks filter
+      await user.click(screen.getByText('Ebooks'));
+
+      // Only ebook should be visible
+      expect(screen.getByText('Programming.epub')).toBeInTheDocument();
+      expect(screen.queryByText('Song.mp3')).not.toBeInTheDocument();
+      expect(screen.queryByText('Movie.mp4')).not.toBeInTheDocument();
     });
   });
 });

@@ -9,6 +9,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   HeartIcon,
@@ -89,6 +90,7 @@ export function LibraryContent({
   initialTorrentFavorites,
   initialIptvChannelFavorites,
 }: LibraryContentProps): React.ReactElement {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('favorites');
   const [mediaFilter, setMediaFilter] = useState<MediaType>('all');
   const [favorites, setFavorites] = useState<Favorite[]>(initialFavorites);
@@ -215,6 +217,23 @@ export function LibraryContent({
       ));
     }
   }, [selectedChannelPlaylistId]);
+
+  // Handle play/read action for file favorites
+  const handleFileAction = useCallback((item: Favorite): void => {
+    const mediaCategory = item.torrent_files?.media_category;
+    const fileId = item.file_id;
+
+    if (mediaCategory === 'ebook') {
+      // Navigate to ebook reader
+      router.push(`/reader/${fileId}`);
+    } else {
+      // Navigate to torrent details page for audio/video
+      const infohash = item.torrent_files?.torrents?.infohash;
+      if (infohash) {
+        router.push(`/torrents/${infohash}`);
+      }
+    }
+  }, [router]);
 
   const createCollection = useCallback(async (): Promise<void> => {
     if (!newCollectionName.trim()) return;
@@ -403,44 +422,71 @@ export function LibraryContent({
                   Favorite Files ({filteredFavorites.length})
                 </h3>
               )}
-              {filteredFavorites.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
-                >
-                  {/* Thumbnail placeholder */}
-                  <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-muted">
-                    {getMediaIcon(item.torrent_files?.media_category)}
-                  </div>
+              {filteredFavorites.map((item) => {
+                const isEbook = item.torrent_files?.media_category === 'ebook';
+                const infohash = item.torrent_files?.torrents?.infohash;
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-text-primary truncate">
-                      {item.torrent_files?.name ?? 'Unknown'}
-                    </h3>
-                    <p className="text-sm text-text-secondary truncate">
-                      {item.torrent_files?.torrents?.name ?? 'Unknown torrent'}
-                    </p>
-                  </div>
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-4 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                  >
+                    {/* Thumbnail placeholder */}
+                    <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-muted">
+                      {getMediaIcon(item.torrent_files?.media_category)}
+                    </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      className="p-2 rounded-full bg-accent-primary text-white hover:bg-accent-primary/80"
-                      title="Play"
-                    >
-                      <PlayIcon size={16} />
-                    </button>
-                    <button
-                      onClick={() => removeFavorite(item.file_id)}
-                      className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
-                      title="Remove from favorites"
-                    >
-                      <CloseIcon size={16} />
-                    </button>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      {infohash ? (
+                        <Link
+                          href={`/torrents/${infohash}`}
+                          className="font-medium text-text-primary hover:text-accent-primary truncate block"
+                        >
+                          {item.torrent_files?.name ?? 'Unknown'}
+                        </Link>
+                      ) : (
+                        <h3 className="font-medium text-text-primary truncate">
+                          {item.torrent_files?.name ?? 'Unknown'}
+                        </h3>
+                      )}
+                      {infohash ? (
+                        <Link
+                          href={`/torrents/${infohash}`}
+                          className="text-sm text-text-secondary hover:text-accent-primary truncate block"
+                        >
+                          {item.torrent_files?.torrents?.name ?? 'Unknown torrent'}
+                        </Link>
+                      ) : (
+                        <p className="text-sm text-text-secondary truncate">
+                          {item.torrent_files?.torrents?.name ?? 'Unknown torrent'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleFileAction(item)}
+                        className={cn(
+                          'p-2 rounded-full text-white hover:opacity-80',
+                          isEbook ? 'bg-accent-ebook' : 'bg-accent-primary'
+                        )}
+                        title={isEbook ? 'Read' : 'Play'}
+                      >
+                        {isEbook ? <BookIcon size={16} /> : <PlayIcon size={16} />}
+                      </button>
+                      <button
+                        onClick={() => removeFavorite(item.file_id)}
+                        className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
+                        title="Remove from favorites"
+                      >
+                        <CloseIcon size={16} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

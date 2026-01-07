@@ -19,6 +19,8 @@ export interface EbookReaderProps {
   file: string | ArrayBuffer;
   /** Filename (used for format detection if file is ArrayBuffer) */
   filename: string;
+  /** Expected file size in bytes (used for download progress when Content-Length is unavailable) */
+  expectedSize?: number;
   /** Initial page/location */
   initialPosition?: number | string;
   /** Initial zoom level (PDF only) */
@@ -43,6 +45,7 @@ export interface EbookReaderProps {
 export function EbookReader({
   file,
   filename,
+  expectedSize,
   initialPosition,
   initialZoom = 1.0,
   theme = 'dark',
@@ -92,8 +95,9 @@ export function EbookReader({
 
   // Render EPUB reader
   if (format === 'epub') {
-    const epubProps: EpubReaderProps = {
+    const epubProps: import('./epub-reader').EpubReaderProps = {
       file,
+      expectedSize,
       initialLocation: typeof initialPosition === 'string' ? initialPosition : undefined,
       theme,
       fontSize,

@@ -16,6 +16,8 @@ import { calculateReadingProgress } from '@/lib/ebook';
 export interface EpubReaderProps {
   /** URL or ArrayBuffer of the EPUB file */
   file: string | ArrayBuffer;
+  /** Expected file size in bytes (used for download progress when Content-Length is unavailable) */
+  expectedSize?: number;
   /** Initial location (CFI or percentage) */
   initialLocation?: string;
   /** Theme: light, dark, or sepia */
@@ -61,6 +63,7 @@ const THEMES = {
  */
 export function EpubReader({
   file,
+  expectedSize,
   initialLocation,
   theme = 'dark',
   fontSize = 16,
@@ -104,7 +107,8 @@ export function EpubReader({
         }
 
         const contentLength = response.headers.get('content-length');
-        const total = contentLength ? parseInt(contentLength, 10) : 0;
+        // Use Content-Length header, or fall back to expectedSize prop
+        const total = contentLength ? parseInt(contentLength, 10) : (expectedSize ?? 0);
 
         if (!response.body) {
           // Fallback if streaming not supported
@@ -149,7 +153,7 @@ export function EpubReader({
     };
 
     void downloadFile();
-  }, [file, onError]);
+  }, [file, expectedSize, onError]);
 
   // Initialize book after file is downloaded
   useEffect(() => {

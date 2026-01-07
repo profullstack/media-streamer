@@ -168,7 +168,7 @@ export default function ReaderPage(): React.ReactElement {
             </h1>
             <div className="flex items-center gap-2 text-sm text-text-muted">
               <Link
-                href={`/torrents/${torrentInfo.id}`}
+                href={`/torrents/${torrentInfo.infohash}`}
                 className="hover:text-accent-primary truncate"
                 title={torrentInfo.cleanTitle ?? torrentInfo.name}
               >
@@ -194,6 +194,7 @@ export default function ReaderPage(): React.ReactElement {
           <EbookReader
             file={streamUrl}
             filename={fileInfo.name}
+            expectedSize={fileInfo.size}
             theme="dark"
             fontSize={16}
             onPositionChange={handlePositionChange}
