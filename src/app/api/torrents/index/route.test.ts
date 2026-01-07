@@ -39,6 +39,7 @@ vi.mock('@/lib/tracker-scrape', () => ({
     seeders: 10,
     leechers: 5,
     fetchedAt: new Date(),
+    trackersQueried: 5,
     trackersResponded: 3,
   }),
   SCRAPE_TRACKERS: ['udp://tracker.example.com:6969'],
@@ -475,6 +476,116 @@ describe('Torrents Index API Route', () => {
 
       // Verify destroy was called even after error
       expect(mockDestroy).toHaveBeenCalled();
+    });
+
+    it('should create torrent with status "ready" for successful indexing', async () => {
+      const request = new NextRequest('http://localhost:3000/api/torrents/index', {
+        method: 'POST',
+        body: JSON.stringify({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Test+Torrent',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const reader = response.body?.getReader();
+
+      // Read all events to completion
+      let done = false;
+      while (!done) {
+        const result = await reader!.read();
+        done = result.done;
+      }
+
+      // Verify createTorrent was called with status: 'ready'
+      expect(mockCreateTorrent).toHaveBeenCalledTimes(1);
+      expect(mockCreateTorrent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'ready',
+          infohash: '1234567890abcdef1234567890abcdef12345678',
+          name: 'Test Torrent',
+          total_size: 1000000,
+          file_count: 2,
+        })
+      );
+    });
+
+    it('should include swarm stats in torrent creation when tracker scrape succeeds', async () => {
+      // Re-mock scrapeMultipleTrackers to ensure it returns swarm stats
+      const { scrapeMultipleTrackers } = await import('@/lib/tracker-scrape');
+      vi.mocked(scrapeMultipleTrackers).mockResolvedValue({
+        seeders: 10,
+        leechers: 5,
+        fetchedAt: new Date(),
+        trackersQueried: 5,
+        trackersResponded: 3,
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/torrents/index', {
+        method: 'POST',
+        body: JSON.stringify({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Test+Torrent',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const reader = response.body?.getReader();
+
+      // Read all events to completion
+      let done = false;
+      while (!done) {
+        const result = await reader!.read();
+        done = result.done;
+      }
+
+      // Verify createTorrent was called with swarm stats from tracker scrape
+      expect(mockCreateTorrent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'ready',
+          seeders: 10,
+          leechers: 5,
+          swarm_updated_at: expect.any(String),
+        })
+      );
+    });
+
+    it('should still set status to ready even when tracker scrape fails', async () => {
+      const { scrapeMultipleTrackers } = await import('@/lib/tracker-scrape');
+      vi.mocked(scrapeMultipleTrackers).mockRejectedValue(new Error('Tracker scrape failed'));
+
+      const request = new NextRequest('http://localhost:3000/api/torrents/index', {
+        method: 'POST',
+        body: JSON.stringify({
+          magnetUri: 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Test+Torrent',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await POST(request);
+      const reader = response.body?.getReader();
+
+      // Read all events to completion
+      let done = false;
+      while (!done) {
+        const result = await reader!.read();
+        done = result.done;
+      }
+
+      // Verify createTorrent was called with status: 'ready' even without swarm stats
+      expect(mockCreateTorrent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'ready',
+          seeders: null,
+          leechers: null,
+        })
+      );
     });
   });
 });

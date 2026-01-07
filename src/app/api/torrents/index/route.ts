@@ -241,6 +241,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         // Create torrent record with swarm stats
+        // Set status to 'ready' since we have successfully fetched all metadata
         const torrent = await createTorrent({
           infohash: metadata.infohash,
           magnet_uri: metadata.magnetUri,
@@ -251,6 +252,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           seeders,
           leechers,
           swarm_updated_at: swarmUpdatedAt,
+          status: 'ready',
         });
 
         // Create file records
