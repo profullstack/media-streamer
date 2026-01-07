@@ -389,17 +389,18 @@ export function MediaPlayerModal({
       const codecNeedsTranscode = codecInfo?.needsTranscoding === true;
       const requiresTranscoding = isRetryingWithTranscode || formatNeedsTranscode || codecNeedsTranscode;
       
-      // P2P streaming is now ENABLED with hybrid server support
-      // The server uses node-datachannel to enable WebRTC peer connections.
-      // This means the server can:
-      // 1. Download from traditional BitTorrent peers (TCP/UDP)
-      // 2. Seed to browser WebTorrent clients (WebRTC)
+      // P2P streaming DISABLED - always use server-side streaming
       //
-      // Browser clients can now connect to the server as a WebRTC peer,
-      // enabling true P2P streaming where the server acts as a bridge.
+      // Browser WebTorrent can ONLY connect to other WebRTC peers, not traditional
+      // BitTorrent peers (TCP/UDP). Most torrent swarms have traditional peers,
+      // so browser P2P rarely finds peers and the 10-second timeout degrades UX.
       //
-      // P2P is only used for native-compatible formats that don't need transcoding.
-      const canUseP2P = !requiresTranscoding && isNativeCompatible(file.name);
+      // Server-side streaming uses node-datachannel to connect to ALL peers:
+      // - Traditional BitTorrent peers (TCP/UDP) - most of the swarm
+      // - WebRTC peers (browsers)
+      //
+      // Always use server-side streaming for reliability.
+      const canUseP2P = false;
       
       setIsTranscoding(requiresTranscoding);
       setIsP2PStreaming(canUseP2P);
@@ -411,13 +412,10 @@ export function MediaPlayerModal({
         formatNeedsTranscode,
         codecNeedsTranscode,
         isNativeCompatible: isNativeCompatible(file.name),
-        canUseP2P,
         requiresTranscoding,
         isRetryingWithTranscode,
         retryCount,
-        note: canUseP2P
-          ? 'P2P enabled - server has WebRTC support via node-datachannel'
-          : 'P2P disabled - format requires transcoding or is not native-compatible',
+        note: 'Server streaming - P2P disabled (browsers only see WebRTC peers, not traditional peers)',
       });
 
       if (canUseP2P) {

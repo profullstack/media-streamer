@@ -21,6 +21,29 @@ vi.mock('@/lib/media-session', () => ({
   clearMediaSession: vi.fn(),
 }));
 
+// Mock useWebTorrent hook - P2P is disabled, so this should never be called for streaming
+const mockStartStream = vi.fn();
+const mockStopStream = vi.fn();
+vi.mock('@/hooks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks')>();
+  return {
+    ...actual,
+    useWebTorrent: () => ({
+      status: 'idle',
+      streamUrl: null,
+      error: null,
+      progress: 0,
+      downloadSpeed: 0,
+      uploadSpeed: 0,
+      numPeers: 0,
+      downloadedBytes: 0,
+      fileSize: 0,
+      startStream: mockStartStream,
+      stopStream: mockStopStream,
+    }),
+  };
+});
+
 // Mock the audio player to avoid actual audio loading
 vi.mock('@/components/audio/audio-player', () => ({
   AudioPlayer: vi.fn(({ title, artist, album, coverArt }) => (
@@ -818,11 +841,222 @@ describe('MediaPlayerModal', () => {
 
         const { AudioPlayer } = await import('@/components/audio/audio-player');
         const mockAudioPlayer = vi.mocked(AudioPlayer);
-        
+
         const calls = mockAudioPlayer.mock.calls;
         const lastCall = calls[calls.length - 1];
         expect(lastCall[0].src).not.toContain('transcode=auto');
       });
+    });
+  });
+
+  describe('Server-Side Streaming (P2P Disabled)', () => {
+    /**
+     * P2P streaming is disabled because browser WebTorrent can only connect to
+     * WebRTC peers, but most torrent swarms have traditional BitTorrent peers (TCP/UDP).
+     * Server-side streaming uses node-datachannel to connect to ALL peers.
+     */
+
+    it('should NOT call WebTorrent startStream for video files', async () => {
+      mockStartStream.mockClear();
+
+      const videoFile: TorrentFile = {
+        ...mockFile,
+        name: 'movie.mp4',
+        extension: 'mp4',
+        mediaCategory: 'video',
+        mimeType: 'video/mp4',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={videoFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // P2P is disabled, so startStream should never be called
+      expect(mockStartStream).not.toHaveBeenCalled();
+    });
+
+    it('should NOT call WebTorrent startStream for audio files', async () => {
+      mockStartStream.mockClear();
+
+      const audioFile: TorrentFile = {
+        ...mockFile,
+        name: 'song.mp3',
+        extension: 'mp3',
+        mediaCategory: 'audio',
+        mimeType: 'audio/mpeg',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={audioFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      // P2P is disabled for all media, so startStream should never be called
+      expect(mockStartStream).not.toHaveBeenCalled();
+    });
+
+    it('should use server-side /api/stream URL for MP4 video files', async () => {
+      const videoFile: TorrentFile = {
+        ...mockFile,
+        name: 'movie.mp4',
+        extension: 'mp4',
+        mediaCategory: 'video',
+        mimeType: 'video/mp4',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={videoFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      const { VideoPlayer } = await import('@/components/video/video-player');
+      const mockVideoPlayer = vi.mocked(VideoPlayer);
+
+      const lastCall = mockVideoPlayer.mock.calls[mockVideoPlayer.mock.calls.length - 1];
+      // Should use server-side streaming URL
+      expect(lastCall[0].src).toContain('/api/stream');
+      expect(lastCall[0].src).toContain(`infohash=${defaultProps.infohash}`);
+      expect(lastCall[0].src).toContain('fileIndex=');
+    });
+
+    it('should use server-side /api/stream URL for MP3 audio files', async () => {
+      const audioFile: TorrentFile = {
+        ...mockFile,
+        name: 'song.mp3',
+        extension: 'mp3',
+        mediaCategory: 'audio',
+        mimeType: 'audio/mpeg',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={audioFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      const { AudioPlayer } = await import('@/components/audio/audio-player');
+      const mockAudioPlayer = vi.mocked(AudioPlayer);
+
+      const calls = mockAudioPlayer.mock.calls;
+      const lastCall = calls[calls.length - 1];
+      // Should use server-side streaming URL
+      expect(lastCall[0].src).toContain('/api/stream');
+      expect(lastCall[0].src).toContain(`infohash=${defaultProps.infohash}`);
+      expect(lastCall[0].src).toContain('fileIndex=');
+    });
+
+    it('should use server-side streaming for WebM video files (native-compatible)', async () => {
+      mockStartStream.mockClear();
+
+      const webmFile: TorrentFile = {
+        ...mockFile,
+        name: 'video.webm',
+        extension: 'webm',
+        mediaCategory: 'video',
+        mimeType: 'video/webm',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={webmFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      });
+
+      // Even for native-compatible formats, P2P is disabled
+      expect(mockStartStream).not.toHaveBeenCalled();
+
+      const { VideoPlayer } = await import('@/components/video/video-player');
+      const mockVideoPlayer = vi.mocked(VideoPlayer);
+
+      const lastCall = mockVideoPlayer.mock.calls[mockVideoPlayer.mock.calls.length - 1];
+      expect(lastCall[0].src).toContain('/api/stream');
+    });
+
+    it('should use server-side streaming for OGG audio files (native-compatible)', async () => {
+      mockStartStream.mockClear();
+
+      const oggFile: TorrentFile = {
+        ...mockFile,
+        name: 'audio.ogg',
+        extension: 'ogg',
+        mediaCategory: 'audio',
+        mimeType: 'audio/ogg',
+      };
+
+      render(
+        <MediaPlayerModal
+          {...defaultProps}
+          file={oggFile}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      // Even for native-compatible formats, P2P is disabled
+      expect(mockStartStream).not.toHaveBeenCalled();
+
+      const { AudioPlayer } = await import('@/components/audio/audio-player');
+      const mockAudioPlayer = vi.mocked(AudioPlayer);
+
+      const calls = mockAudioPlayer.mock.calls;
+      const lastCall = calls[calls.length - 1];
+      expect(lastCall[0].src).toContain('/api/stream');
+    });
+
+    it('should call stopStream when modal closes to cleanup any potential P2P state', async () => {
+      mockStopStream.mockClear();
+
+      const { rerender } = render(
+        <MediaPlayerModal
+          {...defaultProps}
+        />
+      );
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('audio-player')).toBeInTheDocument();
+      });
+
+      // Close the modal
+      rerender(
+        <MediaPlayerModal
+          {...defaultProps}
+          isOpen={false}
+        />
+      );
+
+      // stopStream should be called during cleanup
+      expect(mockStopStream).toHaveBeenCalled();
     });
   });
 });
