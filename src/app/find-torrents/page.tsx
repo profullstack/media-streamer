@@ -16,6 +16,8 @@ import {
   MagnetIcon,
   CheckIcon,
   GlobeIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
 } from '@/components/ui/icons';
 import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
 
@@ -66,6 +68,75 @@ const PROVIDERS = [
 // Track which magnets have been added
 type AddedMagnets = Record<string, boolean>;
 
+// Inline table sorting types
+type SortColumn = 'name' | 'size' | 'seeders' | 'leechers' | 'date';
+type SortDirection = 'asc' | 'desc';
+interface TableSort {
+  column: SortColumn;
+  direction: SortDirection;
+}
+type ProviderSortState = Record<string, TableSort>;
+
+// Helper function to parse size strings to bytes for comparison
+function parseSizeToBytes(sizeStr: string): number {
+  if (!sizeStr) return 0;
+  const match = sizeStr.match(/^([\d.]+)\s*(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)?$/i);
+  if (!match) return 0;
+
+  const value = parseFloat(match[1]);
+  const unit = (match[2] || 'B').toUpperCase();
+
+  const multipliers: Record<string, number> = {
+    'B': 1,
+    'KB': 1024,
+    'KIB': 1024,
+    'MB': 1024 * 1024,
+    'MIB': 1024 * 1024,
+    'GB': 1024 * 1024 * 1024,
+    'GIB': 1024 * 1024 * 1024,
+    'TB': 1024 * 1024 * 1024 * 1024,
+    'TIB': 1024 * 1024 * 1024 * 1024,
+  };
+
+  return value * (multipliers[unit] || 1);
+}
+
+// Helper function to parse date strings for comparison
+function parseDateValue(dateStr: string | undefined): number {
+  if (!dateStr || dateStr === '-') return 0;
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+// Sort results by column
+function sortResults(results: TorrentResult[], sort: TableSort): TorrentResult[] {
+  const sorted = [...results].sort((a, b) => {
+    let comparison = 0;
+
+    switch (sort.column) {
+      case 'name':
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case 'size':
+        comparison = parseSizeToBytes(a.size) - parseSizeToBytes(b.size);
+        break;
+      case 'seeders':
+        comparison = a.seeders - b.seeders;
+        break;
+      case 'leechers':
+        comparison = a.leechers - b.leechers;
+        break;
+      case 'date':
+        comparison = parseDateValue(a.date) - parseDateValue(b.date);
+        break;
+    }
+
+    return sort.direction === 'asc' ? comparison : -comparison;
+  });
+
+  return sorted;
+}
+
 function FindTorrentsPageInner(): React.ReactElement {
   const searchParams = useSearchParams();
   const queryParam = searchParams.get('q') ?? '';
@@ -85,6 +156,9 @@ function FindTorrentsPageInner(): React.ReactElement {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMagnet, setSelectedMagnet] = useState<string | undefined>(undefined);
   const [selectedTorrentName, setSelectedTorrentName] = useState<string>('');
+
+  // Inline table sorting state (per provider)
+  const [tableSorts, setTableSorts] = useState<ProviderSortState>({});
 
   // Auto-search when query param is present
   useEffect(() => {
@@ -240,6 +314,80 @@ function FindTorrentsPageInner(): React.ReactElement {
     return seeders.toString();
   };
 
+  // Handle column header click for inline sorting
+  const handleColumnSort = useCallback((provider: string, column: SortColumn) => {
+    setTableSorts((prev) => {
+      const currentSort = prev[provider];
+      // If clicking same column, toggle direction; otherwise set new column with desc
+      if (currentSort?.column === column) {
+        return {
+          ...prev,
+          [provider]: {
+            column,
+            direction: currentSort.direction === 'desc' ? 'asc' : 'desc',
+          },
+        };
+      }
+      return {
+        ...prev,
+        [provider]: { column, direction: 'desc' },
+      };
+    });
+  }, []);
+
+  // Get sorted results for a provider
+  const getSortedResults = useCallback(
+    (provider: string, results: TorrentResult[]): TorrentResult[] => {
+      const sort = tableSorts[provider];
+      if (!sort) return results;
+      return sortResults(results, sort);
+    },
+    [tableSorts]
+  );
+
+  // Sortable header component
+  const SortableHeader = ({
+    provider,
+    column,
+    label,
+    align = 'left',
+  }: {
+    provider: string;
+    column: SortColumn;
+    label: string;
+    align?: 'left' | 'center' | 'right';
+  }) => {
+    const currentSort = tableSorts[provider];
+    const isActive = currentSort?.column === column;
+    const direction = isActive ? currentSort.direction : null;
+
+    const alignClasses = {
+      left: 'text-left justify-start',
+      center: 'text-center justify-center',
+      right: 'text-right justify-end',
+    };
+
+    return (
+      <th className={`px-4 py-3 text-sm font-medium text-text-secondary ${align === 'left' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right'}`}>
+        <button
+          onClick={() => handleColumnSort(provider, column)}
+          className={`inline-flex items-center gap-1 hover:text-text-primary transition-colors ${alignClasses[align]} ${isActive ? 'text-accent-primary' : ''}`}
+        >
+          <span>{label}</span>
+          {isActive ? (
+            direction === 'desc' ? (
+              <ChevronDownIcon size={14} className="text-accent-primary" />
+            ) : (
+              <ChevronUpIcon size={14} className="text-accent-primary" />
+            )
+          ) : (
+            <span className="w-[14px]" />
+          )}
+        </button>
+      </th>
+    );
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -385,16 +533,16 @@ function FindTorrentsPageInner(): React.ReactElement {
                     <table className="w-full">
                       <thead className="bg-bg-tertiary">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-text-secondary">Name</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-text-secondary">Size</th>
-                          <th className="px-4 py-3 text-center text-sm font-medium text-text-secondary">Seeders</th>
-                          <th className="px-4 py-3 text-center text-sm font-medium text-text-secondary">Leechers</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-text-secondary">Date</th>
+                          <SortableHeader provider={providerResult.provider} column="name" label="Name" align="left" />
+                          <SortableHeader provider={providerResult.provider} column="size" label="Size" align="left" />
+                          <SortableHeader provider={providerResult.provider} column="seeders" label="Seeders" align="center" />
+                          <SortableHeader provider={providerResult.provider} column="leechers" label="Leechers" align="center" />
+                          <SortableHeader provider={providerResult.provider} column="date" label="Date" align="left" />
                           <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-bg-tertiary bg-bg-secondary">
-                        {providerResult.results.map((result, index) => (
+                        {getSortedResults(providerResult.provider, providerResult.results).map((result, index) => (
                           <tr key={`${result.magnet}-${index}`} className="hover:bg-bg-hover">
                             <td className="px-4 py-3">
                               <div className="max-w-md">
