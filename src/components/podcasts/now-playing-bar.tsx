@@ -16,6 +16,8 @@ import {
   PauseIcon,
   PodcastIcon,
   CloseIcon,
+  Skip30BackIcon,
+  Skip30ForwardIcon,
 } from '@/components/ui/icons';
 
 // ============================================================================
@@ -59,6 +61,18 @@ export function NowPlayingBar(): React.ReactElement | null {
     const time = parseFloat(e.target.value);
     seek(time);
   }, [seek]);
+
+  // Skip backward 30 seconds
+  const skipBackward = useCallback((): void => {
+    const newTime = Math.max(0, currentTime - 30);
+    seek(newTime);
+  }, [currentTime, seek]);
+
+  // Skip forward 30 seconds
+  const skipForward = useCallback((): void => {
+    const newTime = Math.min(duration, currentTime + 30);
+    seek(newTime);
+  }, [currentTime, duration, seek]);
   
   // Don't render if no episode is playing
   if (!currentEpisode) {
@@ -109,17 +123,44 @@ export function NowPlayingBar(): React.ReactElement | null {
             </p>
           </div>
           
-          {/* Play/Pause Button */}
-          <button
-            onClick={togglePlayPause}
-            className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0',
-              'bg-accent-primary text-white hover:bg-accent-primary/90 transition-colors'
-            )}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
-          </button>
+          {/* Playback Controls */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Skip Back 30s */}
+            <button
+              onClick={skipBackward}
+              className={cn(
+                'flex h-8 w-8 items-center justify-center rounded-full',
+                'text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors'
+              )}
+              aria-label="Skip back 30 seconds"
+            >
+              <Skip30BackIcon size={20} />
+            </button>
+
+            {/* Play/Pause Button */}
+            <button
+              onClick={togglePlayPause}
+              className={cn(
+                'flex h-10 w-10 items-center justify-center rounded-full',
+                'bg-accent-primary text-white hover:bg-accent-primary/90 transition-colors'
+              )}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
+            </button>
+
+            {/* Skip Forward 30s */}
+            <button
+              onClick={skipForward}
+              className={cn(
+                'flex h-8 w-8 items-center justify-center rounded-full',
+                'text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors'
+              )}
+              aria-label="Skip forward 30 seconds"
+            >
+              <Skip30ForwardIcon size={20} />
+            </button>
+          </div>
           
           {/* Progress Bar and Time */}
           <div className="hidden sm:flex items-center gap-2 flex-1 max-w-md">

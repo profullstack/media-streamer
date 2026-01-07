@@ -17,6 +17,13 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
+import {
+  setMediaSessionMetadata,
+  updateMediaSessionPlaybackState,
+  updateMediaSessionPositionState,
+  setMediaSessionActionHandlers,
+  clearMediaSession,
+} from '@/lib/media-session';
 
 // ============================================================================
 // Constants
@@ -324,11 +331,109 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
   const seek = useCallback((time: number): void => {
     const audio = audioRef.current;
     if (!audio) return;
-    
+
     audio.currentTime = time;
     setCurrentTime(time);
   }, []);
-  
+
+  // Skip forward/backward (used by Media Session API)
+  const skipForward = useCallback((seconds: number = 30): void => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const newTime = Math.min(audio.duration || Infinity, audio.currentTime + seconds);
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
+  }, []);
+
+  const skipBackward = useCallback((seconds: number = 30): void => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const newTime = Math.max(0, audio.currentTime - seconds);
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
+  }, []);
+
+  // Media Session API: Set metadata for lock screen, CarPlay, etc.
+  useEffect(() => {
+    if (!currentEpisode || !currentPodcast) {
+      clearMediaSession();
+      return;
+    }
+
+    setMediaSessionMetadata({
+      title: currentEpisode.title,
+      artist: currentPodcast.title,
+      album: currentPodcast.title,
+      artwork: currentEpisode.imageUrl ?? currentPodcast.imageUrl ?? undefined,
+    });
+
+    return () => {
+      clearMediaSession();
+    };
+  }, [currentEpisode, currentPodcast]);
+
+  // Media Session API: Update playback state
+  useEffect(() => {
+    updateMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
+  }, [isPlaying]);
+
+  // Media Session API: Update position state for progress bar
+  useEffect(() => {
+    if (duration > 0) {
+      updateMediaSessionPositionState({
+        duration,
+        position: currentTime,
+        playbackRate: 1,
+      });
+    }
+  }, [currentTime, duration]);
+
+  // Media Session API: Set action handlers for lock screen controls
+  useEffect(() => {
+    const audio = audioRef.current;
+
+    setMediaSessionActionHandlers({
+      play: () => {
+        audio?.play().catch(() => {});
+      },
+      pause: () => {
+        audio?.pause();
+      },
+      seekbackward: () => {
+        skipBackward(30);
+      },
+      seekforward: () => {
+        skipForward(30);
+      },
+      seekto: (details) => {
+        if (audio && details.seekTime !== undefined) {
+          audio.currentTime = details.seekTime;
+          setCurrentTime(details.seekTime);
+        }
+      },
+      stop: () => {
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+          setCurrentTime(0);
+        }
+      },
+    });
+
+    return () => {
+      setMediaSessionActionHandlers({
+        play: undefined,
+        pause: undefined,
+        seekbackward: undefined,
+        seekforward: undefined,
+        seekto: undefined,
+        stop: undefined,
+      });
+    };
+  }, [skipForward, skipBackward]);
+
   // Stop playback
   const stop = useCallback((): void => {
     const audio = audioRef.current;
