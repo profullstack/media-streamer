@@ -38,8 +38,13 @@ import { usePodcastPlayer } from '@/contexts/podcast-player';
  * Allows basic formatting tags but strips potentially dangerous content
  */
 function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'span'],
+  // Strip CDATA wrappers first if present
+  let cleaned = html;
+  cleaned = cleaned.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1');
+  cleaned = cleaned.replace(/&lt;!\[CDATA\[([\s\S]*?)\]\]&gt;/gi, '$1');
+
+  return DOMPurify.sanitize(cleaned, {
+    ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'span', 'div'],
     ALLOWED_ATTR: ['href', 'target', 'rel'],
     ADD_ATTR: ['target'],
     FORCE_BODY: true,
@@ -655,7 +660,10 @@ export default function PodcastsPage(): React.ReactElement {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-text-primary truncate">{podcast.title}</h3>
                         <p className="text-sm text-text-muted truncate">{podcast.author}</p>
-                        <p className="text-xs text-text-muted mt-1 line-clamp-2">{podcast.description}</p>
+                        {podcast.description ? <div
+                          className="text-xs text-text-muted mt-1 line-clamp-2 prose prose-xs prose-invert max-w-none [&_*]:text-text-muted [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(podcast.description) }}
+                        /> : null}
                       </div>
                     </div>
                     <div className="mt-4">
@@ -786,9 +794,10 @@ export default function PodcastsPage(): React.ReactElement {
                     <div className="flex-1 min-w-0">
                       <h2 className="text-xl font-bold text-text-primary">{selectedPodcast.title}</h2>
                       <p className="text-sm text-text-muted">{selectedPodcast.author}</p>
-                      {selectedPodcast.description ? <p className="text-sm text-text-secondary mt-2 line-clamp-2">
-                          {selectedPodcast.description}
-                        </p> : null}
+                      {selectedPodcast.description ? <div
+                          className="text-sm text-text-secondary mt-2 line-clamp-2 prose prose-sm prose-invert max-w-none [&_a]:text-accent-primary [&_a]:hover:underline [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedPodcast.description) }}
+                        /> : null}
                       {/* Unsubscribe button with confirmation */}
                       {confirmUnsubscribeId === selectedPodcast.id ? (
                         <div className="mt-3 flex items-center gap-2">
