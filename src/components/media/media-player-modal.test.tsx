@@ -24,25 +24,25 @@ vi.mock('@/lib/media-session', () => ({
 // Mock useWebTorrent hook - P2P is disabled, so this should never be called for streaming
 const mockStartStream = vi.fn();
 const mockStopStream = vi.fn();
-vi.mock('@/hooks', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/hooks')>();
-  return {
-    ...actual,
-    useWebTorrent: () => ({
-      status: 'idle',
-      streamUrl: null,
-      error: null,
-      progress: 0,
-      downloadSpeed: 0,
-      uploadSpeed: 0,
-      numPeers: 0,
-      downloadedBytes: 0,
-      fileSize: 0,
-      startStream: mockStartStream,
-      stopStream: mockStopStream,
-    }),
-  };
-});
+vi.mock('@/hooks/use-webtorrent', () => ({
+  useWebTorrent: () => ({
+    status: 'idle',
+    streamUrl: null,
+    error: null,
+    progress: 0,
+    downloadSpeed: 0,
+    uploadSpeed: 0,
+    numPeers: 0,
+    downloadedBytes: 0,
+    fileSize: 0,
+    startStream: mockStartStream,
+    stopStream: mockStopStream,
+  }),
+  isNativeCompatible: (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    return ['mp4', 'webm', 'ogv', 'm4v', 'mp3', 'wav', 'ogg', 'aac', 'm4a'].includes(ext ?? '');
+  },
+}));
 
 // Mock the audio player to avoid actual audio loading
 vi.mock('@/components/audio/audio-player', () => ({
