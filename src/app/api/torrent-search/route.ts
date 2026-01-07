@@ -68,6 +68,50 @@ function sanitizeQuery(query: string): string {
     .trim();
 }
 
+// Raw result from torge (uses 'link' field for magnet URL)
+interface RawTorrentResult {
+  name: string;
+  link: string;  // torge uses 'link' for magnet URL
+  size: string;
+  seeders: number;
+  leechers: number;
+  date?: string;
+  url?: string;
+  category?: string;
+  uploader?: string;
+}
+
+interface RawProviderResults {
+  provider: string;
+  results: RawTorrentResult[];
+}
+
+/**
+ * Transform raw torge results to normalized format
+ * - Maps 'link' field to 'magnet'
+ * - Filters out results without valid magnet URLs
+ */
+function normalizeResults(rawResults: RawProviderResults[]): ProviderResults[] {
+  return rawResults.map((providerResult) => ({
+    provider: providerResult.provider,
+    results: providerResult.results
+      // Filter: only include results with valid magnet URLs
+      .filter((result) => result.link && result.link.startsWith('magnet:?'))
+      // Transform: map 'link' to 'magnet'
+      .map((result) => ({
+        name: result.name,
+        magnet: result.link,  // Map 'link' to 'magnet'
+        size: result.size,
+        seeders: result.seeders,
+        leechers: result.leechers,
+        date: result.date,
+        url: result.url,
+        category: result.category,
+        uploader: result.uploader,
+      })),
+  }));
+}
+
 /**
  * Execute torge search script and return results
  */
@@ -78,7 +122,7 @@ async function executeTorgeSearch(
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), 'bin', 'torge-all.sh');
     const sanitizedQuery = sanitizeQuery(query);
-    
+
     // Spawn the torge-all.sh script
     const child = spawn('bash', [scriptPath, sanitizedQuery, '-s', sort], {
       cwd: process.cwd(),
@@ -113,7 +157,9 @@ async function executeTorgeSearch(
 
       try {
         // Parse the JSON output from torge-all.sh
-        const results = JSON.parse(stdout) as ProviderResults[];
+        const rawResults = JSON.parse(stdout) as RawProviderResults[];
+        // Normalize results: map 'link' to 'magnet' and filter invalid entries
+        const results = normalizeResults(rawResults);
         resolve(results);
       } catch (parseError) {
         console.error('[TorrentSearch] JSON parse error:', parseError);

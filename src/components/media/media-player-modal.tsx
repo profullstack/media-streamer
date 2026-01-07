@@ -28,7 +28,7 @@ import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
 import { getMediaCategory } from '@/lib/utils';
-import { useAnalytics, useWebTorrent, isNativeCompatible } from '@/hooks';
+import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection } from '@/hooks';
 import type { TorrentFile } from '@/types';
 
 /**
@@ -235,9 +235,13 @@ export function MediaPlayerModal({
   coverArt,
 }: MediaPlayerModalProps): React.ReactElement | null {
   const { trackPlayback } = useAnalytics();
-  
+  const { isTv } = useTvDetection();
+
   // Client-side WebTorrent hook for P2P streaming of native formats
   const webTorrent = useWebTorrent();
+
+  // Ref for video container to enable fullscreen on TV
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -531,7 +535,7 @@ export function MediaPlayerModal({
   const handlePlayerReady = useCallback(() => {
     console.log('[MediaPlayerModal] Player ready');
     setIsPlayerReady(true);
-    
+
     // Track playback start
     if (file) {
       const mediaType = getMediaCategory(file.name);
@@ -543,6 +547,31 @@ export function MediaPlayerModal({
       });
     }
   }, [file, infohash, trackPlayback]);
+
+  // Handle video play event - request fullscreen on TV
+  const handleVideoPlay = useCallback(() => {
+    console.log('[MediaPlayerModal] Video play event, isTv:', isTv);
+
+    // On TV screens, request fullscreen when video starts playing
+    if (isTv && videoContainerRef.current) {
+      const container = videoContainerRef.current;
+
+      // Find the video element inside the container
+      const videoElement = container.querySelector('video');
+
+      // Try to request fullscreen on the video element first, then container
+      const elementToFullscreen = videoElement ?? container;
+
+      if (elementToFullscreen.requestFullscreen) {
+        elementToFullscreen.requestFullscreen().catch((err: Error) => {
+          console.warn('[MediaPlayerModal] Fullscreen request failed:', err.message);
+        });
+      } else if ((elementToFullscreen as HTMLVideoElement & { webkitEnterFullscreen?: () => void }).webkitEnterFullscreen) {
+        // iOS Safari uses webkitEnterFullscreen on video elements
+        (elementToFullscreen as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen();
+      }
+    }
+  }, [isTv]);
 
   // Handle player error
   // If it's a codec error and we haven't tried transcoding yet, retry with transcoding
@@ -692,7 +721,7 @@ export function MediaPlayerModal({
   const modalTitle = torrentName ?? file.name;
   
   const isLoading = !isPlayerReady && !error;
-  
+
   // For P2P streaming, use WebTorrent status; for server-side, use SSE connection status
   // Stream is ready when the stream URL is available - the service worker handles progressive streaming
   // We don't need to wait for a specific buffer amount - the player will buffer as needed
@@ -700,7 +729,8 @@ export function MediaPlayerModal({
   const isServerStreamReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
   const isStreamReady = isP2PStreaming ? isP2PReady : isServerStreamReady;
   // Show play button when stream is ready but user hasn't clicked play yet
-  const showPlayButton = isStreamReady && !userClickedPlay && !isPlayerReady;
+  // On TV screens, skip the play button overlay - let autoplay handle it
+  const showPlayButton = !isTv && isStreamReady && !userClickedPlay && !isPlayerReady;
   // Show loading spinner when stream is not ready yet (for P2P, check WebTorrent status)
   // WebTorrent status: 'idle' | 'loading' | 'buffering' | 'ready' | 'no-peers' | 'error'
   // Also show loading when falling back from P2P to server streaming ('no-peers' status)
@@ -1028,7 +1058,10 @@ export function MediaPlayerModal({
           </div> : null}
 
         {/* Video Player - always render when we have a URL and it's video - compact for TV */}
-        {streamUrl && mediaCategory === 'video' && !error ? <div className="relative aspect-video w-full overflow-hidden rounded-md sm:rounded-lg bg-black">
+        {streamUrl && mediaCategory === 'video' && !error ? <div
+            ref={videoContainerRef}
+            className="relative aspect-video w-full overflow-hidden rounded-md sm:rounded-lg bg-black"
+          >
             {/* Loading spinner overlay - shown while stream is initializing */}
             {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80">
                 <div className="flex flex-col items-center gap-1.5 sm:gap-2">
@@ -1059,6 +1092,7 @@ export function MediaPlayerModal({
               src={streamUrl}
               filename={file.name}
               onReady={handlePlayerReady}
+              onPlay={handleVideoPlay}
               onError={handlePlayerError}
               showTranscodingNotice={false}
               autoplay

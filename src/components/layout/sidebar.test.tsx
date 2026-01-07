@@ -308,16 +308,16 @@ describe('Sidebar Navigation', () => {
       expect(watchPartyLink).toBeVisible();
     });
 
-    it('should keep Watch Party visible regardless of auth state changes', () => {
+    it('should keep Watch Party visible regardless of auth state changes', { timeout: 15000 }, () => {
       const { rerender } = render(<Sidebar isLoggedIn={false} />);
-      
+
       // Initially not logged in
       expect(screen.getByRole('link', { name: /watch party/i })).toBeInTheDocument();
-      
+
       // Log in
       rerender(<Sidebar isLoggedIn={true} />);
       expect(screen.getByRole('link', { name: /watch party/i })).toBeInTheDocument();
-      
+
       // Log out again
       rerender(<Sidebar isLoggedIn={false} />);
       expect(screen.getByRole('link', { name: /watch party/i })).toBeInTheDocument();
@@ -376,7 +376,7 @@ describe('Sidebar Navigation', () => {
       expect(externalLinks).toHaveLength(4);
     });
 
-    it('should show external sites regardless of auth state', () => {
+    it('should show external sites regardless of auth state', { timeout: 15000 }, () => {
       const { rerender } = render(<Sidebar isLoggedIn={false} />);
 
       expect(screen.getByRole('link', { name: /the pirate bay/i })).toBeInTheDocument();

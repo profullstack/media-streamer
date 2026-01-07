@@ -1,0 +1,2 @@
+--rm
+--platform ubuntu-latest=catthehacker/ubuntu:act-latest
