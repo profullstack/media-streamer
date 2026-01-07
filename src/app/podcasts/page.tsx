@@ -502,36 +502,55 @@ export default function PodcastsPage(): React.ReactElement {
     );
   }, [selectedPodcast, playEpisode, episodeProgress]);
 
+  // Check if push notifications are already enabled
+  useEffect(() => {
+    if (!isPushSupported || !isLoggedIn) return;
+
+    const checkPushStatus = async (): Promise<void> => {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+        if (registration) {
+          const subscription = await registration.pushManager.getSubscription();
+          setIsPushEnabled(subscription !== null);
+        }
+      } catch (err) {
+        console.error('[Podcasts] Error checking push status:', err);
+      }
+    };
+
+    void checkPushStatus();
+  }, [isPushSupported, isLoggedIn]);
+
   // Enable push notifications
   const handleEnablePush = useCallback(async (): Promise<void> => {
     if (!isPushSupported || !isLoggedIn) return;
-    
+
     setIsEnablingPush(true);
-    
+
     try {
       const keyResponse = await fetch('/api/push/subscribe');
       if (!keyResponse.ok) throw new Error('Failed to get push key');
       const { vapidPublicKey } = await keyResponse.json() as { vapidPublicKey: string };
-      
+
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') throw new Error('Notification permission denied');
-      
+
       const registration = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
-      
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
       });
-      
+
       const response = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: subscription.toJSON() }),
       });
-      
+
       if (!response.ok) throw new Error('Failed to register push subscription');
-      
+
       setIsPushEnabled(true);
     } catch (err) {
       console.error('[Podcasts] Push enable error:', err);
@@ -539,6 +558,50 @@ export default function PodcastsPage(): React.ReactElement {
       setIsEnablingPush(false);
     }
   }, [isPushSupported, isLoggedIn]);
+
+  // Disable push notifications
+  const handleDisablePush = useCallback(async (): Promise<void> => {
+    if (!isPushSupported || !isLoggedIn) return;
+
+    setIsEnablingPush(true);
+
+    try {
+      const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+      if (!registration) throw new Error('Service worker not found');
+
+      const subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        setIsPushEnabled(false);
+        return;
+      }
+
+      // Unsubscribe from push manager
+      await subscription.unsubscribe();
+
+      // Remove subscription from server
+      const response = await fetch(
+        `/api/push/subscribe?endpoint=${encodeURIComponent(subscription.endpoint)}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok) throw new Error('Failed to unregister push subscription');
+
+      setIsPushEnabled(false);
+    } catch (err) {
+      console.error('[Podcasts] Push disable error:', err);
+    } finally {
+      setIsEnablingPush(false);
+    }
+  }, [isPushSupported, isLoggedIn]);
+
+  // Toggle push notifications
+  const handleTogglePush = useCallback((): void => {
+    if (isPushEnabled) {
+      void handleDisablePush();
+    } else {
+      void handleEnablePush();
+    }
+  }, [isPushEnabled, handleEnablePush, handleDisablePush]);
 
   // Check if already subscribed to a podcast
   const isSubscribed = useCallback((feedUrl: string): boolean => {
@@ -563,12 +626,12 @@ export default function PodcastsPage(): React.ReactElement {
           </div>
           
           {isLoggedIn && isPushSupported ? <button
-              onClick={() => void handleEnablePush()}
-              disabled={isEnablingPush || isPushEnabled}
+              onClick={handleTogglePush}
+              disabled={isEnablingPush}
               className={cn(
                 'flex items-center gap-2 rounded-lg px-4 py-2 transition-colors',
                 isPushEnabled
-                  ? 'bg-green-500/20 text-green-400 cursor-default'
+                  ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
                   : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
               )}
             >
