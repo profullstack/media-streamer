@@ -46,18 +46,27 @@ export function FileFavoriteButton({
   className,
   onToggle,
 }: FileFavoriteButtonProps): React.ReactElement {
-  const { isFavorited, isLoading, toggle } = useFileFavorite(fileId, initialFavorited);
+  const { isFavorited, isLoading, error, toggle } = useFileFavorite(fileId, initialFavorited);
 
-  const handleClick = async (e: React.MouseEvent): Promise<void> => {
+  const handleClick = (e: React.MouseEvent): void => {
     e.preventDefault();
     e.stopPropagation();
 
-    await toggle();
-    onToggle?.(fileId, !isFavorited);
+    toggle()
+      .then(() => {
+        onToggle?.(fileId, !isFavorited);
+      })
+      .catch((err) => {
+        console.error('[FileFavoriteButton] Toggle error:', err);
+      });
   };
 
   const sizeConfig = sizeClasses[size];
-  const label = isFavorited ? 'Remove from favorites' : 'Add to favorites';
+  const label = error
+    ? `Error: ${error}`
+    : isFavorited
+      ? 'Remove from favorites'
+      : 'Add to favorites';
 
   return (
     <button
@@ -72,9 +81,11 @@ export function FileFavoriteButton({
         'focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         sizeConfig.button,
-        isFavorited
-          ? 'text-red-500 hover:text-red-400'
-          : 'text-text-muted hover:text-red-500',
+        error
+          ? 'text-yellow-500 hover:text-yellow-400'
+          : isFavorited
+            ? 'text-red-500 hover:text-red-400'
+            : 'text-text-muted hover:text-red-500',
         className
       )}
     >
@@ -89,7 +100,10 @@ export function FileFavoriteButton({
       ) : (
         <HeartIcon
           size={sizeConfig.icon}
-          className="transition-transform duration-200"
+          className={cn(
+            'transition-transform duration-200',
+            isLoading && 'animate-pulse'
+          )}
         />
       )}
     </button>
