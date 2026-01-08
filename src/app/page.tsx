@@ -228,7 +228,7 @@ export default async function HomePage(): Promise<React.ReactElement> {
         </section>
 
         {/* News Section */}
-        <NewsSection searchTerm="cryptocurrency" limit={6} />
+        <NewsSection searchTerm="" limit={6} />
       </div>
     </MainLayout>
   );

@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const THENEWSAPI_BASE_URL = 'https://api.thenewsapi.com/v1/news/all';
-const DEFAULT_SEARCH_TERM = 'cryptocurrency';
+const DEFAULT_SEARCH_TERM = '';
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 const MIN_LIMIT = 1;
@@ -114,7 +114,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const url = new URL(THENEWSAPI_BASE_URL);
   url.searchParams.set('api_token', apiKey);
-  url.searchParams.set('search', search);
+  // Only add search param if a search term is provided
+  if (search) {
+    url.searchParams.set('search', search);
+  }
   url.searchParams.set('sort', 'published_at');
   url.searchParams.set('language', 'en');
   url.searchParams.set('limit', String(limit));

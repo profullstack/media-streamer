@@ -94,7 +94,7 @@ describe('News API Routes', () => {
       });
     });
 
-    it('should use default search term when none provided', async () => {
+    it('should NOT include search param when none provided', async () => {
       const mockApiResponse = {
         meta: { found: 50, returned: 10, limit: 10, page: 1 },
         data: [],
@@ -110,7 +110,7 @@ describe('News API Routes', () => {
       await GET(request);
 
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('search=cryptocurrency'),
+        expect.not.stringContaining('search='),
         expect.any(Object)
       );
     });
@@ -337,6 +337,48 @@ describe('News API Routes', () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('language=en'),
+        expect.any(Object)
+      );
+    });
+
+    it('should pass category filter to API as categories param', async () => {
+      const mockApiResponse = {
+        meta: { found: 0, returned: 0, limit: 10, page: 1 },
+        data: [],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockApiResponse),
+      });
+
+      const { GET } = await import('./route');
+      const request = createRequest('GET', 'http://localhost:3000/api/news?category=tech');
+      await GET(request);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('categories=tech'),
+        expect.any(Object)
+      );
+    });
+
+    it('should NOT include categories param when category is invalid', async () => {
+      const mockApiResponse = {
+        meta: { found: 0, returned: 0, limit: 10, page: 1 },
+        data: [],
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockApiResponse),
+      });
+
+      const { GET } = await import('./route');
+      const request = createRequest('GET', 'http://localhost:3000/api/news?category=invalid');
+      await GET(request);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.not.stringContaining('categories='),
         expect.any(Object)
       );
     });
