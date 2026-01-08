@@ -27,6 +27,7 @@ import { Modal } from '@/components/ui/modal';
 import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
+import { RefreshIcon } from '@/components/ui/icons';
 import { getMediaCategory } from '@/lib/utils';
 import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection } from '@/hooks';
 import type { TorrentFile } from '@/types';
@@ -657,6 +658,27 @@ export function MediaPlayerModal({
     setRetryCount(prev => prev + 1);
   }, []);
 
+  // Handle refresh button click - restarts the stream completely
+  const handleRefresh = useCallback(() => {
+    console.log('[MediaPlayerModal] User clicked refresh button');
+    // Reset player state
+    setIsPlayerReady(false);
+    setError(null);
+    setStreamUrl(null);
+    setConnectionStatus(null);
+    setCodecCheckComplete(false);
+
+    // Close existing SSE connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    // Increment retryCount to force the stream URL useEffect to re-run
+    // This will rebuild the URL and reconnect to the stream
+    setRetryCount((prev) => prev + 1);
+  }, []);
+
   // Subscribe to connection status SSE - persistent mode keeps streaming after ready
   // Use file.fileIndex as dependency instead of file object to avoid unnecessary reconnections
   // when the file object reference changes but the actual file is the same
@@ -815,6 +837,17 @@ export function MediaPlayerModal({
               className="flex-shrink-0 hover:bg-bg-tertiary rounded-full"
             />
           )}
+
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="p-2 text-text-muted hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors flex-shrink-0"
+            aria-label="Refresh stream"
+            title="Refresh stream"
+          >
+            <RefreshIcon className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Swarm Stats Row - compact for TV */}

@@ -21,6 +21,7 @@ import {
   SkipForwardIcon,
   MusicIcon,
   DownloadIcon,
+  RefreshIcon,
 } from '@/components/ui/icons';
 import type { TorrentFile } from '@/types';
 
@@ -195,6 +196,7 @@ export function PlaylistPlayerModal({
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const prefetchedIndicesRef = useRef<Set<number>>(new Set());
   
@@ -227,9 +229,9 @@ export function PlaylistPlayerModal({
   const displayAlbum = albumFromPath ?? torrentName;
   const displayTitle = trackInfo?.title ?? currentFile?.name ?? '';
 
-  // Build stream URL for current file
+  // Build stream URL for current file (refreshKey forces cache bust on refresh)
   const streamUrl = currentFile
-    ? `/api/stream?infohash=${infohash}&fileIndex=${currentFile.fileIndex}${isTranscoding ? '&transcode=auto' : ''}`
+    ? `/api/stream?infohash=${infohash}&fileIndex=${currentFile.fileIndex}${isTranscoding ? '&transcode=auto' : ''}${refreshKey > 0 ? `&_r=${refreshKey}` : ''}`
     : null;
 
   // Handle player ready
@@ -306,6 +308,24 @@ export function PlaylistPlayerModal({
     
     onClose();
   }, [onClose]);
+
+  // Handle refresh button click - restarts the stream for the current track
+  const handleRefresh = useCallback(() => {
+    console.log('[PlaylistPlayerModal] User clicked refresh button');
+    // Reset player state
+    setIsPlayerReady(false);
+    setError(null);
+    setConnectionStatus(null);
+
+    // Close existing SSE connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    // Re-trigger connection by incrementing refreshKey (forces new stream URL)
+    setRefreshKey(prev => prev + 1);
+  }, []);
 
   // Set up Media Session action handlers for previous/next track
   useEffect(() => {
@@ -500,6 +520,17 @@ export function PlaylistPlayerModal({
               <p className="truncate text-sm text-text-muted">{torrentName}</p>
             ) : null}
           </div>
+
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="p-2 text-text-muted hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors flex-shrink-0"
+            aria-label="Refresh stream"
+            title="Refresh stream"
+          >
+            <RefreshIcon className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Transcoding Notice */}
