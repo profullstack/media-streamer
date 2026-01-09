@@ -508,7 +508,8 @@ export default function PodcastsPage(): React.ReactElement {
 
     const checkPushStatus = async (): Promise<void> => {
       try {
-        const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+        // Use root scope '/' since that's the default scope when registering /sw.js
+        const registration = await navigator.serviceWorker.getRegistration('/');
         if (registration) {
           const subscription = await registration.pushManager.getSubscription();
           setIsPushEnabled(subscription !== null);
@@ -566,7 +567,8 @@ export default function PodcastsPage(): React.ReactElement {
     setIsEnablingPush(true);
 
     try {
-      const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+      // Use root scope '/' since that's the default scope when registering /sw.js
+      const registration = await navigator.serviceWorker.getRegistration('/');
       if (!registration) throw new Error('Service worker not found');
 
       const subscription = await registration.pushManager.getSubscription();
