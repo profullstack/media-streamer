@@ -647,14 +647,14 @@ export default function PodcastsPage(): React.ReactElement {
               className={cn(
                 'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
                 isPushEnabled
-                  ? 'bg-accent-primary text-white hover:bg-accent-primary/90 shadow-lg shadow-accent-primary/25'
+                  ? 'bg-accent-primary text-white hover:bg-accent-primary/90 shadow-lg shadow-accent-primary/25 ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-primary'
                   : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
               )}
             >
               {isEnablingPush ? (
                 <LoadingSpinner size={20} />
               ) : isPushEnabled ? (
-                <BellRingIcon size={20} />
+                <BellRingIcon size={20} className="animate-pulse" />
               ) : (
                 <BellIcon size={20} />
               )}

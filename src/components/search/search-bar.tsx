@@ -121,7 +121,7 @@ export function SearchBar({
       <div className="relative flex items-center">
         {/* Search icon */}
         <SearchIcon
-          className="absolute left-3 text-text-muted"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
           size={18}
         />
 
