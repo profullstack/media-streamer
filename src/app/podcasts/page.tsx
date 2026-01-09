@@ -254,11 +254,34 @@ export default function PodcastsPage(): React.ReactElement {
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check push notification support
+  // Check push notification support (including actual availability, not just API presence)
   useEffect(() => {
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      setIsPushSupported(true);
-    }
+    const checkPushSupport = async (): Promise<void> => {
+      // Check basic API support
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setIsPushSupported(false);
+        return;
+      }
+
+      // Check if notifications are denied at browser level
+      if ('Notification' in window && Notification.permission === 'denied') {
+        setIsPushSupported(false);
+        setPushError('Notifications are blocked in your browser settings');
+        return;
+      }
+
+      // Try to get existing service worker to verify SW actually works
+      try {
+        await navigator.serviceWorker.getRegistrations();
+        setIsPushSupported(true);
+      } catch {
+        // Service workers blocked (e.g., LibreWolf privacy settings)
+        setIsPushSupported(false);
+        setPushError('Service workers are disabled in your browser');
+      }
+    };
+
+    void checkPushSupport();
   }, []);
 
   // Load subscriptions when logged in
