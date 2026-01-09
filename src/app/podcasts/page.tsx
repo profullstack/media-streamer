@@ -53,6 +53,19 @@ function sanitizeHtml(html: string): string {
 }
 
 /**
+ * Decode HTML entities in text (for titles that may contain &amp; &#39; etc.)
+ * Strips all HTML tags and only decodes entities
+ */
+function decodeHtmlEntities(text: string): string {
+  // First sanitize to strip any HTML tags, then decode entities
+  const stripped = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+  // Create a textarea to decode HTML entities
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = stripped;
+  return textarea.value;
+}
+
+/**
  * Convert base64 VAPID key to Uint8Array for push subscription
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
@@ -720,7 +733,7 @@ export default function PodcastsPage(): React.ReactElement {
                           /* eslint-disable-next-line @next/next/no-img-element -- External podcast images from search API */
                           <img
                             src={podcast.imageUrl}
-                            alt={podcast.title}
+                            alt={decodeHtmlEntities(podcast.title)}
                             className="h-20 w-20 rounded-lg object-cover"
                           />
                         ) : (
@@ -730,7 +743,7 @@ export default function PodcastsPage(): React.ReactElement {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-text-primary truncate">{podcast.title}</h3>
+                        <h3 className="font-medium text-text-primary truncate">{decodeHtmlEntities(podcast.title)}</h3>
                         <p className="text-sm text-text-muted truncate">{podcast.author}</p>
                         {podcast.description ? <div
                           className="text-xs text-text-muted mt-1 line-clamp-2 prose prose-xs prose-invert max-w-none [&_*]:text-text-muted [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
@@ -828,7 +841,7 @@ export default function PodcastsPage(): React.ReactElement {
                       /* eslint-disable-next-line @next/next/no-img-element -- External podcast images from subscriptions */
                       <img
                         src={podcast.imageUrl}
-                        alt={podcast.title}
+                        alt={decodeHtmlEntities(podcast.title)}
                         className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
                       />
                     ) : (
@@ -837,7 +850,7 @@ export default function PodcastsPage(): React.ReactElement {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-text-primary truncate text-sm">{podcast.title}</h3>
+                      <h3 className="font-medium text-text-primary truncate text-sm">{decodeHtmlEntities(podcast.title)}</h3>
                       <p className="text-xs text-text-muted truncate">{podcast.author}</p>
                     </div>
                   </button>
@@ -855,7 +868,7 @@ export default function PodcastsPage(): React.ReactElement {
                       /* eslint-disable-next-line @next/next/no-img-element -- External podcast images from subscriptions */
                       <img
                         src={selectedPodcast.imageUrl}
-                        alt={selectedPodcast.title}
+                        alt={decodeHtmlEntities(selectedPodcast.title)}
                         className="h-24 w-24 rounded-lg object-cover flex-shrink-0"
                       />
                     ) : (
@@ -864,7 +877,7 @@ export default function PodcastsPage(): React.ReactElement {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-xl font-bold text-text-primary">{selectedPodcast.title}</h2>
+                      <h2 className="text-xl font-bold text-text-primary">{decodeHtmlEntities(selectedPodcast.title)}</h2>
                       <p className="text-sm text-text-muted">{selectedPodcast.author}</p>
                       {selectedPodcast.description ? <div
                           className="text-sm text-text-secondary mt-2 line-clamp-2 prose prose-sm prose-invert max-w-none [&_a]:text-accent-primary [&_a]:hover:underline [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
@@ -968,7 +981,7 @@ export default function PodcastsPage(): React.ReactElement {
                                       'font-medium',
                                       isCompleted ? 'text-text-muted' : 'text-text-primary'
                                     )}>
-                                      {episode.title}
+                                      {decodeHtmlEntities(episode.title)}
                                     </h4>
                                     {isCompleted && (
                                       <span className="text-xs text-green-500 font-medium">Played</span>
