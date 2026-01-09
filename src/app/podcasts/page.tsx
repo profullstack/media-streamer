@@ -245,6 +245,7 @@ export default function PodcastsPage(): React.ReactElement {
   const [isPushSupported, setIsPushSupported] = useState(false);
   const [isPushEnabled, setIsPushEnabled] = useState(false);
   const [isEnablingPush, setIsEnablingPush] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
   
   // UI state
   const [activeTab, setActiveTab] = useState<'subscriptions' | 'search'>('subscriptions');
@@ -541,6 +542,7 @@ export default function PodcastsPage(): React.ReactElement {
     if (!isPushSupported || !isLoggedIn) return;
 
     setIsEnablingPush(true);
+    setPushError(null);
 
     try {
       const keyResponse = await fetch('/api/push/subscribe');
@@ -548,7 +550,7 @@ export default function PodcastsPage(): React.ReactElement {
       const { vapidPublicKey } = await keyResponse.json() as { vapidPublicKey: string };
 
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('Notification permission denied');
+      if (permission !== 'granted') throw new Error('Notification permission denied. Please allow notifications in your browser settings.');
 
       const registration = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
@@ -567,8 +569,10 @@ export default function PodcastsPage(): React.ReactElement {
       if (!response.ok) throw new Error('Failed to register push subscription');
 
       setIsPushEnabled(true);
+      setPushError(null);
     } catch (err) {
       console.error('[Podcasts] Push enable error:', err);
+      setPushError(err instanceof Error ? err.message : 'Failed to enable notifications');
     } finally {
       setIsEnablingPush(false);
     }
@@ -579,6 +583,7 @@ export default function PodcastsPage(): React.ReactElement {
     if (!isPushSupported || !isLoggedIn) return;
 
     setIsEnablingPush(true);
+    setPushError(null);
 
     try {
       // Use root scope '/' since that's the default scope when registering /sw.js
@@ -603,8 +608,10 @@ export default function PodcastsPage(): React.ReactElement {
       if (!response.ok) throw new Error('Failed to unregister push subscription');
 
       setIsPushEnabled(false);
+      setPushError(null);
     } catch (err) {
       console.error('[Podcasts] Push disable error:', err);
+      setPushError(err instanceof Error ? err.message : 'Failed to disable notifications');
     } finally {
       setIsEnablingPush(false);
     }
@@ -641,25 +648,28 @@ export default function PodcastsPage(): React.ReactElement {
             </p>
           </div>
           
-          {isLoggedIn && isPushSupported ? <button
-              onClick={handleTogglePush}
-              disabled={isEnablingPush}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
-                isPushEnabled
-                  ? 'bg-accent-primary text-white hover:bg-accent-primary/90 shadow-lg shadow-accent-primary/25 ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-primary'
-                  : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
-              )}
-            >
-              {isEnablingPush ? (
-                <LoadingSpinner size={20} />
-              ) : isPushEnabled ? (
-                <BellRingIcon size={20} className="animate-pulse" />
-              ) : (
-                <BellIcon size={20} />
-              )}
-              <span>{isPushEnabled ? 'Notifications On' : 'Enable Notifications'}</span>
-            </button> : null}
+          {isLoggedIn && isPushSupported ? <div className="flex flex-col items-end gap-2">
+              <button
+                onClick={handleTogglePush}
+                disabled={isEnablingPush}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
+                  isPushEnabled
+                    ? 'bg-accent-primary text-white hover:bg-accent-primary/90 shadow-lg shadow-accent-primary/25 ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-primary'
+                    : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
+                )}
+              >
+                {isEnablingPush ? (
+                  <LoadingSpinner size={20} />
+                ) : isPushEnabled ? (
+                  <BellRingIcon size={20} className="animate-pulse" />
+                ) : (
+                  <BellIcon size={20} />
+                )}
+                <span>{isPushEnabled ? 'Notifications On' : 'Enable Notifications'}</span>
+              </button>
+              {pushError ? <p className="text-xs text-red-400 max-w-xs text-right">{pushError}</p> : null}
+            </div> : null}
         </div>
 
         {/* Tabs */}
