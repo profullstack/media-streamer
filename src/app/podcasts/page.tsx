@@ -24,6 +24,7 @@ import {
   PauseIcon,
   LoadingSpinner,
   BellIcon,
+  BellRingIcon,
   PlusIcon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -631,13 +632,19 @@ export default function PodcastsPage(): React.ReactElement {
               onClick={handleTogglePush}
               disabled={isEnablingPush}
               className={cn(
-                'flex items-center gap-2 rounded-lg px-4 py-2 transition-colors',
+                'flex items-center gap-2 rounded-lg px-4 py-2 transition-all',
                 isPushEnabled
-                  ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  ? 'bg-accent-primary text-white hover:bg-accent-primary/90 shadow-lg shadow-accent-primary/25'
                   : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
               )}
             >
-              {isEnablingPush ? <LoadingSpinner size={20} /> : <BellIcon size={20} />}
+              {isEnablingPush ? (
+                <LoadingSpinner size={20} />
+              ) : isPushEnabled ? (
+                <BellRingIcon size={20} />
+              ) : (
+                <BellIcon size={20} />
+              )}
               <span>{isPushEnabled ? 'Notifications On' : 'Enable Notifications'}</span>
             </button> : null}
         </div>
