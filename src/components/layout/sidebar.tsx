@@ -2,10 +2,10 @@
 
 /**
  * Sidebar Navigation Component
- * 
+ *
  * Main navigation sidebar for the application.
  * Supports mobile responsive design with collapsible menu.
- * Hides auth-required features when user is not logged in.
+ * Shows all features to non-logged-in users but redirects to login for auth-required items.
  */
 
 import { useState } from 'react';
@@ -91,13 +91,7 @@ export function Sidebar({ className, isLoggedIn = false, isPremium = false }: Si
     setIsMobileOpen(false);
   };
 
-  // Filter nav items based on auth state only (paid items shown to all, redirect handled in NavSection)
-  const filteredMainNavItems = mainNavItems.filter(
-    (item) => !item.requiresAuth || isLoggedIn
-  );
-  const filteredAccountNavItems = accountNavItems.filter(
-    (item) => !item.requiresAuth || isLoggedIn
-  );
+  // Show all nav items - auth/paid redirects handled in NavSection
 
   return (
     <>
@@ -147,18 +141,16 @@ export function Sidebar({ className, isLoggedIn = false, isPremium = false }: Si
           <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
             {/* Main Navigation */}
             <div>
-              <NavSection items={filteredMainNavItems} pathname={pathname} onItemClick={closeMobile} isPremium={isPremium} />
+              <NavSection items={mainNavItems} pathname={pathname} onItemClick={closeMobile} isLoggedIn={isLoggedIn} isPremium={isPremium} />
             </div>
 
             {/* Account */}
-            {filteredAccountNavItems.length > 0 && (
-              <div>
-                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Account
-                </h3>
-                <NavSection items={filteredAccountNavItems} pathname={pathname} onItemClick={closeMobile} isPremium={isPremium} />
-              </div>
-            )}
+            <div>
+              <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                Account
+              </h3>
+              <NavSection items={accountNavItems} pathname={pathname} onItemClick={closeMobile} isLoggedIn={isLoggedIn} isPremium={isPremium} />
+            </div>
 
             {/* External Links - Find Magnets */}
             <div>
@@ -214,17 +206,19 @@ interface NavSectionProps {
   items: NavItem[];
   pathname: string;
   onItemClick: () => void;
+  isLoggedIn: boolean;
   isPremium: boolean;
 }
 
-function NavSection({ items, pathname, onItemClick, isPremium }: NavSectionProps): React.ReactElement {
+function NavSection({ items, pathname, onItemClick, isLoggedIn, isPremium }: NavSectionProps): React.ReactElement {
   return (
     <ul className="space-y-1">
       {items.map((item) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
-        // Redirect to login if paid feature and user is not premium
-        const href = item.requiresPaid && !isPremium ? '/login' : item.href;
+        // Redirect to login if auth-required and not logged in, or paid feature and not premium
+        const needsLogin = (item.requiresAuth && !isLoggedIn) || (item.requiresPaid && !isPremium);
+        const href = needsLogin ? '/login' : item.href;
 
         return (
           <li key={item.href}>

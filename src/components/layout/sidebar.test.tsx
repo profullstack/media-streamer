@@ -109,28 +109,52 @@ describe('Sidebar Navigation', () => {
   });
 
   describe('Auth-Required Items', () => {
-    it('should hide My Library link when user is NOT logged in', () => {
+    it('should show My Library link when user is NOT logged in but redirect to login', () => {
       render(<Sidebar isLoggedIn={false} />);
-      
-      expect(screen.queryByRole('link', { name: /my library/i })).not.toBeInTheDocument();
+
+      const link = screen.getByRole('link', { name: /my library/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/login');
     });
 
-    it('should show My Library link when user IS logged in', () => {
+    it('should show My Library link with correct href when user IS logged in', () => {
       render(<Sidebar isLoggedIn={true} />);
-      
-      expect(screen.getByRole('link', { name: /my library/i })).toBeInTheDocument();
+
+      const link = screen.getByRole('link', { name: /my library/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/library');
     });
 
-    it('should hide Settings link when user is NOT logged in', () => {
+    it('should show Settings link when user is NOT logged in but redirect to login', () => {
       render(<Sidebar isLoggedIn={false} />);
-      
-      expect(screen.queryByRole('link', { name: /settings/i })).not.toBeInTheDocument();
+
+      const link = screen.getByRole('link', { name: /settings/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/login');
     });
 
-    it('should show Settings link when user IS logged in', () => {
+    it('should show Settings link with correct href when user IS logged in', () => {
       render(<Sidebar isLoggedIn={true} />);
-      
-      expect(screen.getByRole('link', { name: /settings/i })).toBeInTheDocument();
+
+      const link = screen.getByRole('link', { name: /settings/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/settings');
+    });
+
+    it('should show Podcasts link when user is NOT logged in but redirect to login', () => {
+      render(<Sidebar isLoggedIn={false} />);
+
+      const link = screen.getByRole('link', { name: /podcasts/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/login');
+    });
+
+    it('should show Podcasts link with correct href when user IS logged in', () => {
+      render(<Sidebar isLoggedIn={true} />);
+
+      const link = screen.getByRole('link', { name: /podcasts/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/podcasts');
     });
   });
 
@@ -257,40 +281,38 @@ describe('Sidebar Navigation', () => {
   });
 
   describe('Account Section', () => {
-    it('should show Account section header when logged in', () => {
-      render(<Sidebar isLoggedIn={true} />);
-      
+    it('should always show Account section header', () => {
+      render(<Sidebar isLoggedIn={false} />);
+
       expect(screen.getByText('Account')).toBeInTheDocument();
     });
 
-    it('should show Account section when there are visible account items', () => {
+    it('should show all account items (Pricing and Settings) regardless of auth state', () => {
       render(<Sidebar isLoggedIn={false} />);
-      
-      // Pricing is always visible, so Account section should show
-      expect(screen.getByText('Account')).toBeInTheDocument();
+
+      expect(screen.getByRole('link', { name: /pricing/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /settings/i })).toBeInTheDocument();
     });
   });
 
   describe('Navigation Item Count', () => {
-    it('should show correct nav items when logged out (Home, Search, Trending, Torrents, Find Torrents, News, Podcasts, Live TV, Watch Party, Pricing + 4 external)', () => {
+    it('should show all nav items when logged out (all items visible, auth-required redirect to login)', () => {
       render(<Sidebar isLoggedIn={false} />);
 
       const links = screen.getAllByRole('link');
-      // Logo link + 9 main nav items + 1 account item (Pricing) + 3 external sites + 1 IMDB
-      // Home, Search, Trending, Torrents, Find Torrents, News, Podcasts, Live TV, Watch Party = 9 main (News visible but redirects to login)
-      // Actually count the rendered links
-      expect(links.length).toBe(14);
-    });
-
-    it('should show correct nav items when logged in (adds My Library and Settings)', () => {
-      render(<Sidebar isLoggedIn={true} />);
-
-      const links = screen.getAllByRole('link');
-      // Logo link + 10 main nav items + 2 account items + 4 external sites
+      // Logo link + 10 main nav items + 2 account items + 4 external sites = 17
       // Home, Search, Trending, My Library, Torrents, Find Torrents, News, Podcasts, Live TV, Watch Party = 10 main
       // Pricing, Settings = 2 account
       // Logo = 1
       // External: The Pirate Bay, LimeTorrents, 1337x, IMDB = 4
+      expect(links.length).toBe(17);
+    });
+
+    it('should show all nav items when logged in', () => {
+      render(<Sidebar isLoggedIn={true} />);
+
+      const links = screen.getAllByRole('link');
+      // Logo link + 10 main nav items + 2 account items + 4 external sites = 17
       expect(links.length).toBe(17);
     });
   });
