@@ -10,12 +10,6 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'node', // Use node for .ts tests - much faster than jsdom
-    environmentMatchGlobs: [
-      // Use jsdom for React component tests and hook tests
-      ['**/*.test.tsx', 'jsdom'],
-      ['**/hooks/*.test.ts', 'jsdom'],
-    ],
     watch: false,
     testTimeout: 5000, // 5 second timeout per test
     hookTimeout: 5000, // 5 second timeout for hooks
@@ -28,7 +22,26 @@ export default defineConfig({
     },
     teardownTimeout: 5000,
     passWithNoTests: true,
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts', 'workers/**/*.test.ts'],
+    // Use workspace for environment-specific configuration
+    workspace: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['src/**/*.test.ts', 'tests/**/*.test.ts', 'workers/**/*.test.ts'],
+          exclude: ['src/**/hooks/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'jsdom',
+          environment: 'jsdom',
+          include: ['src/**/*.test.tsx', 'src/**/hooks/*.test.ts'],
+        },
+      },
+    ],
     exclude: [
       'node_modules',
       '.next',
