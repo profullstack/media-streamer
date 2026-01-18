@@ -195,6 +195,26 @@ export async function GET(request: NextRequest): Promise<Response> {
   let torrentAddInitiated = false;
   let watcherId: string | null = null;
 
+  // Helper function to cleanup interval and unregister watcher
+  const cleanup = (): void => {
+    if (isStreamClosed) return;
+    isStreamClosed = true;
+
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+
+    // Unregister watcher for DMCA protection
+    // This triggers cleanup timer if this was the last watcher
+    if (watcherId) {
+      const streamingService = getStreamingService();
+      streamingService.unregisterWatcher(infohash, watcherId);
+      console.log(`[SSE] Watcher unregistered for ${infohash}: ${watcherId}`);
+      watcherId = null;
+    }
+  };
+
   const stream = new ReadableStream({
     start(controller) {
       // Use singleton to share WebTorrent client with stream endpoint
@@ -210,7 +230,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       const ensureTorrentAdded = async (): Promise<void> => {
         if (torrentAddInitiated) return;
         torrentAddInitiated = true;
-        
+
         try {
           // torrent.magnet_uri contains the magnet link from the database
           if (torrent.magnet_uri) {
@@ -269,26 +289,48 @@ export async function GET(request: NextRequest): Promise<Response> {
               intervalId = null;
               setTimeout(() => {
                 if (!isStreamClosed) {
-                  controller.close();
+                  cleanup();
+                  try {
+                    controller.close();
+                  } catch {
+                    // Controller may already be closed
+                  }
                 }
               }, 100);
             }
           }
         } catch (error) {
+          // If we get an error sending status (e.g., client disconnected), cleanup
           console.error('Error sending status:', error);
-          const errorEvent: StreamStatusEvent = {
-            stage: 'error',
-            message: 'Connection error',
-            numPeers: 0,
-            progress: 0,
-            downloadSpeed: 0,
-            uploadSpeed: 0,
-            ready: false,
-            fileIndex,
-            timestamp: Date.now(),
-          };
-          const data = `data: ${JSON.stringify(errorEvent)}\n\n`;
-          controller.enqueue(encoder.encode(data));
+
+          // Check if this is a controller closed error (client disconnected)
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes('Controller is already closed') ||
+              errorMessage.includes('Invalid state')) {
+            console.log(`[SSE] Client disconnected for ${infohash}, cleaning up`);
+            cleanup();
+            return;
+          }
+
+          // Try to send error event, but if that fails too, cleanup
+          try {
+            const errorEvent: StreamStatusEvent = {
+              stage: 'error',
+              message: 'Connection error',
+              numPeers: 0,
+              progress: 0,
+              downloadSpeed: 0,
+              uploadSpeed: 0,
+              ready: false,
+              fileIndex,
+              timestamp: Date.now(),
+            };
+            const data = `data: ${JSON.stringify(errorEvent)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          } catch {
+            // Client is definitely disconnected, cleanup
+            cleanup();
+          }
         }
       };
 
@@ -300,20 +342,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     },
 
     cancel() {
-      isStreamClosed = true;
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
-      
-      // Unregister watcher for DMCA protection
-      // This triggers cleanup timer if this was the last watcher
-      if (watcherId) {
-        const streamingService = getStreamingService();
-        streamingService.unregisterWatcher(infohash, watcherId);
-        console.log(`[SSE] Watcher unregistered for ${infohash}: ${watcherId}`);
-        watcherId = null;
-      }
+      cleanup();
     },
   });
 

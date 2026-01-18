@@ -276,6 +276,8 @@ export class StreamingService {
   private dhtReady: boolean = false;
   private dhtNodeCount: number = 0;
   private downloadPath: string;
+  private dhtStatusTimeout: ReturnType<typeof setTimeout> | null = null;
+  private dhtEventHandlers: { event: string; handler: (...args: unknown[]) => void }[] = [];
 
   constructor(options: StreamingServiceOptions = {}) {
     // Get and ensure WebTorrent download directory exists
@@ -334,20 +336,21 @@ export class StreamingService {
     });
     
     // Log DHT events for debugging and track DHT state
-    const dht = (this.client as unknown as { dht?: { on: (event: string, cb: (...args: unknown[]) => void) => void; toJSON?: () => { nodes: unknown[] } } }).dht;
+    // Store handlers so they can be removed in destroy()
+    const dht = (this.client as unknown as { dht?: { on: (event: string, cb: (...args: unknown[]) => void) => void; off?: (event: string, cb: (...args: unknown[]) => void) => void; removeListener?: (event: string, cb: (...args: unknown[]) => void) => void; toJSON?: () => { nodes: unknown[] } } }).dht;
     if (dht) {
-      dht.on('ready', () => {
+      const readyHandler = (): void => {
         this.dhtReady = true;
         // Note: "ready" just means DHT is initialized, NOT that it has connected to nodes
         // Check dhtNodeCount to see if UDP is actually working
         logger.info('DHT initialized (waiting for nodes via UDP)', {
           note: 'If dhtNodeCount stays at 0, UDP is likely blocked on this platform',
         });
-      });
-      dht.on('peer', (peer: unknown, infoHash: unknown) => {
+      };
+      const peerHandler = (peer: unknown, infoHash: unknown): void => {
         logger.info('DHT found peer via UDP!', { peer, infoHash });
-      });
-      dht.on('node', () => {
+      };
+      const nodeHandler = (): void => {
         this.dhtNodeCount++;
         // Log first node connection - this confirms UDP is working
         if (this.dhtNodeCount === 1) {
@@ -355,16 +358,29 @@ export class StreamingService {
         } else if (this.dhtNodeCount % 50 === 0) {
           logger.info('DHT node count', { nodes: this.dhtNodeCount });
         }
-      });
-      dht.on('error', (err: unknown) => {
+      };
+      const errorHandler = (err: unknown): void => {
         logger.warn('DHT error - UDP may be blocked on this platform', {
           error: String(err),
           hint: 'Check firewall settings for outbound UDP on ports 6881, 6969',
         });
-      });
-      
-      // Check DHT status after 10 seconds
-      setTimeout(() => {
+      };
+
+      dht.on('ready', readyHandler);
+      dht.on('peer', peerHandler);
+      dht.on('node', nodeHandler);
+      dht.on('error', errorHandler);
+
+      // Store handlers for cleanup
+      this.dhtEventHandlers = [
+        { event: 'ready', handler: readyHandler },
+        { event: 'peer', handler: peerHandler },
+        { event: 'node', handler: nodeHandler },
+        { event: 'error', handler: errorHandler },
+      ];
+
+      // Check DHT status after 10 seconds (store timeout for cleanup)
+      this.dhtStatusTimeout = setTimeout(() => {
         if (this.dhtNodeCount === 0) {
           logger.warn('DHT has 0 nodes after 10 seconds - UDP is likely blocked', {
             dhtReady: this.dhtReady,
@@ -916,6 +932,52 @@ export class StreamingService {
   }
 
   /**
+   * Get detailed debug information about the streaming service state
+   * Used for monitoring and debugging memory/resource issues
+   */
+  getDebugInfo(): {
+    activeStreams: number;
+    activeTorrents: number;
+    totalWatchers: number;
+    watchersPerTorrent: { infohash: string; watchers: number; hasCleanupTimer: boolean }[];
+    dht: { ready: boolean; nodeCount: number };
+    torrents: { infohash: string; name: string; numPeers: number; progress: number; downloadSpeed: number }[];
+  } {
+    const watchersPerTorrent: { infohash: string; watchers: number; hasCleanupTimer: boolean }[] = [];
+    let totalWatchers = 0;
+
+    for (const [infohash, watcherInfo] of this.torrentWatchers) {
+      const watcherCount = watcherInfo.watchers.size;
+      totalWatchers += watcherCount;
+      watchersPerTorrent.push({
+        infohash,
+        watchers: watcherCount,
+        hasCleanupTimer: watcherInfo.cleanupTimer !== null,
+      });
+    }
+
+    const torrents = this.client.torrents.map(t => ({
+      infohash: t.infoHash,
+      name: t.name || 'Unknown',
+      numPeers: t.numPeers,
+      progress: t.progress,
+      downloadSpeed: t.downloadSpeed,
+    }));
+
+    return {
+      activeStreams: this.activeStreams.size,
+      activeTorrents: this.client.torrents.length,
+      totalWatchers,
+      watchersPerTorrent,
+      dht: {
+        ready: this.dhtReady,
+        nodeCount: this.dhtNodeCount,
+      },
+      torrents,
+    };
+  }
+
+  /**
    * Delete the torrent folder from disk
    * WebTorrent's destroyStore only deletes files inside the folder, not the folder itself
    * This ensures complete cleanup of disk space
@@ -1025,6 +1087,26 @@ export class StreamingService {
       activeStreams: this.activeStreams.size,
       activeWatchers: this.torrentWatchers.size,
     });
+
+    // Clear DHT status timeout if pending
+    if (this.dhtStatusTimeout) {
+      clearTimeout(this.dhtStatusTimeout);
+      this.dhtStatusTimeout = null;
+      logger.debug('Cleared DHT status timeout during destroy');
+    }
+
+    // Remove DHT event listeners to prevent memory leaks
+    const dht = (this.client as unknown as { dht?: { off?: (event: string, cb: (...args: unknown[]) => void) => void; removeListener?: (event: string, cb: (...args: unknown[]) => void) => void } }).dht;
+    if (dht && this.dhtEventHandlers.length > 0) {
+      const removeMethod = dht.off ?? dht.removeListener;
+      if (removeMethod) {
+        for (const { event, handler } of this.dhtEventHandlers) {
+          removeMethod.call(dht, event, handler);
+        }
+        logger.debug('Removed DHT event listeners during destroy', { count: this.dhtEventHandlers.length });
+      }
+      this.dhtEventHandlers = [];
+    }
 
     // Clear all cleanup timers
     for (const [infohash, watcherInfo] of this.torrentWatchers) {

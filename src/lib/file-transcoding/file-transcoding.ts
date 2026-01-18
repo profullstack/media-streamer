@@ -548,9 +548,15 @@ export class FileTranscodingService {
     ffmpeg.stdout.pipe(outputStream);
 
     // Handle FFmpeg stderr (progress/errors)
+    // Limit buffer size to prevent memory leaks during long transcoding sessions
+    const MAX_STDERR_BUFFER = 10000; // 10KB max
     let stderrBuffer = '';
     ffmpeg.stderr.on('data', (data: Buffer) => {
       stderrBuffer += data.toString();
+      // Limit buffer size to prevent memory leaks
+      if (stderrBuffer.length > MAX_STDERR_BUFFER) {
+        stderrBuffer = stderrBuffer.slice(-MAX_STDERR_BUFFER);
+      }
       // Log progress periodically
       if (stderrBuffer.includes('frame=') || stderrBuffer.includes('time=')) {
         const lines = stderrBuffer.split('\n');

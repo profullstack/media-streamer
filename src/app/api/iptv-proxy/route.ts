@@ -42,7 +42,13 @@ const insecureAgent = new Agent({
 });
 
 /**
- * Request timeout in milliseconds (longer for live streams)
+ * Initial connection timeout in milliseconds
+ * This is only for establishing the connection, NOT for the stream duration
+ */
+const CONNECTION_TIMEOUT = 30000;
+
+/**
+ * Request timeout for non-streaming content (playlists, etc.)
  */
 const REQUEST_TIMEOUT = 120000;
 
@@ -207,9 +213,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    // Create abort controller for timeout
+    // Create abort controller for connection timeout only
+    // IMPORTANT: We only use this for establishing the connection (getting headers)
+    // For live streams, we do NOT want to timeout the body streaming
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const timeoutId = setTimeout(() => controller.abort(), CONNECTION_TIMEOUT);
 
     // Fetch the upstream stream using undici with insecure agent
     // This skips SSL certificate validation for IPTV providers with misconfigured certs
@@ -219,6 +227,8 @@ export async function GET(request: NextRequest): Promise<Response> {
       dispatcher: insecureAgent,
     });
 
+    // Clear the timeout immediately after getting the response headers
+    // This prevents the timeout from killing long-running live streams
     clearTimeout(timeoutId);
 
     // Check for upstream errors (allow 206 Partial Content for Range requests)
