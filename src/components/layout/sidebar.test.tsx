@@ -63,10 +63,12 @@ describe('Sidebar Navigation', () => {
       expect(screen.getByRole('link', { name: /^torrents$/i })).toBeInTheDocument();
     });
 
-    it('should show Live TV link for all users', () => {
+    it('should show Live TV link for all users (redirects to login when not logged in)', () => {
       render(<Sidebar isLoggedIn={false} />);
-      
-      expect(screen.getByRole('link', { name: /live tv/i })).toBeInTheDocument();
+
+      const link = screen.getByRole('link', { name: /live tv/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/login');
     });
 
     it('should show Pricing link for all users', () => {
@@ -156,6 +158,22 @@ describe('Sidebar Navigation', () => {
       expect(link).toBeInTheDocument();
       expect(link).toHaveAttribute('href', '/podcasts');
     });
+
+    it('should show Live TV link when user is NOT logged in but redirect to login', () => {
+      render(<Sidebar isLoggedIn={false} />);
+
+      const link = screen.getByRole('link', { name: /live tv/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/login');
+    });
+
+    it('should show Live TV link with correct href when user IS logged in', () => {
+      render(<Sidebar isLoggedIn={true} />);
+
+      const link = screen.getByRole('link', { name: /live tv/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/live-tv');
+    });
   });
 
   describe('Navigation Links', () => {
@@ -183,9 +201,9 @@ describe('Sidebar Navigation', () => {
       expect(screen.getByRole('link', { name: /find torrents/i })).toHaveAttribute('href', '/find-torrents');
     });
 
-    it('should have correct href for Live TV', () => {
-      render(<Sidebar />);
-      
+    it('should have correct href for Live TV when logged in', () => {
+      render(<Sidebar isLoggedIn={true} />);
+
       expect(screen.getByRole('link', { name: /live tv/i })).toHaveAttribute('href', '/live-tv');
     });
 

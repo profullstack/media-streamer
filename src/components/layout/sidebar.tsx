@@ -49,7 +49,7 @@ const mainNavItems: NavItem[] = [
   { href: '/find-torrents', label: 'Find Torrents', icon: SearchPlusIcon },
   { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
   { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },
-  { href: '/live-tv', label: 'Live TV', icon: TvIcon },
+  { href: '/live-tv', label: 'Live TV', icon: TvIcon, requiresAuth: true },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
 ];
 
