@@ -53,6 +53,8 @@ export interface HlsPlayerModalProps {
   channel: Channel;
   /** Playlist ID for favorites (optional) */
   playlistId?: string;
+  /** Provider/playlist name (optional) */
+  providerName?: string;
   /** Whether channel is initially favorited */
   initialFavorited?: boolean;
   /** Callback when favorite state changes */
@@ -67,6 +69,7 @@ export function HlsPlayerModal({
   onClose,
   channel,
   playlistId,
+  providerName,
   initialFavorited = false,
   onFavoriteToggle,
 }: HlsPlayerModalProps): React.ReactElement | null {
@@ -425,12 +428,15 @@ export function HlsPlayerModal({
               >
                 {channel.name}
               </h2>
-              {channel.group ? <span
-                  data-testid="group-badge"
-                  className="inline-block px-2 py-0.5 text-xs font-medium bg-zinc-800 text-zinc-400 rounded"
-                >
-                  {channel.group}
-                </span> : null}
+              <div className="flex items-center gap-2 flex-wrap">
+                {providerName ? <span className="text-xs text-zinc-500">{providerName}</span> : null}
+                {channel.group ? <span
+                    data-testid="group-badge"
+                    className="inline-block px-2 py-0.5 text-xs font-medium bg-zinc-800 text-zinc-400 rounded"
+                  >
+                    {channel.group}
+                  </span> : null}
+              </div>
             </div>
 
             {/* Favorite Button */}

@@ -50,7 +50,7 @@ interface UseTorrentFavoritesReturn {
  * Return type for IPTV channel favorites list hook
  */
 interface UseIptvChannelFavoritesReturn {
-  favorites: (IptvChannelFavoriteWithDetails | IptvChannelFavorite)[];
+  favorites: IptvChannelFavoriteWithDetails[];
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -78,7 +78,7 @@ interface TorrentFavoritesListResponse {
 }
 
 interface IptvChannelFavoritesListResponse {
-  favorites?: (IptvChannelFavoriteWithDetails | IptvChannelFavorite)[];
+  favorites?: IptvChannelFavoriteWithDetails[];
   error?: string;
 }
 
@@ -307,9 +307,9 @@ export function useFileFavorite(
 export function useIptvChannelFavorites(
   playlistId?: string
 ): UseIptvChannelFavoritesReturn {
-  const [favorites, setFavorites] = useState<
-    (IptvChannelFavoriteWithDetails | IptvChannelFavorite)[]
-  >([]);
+  const [favorites, setFavorites] = useState<IptvChannelFavoriteWithDetails[]>(
+    []
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

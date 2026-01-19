@@ -527,6 +527,7 @@ export function LibraryContent({
                       <h3 className="font-medium text-text-primary truncate">
                         {item.channel_name}
                       </h3>
+                      {item.iptv_playlists?.name ? <p className="text-xs text-text-muted truncate">{item.iptv_playlists.name}</p> : null}
                       {item.channel_group ? <p className="text-sm text-text-secondary truncate">{item.channel_group}</p> : null}
                       <p className="text-xs text-text-muted mt-1">
                         Added {formatTimeAgo(item.created_at)}

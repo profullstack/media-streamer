@@ -109,6 +109,7 @@ export default function LiveTvPage(): React.ReactElement {
   // Player state
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [selectedChannelPlaylistId, setSelectedChannelPlaylistId] = useState<string | undefined>(undefined);
+  const [selectedProviderName, setSelectedProviderName] = useState<string | undefined>(undefined);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   
   // Debounce timer ref
@@ -358,13 +359,15 @@ export default function LiveTvPage(): React.ReactElement {
   const handleChannelClick = useCallback((channel: Channel): void => {
     setSelectedChannel(channel);
     setSelectedChannelPlaylistId(activePlaylist?.id);
+    setSelectedProviderName(activePlaylist?.name);
     setIsPlayerOpen(true);
-  }, [activePlaylist?.id]);
+  }, [activePlaylist?.id, activePlaylist?.name]);
 
   const handleClosePlayer = useCallback((): void => {
     setIsPlayerOpen(false);
     setSelectedChannel(null);
     setSelectedChannelPlaylistId(undefined);
+    setSelectedProviderName(undefined);
   }, []);
 
   // Handle favorite toggle - refetch favorites list
@@ -385,6 +388,7 @@ export default function LiveTvPage(): React.ReactElement {
     };
     setSelectedChannel(channel);
     setSelectedChannelPlaylistId(favorite.playlist_id);
+    setSelectedProviderName(favorite.iptv_playlists?.name);
     setIsPlayerOpen(true);
   }, []);
 
@@ -621,6 +625,7 @@ export default function LiveTvPage(): React.ReactElement {
                       )}
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-text-primary text-sm truncate">{favorite.channel_name}</h3>
+                        {favorite.iptv_playlists?.name ? <p className="text-xs text-zinc-500 truncate">{favorite.iptv_playlists.name}</p> : null}
                         {favorite.channel_group ? <p className="text-xs text-text-muted truncate">{favorite.channel_group}</p> : null}
                       </div>
                       {/* Play indicator on hover */}
@@ -927,6 +932,7 @@ export default function LiveTvPage(): React.ReactElement {
             onClose={handleClosePlayer}
             channel={selectedChannel}
             playlistId={selectedChannelPlaylistId}
+            providerName={selectedProviderName}
             initialFavorited={favorites.some(
               f => f.playlist_id === selectedChannelPlaylistId && f.channel_id === selectedChannel.id
             )}
