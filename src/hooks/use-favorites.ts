@@ -33,6 +33,7 @@ interface UseFavoriteReturn {
   isLoading: boolean;
   error: string | null;
   toggle: () => Promise<void>;
+  clearError?: () => void;
 }
 
 /**
@@ -288,20 +289,28 @@ export function useFileFavorite(
       const data = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(data.error ?? 'Failed to update favorite');
-        return;
+        const errorMsg = data.error ?? 'Failed to update favorite';
+        setError(errorMsg);
+        throw new Error(errorMsg);
       }
 
       setIsFavorited(!isFavorited);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
+      if (!error) {
+        setError(message);
+      }
+      throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [fileId, isFavorited]);
+  }, [fileId, isFavorited, error]);
 
-  return { isFavorited, isLoading, error, toggle };
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  return { isFavorited, isLoading, error, toggle, clearError };
 }
 
 export function useIptvChannelFavorites(
