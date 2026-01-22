@@ -196,7 +196,34 @@ function stripCdata(content: string | null): string | null {
   result = result.replace(/&#39;/g, "'");
   result = result.replace(/&apos;/g, "'");
 
-  return result;
+  // Trim again after CDATA stripping to remove any internal whitespace
+  return result.trim();
+}
+
+/**
+ * Normalize a GUID to prevent duplicates from URL variations
+ * Handles: trailing slashes, http/https, www prefix, whitespace
+ */
+function normalizeGuid(guid: string): string {
+  let normalized = guid.trim();
+
+  // If it looks like a URL, normalize it
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    // Normalize protocol to https
+    normalized = normalized.replace(/^http:\/\//, 'https://');
+    // Remove www. prefix
+    normalized = normalized.replace(/^(https:\/\/)www\./, '$1');
+    // Remove trailing slash
+    normalized = normalized.replace(/\/$/, '');
+    // Decode URL-encoded characters for consistency
+    try {
+      normalized = decodeURIComponent(normalized);
+    } catch {
+      // If decoding fails, keep original
+    }
+  }
+
+  return normalized;
 }
 
 /**
@@ -254,7 +281,8 @@ function parseRssFeed(xml: string): ParsedPodcastFeed | null {
       const itemXml = itemMatch[1];
       
       const episodeTitle = getTagContent(itemXml, 'title');
-      const guid = getTagContent(itemXml, 'guid') || getTagContent(itemXml, 'link');
+      const rawGuid = getTagContent(itemXml, 'guid') || getTagContent(itemXml, 'link');
+      const guid = rawGuid ? normalizeGuid(rawGuid) : null;
       const audioUrl = getAttributeValue(itemXml, 'enclosure', 'url');
       const pubDateStr = getTagContent(itemXml, 'pubDate');
       
