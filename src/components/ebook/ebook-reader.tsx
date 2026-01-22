@@ -9,6 +9,7 @@
 import React, { useMemo } from 'react';
 import { PdfReader, PdfReaderProps } from './pdf-reader';
 import { EpubReader, EpubReaderProps } from './epub-reader';
+import { MobiReader, MobiReaderProps } from './mobi-reader';
 import { getEbookFormat, isEbookFile, EbookFormat } from '@/lib/ebook';
 
 /**
@@ -114,7 +115,26 @@ export function EbookReader({
     return <div data-testid="ebook-reader" className={className}><EpubReader {...epubProps} /></div>;
   }
 
-  // For other formats (MOBI, AZW, CBZ, etc.), show placeholder
+  // Render MOBI/AZW/AZW3 reader
+  if (format === 'mobi' || format === 'azw' || format === 'azw3') {
+    const mobiProps: MobiReaderProps = {
+      file,
+      filename,
+      expectedSize,
+      onLocationChange: (location, percentage) => {
+        onPositionChange?.(location, percentage);
+      },
+      onBookLoad: () => {
+        onLoad?.({ format });
+      },
+      onError,
+      className,
+    };
+
+    return <div data-testid="ebook-reader" className={className}><MobiReader {...mobiProps} /></div>;
+  }
+
+  // For other formats (CBZ, FB2, etc.), show placeholder
   // These would require additional libraries or conversion
   return (
     <div data-testid="ebook-reader" className={`flex flex-col items-center justify-center p-8 ${className}`}>
@@ -123,7 +143,7 @@ export function EbookReader({
         The {format.toUpperCase()} format is recognized but not yet fully supported.
       </div>
       <div className="text-gray-500 text-xs mt-2">
-        Currently supported readers: PDF, EPUB
+        Currently supported readers: PDF, EPUB, MOBI, AZW, AZW3
       </div>
     </div>
   );

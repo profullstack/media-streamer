@@ -160,7 +160,7 @@ describe('Ebook Library', () => {
       const config = getReaderConfig('mobi');
       expect(config.format).toBe('mobi');
       expect(config.supportsPagination).toBe(true);
-      expect(config.requiresConversion).toBe(true);
+      expect(config.requiresConversion).toBe(false); // MOBI now supported via foliate-js
     });
 
     it('should return default config for unsupported formats', () => {

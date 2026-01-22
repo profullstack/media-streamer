@@ -171,10 +171,10 @@ export function getReaderConfig(format: EbookFormat | 'unknown'): ReaderConfig {
         supportsSearch: true,
         supportsZoom: false,
         supportsAnnotations: false,
-        supportsThemes: true,
-        supportsFontSize: true,
+        supportsThemes: false,
+        supportsFontSize: false,
         supportsDoublePage: false,
-        requiresConversion: true,
+        requiresConversion: false,
       };
 
     case 'azw':
@@ -185,10 +185,10 @@ export function getReaderConfig(format: EbookFormat | 'unknown'): ReaderConfig {
         supportsSearch: true,
         supportsZoom: false,
         supportsAnnotations: false,
-        supportsThemes: true,
-        supportsFontSize: true,
+        supportsThemes: false,
+        supportsFontSize: false,
         supportsDoublePage: false,
-        requiresConversion: true,
+        requiresConversion: false,
       };
 
     case 'cbz':
