@@ -29,6 +29,7 @@ import {
   PodcastIcon,
   SearchPlusIcon,
   NewsIcon,
+  RadioIcon,
 } from '@/components/ui/icons';
 
 interface NavItem {
@@ -50,6 +51,7 @@ const mainNavItems: NavItem[] = [
   { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
   { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon, requiresAuth: true },
+  { href: '/radio', label: 'Live Radio', icon: RadioIcon, requiresAuth: true },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
 ];
 

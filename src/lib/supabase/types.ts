@@ -1504,6 +1504,36 @@ export type Database = {
           }
         ];
       };
+      radio_station_favorites: {
+        Row: {
+          id: string;
+          user_id: string;
+          station_id: string;
+          station_name: string;
+          station_image_url: string | null;
+          station_genre: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          station_id: string;
+          station_name: string;
+          station_image_url?: string | null;
+          station_genre?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          station_id?: string;
+          station_name?: string;
+          station_image_url?: string | null;
+          station_genre?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1925,6 +1955,11 @@ export type TorrentFavoriteUpdate = UpdateTables<'torrent_favorites'>;
 export type IptvChannelFavorite = Tables<'iptv_channel_favorites'>;
 export type IptvChannelFavoriteInsert = InsertTables<'iptv_channel_favorites'>;
 export type IptvChannelFavoriteUpdate = UpdateTables<'iptv_channel_favorites'>;
+
+// Radio station favorites types
+export type RadioStationFavorite = Tables<'radio_station_favorites'>;
+export type RadioStationFavoriteInsert = InsertTables<'radio_station_favorites'>;
+export type RadioStationFavoriteUpdate = UpdateTables<'radio_station_favorites'>;
 
 // User profile types (manually defined until migration is applied)
 export interface UserProfile {
