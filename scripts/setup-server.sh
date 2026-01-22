@@ -932,6 +932,26 @@ sudo systemctl enable ${SERVICE_NAME} 2>/dev/null || true
 sudo systemctl enable ${IPTV_WORKER_SERVICE} 2>/dev/null || true
 sudo systemctl enable ${PODCAST_WORKER_SERVICE} 2>/dev/null || true
 
+# Set up cron job to clean webtorrent temp directory at midnight
+WEBTORRENT_TMP_DIR="/home/${VPS_USER}/tmp/webtorrent"
+CRON_JOB="0 0 * * * rm -rf ${WEBTORRENT_TMP_DIR}/* >/dev/null 2>&1"
+echo "=== Setting up webtorrent temp cleanup cron job ==="
+
+# Create the webtorrent tmp directory if it doesn't exist
+if [ ! -d "${WEBTORRENT_TMP_DIR}" ]; then
+    mkdir -p "${WEBTORRENT_TMP_DIR}"
+    echo "  Created ${WEBTORRENT_TMP_DIR}"
+fi
+
+# Check if the cron job already exists for this user
+if crontab -l 2>/dev/null | grep -q "rm -rf ${WEBTORRENT_TMP_DIR}"; then
+    echo "  Cron job for webtorrent cleanup already exists"
+else
+    # Add the cron job
+    (crontab -l 2>/dev/null || true; echo "${CRON_JOB}") | crontab -
+    echo "✓ Added cron job: Clean ${WEBTORRENT_TMP_DIR}/* at midnight daily"
+fi
+
 echo ""
 echo "=== Setup Complete! ==="
 echo ""
@@ -979,4 +999,9 @@ echo "  Restart: sudo systemctl restart ${PODCAST_WORKER_SERVICE}"
 echo "  Status:  sudo systemctl status ${PODCAST_WORKER_SERVICE}"
 echo "  Logs:    tail -f ${PODCAST_WORKER_LOG}"
 echo "  Errors:  tail -f ${PODCAST_WORKER_ERROR_LOG}"
+echo ""
+echo "Scheduled Tasks:"
+echo "  WebTorrent temp cleanup: Daily at midnight"
+echo "  Directory: ${WEBTORRENT_TMP_DIR}"
+echo "  View cron jobs: crontab -l"
 
