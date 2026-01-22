@@ -78,6 +78,8 @@ export function EpubReader({
 
   const [isDownloading, setIsDownloading] = useState<boolean>(typeof file === 'string');
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [downloadedBytes, setDownloadedBytes] = useState<number>(0);
+  const [totalBytes, setTotalBytes] = useState<number>(0);
   const [fileData, setFileData] = useState<ArrayBuffer | null>(typeof file !== 'string' ? file : null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
@@ -100,6 +102,8 @@ export function EpubReader({
       try {
         setIsDownloading(true);
         setDownloadProgress(0);
+        setDownloadedBytes(0);
+        setTotalBytes(0);
 
         const response = await fetch(file);
         if (!response.ok) {
@@ -109,11 +113,14 @@ export function EpubReader({
         const contentLength = response.headers.get('content-length');
         // Use Content-Length header, or fall back to expectedSize prop
         const total = contentLength ? parseInt(contentLength, 10) : (expectedSize ?? 0);
+        setTotalBytes(total);
 
         if (!response.body) {
           // Fallback if streaming not supported
           const buffer = await response.arrayBuffer();
           setFileData(buffer);
+          setDownloadedBytes(buffer.byteLength);
+          setDownloadProgress(100);
           setIsDownloading(false);
           return;
         }
@@ -128,6 +135,7 @@ export function EpubReader({
 
           chunks.push(value);
           receivedLength += value.length;
+          setDownloadedBytes(receivedLength);
 
           if (total > 0) {
             setDownloadProgress(Math.round((receivedLength / total) * 100));
@@ -142,6 +150,8 @@ export function EpubReader({
           position += chunk.length;
         }
 
+        // Set progress to 100% when done (even if we didn't know total)
+        setDownloadProgress(100);
         setFileData(buffer.buffer);
         setIsDownloading(false);
       } catch (err) {
@@ -432,14 +442,18 @@ export function EpubReader({
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
               <p className="mt-4 text-gray-400 text-sm">
                 {isDownloading
-                  ? `Downloading EPUB${downloadProgress > 0 ? ` (${downloadProgress}%)` : '...'}`
+                  ? totalBytes > 0
+                    ? `Downloading EPUB (${downloadProgress}%)`
+                    : downloadedBytes > 0
+                      ? `Downloading EPUB (${(downloadedBytes / 1024 / 1024).toFixed(1)} MB)`
+                      : 'Downloading EPUB...'
                   : 'Loading book...'}
               </p>
-              {isDownloading && downloadProgress > 0 && (
+              {isDownloading && (totalBytes > 0 ? downloadProgress > 0 : downloadedBytes > 0) && (
                 <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-blue-500 transition-all duration-300"
-                    style={{ width: `${downloadProgress}%` }}
+                    className={`h-full transition-all duration-300 ${totalBytes > 0 ? 'bg-blue-500' : 'bg-blue-500 animate-pulse'}`}
+                    style={{ width: totalBytes > 0 ? `${downloadProgress}%` : '100%' }}
                   />
                 </div>
               )}
