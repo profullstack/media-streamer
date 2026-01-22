@@ -7,7 +7,7 @@
  * Pre-downloads files using shared download utility for better UX with torrent streaming.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -67,6 +67,24 @@ export function PdfReader({
 
   // File data is either passed directly or downloaded
   const fileData = typeof file !== 'string' ? file : downloadedData;
+
+  // Create a Blob URL from the file data for react-pdf
+  // PDF.js transfers ArrayBuffers to its worker, which detaches them from the main thread
+  // Using a Blob URL avoids this issue entirely since we pass a URL string, not the buffer
+  const pdfBlobUrl = useMemo(() => {
+    if (!fileData) return null;
+    const blob = new Blob([fileData], { type: 'application/pdf' });
+    return URL.createObjectURL(blob);
+  }, [fileData]);
+
+  // Cleanup blob URL when it changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [pdfBlobUrl]);
 
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(initialPage);
@@ -229,7 +247,7 @@ export function PdfReader({
   }
 
   // Wait for file data
-  if (!fileData) {
+  if (!pdfBlobUrl) {
     return (
       <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
@@ -328,7 +346,7 @@ export function PdfReader({
         ) : null}
 
         <Document
-          file={{ data: fileData }}
+          file={pdfBlobUrl}
           onLoadSuccess={handleDocumentLoadSuccess}
           onLoadError={handleDocumentLoadError}
           loading={null}

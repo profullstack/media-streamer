@@ -109,17 +109,30 @@ export function EpubReader({
   useEffect(() => {
     if (!containerRef.current || !fileData || isDownloading) return;
 
+    let aborted = false;
+
     const initBook = async (): Promise<void> => {
       try {
         // Create book instance with ArrayBuffer
         const book = ePub(fileData);
+
+        if (aborted) {
+          book.destroy();
+          return;
+        }
+
         bookRef.current = book;
 
         // Wait for book to be ready
         await book.ready;
 
+        if (aborted) return;
+
         // Get table of contents
         const navigation = await book.loaded.navigation;
+
+        if (aborted) return;
+
         setToc(navigation.toc);
 
         // Create rendition
@@ -135,9 +148,9 @@ export function EpubReader({
         rendition.themes.register('dark', THEMES.dark);
         rendition.themes.register('sepia', THEMES.sepia);
 
-        // Apply initial theme and font size
-        rendition.themes.select(currentTheme);
-        rendition.themes.fontSize(`${currentFontSize}px`);
+        // Apply initial theme and font size (use props, not state, to avoid re-init on changes)
+        rendition.themes.select(theme);
+        rendition.themes.fontSize(`${fontSize}px`);
 
         // Display initial location or start
         if (initialLocation) {
@@ -145,6 +158,8 @@ export function EpubReader({
         } else {
           await rendition.display();
         }
+
+        if (aborted) return;
 
         // Listen for location changes
         rendition.on('relocated', (location: { start: { cfi: string; percentage: number } }) => {
@@ -158,6 +173,7 @@ export function EpubReader({
         setIsLoading(false);
         onBookLoad?.(book);
       } catch (err) {
+        if (aborted) return;
         const error = err instanceof Error ? err : new Error('Failed to load EPUB');
         setBookError(error);
         setIsLoading(false);
@@ -169,13 +185,17 @@ export function EpubReader({
 
     // Cleanup
     return () => {
+      aborted = true;
       if (bookRef.current) {
         bookRef.current.destroy();
         bookRef.current = null;
         renditionRef.current = null;
       }
     };
-  }, [fileData, isDownloading, initialLocation, onBookLoad, onError, onLocationChange, currentTheme, currentFontSize]);
+  // Note: theme and fontSize are intentionally not in deps - we use props for initial setup only
+  // Changes to theme/font after init are handled by changeTheme/changeFontSize callbacks
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileData, isDownloading, initialLocation, onBookLoad, onError, onLocationChange]);
 
   // Navigate to previous page
   const goToPreviousPage = useCallback(() => {
