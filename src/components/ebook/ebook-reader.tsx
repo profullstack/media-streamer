@@ -100,7 +100,6 @@ export function EbookReader({
       file,
       expectedSize,
       initialLocation: typeof initialPosition === 'string' ? initialPosition : undefined,
-      theme,
       fontSize,
       onLocationChange: (location, percentage) => {
         onPositionChange?.(location, percentage);
