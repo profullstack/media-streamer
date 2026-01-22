@@ -91,7 +91,7 @@ export function EbookReader({
       className,
     };
 
-    return <div data-testid="ebook-reader"><PdfReader {...pdfProps} /></div>;
+    return <div data-testid="ebook-reader" className={className}><PdfReader {...pdfProps} /></div>;
   }
 
   // Render EPUB reader
@@ -112,7 +112,7 @@ export function EbookReader({
       className,
     };
 
-    return <div data-testid="ebook-reader"><EpubReader {...epubProps} /></div>;
+    return <div data-testid="ebook-reader" className={className}><EpubReader {...epubProps} /></div>;
   }
 
   // For other formats (MOBI, AZW, CBZ, etc.), show placeholder

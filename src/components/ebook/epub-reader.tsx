@@ -255,6 +255,42 @@ export function EpubReader({
     );
   }
 
+  // Show download progress (return early like PDF reader)
+  if (isDownloading) {
+    return (
+      <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+        <p className="mt-4 text-gray-400 text-sm">
+          {downloadProgress !== null
+            ? `Downloading EPUB (${downloadProgress}%)`
+            : downloadedBytes > 0
+              ? `Downloading EPUB (${formatDownloadProgress(downloadedBytes)})`
+              : 'Downloading EPUB...'}
+        </p>
+        {downloadProgress !== null || downloadedBytes > 0 ? (
+          <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 ${
+                downloadProgress !== null ? 'bg-blue-500' : 'bg-blue-500 animate-pulse'
+              }`}
+              style={{ width: downloadProgress !== null ? `${downloadProgress}%` : '100%' }}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Show loading state while book is initializing
+  if (isLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+        <p className="mt-4 text-gray-400 text-sm">Loading book...</p>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* Toolbar */}
@@ -393,29 +429,6 @@ export function EpubReader({
 
         {/* EPUB content */}
         <div className="flex-1 relative">
-          {isDownloading || isLoading ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-              <p className="mt-4 text-gray-400 text-sm">
-                {isDownloading
-                  ? downloadProgress !== null
-                    ? `Downloading EPUB (${downloadProgress}%)`
-                    : downloadedBytes > 0
-                      ? `Downloading EPUB (${formatDownloadProgress(downloadedBytes)})`
-                      : 'Downloading EPUB...'
-                  : 'Loading book...'}
-              </p>
-              {isDownloading && (downloadProgress !== null || downloadedBytes > 0) ? <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-300 ${
-                      downloadProgress !== null ? 'bg-blue-500' : 'bg-blue-500 animate-pulse'
-                    }`}
-                    style={{ width: downloadProgress !== null ? `${downloadProgress}%` : '100%' }}
-                  />
-                </div> : null}
-            </div>
-          ) : null}
-
           <div
             ref={containerRef}
             className="w-full h-full"
