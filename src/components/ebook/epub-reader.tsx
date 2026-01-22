@@ -2,13 +2,13 @@
 
 /**
  * EPUB Reader Component
- * 
+ *
  * Uses epub.js to render EPUB documents with navigation, themes, and search
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import ePub, { Book, Rendition, NavItem } from 'epubjs';
-import { calculateReadingProgress } from '@/lib/ebook';
+import { calculateReadingProgress, useFileDownload, formatDownloadProgress } from '@/lib/ebook';
 
 /**
  * EPUB Reader Props
@@ -76,13 +76,25 @@ export function EpubReader({
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
 
-  const [isDownloading, setIsDownloading] = useState<boolean>(typeof file === 'string');
-  const [downloadProgress, setDownloadProgress] = useState<number>(0);
-  const [downloadedBytes, setDownloadedBytes] = useState<number>(0);
-  const [totalBytes, setTotalBytes] = useState<number>(0);
-  const [fileData, setFileData] = useState<ArrayBuffer | null>(typeof file !== 'string' ? file : null);
+  // Use shared download hook for URL files
+  const downloadUrl = typeof file === 'string' ? file : null;
+  const {
+    isDownloading,
+    progress: downloadProgress,
+    downloadedBytes,
+    data: downloadedData,
+    error: downloadError,
+    retry: retryDownload,
+  } = useFileDownload(downloadUrl, {
+    expectedSize,
+    onError,
+  });
+
+  // File data is either passed directly or downloaded
+  const fileData = typeof file !== 'string' ? file : downloadedData;
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [bookError, setBookError] = useState<Error | null>(null);
   const [toc, setToc] = useState<NavItem[]>([]);
   const [showToc, setShowToc] = useState<boolean>(false);
   const [, setCurrentLocation] = useState<string>('');
@@ -90,82 +102,10 @@ export function EpubReader({
   const [currentFontSize, setCurrentFontSize] = useState<number>(fontSize);
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark' | 'sepia'>(theme);
 
-  // Download file if it's a URL
-  useEffect(() => {
-    if (typeof file !== 'string') {
-      setFileData(file);
-      setIsDownloading(false);
-      return;
-    }
+  // Combined error from download or book loading
+  const error = downloadError || bookError;
 
-    const downloadFile = async (): Promise<void> => {
-      try {
-        setIsDownloading(true);
-        setDownloadProgress(0);
-        setDownloadedBytes(0);
-        setTotalBytes(0);
-
-        const response = await fetch(file);
-        if (!response.ok) {
-          throw new Error(`Failed to download EPUB: ${response.status} ${response.statusText}`);
-        }
-
-        const contentLength = response.headers.get('content-length');
-        // Use Content-Length header, or fall back to expectedSize prop
-        const total = contentLength ? parseInt(contentLength, 10) : (expectedSize ?? 0);
-        setTotalBytes(total);
-
-        if (!response.body) {
-          // Fallback if streaming not supported
-          const buffer = await response.arrayBuffer();
-          setFileData(buffer);
-          setDownloadedBytes(buffer.byteLength);
-          setDownloadProgress(100);
-          setIsDownloading(false);
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let receivedLength = 0;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          chunks.push(value);
-          receivedLength += value.length;
-          setDownloadedBytes(receivedLength);
-
-          if (total > 0) {
-            setDownloadProgress(Math.round((receivedLength / total) * 100));
-          }
-        }
-
-        // Combine chunks into ArrayBuffer
-        const buffer = new Uint8Array(receivedLength);
-        let position = 0;
-        for (const chunk of chunks) {
-          buffer.set(chunk, position);
-          position += chunk.length;
-        }
-
-        // Set progress to 100% when done (even if we didn't know total)
-        setDownloadProgress(100);
-        setFileData(buffer.buffer);
-        setIsDownloading(false);
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Failed to download EPUB');
-        setError(error);
-        setIsDownloading(false);
-        onError?.(error);
-      }
-    };
-
-    void downloadFile();
-  }, [file, expectedSize, onError]);
-
-  // Initialize book after file is downloaded
+  // Initialize book after file is available
   useEffect(() => {
     if (!containerRef.current || !fileData || isDownloading) return;
 
@@ -219,7 +159,7 @@ export function EpubReader({
         onBookLoad?.(book);
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Failed to load EPUB');
-        setError(error);
+        setBookError(error);
         setIsLoading(false);
         onError?.(error);
       }
@@ -290,11 +230,29 @@ export function EpubReader({
 
   const progress = calculateReadingProgress(percentage, 100);
 
+  // Retry handler - resets book error and triggers download retry
+  const handleRetry = useCallback(() => {
+    setBookError(null);
+    retryDownload();
+  }, [retryDownload]);
+
   if (error) {
+    const is503 = error.message.includes('503');
     return (
       <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
         <div className="text-red-500 text-lg mb-4">Failed to load EPUB</div>
-        <div className="text-gray-400 text-sm">{error.message}</div>
+        <div className="text-gray-400 text-sm mb-4">{error.message}</div>
+        {is503 && (
+          <div className="text-gray-500 text-xs mb-4 text-center max-w-md">
+            The torrent may still be connecting to peers. This can take a few seconds for less popular files.
+          </div>
+        )}
+        <button
+          onClick={handleRetry}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -312,7 +270,7 @@ export function EpubReader({
           >
             ☰
           </button>
-          
+
           <button
             onClick={goToPreviousPage}
             className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
@@ -320,7 +278,7 @@ export function EpubReader({
           >
             ←
           </button>
-          
+
           <button
             onClick={goToNextPage}
             className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
@@ -339,11 +297,9 @@ export function EpubReader({
           >
             A-
           </button>
-          
-          <span className="text-gray-300 min-w-[50px] text-center">
-            {currentFontSize}px
-          </span>
-          
+
+          <span className="text-gray-300 min-w-[50px] text-center">{currentFontSize}px</span>
+
           <button
             onClick={() => changeFontSize(2)}
             className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
@@ -364,7 +320,7 @@ export function EpubReader({
           >
             ☀
           </button>
-          
+
           <button
             onClick={() => changeTheme('dark')}
             className={`px-3 py-1 rounded ${
@@ -374,7 +330,7 @@ export function EpubReader({
           >
             🌙
           </button>
-          
+
           <button
             onClick={() => changeTheme('sepia')}
             className={`px-3 py-1 rounded ${
@@ -387,9 +343,7 @@ export function EpubReader({
         </div>
 
         {/* Progress */}
-        <div className="text-gray-400 text-sm">
-          {progress.percentage}% complete
-        </div>
+        <div className="text-gray-400 text-sm">{progress.percentage}% complete</div>
       </div>
 
       {/* Progress bar */}
@@ -403,7 +357,8 @@ export function EpubReader({
       {/* Main content area */}
       <div className="flex-1 flex relative overflow-hidden">
         {/* Table of Contents sidebar */}
-        {showToc ? <div className="w-64 bg-gray-900 border-r border-gray-700 overflow-y-auto">
+        {showToc ? (
+          <div className="w-64 bg-gray-900 border-r border-gray-700 overflow-y-auto">
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-4">Contents</h3>
               <nav>
@@ -416,7 +371,8 @@ export function EpubReader({
                       >
                         {item.label}
                       </button>
-                      {item.subitems && item.subitems.length > 0 ? <ul className="ml-4 mt-1 space-y-1">
+                      {item.subitems && item.subitems.length > 0 ? (
+                        <ul className="ml-4 mt-1 space-y-1">
                           {item.subitems.map((subitem, subindex) => (
                             <li key={subindex}>
                               <button
@@ -427,33 +383,37 @@ export function EpubReader({
                               </button>
                             </li>
                           ))}
-                        </ul> : null}
+                        </ul>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
               </nav>
             </div>
-          </div> : null}
+          </div>
+        ) : null}
 
         {/* EPUB content */}
         <div className="flex-1 relative">
-          {(isDownloading || isLoading) ? (
+          {isDownloading || isLoading ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
               <p className="mt-4 text-gray-400 text-sm">
                 {isDownloading
-                  ? totalBytes > 0
+                  ? downloadProgress !== null
                     ? `Downloading EPUB (${downloadProgress}%)`
                     : downloadedBytes > 0
-                      ? `Downloading EPUB (${(downloadedBytes / 1024 / 1024).toFixed(1)} MB)`
+                      ? `Downloading EPUB (${formatDownloadProgress(downloadedBytes)})`
                       : 'Downloading EPUB...'
                   : 'Loading book...'}
               </p>
-              {isDownloading && (totalBytes > 0 ? downloadProgress > 0 : downloadedBytes > 0) && (
+              {isDownloading && (downloadProgress !== null || downloadedBytes > 0) && (
                 <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
                   <div
-                    className={`h-full transition-all duration-300 ${totalBytes > 0 ? 'bg-blue-500' : 'bg-blue-500 animate-pulse'}`}
-                    style={{ width: totalBytes > 0 ? `${downloadProgress}%` : '100%' }}
+                    className={`h-full transition-all duration-300 ${
+                      downloadProgress !== null ? 'bg-blue-500' : 'bg-blue-500 animate-pulse'
+                    }`}
+                    style={{ width: downloadProgress !== null ? `${downloadProgress}%` : '100%' }}
                   />
                 </div>
               )}

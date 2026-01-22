@@ -3,14 +3,15 @@
 /**
  * PDF Reader Component
  *
- * Uses react-pdf to render PDF documents with pagination, zoom, and search
+ * Uses react-pdf to render PDF documents with pagination, zoom, and search.
+ * Pre-downloads files using shared download utility for better UX with torrent streaming.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { formatPageNumber, calculateReadingProgress } from '@/lib/ebook';
+import { formatPageNumber, calculateReadingProgress, useFileDownload, formatDownloadProgress } from '@/lib/ebook';
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -21,6 +22,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 export interface PdfReaderProps {
   /** URL or ArrayBuffer of the PDF file */
   file: string | ArrayBuffer;
+  /** Expected file size in bytes (used for download progress when Content-Length is unavailable) */
+  expectedSize?: number;
   /** Initial page number (default: 1) */
   initialPage?: number;
   /** Initial zoom level (default: 1.0) */
@@ -40,6 +43,7 @@ export interface PdfReaderProps {
  */
 export function PdfReader({
   file,
+  expectedSize,
   initialPage = 1,
   initialZoom = 1.0,
   onPageChange,
@@ -47,11 +51,31 @@ export function PdfReader({
   onError,
   className = '',
 }: PdfReaderProps): React.ReactElement {
+  // Use shared download hook for URL files
+  const downloadUrl = typeof file === 'string' ? file : null;
+  const {
+    isDownloading,
+    progress: downloadProgress,
+    downloadedBytes,
+    data: downloadedData,
+    error: downloadError,
+    retry: retryDownload,
+  } = useFileDownload(downloadUrl, {
+    expectedSize,
+    onError,
+  });
+
+  // File data is either passed directly or downloaded
+  const fileData = typeof file !== 'string' ? file : downloadedData;
+
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(initialPage);
   const [scale, setScale] = useState<number>(initialZoom);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [pdfError, setPdfError] = useState<Error | null>(null);
+
+  // Combined error from download or PDF loading
+  const error = downloadError || pdfError;
 
   // Handle document load success
   const handleDocumentLoadSuccess = useCallback(
@@ -66,7 +90,7 @@ export function PdfReader({
   // Handle document load error
   const handleDocumentLoadError = useCallback(
     (err: Error) => {
-      setError(err);
+      setPdfError(err);
       setIsLoading(false);
       onError?.(err);
     },
@@ -142,11 +166,66 @@ export function PdfReader({
 
   const progress = calculateReadingProgress(pageNumber, numPages);
 
+  // Retry handler - resets PDF error and triggers download retry
+  const handleRetry = useCallback(() => {
+    setPdfError(null);
+    setIsLoading(true);
+    retryDownload();
+  }, [retryDownload]);
+
   if (error) {
+    const is503 = error.message.includes('503');
     return (
       <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
         <div className="text-red-500 text-lg mb-4">Failed to load PDF</div>
-        <div className="text-gray-400 text-sm">{error.message}</div>
+        <div className="text-gray-400 text-sm mb-4">{error.message}</div>
+        {is503 && (
+          <div className="text-gray-500 text-xs mb-4 text-center max-w-md">
+            The torrent may still be connecting to peers. This can take a few seconds for less popular files.
+          </div>
+        )}
+        <button
+          onClick={handleRetry}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  // Show download progress
+  if (isDownloading) {
+    return (
+      <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+        <p className="mt-4 text-gray-400 text-sm">
+          {downloadProgress !== null
+            ? `Downloading PDF (${downloadProgress}%)`
+            : downloadedBytes > 0
+              ? `Downloading PDF (${formatDownloadProgress(downloadedBytes)})`
+              : 'Downloading PDF...'}
+        </p>
+        {(downloadProgress !== null || downloadedBytes > 0) && (
+          <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 ${
+                downloadProgress !== null ? 'bg-blue-500' : 'bg-blue-500 animate-pulse'
+              }`}
+              style={{ width: downloadProgress !== null ? `${downloadProgress}%` : '100%' }}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Wait for file data
+  if (!fileData) {
+    return (
+      <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+        <p className="mt-4 text-gray-400 text-sm">Loading...</p>
       </div>
     );
   }
@@ -165,7 +244,7 @@ export function PdfReader({
           >
             ←
           </button>
-          
+
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -178,7 +257,7 @@ export function PdfReader({
             />
             <span className="text-gray-400">/ {numPages}</span>
           </div>
-          
+
           <button
             onClick={goToNextPage}
             disabled={pageNumber >= numPages}
@@ -199,11 +278,9 @@ export function PdfReader({
           >
             −
           </button>
-          
-          <span className="text-gray-300 min-w-[60px] text-center">
-            {Math.round(scale * 100)}%
-          </span>
-          
+
+          <span className="text-gray-300 min-w-[60px] text-center">{Math.round(scale * 100)}%</span>
+
           <button
             onClick={zoomIn}
             disabled={scale >= 3.0}
@@ -212,7 +289,7 @@ export function PdfReader({
           >
             +
           </button>
-          
+
           <button
             onClick={resetZoom}
             className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
@@ -223,9 +300,7 @@ export function PdfReader({
         </div>
 
         {/* Progress */}
-        <div className="text-gray-400 text-sm">
-          {progress.percentage}% complete
-        </div>
+        <div className="text-gray-400 text-sm">{progress.percentage}% complete</div>
       </div>
 
       {/* Progress bar */}
@@ -238,12 +313,14 @@ export function PdfReader({
 
       {/* Document viewer */}
       <div className="flex-1 overflow-auto bg-gray-950 flex justify-center p-4">
-        {isLoading ? <div className="flex items-center justify-center">
+        {isLoading ? (
+          <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-          </div> : null}
-        
+          </div>
+        ) : null}
+
         <Document
-          file={file}
+          file={{ data: fileData }}
           onLoadSuccess={handleDocumentLoadSuccess}
           onLoadError={handleDocumentLoadError}
           loading={null}

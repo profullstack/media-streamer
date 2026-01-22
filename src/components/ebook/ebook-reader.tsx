@@ -77,6 +77,7 @@ export function EbookReader({
   if (format === 'pdf') {
     const pdfProps: PdfReaderProps = {
       file,
+      expectedSize,
       initialPage: typeof initialPosition === 'number' ? initialPosition : 1,
       initialZoom,
       onPageChange: (page, total) => {
@@ -95,7 +96,7 @@ export function EbookReader({
 
   // Render EPUB reader
   if (format === 'epub') {
-    const epubProps: import('./epub-reader').EpubReaderProps = {
+    const epubProps: EpubReaderProps = {
       file,
       expectedSize,
       initialLocation: typeof initialPosition === 'string' ? initialPosition : undefined,

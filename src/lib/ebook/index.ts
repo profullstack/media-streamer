@@ -1,6 +1,6 @@
 /**
  * Ebook Library Module
- * 
+ *
  * Exports ebook utilities for format detection, reader configuration, and progress tracking
  */
 
@@ -18,3 +18,11 @@ export {
   type ReadingTimeEstimate,
   type ReadingTimeOptions,
 } from './ebook';
+
+export {
+  useFileDownload,
+  formatDownloadProgress,
+  type DownloadState,
+  type DownloadOptions,
+  type UseFileDownloadReturn,
+} from './use-file-download';
