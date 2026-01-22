@@ -301,18 +301,16 @@ export function EpubReader({
     );
   }
 
-  // Show loading state while book is initializing
-  if (isLoading) {
-    return (
-      <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-        <p className="mt-4 text-gray-400 text-sm">Loading book...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <div className={`flex flex-col h-full relative ${className}`}>
+      {/* Loading overlay - shown while book is initializing */}
+      {isLoading ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950 z-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+          <p className="mt-4 text-gray-400 text-sm">Loading book...</p>
+        </div>
+      ) : null}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-700">
         {/* Navigation */}
