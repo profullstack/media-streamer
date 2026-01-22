@@ -7,7 +7,7 @@
  * Handles image loading errors gracefully by showing the placeholder.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { MusicIcon, VideoIcon, BookIcon, FolderIcon, TvIcon } from './icons';
@@ -160,7 +160,7 @@ export function MediaPlaceholder({
   }, []);
 
   const dimensions = getDimensions(size, aspectRatio);
-  const IconComponent = getIconForContentType(contentType);
+  const IconComponent = useMemo(() => getIconForContentType(contentType), [contentType]);
   const bgColorClass = getBackgroundColorClass(contentType);
   const iconColorClass = getIconColorClass(contentType);
 
@@ -209,6 +209,7 @@ export function MediaPlaceholder({
 
       {/* Placeholder */}
       {showPlaceholder ? <div className="flex h-full w-full items-center justify-center">
+          {/* eslint-disable-next-line react-hooks/static-components -- Dynamic icon selection */}
           <IconComponent
             className={iconColorClass}
             size={dimensions.iconSize}

@@ -1,0 +1,12 @@
+/var/log/dht-api.log /var/log/dht-api.error.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 dht dht
+    postrotate
+        systemctl reload dht-api.service > /dev/null 2>&1 || true
+    endscript
+}

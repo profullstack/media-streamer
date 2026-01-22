@@ -8,11 +8,11 @@
  * CarPlay, and other media control surfaces.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   createAudioSource,
   formatDuration,
-  type AudioSource,
+  type AudioSource as _AudioSource,
 } from '@/lib/audio';
 import {
   setMediaSessionMetadata,
@@ -127,7 +127,6 @@ export function AudioPlayer({
   // Track whether we've attempted autoplay for the current source
   const hasAttemptedAutoplayRef = useRef(false);
   
-  const [audioSource, setAudioSource] = useState<AudioSource | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -136,15 +135,20 @@ export function AudioPlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Create audio source configuration
+  // Derive audio source from props (no state needed)
+  const audioSource = useMemo(() => createAudioSource(src, filename), [src, filename]);
+
+  // Create a stable key for tracking source changes
+  const sourceKey = `${src}-${filename}`;
+
+  // Reset autoplay tracking and loading state when source changes
+  // This is intentional - we need to reset UI state when the audio source changes
   useEffect(() => {
-    const source = createAudioSource(src, filename);
-    setAudioSource(source);
+    hasAttemptedAutoplayRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset when source changes
     setError(null);
     setIsLoading(true);
-    // Reset autoplay tracking when source changes
-    hasAttemptedAutoplayRef.current = false;
-  }, [src, filename]);
+  }, [sourceKey]);
 
   // Handle audio events
   useEffect(() => {

@@ -491,8 +491,7 @@ export default function LiveTvPage(): React.ReactElement {
           </div>
           <div className="flex items-center gap-2">
             {/* Favorites Toggle */}
-            {isLoggedIn && (
-              <button
+            {isLoggedIn ? <button
                 onClick={() => setShowFavorites(!showFavorites)}
                 className={cn(
                   'flex items-center gap-2 rounded-lg px-4 py-2',
@@ -504,8 +503,7 @@ export default function LiveTvPage(): React.ReactElement {
               >
                 <HeartFilledIcon size={20} />
                 <span>Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}</span>
-              </button>
-            )}
+              </button> : null}
             <button
               onClick={handleOpenAddPlaylistModal}
               className={cn(
@@ -579,14 +577,13 @@ export default function LiveTvPage(): React.ReactElement {
         )}
 
         {/* Favorites Section */}
-        {showFavorites && isLoggedIn && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+        {showFavorites && isLoggedIn ? <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
                 <HeartFilledIcon size={20} className="text-red-400" />
                 Favorite Channels
               </h2>
-              {isFavoritesLoading && <LoadingSpinner size={16} className="text-red-400" />}
+              {isFavoritesLoading ? <LoadingSpinner size={16} className="text-red-400" /> : null}
             </div>
 
             {favorites.length > 0 ? (
@@ -644,8 +641,7 @@ export default function LiveTvPage(): React.ReactElement {
                 </p>
               </div>
             )}
-          </div>
-        )}
+          </div> : null}
 
         {/* Delete Confirmation Dialog */}
         {deletingPlaylist ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

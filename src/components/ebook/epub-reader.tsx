@@ -242,11 +242,9 @@ export function EpubReader({
       <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
         <div className="text-red-500 text-lg mb-4">Failed to load EPUB</div>
         <div className="text-gray-400 text-sm mb-4">{error.message}</div>
-        {is503 && (
-          <div className="text-gray-500 text-xs mb-4 text-center max-w-md">
+        {is503 ? <div className="text-gray-500 text-xs mb-4 text-center max-w-md">
             The torrent may still be connecting to peers. This can take a few seconds for less popular files.
-          </div>
-        )}
+          </div> : null}
         <button
           onClick={handleRetry}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
@@ -407,16 +405,14 @@ export function EpubReader({
                       : 'Downloading EPUB...'
                   : 'Loading book...'}
               </p>
-              {isDownloading && (downloadProgress !== null || downloadedBytes > 0) && (
-                <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
+              {isDownloading && (downloadProgress !== null || downloadedBytes > 0) ? <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-300 ${
                       downloadProgress !== null ? 'bg-blue-500' : 'bg-blue-500 animate-pulse'
                     }`}
                     style={{ width: downloadProgress !== null ? `${downloadProgress}%` : '100%' }}
                   />
-                </div>
-              )}
+                </div> : null}
             </div>
           ) : null}
 

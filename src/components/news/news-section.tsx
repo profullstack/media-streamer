@@ -98,7 +98,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
   const [extractedContent, setExtractedContent] = useState<ArticleContent | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
-  const [showExtractedContent, setShowExtractedContent] = useState(false);
+  const [_showExtractedContent, setShowExtractedContent] = useState(false);
 
   // Scroll refs for TV navigation
   const contentRef = useRef<HTMLDivElement>(null);
@@ -379,11 +379,9 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-sm line-clamp-1">{article.title}</h3>
 
-              {(article.snippet || article.description) && (
-                <p className="text-gray-400 text-xs line-clamp-1 mt-0.5">
+              {(article.snippet || article.description) ? <p className="text-gray-400 text-xs line-clamp-1 mt-0.5">
                   {article.snippet || article.description}
-                </p>
-              )}
+                </p> : null}
 
               <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                 <span>{article.source}</span>
@@ -431,18 +429,15 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
               <h3 className="font-semibold text-lg truncate pr-4">{selectedArticle.title}</h3>
               <div className="flex items-center gap-2">
                 {/* View Toggle (when summary exists) */}
-                {summary && (
-                  <button
+                {summary ? <button
                     onClick={() => setShowSummary(!showSummary)}
                     className={`p-2 rounded transition-colors ${showSummary ? 'bg-purple-600 hover:bg-purple-700' : 'hover:bg-gray-700'}`}
                     title={showSummary ? 'Show original article' : 'Show AI summary'}
                   >
                     <FileText className="w-5 h-5" />
-                  </button>
-                )}
+                  </button> : null}
                 {/* Summarize Button (premium only) */}
-                {isPremium && !summary && (
-                  <button
+                {isPremium && !summary ? <button
                     onClick={() => void handleSummarize()}
                     disabled={isSummarizing}
                     className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors text-sm"
@@ -454,8 +449,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                       <Sparkles className="w-4 h-4" />
                     )}
                     <span>{isSummarizing ? 'Summarizing...' : 'Summarize'}</span>
-                  </button>
-                )}
+                  </button> : null}
                 <a
                   data-testid="open-external-link"
                   href={selectedArticle.url}
@@ -478,19 +472,16 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
             </div>
 
             {/* Summary Error */}
-            {summaryError && (
-              <div className="px-4 py-2 bg-red-900/50 text-red-300 text-sm">
+            {summaryError ? <div className="px-4 py-2 bg-red-900/50 text-red-300 text-sm">
                 {summaryError}
-              </div>
-            )}
+              </div> : null}
 
             {/* Content Area */}
             {showSummary && summary ? (
               /* AI Summary View */
               <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-800">
                 {/* Article Image - Use original article image */}
-                {selectedArticle.imageUrl && (
-                  <div className="mb-4 rounded-lg overflow-hidden bg-gray-900 float-right ml-4 w-32">
+                {selectedArticle.imageUrl ? <div className="mb-4 rounded-lg overflow-hidden bg-gray-900 float-right ml-4 w-32">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selectedArticle.imageUrl}
@@ -498,15 +489,14 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                       className="w-full h-24 object-cover"
                       loading="lazy"
                     />
-                  </div>
-                )}
+                  </div> : null}
 
                 {/* Summary Header */}
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold mb-2">{summary.title}</h2>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                     <span>{selectedArticle.source}</span>
-                    {summary.author && <span>By {summary.author}</span>}
+                    {summary.author ? <span>By {summary.author}</span> : null}
                     <span>{formatDate(selectedArticle.publishedAt)}</span>
                   </div>
                 </div>
@@ -583,8 +573,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                 /* Show extracted article content */
                 <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-800">
                   {/* Article Image */}
-                  {selectedArticle.imageUrl && (
-                    <div className="mb-4 rounded-lg overflow-hidden bg-gray-900 float-right ml-4 w-32">
+                  {selectedArticle.imageUrl ? <div className="mb-4 rounded-lg overflow-hidden bg-gray-900 float-right ml-4 w-32">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={selectedArticle.imageUrl}
@@ -592,15 +581,14 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                         className="w-full h-24 object-cover"
                         loading="lazy"
                       />
-                    </div>
-                  )}
+                    </div> : null}
 
                   {/* Article Header */}
                   <div className="mb-6">
                     <h2 className="text-2xl font-bold mb-2">{extractedContent.title}</h2>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                       <span>{extractedContent.siteName || selectedArticle.source}</span>
-                      {extractedContent.byline && <span>By {extractedContent.byline}</span>}
+                      {extractedContent.byline ? <span>By {extractedContent.byline}</span> : null}
                       <span>{formatDate(selectedArticle.publishedAt)}</span>
                       <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
                         via {extractedContent.fetchMethod === 'puppeteer' ? 'Browser' : 'Direct'}
@@ -617,8 +605,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                   {/* Actions Footer */}
                   <div className="mt-8 pt-4 border-t border-gray-700 pb-16">
                     <div className="flex flex-wrap items-center gap-4">
-                      {isPremium && !summary && (
-                        <button
+                      {isPremium && !summary ? <button
                           onClick={() => void handleSummarize()}
                           disabled={isSummarizing}
                           className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
@@ -629,8 +616,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                             <Sparkles className="w-5 h-5" />
                           )}
                           <span>{isSummarizing ? 'Summarizing...' : 'Get AI Summary'}</span>
-                        </button>
-                      )}
+                        </button> : null}
                       <a
                         href={selectedArticle.url}
                         target="_blank"
@@ -677,8 +663,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           </div>
 
           {/* Scroll Buttons for TV - shown for both summary and iframe views */}
-          {((showSummary && summary) || (iframeBlocked && extractedContent) || (!showSummary && !iframeBlocked)) && (
-            <div className="fixed bottom-8 right-8 flex flex-col gap-2 z-[60]">
+          {((showSummary && summary) || (iframeBlocked && extractedContent) || (!showSummary && !iframeBlocked)) ? <div className="fixed bottom-8 right-8 flex flex-col gap-2 z-[60]">
               <button
                 onClick={() => scrollContent('up')}
                 className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -693,8 +678,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
               >
                 <ChevronDown className="w-6 h-6" />
               </button>
-            </div>
-          )}
+            </div> : null}
         </div> : null}
     </section>
   );

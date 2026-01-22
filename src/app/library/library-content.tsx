@@ -383,17 +383,11 @@ export function LibraryContent({
                         {item.torrents?.name ?? 'Unknown Torrent'}
                       </Link>
                       <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
-                        {item.torrents?.content_type && (
-                          <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                        {item.torrents?.content_type ? <span className="px-2 py-0.5 rounded bg-bg-tertiary">
                             {item.torrents.content_type}
-                          </span>
-                        )}
-                        {item.torrents?.year && (
-                          <span>{item.torrents.year}</span>
-                        )}
-                        {item.torrents?.file_count && (
-                          <span>{item.torrents.file_count} files</span>
-                        )}
+                          </span> : null}
+                        {item.torrents?.year ? <span>{item.torrents.year}</span> : null}
+                        {item.torrents?.file_count ? <span>{item.torrents.file_count} files</span> : null}
                       </div>
                       <p className="text-xs text-text-muted mt-1">
                         Added {formatTimeAgo(item.created_at)}

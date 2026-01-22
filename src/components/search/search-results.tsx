@@ -6,6 +6,7 @@
  * Displays search results with file information, poster images, and actions.
  */
 
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   MusicIcon,
@@ -140,7 +141,9 @@ function SearchResultItem({
   onDownload,
 }: SearchResultItemProps): React.ReactElement {
   const isFile = result.type === 'file' && result.file;
-  const Icon = isFile ? getMediaIcon(result.file!.mediaCategory) : MagnetIcon;
+  const Icon = useMemo(() => {
+    return isFile ? getMediaIcon(result.file!.mediaCategory) : MagnetIcon;
+  }, [isFile, result.file]);
   const iconColor = isFile ? getMediaColor(result.file!.mediaCategory) : 'text-accent-primary';
   const bgColor = isFile ? getMediaBgColor(result.file!.mediaCategory) : 'bg-accent-primary/10';
   const imageUrl = result.torrent.posterUrl ?? result.torrent.coverUrl;
@@ -179,6 +182,7 @@ function SearchResultItem({
         </div>
       ) : (
         <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', bgColor)}>
+          {/* eslint-disable-next-line react-hooks/static-components -- Dynamic icon selection */}
           <Icon className={iconColor} size={20} />
         </div>
       )}

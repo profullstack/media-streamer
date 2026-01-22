@@ -199,7 +199,9 @@ export function PlaylistPlayerModal({
   const [refreshKey, setRefreshKey] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const prefetchedIndicesRef = useRef<Set<number>>(new Set());
-  
+  // State to trigger re-render when prefetch indices change (refs don't trigger re-renders)
+  const [prefetchedIndicesVersion, setPrefetchedIndicesVersion] = useState(0);
+
   // Track download status for each file in the playlist
   const [fileDownloadStatuses, setFileDownloadStatuses] = useState<Map<number, FileDownloadStatus>>(new Map());
   const fileEventSourcesRef = useRef<Map<number, EventSource>>(new Map());
@@ -212,6 +214,7 @@ export function PlaylistPlayerModal({
 
   // Reset index when files change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset when files change
     setCurrentIndex(startIndex);
   }, [files, startIndex]);
 
@@ -356,6 +359,7 @@ export function PlaylistPlayerModal({
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional cleanup when modal closes
       setConnectionStatus(null);
       return;
     }
@@ -400,6 +404,8 @@ export function PlaylistPlayerModal({
         // Only prefetch if we haven't already prefetched this file
         if (!prefetchedIndicesRef.current.has(nextFile.fileIndex)) {
           prefetchedIndicesRef.current.add(nextFile.fileIndex);
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional trigger to subscribe to SSE for prefetched files
+          setPrefetchedIndicesVersion(v => v + 1);
           prefetchPromises.push(prefetchFile(infohash, nextFile.fileIndex));
         }
       }
@@ -415,18 +421,20 @@ export function PlaylistPlayerModal({
   useEffect(() => {
     if (!isOpen) {
       prefetchedIndicesRef.current.clear();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset when modal closes
+      setPrefetchedIndicesVersion(0);
     }
   }, [isOpen]);
 
   // Subscribe to SSE for prefetched files to track their download progress
   // Use currentFileIndex instead of currentFile object to avoid unnecessary re-runs
-  const prefetchedIndicesSize = prefetchedIndicesRef.current.size;
+  // prefetchedIndicesVersion triggers re-run when new files are prefetched (refs don't trigger re-renders)
   useEffect(() => {
     if (!isOpen || !infohash) return;
 
     // Subscribe to status updates for all prefetched files (except current file which has its own SSE)
     const prefetchedIndices = Array.from(prefetchedIndicesRef.current);
-    
+
     for (const fileIndex of prefetchedIndices) {
       // Skip if we already have an event source for this file
       if (fileEventSourcesRef.current.has(fileIndex)) continue;
@@ -470,13 +478,14 @@ export function PlaylistPlayerModal({
     return () => {
       // We don't close all here - just let handleClose do that
     };
-  }, [isOpen, infohash, currentFileIndex, prefetchedIndicesSize]);
+  }, [isOpen, infohash, currentFileIndex, prefetchedIndicesVersion]);
 
   // Update fileDownloadStatuses with current file's status from connectionStatus
   // Use currentFileIndex instead of currentFile object to avoid unnecessary re-runs
   useEffect(() => {
     if (!connectionStatus || currentFileIndex === undefined) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Syncing external SSE status to state
     setFileDownloadStatuses((prev) => {
       const next = new Map(prev);
       next.set(currentFileIndex, {

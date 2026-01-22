@@ -1,0 +1,38 @@
+[Unit]
+Description=Bitmagnet DHT Crawler
+Documentation=https://bitmagnet.io
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=dht
+Group=dht
+WorkingDirectory=/opt/bitmagnet
+
+# Environment variables - loaded from file
+EnvironmentFile=/opt/bitmagnet/.env
+
+# Bitmagnet command - runs DHT crawler and queue worker
+ExecStart=/opt/bitmagnet/bitmagnet worker run --keys=queue_server --keys=dht_crawler
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/bitmagnet.log
+StandardError=append:/var/log/bitmagnet.error.log
+
+# Resource limits
+LimitNOFILE=65535
+MemoryMax=2G
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/bitmagnet /var/log
+
+[Install]
+WantedBy=multi-user.target

@@ -143,6 +143,8 @@ export function useTvDetection(): TvDetectionResult {
     const userAgent = navigator.userAgent;
     const browserType = getTvBrowserType(userAgent);
 
+    // This is intentional - we detect TV browser type once on mount (client-side only)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional client-side detection on mount
     setResult({
       isTv: browserType !== null,
       isLoading: false,

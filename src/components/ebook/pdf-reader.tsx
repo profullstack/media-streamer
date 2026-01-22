@@ -179,11 +179,9 @@ export function PdfReader({
       <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
         <div className="text-red-500 text-lg mb-4">Failed to load PDF</div>
         <div className="text-gray-400 text-sm mb-4">{error.message}</div>
-        {is503 && (
-          <div className="text-gray-500 text-xs mb-4 text-center max-w-md">
+        {is503 ? <div className="text-gray-500 text-xs mb-4 text-center max-w-md">
             The torrent may still be connecting to peers. This can take a few seconds for less popular files.
-          </div>
-        )}
+          </div> : null}
         <button
           onClick={handleRetry}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"

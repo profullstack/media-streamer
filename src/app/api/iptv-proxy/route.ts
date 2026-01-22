@@ -50,7 +50,7 @@ const CONNECTION_TIMEOUT = 30000;
 /**
  * Request timeout for non-streaming content (playlists, etc.)
  */
-const REQUEST_TIMEOUT = 120000;
+const _REQUEST_TIMEOUT = 120000;
 
 /**
  * HLS content types that need URL rewriting

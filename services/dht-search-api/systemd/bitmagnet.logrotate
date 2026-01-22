@@ -1,0 +1,12 @@
+/var/log/bitmagnet.log /var/log/bitmagnet.error.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 dht dht
+    postrotate
+        systemctl reload bitmagnet.service > /dev/null 2>&1 || true
+    endscript
+}

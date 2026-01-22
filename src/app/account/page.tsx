@@ -442,8 +442,7 @@ function AccountPageContent(): React.ReactElement {
                 <h2 className="text-lg font-semibold text-text-primary mb-4">Subscription Management</h2>
 
                 {/* Payment Success Message */}
-                {paymentSuccess && (
-                  <div className="rounded-lg border border-status-success bg-status-success/10 p-4">
+                {paymentSuccess ? <div className="rounded-lg border border-status-success bg-status-success/10 p-4">
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-medium text-status-success">Payment successful!</p>
@@ -461,8 +460,7 @@ function AccountPageContent(): React.ReactElement {
                         </svg>
                       </button>
                     </div>
-                  </div>
-                )}
+                  </div> : null}
 
                 {/* Action Messages */}
                 {actionError ? <div className="rounded-lg border border-status-error bg-status-error/10 p-4 text-sm text-status-error">

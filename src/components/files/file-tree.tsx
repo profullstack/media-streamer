@@ -294,13 +294,15 @@ function FileTreeNodeComponent({
     });
   }, [node.children]);
 
-  const Icon = node.isDirectory
-    ? isExpanded
-      ? FolderOpenIcon
-      : FolderIcon
-    : node.file
-      ? getMediaIcon(node.file.mediaCategory)
-      : FileIcon;
+  const Icon = useMemo(() => {
+    return node.isDirectory
+      ? isExpanded
+        ? FolderOpenIcon
+        : FolderIcon
+      : node.file
+        ? getMediaIcon(node.file.mediaCategory)
+        : FileIcon;
+  }, [node.isDirectory, isExpanded, node.file]);
 
   const iconColor = node.isDirectory
     ? 'text-accent-primary'
@@ -414,6 +416,7 @@ function FileTreeNodeComponent({
           </div>
         ) : (
           /* Icon (only show if no cover art) */
+          /* eslint-disable-next-line react-hooks/static-components -- Dynamic icon selection */
           <Icon className={cn(iconColor, 'flex-shrink-0')} size={18} />
         )}
 

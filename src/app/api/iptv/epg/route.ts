@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getIptvCacheReader, type EpgProgram } from '@/lib/iptv/cache-reader';
+import { getIptvCacheReader, type EpgProgram as _EpgProgram } from '@/lib/iptv/cache-reader';
 
 /**
  * GET /api/iptv/epg

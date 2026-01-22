@@ -440,8 +440,7 @@ export function HlsPlayerModal({
             </div>
 
             {/* Favorite Button */}
-            {playlistId && (
-              <IptvChannelFavoriteButton
+            {playlistId ? <IptvChannelFavoriteButton
                 playlistId={playlistId}
                 channelId={channel.id}
                 channelName={channel.name}
@@ -454,8 +453,7 @@ export function HlsPlayerModal({
                 size="md"
                 onToggle={onFavoriteToggle}
                 className="hover:bg-zinc-800"
-              />
-            )}
+              /> : null}
 
             {/* Refresh Button */}
             <button

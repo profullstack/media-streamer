@@ -830,13 +830,11 @@ export function MediaPlayerModal({
           </div>
 
           {/* Favorite Button */}
-          {file.id && (
-            <FileFavoriteButton
+          {file.id ? <FileFavoriteButton
               fileId={file.id}
               size="md"
               className="flex-shrink-0 hover:bg-bg-tertiary rounded-full"
-            />
-          )}
+            /> : null}
 
           {/* Refresh Button */}
           <button

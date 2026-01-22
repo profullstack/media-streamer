@@ -1016,25 +1016,20 @@ export default function PodcastsPage(): React.ReactElement {
                                     )}>
                                       {decodeHtmlEntities(episode.title)}
                                     </h4>
-                                    {isCompleted && (
-                                      <span className="text-xs text-green-500 font-medium">Played</span>
-                                    )}
+                                    {isCompleted ? <span className="text-xs text-green-500 font-medium">Played</span> : null}
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
                                     <span>{formatDate(episode.publishedAt)}</span>
                                     <span>•</span>
                                     <span>{formatDuration(episode.duration)}</span>
-                                    {hasProgress && (
-                                      <>
+                                    {hasProgress ? <>
                                         <span>•</span>
                                         <span className="text-accent-primary">{Math.round(progressPercent)}% played</span>
-                                      </>
-                                    )}
+                                      </> : null}
                                   </div>
 
                                   {/* Progress bar */}
-                                  {(hasProgress || isCompleted) && (
-                                    <div className="mt-2 h-1 w-full rounded-full bg-bg-tertiary overflow-hidden">
+                                  {(hasProgress || isCompleted) ? <div className="mt-2 h-1 w-full rounded-full bg-bg-tertiary overflow-hidden">
                                       <div
                                         className={cn(
                                           'h-full rounded-full transition-all',
@@ -1042,8 +1037,7 @@ export default function PodcastsPage(): React.ReactElement {
                                         )}
                                         style={{ width: `${isCompleted ? 100 : progressPercent}%` }}
                                       />
-                                    </div>
-                                  )}
+                                    </div> : null}
 
                                   {episode.description ? <div className="mt-2">
                                       <div
