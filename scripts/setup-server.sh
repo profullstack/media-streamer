@@ -934,262 +934,15 @@ if [ "${DHT_ENABLED:-true}" != "false" ]; then
     echo ""
     echo "=== Setting up DHT Crawler Services ==="
 
-    # Configuration for DHT services
-    DHT_USER="dht"
-    BITMAGNET_DIR="/opt/bitmagnet"
-    DHT_API_DIR="/opt/dht-api"
-    BITMAGNET_VERSION="${BITMAGNET_VERSION:-v0.9.5}"
-
-    # Create dht user if it doesn't exist
-    if ! id -u "$DHT_USER" > /dev/null 2>&1; then
-        echo "  Creating DHT service user..."
-        sudo useradd --system --shell /bin/false --home-dir ${BITMAGNET_DIR} ${DHT_USER}
-        echo "✓ Created user: ${DHT_USER}"
+    # Call the dedicated DHT setup script
+    DHT_SETUP_SCRIPT="${PROJECT_ROOT}/services/dht-search-api/scripts/setup-dht-services.sh"
+    if [ -f "${DHT_SETUP_SCRIPT}" ]; then
+        echo "  Running: ${DHT_SETUP_SCRIPT}"
+        sudo bash "${DHT_SETUP_SCRIPT}"
     else
-        echo "  User ${DHT_USER} already exists"
+        echo "  WARNING: DHT setup script not found at ${DHT_SETUP_SCRIPT}"
+        echo "  Skipping DHT services installation"
     fi
-
-    # Install pnpm for dht user if not already configured
-    DHT_PNPM_HOME="/home/${DHT_USER}/.local/share/pnpm"
-    if [ ! -d "${DHT_PNPM_HOME}" ]; then
-        echo "=== Setting up pnpm for DHT user ==="
-        sudo -u ${DHT_USER} bash -c 'curl -fsSL https://get.pnpm.io/install.sh | sh -' || true
-        echo "✓ pnpm configured for DHT user"
-    else
-        echo "=== pnpm already configured for DHT user ==="
-    fi
-
-    # Install Bitmagnet DHT Crawler
-    if [ ! -f "${BITMAGNET_DIR}/bitmagnet" ]; then
-        echo "=== Installing Bitmagnet ${BITMAGNET_VERSION} ==="
-        sudo mkdir -p "${BITMAGNET_DIR}"
-
-        # Determine architecture
-        ARCH=$(uname -m)
-        case $ARCH in
-            x86_64) ARCH="amd64" ;;
-            aarch64) ARCH="arm64" ;;
-            *) echo "WARNING: Unsupported architecture: $ARCH, skipping Bitmagnet"; ARCH="" ;;
-        esac
-
-        if [ -n "$ARCH" ]; then
-            DOWNLOAD_URL="https://github.com/bitmagnet-io/bitmagnet/releases/download/${BITMAGNET_VERSION}/bitmagnet_Linux_${ARCH}.tar.gz"
-            echo "  Downloading from: ${DOWNLOAD_URL}"
-
-            cd "${BITMAGNET_DIR}"
-            sudo wget -q "$DOWNLOAD_URL" -O bitmagnet.tar.gz
-            sudo tar -xzf bitmagnet.tar.gz
-            sudo rm bitmagnet.tar.gz
-            sudo chmod +x bitmagnet
-            sudo chown -R ${DHT_USER}:${DHT_USER} "${BITMAGNET_DIR}"
-            echo "✓ Bitmagnet installed to ${BITMAGNET_DIR}/bitmagnet"
-        fi
-    else
-        echo "=== Bitmagnet already installed ==="
-    fi
-
-    # Create Bitmagnet .env if not exists
-    if [ ! -f "${BITMAGNET_DIR}/.env" ]; then
-        echo "  Creating Bitmagnet configuration template..."
-        sudo tee "${BITMAGNET_DIR}/.env" > /dev/null << 'BITMAGNET_EOF'
-# Bitmagnet Configuration
-# See: https://bitmagnet.io/setup/configuration.html
-
-# Database (Supabase PostgreSQL)
-POSTGRES_HOST=db.xxx.supabase.co
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your-password
-POSTGRES_DATABASE=postgres
-
-# DHT Crawler Settings
-DHT_CRAWLER_SAVE_FILES_THRESHOLD=0
-DHT_CRAWLER_SAVE_PIECES=false
-DHT_CRAWLER_SCALING_FACTOR=10
-
-# Worker Settings
-QUEUE_CONCURRENCY=10
-BITMAGNET_EOF
-        sudo chown ${DHT_USER}:${DHT_USER} "${BITMAGNET_DIR}/.env"
-        echo "  Created ${BITMAGNET_DIR}/.env - please edit with your Supabase credentials"
-    fi
-
-    # Install DHT Search API
-    DHT_API_SOURCE="${PROJECT_ROOT}/services/dht-search-api"
-    if [ -d "${DHT_API_SOURCE}" ] && [ ! -f "${DHT_API_DIR}/package.json" ]; then
-        echo "=== Installing DHT Search API ==="
-        sudo mkdir -p "${DHT_API_DIR}"
-
-        # Copy API source files
-        sudo cp -r "${DHT_API_SOURCE}/src" "${DHT_API_DIR}/"
-        sudo cp "${DHT_API_SOURCE}/package.json" "${DHT_API_DIR}/"
-        sudo cp "${DHT_API_SOURCE}/tsconfig.json" "${DHT_API_DIR}/"
-
-        # Copy scripts
-        sudo mkdir -p "${DHT_API_DIR}/scripts"
-        sudo cp -r "${DHT_API_SOURCE}/scripts/"*.ts "${DHT_API_DIR}/scripts/" 2>/dev/null || true
-
-        # Install dependencies using pnpm
-        cd "${DHT_API_DIR}"
-        sudo -u ${DHT_USER} bash -c 'export PATH="$HOME/.local/share/pnpm:$PATH" && pnpm install' 2>/dev/null || pnpm install
-
-        sudo chown -R ${DHT_USER}:${DHT_USER} "${DHT_API_DIR}"
-        echo "✓ DHT Search API installed to ${DHT_API_DIR}"
-    elif [ -f "${DHT_API_DIR}/package.json" ]; then
-        echo "=== DHT Search API already installed ==="
-    else
-        echo "  WARNING: DHT Search API source not found at ${DHT_API_SOURCE}"
-    fi
-
-    # Create DHT API .env if not exists
-    if [ ! -f "${DHT_API_DIR}/.env" ]; then
-        echo "  Creating DHT API configuration template..."
-        sudo tee "${DHT_API_DIR}/.env" > /dev/null << 'DHT_API_EOF'
-# DHT Search API Configuration
-
-# Supabase
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_KEY=your-service-key
-
-# Redis (optional)
-REDIS_URL=redis://localhost:6379
-
-# API Settings
-PORT=3333
-NODE_ENV=production
-LOG_LEVEL=info
-
-# API Key Salt (generate with: openssl rand -hex 16)
-API_KEY_SALT=change-this-to-random-string
-DHT_API_EOF
-        sudo chown ${DHT_USER}:${DHT_USER} "${DHT_API_DIR}/.env"
-        echo "  Created ${DHT_API_DIR}/.env - please edit with your credentials"
-    fi
-
-    # Create Bitmagnet systemd service
-    BITMAGNET_LOG="/var/log/bitmagnet.log"
-    BITMAGNET_ERROR_LOG="/var/log/bitmagnet.error.log"
-
-    echo "=== Setting up Bitmagnet systemd service ==="
-    sudo touch "${BITMAGNET_LOG}" "${BITMAGNET_ERROR_LOG}"
-    sudo chown ${DHT_USER}:${DHT_USER} "${BITMAGNET_LOG}" "${BITMAGNET_ERROR_LOG}"
-
-    sudo tee /etc/systemd/system/bitmagnet.service > /dev/null << EOF
-[Unit]
-Description=Bitmagnet DHT Crawler
-Documentation=https://bitmagnet.io
-After=network.target
-
-[Service]
-Type=simple
-User=${DHT_USER}
-Group=${DHT_USER}
-WorkingDirectory=${BITMAGNET_DIR}
-EnvironmentFile=${BITMAGNET_DIR}/.env
-ExecStart=${BITMAGNET_DIR}/bitmagnet worker run --keys=queue_server --keys=dht_crawler
-Restart=always
-RestartSec=10
-
-StandardOutput=append:${BITMAGNET_LOG}
-StandardError=append:${BITMAGNET_ERROR_LOG}
-
-LimitNOFILE=65535
-MemoryMax=2G
-
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-ReadWritePaths=${BITMAGNET_DIR} /var/log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Create Bitmagnet log rotation
-    sudo tee /etc/logrotate.d/bitmagnet > /dev/null << EOF
-${BITMAGNET_LOG} ${BITMAGNET_ERROR_LOG} {
-    daily
-    rotate 14
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 644 ${DHT_USER} ${DHT_USER}
-    postrotate
-        systemctl reload bitmagnet > /dev/null 2>&1 || true
-    endscript
-}
-EOF
-
-    # Create DHT API systemd service
-    DHT_API_LOG="/var/log/dht-api.log"
-    DHT_API_ERROR_LOG="/var/log/dht-api.error.log"
-
-    echo "=== Setting up DHT API systemd service ==="
-    sudo touch "${DHT_API_LOG}" "${DHT_API_ERROR_LOG}"
-    sudo chown ${DHT_USER}:${DHT_USER} "${DHT_API_LOG}" "${DHT_API_ERROR_LOG}"
-
-    sudo tee /etc/systemd/system/dht-api.service > /dev/null << EOF
-[Unit]
-Description=DHT Search API Server
-Documentation=https://github.com/profullstack/music-torrent
-After=network.target bitmagnet.service
-
-[Service]
-Type=simple
-User=${DHT_USER}
-Group=${DHT_USER}
-WorkingDirectory=${DHT_API_DIR}
-EnvironmentFile=${DHT_API_DIR}/.env
-ExecStart=/bin/bash -c 'export PATH="/home/${DHT_USER}/.local/share/pnpm:\$PATH" && pnpm start'
-Environment=PATH=/home/${DHT_USER}/.local/share/pnpm:/usr/local/bin:/usr/bin:/bin
-Restart=always
-RestartSec=5
-
-StandardOutput=append:${DHT_API_LOG}
-StandardError=append:${DHT_API_ERROR_LOG}
-
-LimitNOFILE=65535
-MemoryMax=512M
-
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=read-only
-PrivateTmp=true
-ReadWritePaths=${DHT_API_DIR} /var/log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Create DHT API log rotation
-    sudo tee /etc/logrotate.d/dht-api > /dev/null << EOF
-${DHT_API_LOG} ${DHT_API_ERROR_LOG} {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 644 ${DHT_USER} ${DHT_USER}
-    postrotate
-        systemctl reload dht-api > /dev/null 2>&1 || true
-    endscript
-}
-EOF
-
-    # Add DHT firewall rules (idempotent)
-    echo "=== Adding DHT firewall rules ==="
-    sudo ufw allow 3334/udp 2>/dev/null || true   # Bitmagnet DHT
-    sudo ufw allow 3333/tcp 2>/dev/null || true   # DHT Search API
-
-    # Enable DHT services
-    sudo systemctl enable bitmagnet 2>/dev/null || true
-    sudo systemctl enable dht-api 2>/dev/null || true
-
-    echo "✓ DHT Crawler services configured"
-    echo "  Note: Edit ${BITMAGNET_DIR}/.env and ${DHT_API_DIR}/.env before starting services"
 else
     echo ""
     echo "=== Skipping DHT Crawler Services (DHT_ENABLED=false) ==="
@@ -1279,20 +1032,20 @@ if [ "${DHT_ENABLED:-true}" != "false" ]; then
     echo ""
     echo "DHT Crawler Services:"
     echo "  Bitmagnet:"
-    echo "    Config:  ${BITMAGNET_DIR}/.env"
+    echo "    Config:  /opt/bitmagnet/.env"
     echo "    Start:   sudo systemctl start bitmagnet"
     echo "    Status:  sudo systemctl status bitmagnet"
     echo "    Logs:    tail -f /var/log/bitmagnet.log"
     echo ""
     echo "  DHT Search API:"
-    echo "    Config:  ${DHT_API_DIR}/.env"
+    echo "    Config:  /opt/dht-api/.env"
     echo "    Start:   sudo systemctl start dht-api"
     echo "    Status:  sudo systemctl status dht-api"
     echo "    Logs:    tail -f /var/log/dht-api.log"
     echo "    Health:  curl http://localhost:3333/health"
     echo ""
     echo "  Generate API key:"
-    echo "    cd ${DHT_API_DIR} && pnpm generate-key pro \"My App\""
+    echo "    cd /opt/dht-api && pnpm generate-key pro \"My App\""
     echo ""
     echo "  Note: Edit .env files before starting DHT services!"
 fi

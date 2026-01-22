@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import ePub, { Book, Rendition, NavItem } from 'epubjs';
+import ePub, { Book, Rendition, NavItem, Contents } from 'epubjs';
 import { calculateReadingProgress, useFileDownload, formatDownloadProgress } from '@/lib/ebook';
 
 /**
@@ -35,25 +35,65 @@ export interface EpubReaderProps {
 }
 
 /**
- * Theme configurations
+ * Theme colors (for inline styles)
+ */
+const THEME_COLORS = {
+  light: { background: '#ffffff', text: '#1a1a1a', link: '#2563eb' },
+  dark: { background: '#1a1a1a', text: '#e0e0e0', link: '#60a5fa' },
+  sepia: { background: '#f4ecd8', text: '#5b4636', link: '#8b5a2b' },
+};
+
+/**
+ * Theme configurations for epub.js
+ * Using !important to override EPUB's inline styles
  */
 const THEMES = {
   light: {
     body: {
-      background: '#ffffff',
-      color: '#1a1a1a',
+      background: '#ffffff !important',
+      color: '#1a1a1a !important',
+    },
+    'p, div, span, h1, h2, h3, h4, h5, h6, li, td, th': {
+      color: '#1a1a1a !important',
+    },
+    'a': {
+      color: '#2563eb !important',
+    },
+    'img, svg': {
+      'max-width': '100% !important',
+      height: 'auto !important',
     },
   },
   dark: {
     body: {
-      background: '#1a1a1a',
-      color: '#e0e0e0',
+      background: '#1a1a1a !important',
+      color: '#e0e0e0 !important',
+    },
+    'p, div, span, h1, h2, h3, h4, h5, h6, li, td, th': {
+      color: '#e0e0e0 !important',
+    },
+    'a': {
+      color: '#60a5fa !important',
+    },
+    'img, svg': {
+      'max-width': '100% !important',
+      height: 'auto !important',
     },
   },
   sepia: {
     body: {
-      background: '#f4ecd8',
-      color: '#5b4636',
+      background: '#f4ecd8 !important',
+      color: '#5b4636 !important',
+    },
+    'p, div, span, h1, h2, h3, h4, h5, h6, li, td, th': {
+      color: '#5b4636 !important',
+    },
+    'a': {
+      color: '#8b5a2b !important',
+    },
+    'img, svg': {
+      'max-width': '100% !important',
+      height: 'auto !important',
     },
   },
 };
@@ -148,6 +188,49 @@ export function EpubReader({
         rendition.themes.register('dark', THEMES.dark);
         rendition.themes.register('sepia', THEMES.sepia);
 
+        // Add default styles that apply to all content (ensures images scale properly)
+        rendition.themes.default({
+          'img': {
+            'max-width': '100% !important',
+            'height': 'auto !important',
+          },
+          'svg': {
+            'max-width': '100% !important',
+            'height': 'auto !important',
+          },
+          '*': {
+            'box-sizing': 'border-box',
+          },
+        });
+
+        // Hook into content loading to inject CSS directly into each chapter
+        rendition.hooks.content.register((contents: Contents) => {
+          const colors = THEME_COLORS[theme];
+          const cssRules = `
+            html, body {
+              background: ${colors.background} !important;
+              color: ${colors.text} !important;
+            }
+            body * {
+              color: inherit !important;
+              background-color: transparent !important;
+            }
+            a, a * {
+              color: ${colors.link} !important;
+            }
+            img, svg, image {
+              max-width: 100% !important;
+              height: auto !important;
+              display: block;
+              margin: 0 auto;
+            }
+            pre, code {
+              background: rgba(128, 128, 128, 0.2) !important;
+            }
+          `;
+          contents.addStylesheetCss(cssRules, 'theme-override');
+        });
+
         // Apply initial theme and font size (use props, not state, to avoid re-init on changes)
         rendition.themes.select(theme);
         rendition.themes.fontSize(`${fontSize}px`);
@@ -225,7 +308,42 @@ export function EpubReader({
   // Change theme
   const changeTheme = useCallback((newTheme: 'light' | 'dark' | 'sepia') => {
     setCurrentTheme(newTheme);
-    renditionRef.current?.themes.select(newTheme);
+    const rendition = renditionRef.current;
+    if (!rendition) return;
+
+    // Apply the theme via epub.js
+    rendition.themes.select(newTheme);
+
+    // Also update injected styles in the iframe using epub.js Contents API
+    const colors = THEME_COLORS[newTheme];
+    const cssRules = `
+      html, body {
+        background: ${colors.background} !important;
+        color: ${colors.text} !important;
+      }
+      body * {
+        color: inherit !important;
+        background-color: transparent !important;
+      }
+      a, a * {
+        color: ${colors.link} !important;
+      }
+      img, svg, image {
+        max-width: 100% !important;
+        height: auto !important;
+        display: block;
+        margin: 0 auto;
+      }
+      pre, code {
+        background: rgba(128, 128, 128, 0.2) !important;
+      }
+    `;
+
+    // Use the Contents API to add stylesheet - this updates the current view
+    const contents = rendition.getContents();
+    if (contents) {
+      contents.addStylesheetCss(cssRules, 'theme-override');
+    }
   }, []);
 
   // Keyboard navigation
@@ -451,7 +569,7 @@ export function EpubReader({
             ref={containerRef}
             className="w-full h-full"
             style={{
-              background: THEMES[currentTheme].body.background,
+              background: THEME_COLORS[currentTheme].background,
             }}
           />
         </div>
