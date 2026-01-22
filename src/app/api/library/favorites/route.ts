@@ -42,13 +42,22 @@ interface ErrorResponse {
 }
 
 /**
+ * Check favorite response
+ */
+interface CheckFavoriteResponse {
+  isFavorited: boolean;
+}
+
+/**
  * GET /api/library/favorites
  *
- * Get current user's favorites
+ * Get current user's favorites, or check if a specific file is favorited
+ * Query params:
+ *   - fileId: Check if this specific file is favorited (returns { isFavorited: boolean })
  */
-export async function GET(): Promise<
-  NextResponse<FavoritesResponse | ErrorResponse>
-> {
+export async function GET(
+  request: Request
+): Promise<NextResponse<FavoritesResponse | CheckFavoriteResponse | ErrorResponse>> {
   try {
     // Check authentication
     const user = await getCurrentUser();
@@ -59,8 +68,27 @@ export async function GET(): Promise<
       );
     }
 
-    // Get favorites
+    // Check for fileId query param
+    const { searchParams } = new URL(request.url);
+    const fileId = searchParams.get('fileId');
+
     const libraryRepo = getLibraryRepository();
+
+    // If fileId is provided, check if that specific file is favorited
+    if (fileId) {
+      const isFavorited = await libraryRepo.isFavorite(user.id, fileId);
+      return NextResponse.json(
+        { isFavorited },
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+          },
+        }
+      );
+    }
+
+    // Otherwise, get all favorites
     const favorites = await libraryRepo.getUserFavorites(user.id);
 
     return NextResponse.json(

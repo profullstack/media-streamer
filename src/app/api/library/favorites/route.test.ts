@@ -36,7 +36,8 @@ describe('GET /api/library/favorites', () => {
     mockGetCurrentUser.mockResolvedValue(null);
 
     const { GET } = await import('./route');
-    const response = await GET();
+    const request = new Request('http://localhost/api/library/favorites');
+    const response = await GET(request);
     const data = await response.json();
 
     expect(response.status).toBe(401);
@@ -60,7 +61,8 @@ describe('GET /api/library/favorites', () => {
     ]);
 
     const { GET } = await import('./route');
-    const response = await GET();
+    const request = new Request('http://localhost/api/library/favorites');
+    const response = await GET(request);
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -73,7 +75,8 @@ describe('GET /api/library/favorites', () => {
     mockGetUserFavorites.mockResolvedValue([]);
 
     const { GET } = await import('./route');
-    const response = await GET();
+    const request = new Request('http://localhost/api/library/favorites');
+    const response = await GET(request);
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -85,11 +88,40 @@ describe('GET /api/library/favorites', () => {
     mockGetUserFavorites.mockRejectedValue(new Error('Database error'));
 
     const { GET } = await import('./route');
-    const response = await GET();
+    const request = new Request('http://localhost/api/library/favorites');
+    const response = await GET(request);
     const data = await response.json();
 
     expect(response.status).toBe(500);
     expect(data.error).toBe('Failed to fetch favorites');
+  });
+
+  it('returns isFavorited true when file is favorited', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-123' });
+    mockIsFavorite.mockResolvedValue(true);
+
+    const { GET } = await import('./route');
+    const request = new Request('http://localhost/api/library/favorites?fileId=file-1');
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.isFavorited).toBe(true);
+    expect(mockIsFavorite).toHaveBeenCalledWith('user-123', 'file-1');
+  });
+
+  it('returns isFavorited false when file is not favorited', async () => {
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-123' });
+    mockIsFavorite.mockResolvedValue(false);
+
+    const { GET } = await import('./route');
+    const request = new Request('http://localhost/api/library/favorites?fileId=file-2');
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.isFavorited).toBe(false);
+    expect(mockIsFavorite).toHaveBeenCalledWith('user-123', 'file-2');
   });
 });
 

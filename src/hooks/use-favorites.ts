@@ -263,7 +263,7 @@ export function useTorrentFavorites(): UseTorrentFavoritesReturn {
  * Hook for managing a single file's favorite state (library favorites)
  *
  * @param fileId - The file ID from torrent_files table
- * @param initialFavorited - Initial favorite state
+ * @param initialFavorited - Initial favorite state (used while fetching actual state)
  * @returns Favorite state and toggle function
  */
 export function useFileFavorite(
@@ -272,7 +272,49 @@ export function useFileFavorite(
 ): UseFavoriteReturn {
   const [isFavorited, setIsFavorited] = useState(initialFavorited);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch initial favorite state on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkFavorite = async (): Promise<void> => {
+      try {
+        const response = await fetch(`/api/library/favorites?fileId=${encodeURIComponent(fileId)}`);
+
+        if (cancelled) return;
+
+        // If not authenticated, just use initial value (don't show error)
+        if (response.status === 401) {
+          setIsInitializing(false);
+          return;
+        }
+
+        if (!response.ok) {
+          setIsInitializing(false);
+          return;
+        }
+
+        const data = (await response.json()) as { isFavorited?: boolean };
+        if (!cancelled && typeof data.isFavorited === 'boolean') {
+          setIsFavorited(data.isFavorited);
+        }
+      } catch {
+        // Silently fail - just use initial value
+      } finally {
+        if (!cancelled) {
+          setIsInitializing(false);
+        }
+      }
+    };
+
+    void checkFavorite();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId]);
 
   const toggle = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -310,7 +352,8 @@ export function useFileFavorite(
     setError(null);
   }, []);
 
-  return { isFavorited, isLoading, error, toggle, clearError };
+  // Show loading during initialization or when toggling
+  return { isFavorited, isLoading: isLoading || isInitializing, error, toggle, clearError };
 }
 
 export function useIptvChannelFavorites(
