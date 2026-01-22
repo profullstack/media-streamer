@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getWebhookHandler } from '@/lib/coinpayportal/webhook-handler';
+import { getCoinPayPortalClient } from '@/lib/coinpayportal/client';
 import type { WebhookPayload } from '@/lib/coinpayportal/types';
 
 // ============================================================================
@@ -277,21 +278,60 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   log(requestId, 'DEBUG', 'Request headers', { headers });
 
   // -------------------------------------------------------------------------
-  // Parse JSON body
+  // Read raw body for signature verification
   // -------------------------------------------------------------------------
   let body: unknown;
-  let rawBody: string | undefined;
+  let rawBody: string;
 
   try {
-    // Clone the request to read raw body for logging
-    const clonedRequest = request.clone();
-    rawBody = await clonedRequest.text();
+    rawBody = await request.text();
 
     log(requestId, 'DEBUG', 'Raw request body', {
       length: rawBody.length,
       preview: rawBody.substring(0, 500) + (rawBody.length > 500 ? '...' : ''),
     });
+  } catch (readError) {
+    const errorMessage = readError instanceof Error ? readError.message : 'Unknown read error';
+    log(requestId, 'ERROR', 'Failed to read request body', {
+      error: errorMessage,
+    });
+    return NextResponse.json({ error: 'Failed to read request body', requestId }, { status: 400 });
+  }
 
+  // -------------------------------------------------------------------------
+  // Verify webhook signature
+  // -------------------------------------------------------------------------
+  const signatureHeader = request.headers.get('x-coinpay-signature');
+
+  if (!signatureHeader) {
+    log(requestId, 'ERROR', 'Missing X-CoinPay-Signature header');
+    return NextResponse.json({ error: 'Missing signature', requestId }, { status: 401 });
+  }
+
+  try {
+    const client = getCoinPayPortalClient();
+    const isValid = client.verifyWebhookSignature(rawBody, signatureHeader);
+
+    if (!isValid) {
+      log(requestId, 'ERROR', 'Invalid webhook signature', {
+        signatureHeader: signatureHeader.substring(0, 50) + '...',
+      });
+      return NextResponse.json({ error: 'Invalid signature', requestId }, { status: 401 });
+    }
+
+    log(requestId, 'INFO', 'Webhook signature verified successfully');
+  } catch (signatureError) {
+    const errorMessage = signatureError instanceof Error ? signatureError.message : 'Unknown signature error';
+    log(requestId, 'ERROR', 'Signature verification failed', {
+      error: errorMessage,
+    });
+    return NextResponse.json({ error: 'Signature verification failed', requestId }, { status: 401 });
+  }
+
+  // -------------------------------------------------------------------------
+  // Parse JSON body
+  // -------------------------------------------------------------------------
+  try {
     body = JSON.parse(rawBody);
     log(requestId, 'INFO', 'JSON body parsed successfully');
   } catch (parseError) {

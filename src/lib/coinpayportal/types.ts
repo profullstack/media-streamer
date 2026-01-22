@@ -70,6 +70,7 @@ export interface WebhookPayload {
     amount_usd: string;
     currency: string;
     status: string;
+    payment_address?: string;
     confirmations?: number;
     tx_hash?: string;
     merchant_tx_hash?: string;

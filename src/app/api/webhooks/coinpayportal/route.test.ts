@@ -7,8 +7,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import crypto from 'crypto';
 import { POST, GET } from './route';
 import * as webhookHandlerModule from '@/lib/coinpayportal/webhook-handler';
+import * as clientModule from '@/lib/coinpayportal/client';
 import type { WebhookPayload } from '@/lib/coinpayportal/types';
 
 // Mock the webhook handler module
@@ -16,14 +18,40 @@ vi.mock('@/lib/coinpayportal/webhook-handler', () => ({
   getWebhookHandler: vi.fn(),
 }));
 
+// Mock the CoinPayPortal client module
+vi.mock('@/lib/coinpayportal/client', () => ({
+  getCoinPayPortalClient: vi.fn(),
+}));
+
+const TEST_WEBHOOK_SECRET = 'test-webhook-secret';
+
+/**
+ * Generate a valid signature header for testing
+ */
+function generateSignature(payload: string, secret: string = TEST_WEBHOOK_SECRET): string {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signedPayload = `${timestamp}.${payload}`;
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('hex');
+  return `t=${timestamp},v1=${signature}`;
+}
+
 describe('POST /api/webhooks/coinpayportal', () => {
   const mockHandleWebhook = vi.fn();
+  const mockVerifyWebhookSignature = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(webhookHandlerModule.getWebhookHandler).mockReturnValue({
       handleWebhook: mockHandleWebhook,
     });
+    // Default: signature verification passes
+    mockVerifyWebhookSignature.mockReturnValue(true);
+    vi.mocked(clientModule.getCoinPayPortalClient).mockReturnValue({
+      verifyWebhookSignature: mockVerifyWebhookSignature,
+    } as unknown as ReturnType<typeof clientModule.getCoinPayPortalClient>);
   });
 
   afterEach(() => {
@@ -31,12 +59,14 @@ describe('POST /api/webhooks/coinpayportal', () => {
   });
 
   function createWebhookRequest(payload: WebhookPayload): NextRequest {
+    const body = JSON.stringify(payload);
     return new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CoinPay-Signature': generateSignature(body),
       },
-      body: JSON.stringify(payload),
+      body,
     });
   }
 
@@ -95,10 +125,14 @@ describe('POST /api/webhooks/coinpayportal', () => {
         userId: 'user-123',
       });
 
+      const body = JSON.stringify(payload);
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CoinPay-Signature': generateSignature(body),
+        },
+        body,
       });
       const response = await POST(request);
       const data = await response.json();
@@ -116,10 +150,14 @@ describe('POST /api/webhooks/coinpayportal', () => {
         paymentId: 'pay-456',
       });
 
+      const body = JSON.stringify(payload);
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CoinPay-Signature': generateSignature(body),
+        },
+        body,
       });
       const response = await POST(request);
       const data = await response.json();
@@ -137,10 +175,14 @@ describe('POST /api/webhooks/coinpayportal', () => {
         paymentId: 'pay-456',
       });
 
+      const body = JSON.stringify(payload);
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CoinPay-Signature': generateSignature(body),
+        },
+        body,
       });
       const response = await POST(request);
       const data = await response.json();
@@ -273,14 +315,72 @@ describe('POST /api/webhooks/coinpayportal', () => {
     });
   });
 
-  describe('webhook validation errors', () => {
-    it('should return 400 for invalid JSON body', async () => {
+  describe('signature verification', () => {
+    it('should return 401 for missing signature header', async () => {
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: 'invalid json',
+        body: JSON.stringify({ type: 'payment.confirmed', data: { payment_id: 'pay-456' } }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe('Missing signature');
+      expect(data.requestId).toBeDefined();
+    });
+
+    it('should return 401 for invalid signature', async () => {
+      mockVerifyWebhookSignature.mockReturnValue(false);
+
+      const body = JSON.stringify({ type: 'payment.confirmed', data: { payment_id: 'pay-456' } });
+      const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CoinPay-Signature': 't=123,v1=invalidsignature',
+        },
+        body,
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe('Invalid signature');
+      expect(data.requestId).toBeDefined();
+    });
+
+    it('should pass when signature is valid', async () => {
+      mockVerifyWebhookSignature.mockReturnValue(true);
+      const payload = createValidPayload('payment.confirmed');
+      mockHandleWebhook.mockResolvedValue({
+        success: true,
+        action: 'subscription_activated',
+        paymentId: 'pay-456',
+      });
+
+      const request = createWebhookRequest(payload);
+      const response = await POST(request);
+
+      expect(response.status).toBe(200);
+      expect(mockVerifyWebhookSignature).toHaveBeenCalled();
+    });
+  });
+
+  describe('webhook validation errors', () => {
+    it('should return 400 for invalid JSON body', async () => {
+      const body = 'invalid json';
+      const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CoinPay-Signature': generateSignature(body),
+        },
+        body,
       });
 
       const response = await POST(request);
@@ -292,15 +392,17 @@ describe('POST /api/webhooks/coinpayportal', () => {
     });
 
     it('should return 400 for missing event/type field', async () => {
+      const body = JSON.stringify({
+        payment_id: 'pay-456',
+        business_id: 'biz-789',
+      });
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CoinPay-Signature': generateSignature(body),
         },
-        body: JSON.stringify({
-          payment_id: 'pay-456',
-          business_id: 'biz-789',
-        }),
+        body,
       });
 
       const response = await POST(request);
@@ -311,15 +413,17 @@ describe('POST /api/webhooks/coinpayportal', () => {
     });
 
     it('should return 400 for missing payment_id', async () => {
+      const body = JSON.stringify({
+        event: 'payment.confirmed',
+        business_id: 'biz-789',
+      });
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CoinPay-Signature': generateSignature(body),
         },
-        body: JSON.stringify({
-          event: 'payment.confirmed',
-          business_id: 'biz-789',
-        }),
+        body,
       });
 
       const response = await POST(request);
@@ -330,16 +434,18 @@ describe('POST /api/webhooks/coinpayportal', () => {
     });
 
     it('should return 400 for invalid webhook type', async () => {
+      const body = JSON.stringify({
+        id: 'webhook-123',
+        type: 'invalid.type',
+        data: { payment_id: 'pay-456' },
+      });
       const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CoinPay-Signature': generateSignature(body),
         },
-        body: JSON.stringify({
-          id: 'webhook-123',
-          type: 'invalid.type',
-          data: { payment_id: 'pay-456' },
-        }),
+        body,
       });
 
       const response = await POST(request);
