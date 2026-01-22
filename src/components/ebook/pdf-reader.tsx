@@ -97,6 +97,16 @@ export function PdfReader({
     [onError]
   );
 
+  // Handle page render error
+  const handlePageRenderError = useCallback(
+    (err: Error) => {
+      console.error('[PdfReader] Page render error:', err);
+      setPdfError(err);
+      onError?.(err);
+    },
+    [onError]
+  );
+
   // Navigate to previous page
   const goToPreviousPage = useCallback(() => {
     setPageNumber((prev) => {
@@ -204,7 +214,7 @@ export function PdfReader({
               ? `Downloading PDF (${formatDownloadProgress(downloadedBytes)})`
               : 'Downloading PDF...'}
         </p>
-        {(downloadProgress !== null || downloadedBytes > 0) && (
+        {downloadProgress !== null || downloadedBytes > 0 ? (
           <div className="mt-2 w-48 h-2 bg-gray-800 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-300 ${
@@ -213,7 +223,7 @@ export function PdfReader({
               style={{ width: downloadProgress !== null ? `${downloadProgress}%` : '100%' }}
             />
           </div>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -330,6 +340,7 @@ export function PdfReader({
             renderTextLayer={true}
             renderAnnotationLayer={true}
             className="shadow-2xl"
+            onRenderError={handlePageRenderError}
           />
         </Document>
       </div>
