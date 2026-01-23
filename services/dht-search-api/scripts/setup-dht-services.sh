@@ -20,7 +20,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-BITMAGNET_VERSION="${BITMAGNET_VERSION:-v0.9.5}"
+BITMAGNET_VERSION="${BITMAGNET_VERSION:-v0.10.0}"
 BITMAGNET_DIR="/opt/bitmagnet"
 DHT_API_DIR="/opt/dht-api"
 # Use the user who invoked sudo, or fall back to ubuntu
@@ -128,20 +128,21 @@ install_bitmagnet() {
 
     mkdir -p "$BITMAGNET_DIR"
 
-    # Determine architecture
+    # Determine architecture (bitmagnet uses x86_64/arm64 in filenames)
     ARCH=$(uname -m)
     case $ARCH in
-        x86_64) ARCH="amd64" ;;
+        x86_64) ARCH="x86_64" ;;
         aarch64) ARCH="arm64" ;;
         *) log_error "Unsupported architecture: $ARCH"; exit 1 ;;
     esac
 
-    # Download Bitmagnet
-    DOWNLOAD_URL="https://github.com/bitmagnet-io/bitmagnet/releases/download/${BITMAGNET_VERSION}/bitmagnet_Linux_${ARCH}.tar.gz"
+    # Download Bitmagnet (version without 'v' prefix in filename)
+    VERSION_NUM="${BITMAGNET_VERSION#v}"
+    DOWNLOAD_URL="https://github.com/bitmagnet-io/bitmagnet/releases/download/${BITMAGNET_VERSION}/bitmagnet_${VERSION_NUM}_linux_${ARCH}.tar.gz"
     log_info "Downloading from: $DOWNLOAD_URL"
 
     cd "$BITMAGNET_DIR"
-    wget -q "$DOWNLOAD_URL" -O bitmagnet.tar.gz
+    wget -qL "$DOWNLOAD_URL" -O bitmagnet.tar.gz
     tar -xzf bitmagnet.tar.gz
     rm bitmagnet.tar.gz
     chmod +x bitmagnet
@@ -281,6 +282,9 @@ EOF
         fi
     fi
 
+    # Set ownership before installing dependencies (pnpm needs write access)
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DHT_API_DIR}"
+
     # Install dependencies as the service user
     cd "${DHT_API_DIR}"
     PNPM_HOME="/home/${SERVICE_USER}/.local/share/pnpm"
@@ -290,8 +294,6 @@ EOF
         # Fall back to system pnpm
         sudo -u "${SERVICE_USER}" pnpm install
     fi
-
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DHT_API_DIR}"
     log_info "DHT Search API installed to $DHT_API_DIR"
 }
 
