@@ -59,7 +59,7 @@ export async function getTorrentByInfohash(
   infohash: string
 ): Promise<TorrentRecord | null> {
   const { data, error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, infohash, name, file_count, total_size')
     .eq('infohash', infohash.toLowerCase())
     .single();
@@ -83,7 +83,7 @@ export async function getFileIds(
   torrentId: string
 ): Promise<string[]> {
   const { data, error } = await supabase
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select('id')
     .eq('torrent_id', torrentId);
 
@@ -122,9 +122,9 @@ export async function countRelatedRecords(
     readingProgressResult,
     watchProgressResult,
   ] = await Promise.all([
-    supabase.from('audio_metadata').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
-    supabase.from('video_metadata').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
-    supabase.from('ebook_metadata').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
+    supabase.from('bt_audio_metadata').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
+    supabase.from('bt_video_metadata').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
+    supabase.from('bt_ebook_metadata').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
     supabase.from('user_favorites').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
     supabase.from('collection_items').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
     supabase.from('reading_progress').select('id', { count: 'exact', head: true }).in('file_id', fileIds),
@@ -151,7 +151,7 @@ export async function deleteTorrentById(
   torrentId: string
 ): Promise<void> {
   const { error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .delete()
     .eq('id', torrentId);
 

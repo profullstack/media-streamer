@@ -174,7 +174,7 @@ describe('POST /api/torrents/[id]/enrich', () => {
     const { createServerClient } = await import('@/lib/supabase');
     vi.mocked(createServerClient).mockReturnValueOnce({
       from: vi.fn((table: string) => {
-        if (table === 'torrents') {
+        if (table === 'bt_torrents') {
           return {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({

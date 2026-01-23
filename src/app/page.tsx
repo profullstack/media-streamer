@@ -82,17 +82,17 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
     
     // Fetch counts for each content type
     const queries = [
-      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'movie'),
-      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'tvshow'),
-      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'music'),
-      supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'book'),
-      supabase.from('torrents').select('id', { count: 'exact', head: true }),
+      supabase.from('bt_torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'movie'),
+      supabase.from('bt_torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'tvshow'),
+      supabase.from('bt_torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'music'),
+      supabase.from('bt_torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'book'),
+      supabase.from('bt_torrents').select('id', { count: 'exact', head: true }),
     ];
     
     // Only fetch XXX count if user has access
     if (includexxx) {
       queries.push(
-        supabase.from('torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'xxx')
+        supabase.from('bt_torrents').select('id', { count: 'exact', head: true }).eq('content_type', 'xxx')
       );
     }
     

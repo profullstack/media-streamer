@@ -176,7 +176,7 @@ export async function fetchPopularContent(
     
     // Build query
     let query = supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('id, infohash, name, clean_title, content_type, year, poster_url, description, seeders, leechers, total_size, indexed_at', { count: 'exact' })
       .gte('indexed_at', dateThreshold.toISOString())
       .not('seeders', 'is', null)
@@ -275,7 +275,7 @@ export async function fetchRecentlyAdded(
     
     // Build query
     let query = supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('id, infohash, name, clean_title, content_type, year, poster_url, description, seeders, leechers, total_size, indexed_at', { count: 'exact' })
       .order('indexed_at', { ascending: false })
       .range(offset, offset + pageSize - 1);
@@ -338,7 +338,7 @@ export async function fetchMostSeeded(
     
     // Build query
     let query = supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('id, infohash, name, clean_title, content_type, year, poster_url, description, seeders, leechers, total_size, indexed_at', { count: 'exact' })
       .not('seeders', 'is', null)
       .gt('seeders', 0)

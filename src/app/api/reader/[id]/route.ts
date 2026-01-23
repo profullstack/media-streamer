@@ -82,7 +82,7 @@ export async function GET(
 
   // Fetch file with torrent info
   const { data: file, error } = await client
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select(`
       id,
       torrent_id,

@@ -153,7 +153,7 @@ async function fetchTorrents(
   options: ScriptOptions
 ): Promise<Torrent[]> {
   let query = supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, content_type');
 
   // Filter by status unless --all-status is used
@@ -190,7 +190,7 @@ async function fetchTorrentFiles(
   torrentId: string
 ): Promise<TorrentFile[]> {
   const { data, error } = await supabase
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select('id, torrent_id, path')
     .eq('torrent_id', torrentId);
 
@@ -206,7 +206,7 @@ async function fetchExistingFolders(
   torrentId: string
 ): Promise<Set<string>> {
   const { data, error } = await supabase
-    .from('torrent_folders')
+    .from('bt_torrent_folders')
     .select('path')
     .eq('torrent_id', torrentId);
 
@@ -245,7 +245,7 @@ async function upsertFolder(
   }
 
   const { error } = await supabase
-    .from('torrent_folders')
+    .from('bt_torrent_folders')
     .upsert(folderData, {
       onConflict: 'torrent_id,path',
     });

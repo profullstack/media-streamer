@@ -149,7 +149,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Build query - cast contentType to the proper database type
     const dbContentType = contentType as 'movie' | 'tvshow' | 'music' | 'book' | 'xxx' | 'other';
     let query = supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('*', { count: 'exact' })
       .eq('content_type', dbContentType);
 

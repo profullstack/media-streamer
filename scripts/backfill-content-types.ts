@@ -36,7 +36,7 @@ async function backfillContentTypes(): Promise<void> {
 
   // Get all torrents without content_type
   const { data: torrents, error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, content_type')
     .is('content_type', null)
     .order('created_at', { ascending: false });
@@ -104,7 +104,7 @@ async function backfillContentTypes(): Promise<void> {
 
   for (const update of updates) {
     const { error: updateError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .update({ content_type: update.detectedType })
       .eq('id', update.id);
 

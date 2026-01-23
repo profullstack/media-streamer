@@ -23,7 +23,7 @@ vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(function() {
     return {
       from: vi.fn(function(table: string) {
-        if (table === 'torrents') {
+        if (table === 'bt_torrents') {
           return {
             select: vi.fn(function() {
               return {
@@ -36,7 +36,7 @@ vi.mock('@/lib/supabase', () => ({
             }),
           };
         }
-        if (table === 'torrent_files') {
+        if (table === 'bt_torrent_files') {
           return {
             select: vi.fn(function() {
               return {
@@ -53,7 +53,7 @@ vi.mock('@/lib/supabase', () => ({
             }),
           };
         }
-        if (table === 'video_metadata' || table === 'audio_metadata') {
+        if (table === 'bt_video_metadata' || table === 'bt_audio_metadata') {
           return {
             upsert: mockUpsert,
           };

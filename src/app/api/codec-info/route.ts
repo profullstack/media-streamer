@@ -135,7 +135,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Find the torrent and file
     const { data: torrent, error: torrentError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('id')
       .eq('infohash', infohash)
       .single();
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Find the file
     const { data: file, error: fileError } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('id, media_category')
       .eq('torrent_id', torrent.id)
       .eq('file_index', fileIndex)
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (file.media_category === 'video') {
       const { error: updateError } = await supabase
-        .from('video_metadata')
+        .from('bt_video_metadata')
         .upsert({
           file_id: file.id,
           codec: dbData.video_codec,
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } else if (file.media_category === 'audio') {
       const { error: updateError } = await supabase
-        .from('audio_metadata')
+        .from('bt_audio_metadata')
         .upsert({
           file_id: file.id,
           codec: dbData.audio_codec,

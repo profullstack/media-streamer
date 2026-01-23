@@ -275,7 +275,7 @@ async function fetchTorrentFiles(
   torrentId: string
 ): Promise<TorrentFile[]> {
   const { data, error } = await supabase
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select('id, torrent_id, name, extension, media_category, size')
     .eq('torrent_id', torrentId)
     .order('size', { ascending: false }) // Largest files first
@@ -298,7 +298,7 @@ async function fetchTorrentsToEnrich(
   options: ScriptOptions
 ): Promise<Torrent[]> {
   let query = supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, content_type, poster_url, cover_url, metadata_fetched_at');
 
   // Filter by status unless --all-status is used
@@ -382,7 +382,7 @@ async function updateTorrentMetadata(
   }
 
   const { error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .update(updateData)
     .eq('id', torrentId);
 

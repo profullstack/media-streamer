@@ -107,7 +107,7 @@ describe('FavoritesService', () => {
             user_id: userId,
             torrent_id: torrentId,
             created_at: '2024-01-15T00:00:00Z',
-            torrents: {
+            bt_torrents: {
               id: torrentId,
               name: 'Test Movie',
               infohash: 'abc123def456',
@@ -129,11 +129,11 @@ describe('FavoritesService', () => {
 
         const result = await service.getTorrentFavorites(userId);
 
-        expect(mockClient.mocks.from).toHaveBeenCalledWith('torrent_favorites');
+        expect(mockClient.mocks.from).toHaveBeenCalledWith('bt_torrent_favorites');
         expect(result).toHaveLength(1);
         expect(result[0].id).toBe('fav-1');
         expect(result[0].torrent_id).toBe(torrentId);
-        expect(result[0].torrents?.name).toBe('Test Movie');
+        expect(result[0].bt_torrents?.name).toBe('Test Movie');
       });
 
       it('returns empty array when user has no torrent favorites', async () => {
@@ -175,7 +175,7 @@ describe('FavoritesService', () => {
 
         const result = await service.addTorrentFavorite(userId, torrentId);
 
-        expect(mockClient.mocks.from).toHaveBeenCalledWith('torrent_favorites');
+        expect(mockClient.mocks.from).toHaveBeenCalledWith('bt_torrent_favorites');
         expect(mockClient.mocks.insert).toHaveBeenCalledWith({
           user_id: userId,
           torrent_id: torrentId,
@@ -215,7 +215,7 @@ describe('FavoritesService', () => {
 
         await service.removeTorrentFavorite(userId, torrentId);
 
-        expect(mockClient.mocks.from).toHaveBeenCalledWith('torrent_favorites');
+        expect(mockClient.mocks.from).toHaveBeenCalledWith('bt_torrent_favorites');
         expect(mockClient.mocks.delete).toHaveBeenCalled();
       });
 
@@ -275,7 +275,7 @@ describe('FavoritesService', () => {
 
         const result = await service.getTorrentFavoritesCount(torrentId);
 
-        expect(mockClient.mocks.from).toHaveBeenCalledWith('torrent_favorites');
+        expect(mockClient.mocks.from).toHaveBeenCalledWith('bt_torrent_favorites');
         expect(result).toBe(42);
       });
 
@@ -622,7 +622,7 @@ describe('FavoritesService', () => {
             user_id: userId,
             torrent_id: 'torrent-1',
             created_at: '2024-01-15T12:00:00Z',
-            torrents: {
+            bt_torrents: {
               id: 'torrent-1',
               name: 'Test Movie',
               infohash: 'abc123',
@@ -666,7 +666,7 @@ describe('FavoritesService', () => {
 
         expect(result.torrentFavorites).toHaveLength(1);
         expect(result.iptvChannelFavorites).toHaveLength(1);
-        expect(result.torrentFavorites[0].torrents?.name).toBe('Test Movie');
+        expect(result.torrentFavorites[0].bt_torrents?.name).toBe('Test Movie');
         expect(result.iptvChannelFavorites[0].channel_name).toBe('ESPN HD');
       });
 

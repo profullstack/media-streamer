@@ -39,7 +39,7 @@ async function checkTorrentMetadata(): Promise<void> {
 
   // Get all torrents with metadata fields
   const { data: torrents, error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, content_type, cover_url, poster_url, year, metadata_fetched_at')
     .order('created_at', { ascending: false })
     .limit(50);

@@ -108,7 +108,7 @@ async function fetchTorrents(
   options: ScriptOptions
 ): Promise<Torrent[]> {
   let query = supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, clean_title');
 
   // Only fetch torrents without clean_title if --missing-only is used
@@ -144,7 +144,7 @@ async function updateTorrentCleanTitle(
   }
 
   const { error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .update({ clean_title: cleanTitle })
     .eq('id', torrentId);
 
@@ -270,7 +270,7 @@ async function main(): Promise<void> {
       // Batch update using individual updates (Supabase doesn't support bulk upsert well)
       for (const update of updates) {
         const { error } = await supabase
-          .from('torrents')
+          .from('bt_torrents')
           .update({ clean_title: update.clean_title })
           .eq('id', update.id);
 

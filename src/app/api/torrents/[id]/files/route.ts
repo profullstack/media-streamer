@@ -36,7 +36,7 @@ export async function GET(
 
     // First verify the torrent exists
     const { data: torrent, error: torrentError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('id')
       .eq('id', id)
       .single();
@@ -50,7 +50,7 @@ export async function GET(
 
     // Get files for this torrent
     const { data: files, error: filesError, count } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('*', { count: 'exact' })
       .eq('torrent_id', id)
       .order('path', { ascending: true });

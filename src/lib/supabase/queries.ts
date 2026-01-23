@@ -54,9 +54,9 @@ export interface SearchOptions {
  */
 export async function getTorrentByInfohash(infohash: string): Promise<Torrent | null> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('torrents')
+    .from('bt_torrents')
     .select('*')
     .eq('infohash', infohash)
     .single();
@@ -79,9 +79,9 @@ export async function getTorrentByInfohash(infohash: string): Promise<Torrent | 
  */
 export async function createTorrent(torrent: TorrentInsert): Promise<Torrent> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('torrents')
+    .from('bt_torrents')
     .insert(torrent)
     .select()
     .single();
@@ -100,9 +100,9 @@ export async function createTorrent(torrent: TorrentInsert): Promise<Torrent> {
  */
 export async function getTorrentById(id: string): Promise<Torrent | null> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('torrents')
+    .from('bt_torrents')
     .select('*')
     .eq('id', id)
     .single();
@@ -126,9 +126,9 @@ export async function getTorrentById(id: string): Promise<Torrent | null> {
  */
 export async function getTorrents(limit = 50, offset = 0): Promise<Torrent[]> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('torrents')
+    .from('bt_torrents')
     .select('*')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -146,9 +146,9 @@ export async function getTorrents(limit = 50, offset = 0): Promise<Torrent[]> {
  */
 export async function deleteTorrent(id: string): Promise<void> {
   const client = getServerClient();
-  
+
   const { error } = await client
-    .from('torrents')
+    .from('bt_torrents')
     .delete()
     .eq('id', id);
 
@@ -168,9 +168,9 @@ export async function deleteTorrent(id: string): Promise<void> {
  */
 export async function getTorrentFiles(torrentId: string): Promise<TorrentFile[]> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select('*')
     .eq('torrent_id', torrentId);
 
@@ -202,7 +202,7 @@ export async function getTorrentFilesWithCodec(torrentId: string): Promise<Torre
   
   // First get all files
   const { data: files, error: filesError } = await client
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select('*')
     .eq('torrent_id', torrentId);
 
@@ -226,7 +226,7 @@ export async function getTorrentFilesWithCodec(torrentId: string): Promise<Torre
   const videoMetadataMap = new Map<string, { codec: string | null; audio_codec: string | null; container: string | null; needs_transcoding: boolean }>();
   if (videoFileIds.length > 0) {
     const { data: videoMeta } = await client
-      .from('video_metadata')
+      .from('bt_video_metadata')
       .select('file_id, codec, audio_codec, container, needs_transcoding')
       .in('file_id', videoFileIds);
     
@@ -246,7 +246,7 @@ export async function getTorrentFilesWithCodec(torrentId: string): Promise<Torre
   const audioMetadataMap = new Map<string, { codec: string | null; container: string | null }>();
   if (audioFileIds.length > 0) {
     const { data: audioMeta } = await client
-      .from('audio_metadata')
+      .from('bt_audio_metadata')
       .select('file_id, codec, container')
       .in('file_id', audioFileIds);
     
@@ -293,9 +293,9 @@ export async function getTorrentFilesWithCodec(torrentId: string): Promise<Torre
  */
 export async function createTorrentFiles(files: TorrentFileInsert[]): Promise<TorrentFile[]> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .insert(files)
     .select();
 
@@ -317,9 +317,9 @@ export async function createTorrentFiles(files: TorrentFileInsert[]): Promise<To
  */
 export async function getAudioMetadata(fileId: string): Promise<AudioMetadata | null> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('audio_metadata')
+    .from('bt_audio_metadata')
     .select('*')
     .eq('file_id', fileId)
     .single();
@@ -341,9 +341,9 @@ export async function getAudioMetadata(fileId: string): Promise<AudioMetadata | 
  */
 export async function createAudioMetadata(metadata: AudioMetadataInsert): Promise<AudioMetadata> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('audio_metadata')
+    .from('bt_audio_metadata')
     .insert(metadata)
     .select()
     .single();
@@ -366,9 +366,9 @@ export async function createAudioMetadata(metadata: AudioMetadataInsert): Promis
  */
 export async function getVideoMetadata(fileId: string): Promise<VideoMetadata | null> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('video_metadata')
+    .from('bt_video_metadata')
     .select('*')
     .eq('file_id', fileId)
     .single();
@@ -390,9 +390,9 @@ export async function getVideoMetadata(fileId: string): Promise<VideoMetadata | 
  */
 export async function createVideoMetadata(metadata: VideoMetadataInsert): Promise<VideoMetadata> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('video_metadata')
+    .from('bt_video_metadata')
     .insert(metadata)
     .select()
     .single();
@@ -415,9 +415,9 @@ export async function createVideoMetadata(metadata: VideoMetadataInsert): Promis
  */
 export async function getEbookMetadata(fileId: string): Promise<EbookMetadata | null> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('ebook_metadata')
+    .from('bt_ebook_metadata')
     .select('*')
     .eq('file_id', fileId)
     .single();
@@ -439,9 +439,9 @@ export async function getEbookMetadata(fileId: string): Promise<EbookMetadata | 
  */
 export async function createEbookMetadata(metadata: EbookMetadataInsert): Promise<EbookMetadata> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('ebook_metadata')
+    .from('bt_ebook_metadata')
     .insert(metadata)
     .select()
     .single();
@@ -477,9 +477,9 @@ export async function updateTorrentSwarmStats(
   stats: SwarmStatsUpdate
 ): Promise<Torrent> {
   const client = getServerClient();
-  
+
   const { data, error } = await client
-    .from('torrents')
+    .from('bt_torrents')
     .update({
       seeders: stats.seeders,
       leechers: stats.leechers,
@@ -575,22 +575,21 @@ export interface TorrentSearchOptions {
 }
 
 /**
- * Search torrents by name using ILIKE pattern matching
- * This is a simpler approach that doesn't require RPC functions
+ * Search torrents in bt_torrents table using ILIKE pattern matching
  * @param options - Search options
  * @returns Array of torrent search results
  */
 export async function searchTorrents(options: TorrentSearchOptions): Promise<TorrentSearchResult[]> {
   const client = getServerClient();
-  
+
   const { query, mediaType = null, limit = 50, offset = 0 } = options;
 
-  // Build the search pattern - split query into words and search for each
+  // Build the search pattern
   const searchPattern = `%${query.toLowerCase()}%`;
 
-  // Build the query - include poster_url and cover_url for thumbnails
+  // Query bt_torrents with ILIKE search
   const queryBuilder = client
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, clean_title, infohash, total_size, file_count, seeders, leechers, created_at, poster_url, cover_url')
     .ilike('name', searchPattern)
     .order('seeders', { ascending: false, nullsFirst: false })
@@ -603,18 +602,17 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
     throw new Error(error.message);
   }
 
-  // If media type filter is specified, we need to filter by files
+  // If media type filter is specified, filter by files
   let results = data ?? [];
-  
+
   if (mediaType && results.length > 0) {
-    // Get torrent IDs that have files of the specified media type
     const torrentIds = results.map(t => t.id);
     const { data: filesWithType } = await client
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('torrent_id')
       .in('torrent_id', torrentIds)
       .eq('media_category', mediaType);
-    
+
     if (filesWithType) {
       const torrentIdsWithType = new Set(filesWithType.map(f => f.torrent_id));
       results = results.filter(t => torrentIdsWithType.has(t.id));
@@ -635,7 +633,7 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
     torrent_poster_url: t.poster_url,
     torrent_cover_url: t.cover_url,
     match_type: 'torrent_name',
-    rank: 1.0, // Simple ranking - all matches are equal
+    rank: 1.0,
   }));
 }
 

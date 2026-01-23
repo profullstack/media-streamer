@@ -8,14 +8,49 @@ import type {
   Torrent,
   TorrentDetails,
   TorrentFile,
-  DbTorrent,
-  DbTorrentFile,
   DhtStats,
 } from '../types';
 
-// Search torrents with full-text search
+/**
+ * Bitmagnet's torrents table row
+ */
+interface BmTorrent {
+  info_hash: string; // bytea as hex-encoded string
+  name: string;
+  size: number | null;
+  files_count: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Bitmagnet's torrent_files table row
+ */
+interface BmTorrentFile {
+  info_hash: string;
+  index: number;
+  path: string;
+  size: number;
+}
+
+/**
+ * Convert bytea info_hash to hex string
+ * Supabase returns bytea as \x prefixed hex string
+ */
+function bytesToHex(bytea: string | Uint8Array): string {
+  if (typeof bytea === 'string') {
+    // Remove \x prefix if present
+    if (bytea.startsWith('\\x')) {
+      return bytea.slice(2).toLowerCase();
+    }
+    return bytea.toLowerCase();
+  }
+  return Array.from(bytea).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Search torrents with ILIKE pattern matching (Bitmagnet doesn't have tsvector)
 export async function searchTorrents(params: SearchParams): Promise<SearchResults> {
-  const { q, limit = 50, offset = 0, sort = 'date', order = 'desc', category, min_size, max_size } =
+  const { q, limit = 50, offset = 0, sort = 'date', order = 'desc', min_size, max_size } =
     params;
 
   // Build cache key
@@ -25,16 +60,13 @@ export async function searchTorrents(params: SearchParams): Promise<SearchResult
 
   const db = getDb();
 
-  // Build query
+  // Query Bitmagnet's torrents table directly with ILIKE search
   let query = db
-    .from('v_dht_torrents')
-    .select('*', { count: 'exact' })
-    .textSearch('search_vector', q, { type: 'websearch' });
+    .from('torrents')
+    .select('info_hash, name, size, files_count, created_at, updated_at', { count: 'exact' })
+    .ilike('name', `%${q}%`);
 
   // Apply filters
-  if (category) {
-    query = query.eq('category', category);
-  }
   if (min_size !== undefined) {
     query = query.gte('size', min_size);
   }
@@ -43,8 +75,14 @@ export async function searchTorrents(params: SearchParams): Promise<SearchResult
   }
 
   // Apply sorting
-  const sortColumn = sort === 'date' ? 'discovered_at' : sort === 'relevance' ? 'discovered_at' : sort;
-  query = query.order(sortColumn, { ascending: order === 'asc' });
+  const sortColumnMap: Record<string, string> = {
+    date: 'created_at',
+    size: 'size',
+    name: 'name',
+    relevance: 'created_at', // Bitmagnet doesn't have relevance scoring
+  };
+  const sortColumn = sortColumnMap[sort] || 'created_at';
+  query = query.order(sortColumn, { ascending: order === 'asc', nullsFirst: false });
 
   // Apply pagination
   query = query.range(offset, offset + limit - 1);
@@ -56,18 +94,21 @@ export async function searchTorrents(params: SearchParams): Promise<SearchResult
     throw new Error('Search failed');
   }
 
-  const results: Torrent[] = (data || []).map((row: DbTorrent) => ({
-    infohash: row.infohash,
-    name: row.name,
-    size: row.size,
-    size_formatted: formatBytes(row.size),
-    files_count: row.files_count,
-    category: row.category as Torrent['category'],
-    seeders: row.seeders,
-    leechers: row.leechers,
-    discovered_at: row.discovered_at,
-    magnet: row.magnet || buildMagnetUri(row.infohash, row.name),
-  }));
+  const results: Torrent[] = (data || []).map((row: BmTorrent) => {
+    const infohash = bytesToHex(row.info_hash);
+    return {
+      infohash,
+      name: row.name,
+      size: row.size ?? 0,
+      size_formatted: formatBytes(row.size ?? 0),
+      files_count: row.files_count ?? 0,
+      category: null, // Bitmagnet doesn't categorize like our schema
+      seeders: 0, // Would need to query torrent_sources
+      leechers: 0,
+      discovered_at: row.created_at,
+      magnet: buildMagnetUri(infohash, row.name),
+    };
+  });
 
   const searchResults: SearchResults = {
     query: q,
@@ -90,53 +131,47 @@ export async function getTorrentByInfohash(infohash: string): Promise<TorrentDet
   if (cached) return cached;
 
   const db = getDb();
+  const normalizedHash = infohash.toLowerCase();
 
-  // Get torrent
+  // Query Bitmagnet's torrents table
+  // Note: Supabase doesn't support bytea comparison directly via JS client
+  // We need to use a raw SQL query or RPC function for this
+  // For now, we'll try using the hex-encoded comparison
   const { data: torrent, error: torrentError } = await db
-    .from('v_dht_torrents')
-    .select('*')
-    .eq('infohash', infohash.toLowerCase())
+    .from('torrents')
+    .select('info_hash, name, size, files_count, created_at, updated_at')
+    .filter('info_hash', 'eq', `\\x${normalizedHash}`)
     .single();
 
   if (torrentError || !torrent) {
     return null;
   }
 
-  // Get torrent ID from main table for file lookup
-  const { data: torrentRecord } = await db
-    .from('dht_torrents')
-    .select('id')
-    .eq('info_hash', `\\x${infohash.toLowerCase()}`)
-    .single();
+  // Get files from Bitmagnet's torrent_files table
+  const { data: filesData } = await db
+    .from('torrent_files')
+    .select('path, size, index')
+    .filter('info_hash', 'eq', `\\x${normalizedHash}`)
+    .order('index', { ascending: true });
 
-  // Get files
-  let files: TorrentFile[] = [];
-  if (torrentRecord) {
-    const { data: filesData } = await db
-      .from('dht_torrent_files')
-      .select('*')
-      .eq('torrent_id', torrentRecord.id)
-      .order('file_index', { ascending: true });
-
-    files = (filesData || []).map((f: DbTorrentFile) => ({
-      path: f.path,
-      size: f.size,
-      size_formatted: formatBytes(f.size),
-    }));
-  }
+  const files: TorrentFile[] = (filesData || []).map((f: BmTorrentFile) => ({
+    path: f.path,
+    size: f.size,
+    size_formatted: formatBytes(f.size),
+  }));
 
   const details: TorrentDetails = {
-    infohash: torrent.infohash,
+    infohash: normalizedHash,
     name: torrent.name,
-    size: torrent.size,
-    size_formatted: formatBytes(torrent.size),
-    files_count: torrent.files_count,
-    category: torrent.category as Torrent['category'],
-    seeders: torrent.seeders,
-    leechers: torrent.leechers,
-    discovered_at: torrent.discovered_at,
+    size: torrent.size ?? 0,
+    size_formatted: formatBytes(torrent.size ?? 0),
+    files_count: torrent.files_count ?? files.length,
+    category: null,
+    seeders: 0,
+    leechers: 0,
+    discovered_at: torrent.created_at,
     updated_at: torrent.updated_at,
-    magnet: torrent.magnet || buildMagnetUri(torrent.infohash, torrent.name),
+    magnet: buildMagnetUri(normalizedHash, torrent.name),
     files,
   };
 
@@ -149,43 +184,40 @@ export async function getTorrentByInfohash(infohash: string): Promise<TorrentDet
 // Get recent torrents
 export async function getRecentTorrents(
   limit = 50,
-  category?: string
+  _category?: string // Category not supported in Bitmagnet schema
 ): Promise<Torrent[]> {
-  const cacheKey = `recent:${limit}:${category || 'all'}`;
+  const cacheKey = `recent:${limit}:all`;
   const cached = await getCached<Torrent[]>(cacheKey);
   if (cached) return cached;
 
   const db = getDb();
 
-  let query = db
-    .from('v_dht_torrents')
-    .select('*')
-    .order('discovered_at', { ascending: false })
+  const { data, error } = await db
+    .from('torrents')
+    .select('info_hash, name, size, files_count, created_at')
+    .order('created_at', { ascending: false })
     .limit(limit);
-
-  if (category) {
-    query = query.eq('category', category);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error('Recent torrents error:', error);
     throw new Error('Failed to fetch recent torrents');
   }
 
-  const results: Torrent[] = (data || []).map((row: DbTorrent) => ({
-    infohash: row.infohash,
-    name: row.name,
-    size: row.size,
-    size_formatted: formatBytes(row.size),
-    files_count: row.files_count,
-    category: row.category as Torrent['category'],
-    seeders: row.seeders,
-    leechers: row.leechers,
-    discovered_at: row.discovered_at,
-    magnet: row.magnet || buildMagnetUri(row.infohash, row.name),
-  }));
+  const results: Torrent[] = (data || []).map((row: BmTorrent) => {
+    const infohash = bytesToHex(row.info_hash);
+    return {
+      infohash,
+      name: row.name,
+      size: row.size ?? 0,
+      size_formatted: formatBytes(row.size ?? 0),
+      files_count: row.files_count ?? 0,
+      category: null,
+      seeders: 0,
+      leechers: 0,
+      discovered_at: row.created_at,
+      magnet: buildMagnetUri(infohash, row.name),
+    };
+  });
 
   // Cache for 30 seconds
   await setCache(cacheKey, results, 30);
@@ -201,22 +233,48 @@ export async function getStats(): Promise<DhtStats> {
 
   const db = getDb();
 
-  const { data, error } = await db.from('v_dht_stats').select('*').single();
+  // Query Bitmagnet's torrents table for basic stats
+  const { count: totalCount } = await db
+    .from('torrents')
+    .select('*', { count: 'exact', head: true });
 
-  if (error) {
-    console.error('Stats error:', error);
-    throw new Error('Failed to fetch stats');
-  }
+  // Get counts for different time windows
+  const now = new Date();
+  const day = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const week = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const month = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [{ count: count24h }, { count: count7d }, { count: count30d }] = await Promise.all([
+    db.from('torrents').select('*', { count: 'exact', head: true }).gte('created_at', day),
+    db.from('torrents').select('*', { count: 'exact', head: true }).gte('created_at', week),
+    db.from('torrents').select('*', { count: 'exact', head: true }).gte('created_at', month),
+  ]);
+
+  // Get total size
+  const { data: sizeData } = await db
+    .from('torrents')
+    .select('size')
+    .not('size', 'is', null);
+
+  const totalSize = (sizeData || []).reduce((acc: number, row: { size: number }) => acc + (row.size || 0), 0);
+
+  // Get last indexed
+  const { data: lastData } = await db
+    .from('torrents')
+    .select('created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
 
   const stats: DhtStats = {
-    total_torrents: data?.total_torrents || 0,
-    total_size_bytes: data?.total_size_bytes || 0,
-    total_size_formatted: formatBytes(data?.total_size_bytes),
-    torrents_24h: data?.torrents_24h || 0,
-    torrents_7d: data?.torrents_7d || 0,
-    torrents_30d: data?.torrents_30d || 0,
-    crawler_status: 'unknown', // Would need to check Bitmagnet process
-    last_indexed_at: data?.last_indexed_at || null,
+    total_torrents: totalCount || 0,
+    total_size_bytes: totalSize,
+    total_size_formatted: formatBytes(totalSize),
+    torrents_24h: count24h || 0,
+    torrents_7d: count7d || 0,
+    torrents_30d: count30d || 0,
+    crawler_status: 'running', // Bitmagnet is running
+    last_indexed_at: lastData?.created_at || null,
   };
 
   // Cache for 60 seconds

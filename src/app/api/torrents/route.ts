@@ -115,7 +115,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const supabase = getServerClient();
 
     let query = supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('*', { count: 'exact' })
       .order(sortColumn, { ascending, nullsFirst: false })
       .range(offset, offset + limit - 1);
@@ -287,7 +287,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Update torrent with enrichment data
       const supabase = getServerClient();
       const { error: updateError } = await supabase
-        .from('torrents')
+        .from('bt_torrents')
         .update({
           clean_title: cleanTitle,
           content_type: enrichmentResult.contentType !== 'other' ? enrichmentResult.contentType : null,
@@ -317,7 +317,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Auto-detect codec for video/audio files
       // Find the first video or audio file
       const { data: mediaFiles } = await supabase
-        .from('torrent_files')
+        .from('bt_torrent_files')
         .select('id, file_index, media_category')
         .eq('torrent_id', result.torrentId)
         .in('media_category', ['video', 'audio'])
@@ -350,7 +350,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           
           // Update torrent-level codec info
           const { error: codecUpdateError } = await supabase
-            .from('torrents')
+            .from('bt_torrents')
             .update({
               video_codec: dbData.video_codec,
               audio_codec: dbData.audio_codec,
@@ -374,7 +374,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           // Also update the file-level metadata
           if (mediaFile.media_category === 'video') {
             const { error: videoMetaError } = await supabase
-              .from('video_metadata')
+              .from('bt_video_metadata')
               .upsert({
                 file_id: mediaFile.id,
                 codec: dbData.video_codec,
@@ -393,7 +393,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             }
           } else if (mediaFile.media_category === 'audio') {
             const { error: audioMetaError } = await supabase
-              .from('audio_metadata')
+              .from('bt_audio_metadata')
               .upsert({
                 file_id: mediaFile.id,
                 codec: dbData.audio_codec,

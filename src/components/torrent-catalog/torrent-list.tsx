@@ -24,6 +24,9 @@ export interface TorrentItem {
   coverUrl?: string | null;
   contentType?: string | null;
   year?: number | null;
+  // Source field for unified search (user-submitted vs DHT-crawled)
+  source?: 'user' | 'dht';
+  magnetUri?: string;
   // Music-specific fields
   artistImageUrl?: string | null;
   albumCoverUrl?: string | null;
@@ -51,6 +54,7 @@ export interface TorrentListProps {
 function getStatusColor(status: string): string {
   switch (status) {
     case 'indexed':
+    case 'ready':
       return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
     case 'indexing':
       return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
@@ -58,6 +62,26 @@ function getStatusColor(status: string): string {
       return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
     default:
       return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+  }
+}
+
+function getSourceBadgeStyle(source: 'user' | 'dht' | undefined): { color: string; label: string } {
+  switch (source) {
+    case 'user':
+      return {
+        color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+        label: 'User',
+      };
+    case 'dht':
+      return {
+        color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+        label: 'DHT',
+      };
+    default:
+      return {
+        color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+        label: 'Unknown',
+      };
   }
 }
 
@@ -196,9 +220,16 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
                   <span>•</span>
                   <span>{formatBytes(totalSize)}</span>
                   <span>•</span>
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(status)}`}>
-                    {status}
-                  </span>
+                  {/* Show source badge for unified search results, otherwise show status */}
+                  {torrent.source ? (
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getSourceBadgeStyle(torrent.source).color}`}>
+                      {getSourceBadgeStyle(torrent.source).label}
+                    </span>
+                  ) : (
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(status)}`}>
+                      {status}
+                    </span>
+                  )}
                 </div>
               </div>
               

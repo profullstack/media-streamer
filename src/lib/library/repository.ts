@@ -19,8 +19,8 @@ type CollectionRow = Tables['collections']['Row'];
 type CollectionItemRow = Tables['collection_items']['Row'];
 type WatchProgressRow = Tables['watch_progress']['Row'];
 type ReadingProgressRow = Tables['reading_progress']['Row'];
-type TorrentFileRow = Tables['torrent_files']['Row'];
-type TorrentRow = Tables['torrents']['Row'];
+type TorrentFileRow = Tables['bt_torrent_files']['Row'];
+type TorrentRow = Tables['bt_torrents']['Row'];
 
 /**
  * Collection type options
@@ -31,8 +31,8 @@ export type CollectionType = 'playlist' | 'watchlist' | 'reading_list' | 'mixed'
  * Favorite with file details
  */
 export interface Favorite extends UserFavoriteRow {
-  torrent_files?: TorrentFileRow & {
-    torrents?: TorrentRow;
+  bt_torrent_files?: TorrentFileRow & {
+    bt_torrents?: TorrentRow;
   };
 }
 
@@ -47,21 +47,21 @@ export interface Collection extends CollectionRow {
  * Collection item with file details
  */
 export interface CollectionItem extends CollectionItemRow {
-  torrent_files?: TorrentFileRow;
+  bt_torrent_files?: TorrentFileRow;
 }
 
 /**
  * Watch progress with file details
  */
 export interface WatchProgress extends WatchProgressRow {
-  torrent_files?: TorrentFileRow;
+  bt_torrent_files?: TorrentFileRow;
 }
 
 /**
  * Reading progress with file details
  */
 export interface ReadingProgress extends ReadingProgressRow {
-  torrent_files?: TorrentFileRow;
+  bt_torrent_files?: TorrentFileRow;
 }
 
 /**
@@ -103,9 +103,9 @@ export class LibraryRepository {
       .select(
         `
         *,
-        torrent_files (
+        bt_torrent_files (
           *,
-          torrents (*)
+          bt_torrents (*)
         )
       `
       )
@@ -314,7 +314,7 @@ export class LibraryRepository {
       .select(
         `
         *,
-        torrent_files (*)
+        bt_torrent_files (*)
       `
       )
       .eq('collection_id', collectionId)
@@ -410,7 +410,7 @@ export class LibraryRepository {
       .select(
         `
         *,
-        torrent_files (*)
+        bt_torrent_files (*)
       `
       )
       .eq('user_id', userId)
@@ -514,7 +514,7 @@ export class LibraryRepository {
       .select(
         `
         *,
-        torrent_files (*)
+        bt_torrent_files (*)
       `
       )
       .eq('user_id', userId)
@@ -621,7 +621,7 @@ export class LibraryRepository {
       file_id: item.file_id,
       percentage: Number(item.percentage) || 0,
       last_activity_at: item.last_watched_at ?? new Date().toISOString(),
-      file: item.torrent_files,
+      file: item.bt_torrent_files,
       current_time_seconds: item.current_time_seconds ?? undefined,
       duration_seconds: item.duration_seconds,
     }));
@@ -632,7 +632,7 @@ export class LibraryRepository {
       file_id: item.file_id,
       percentage: Number(item.percentage) || 0,
       last_activity_at: item.last_read_at ?? new Date().toISOString(),
-      file: item.torrent_files,
+      file: item.bt_torrent_files,
       current_page: item.current_page ?? undefined,
       total_pages: item.total_pages,
     }));

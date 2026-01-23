@@ -71,7 +71,7 @@ export async function GET(
   const supabase = createServerClient();
 
   const { data, error } = await supabase
-    .from('torrent_folders')
+    .from('bt_torrent_folders')
     .select('id, torrent_id, path, artist, album, year, cover_url, external_id, external_source')
     .eq('torrent_id', torrentId);
 

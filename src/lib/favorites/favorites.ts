@@ -17,16 +17,16 @@ import type {
 
 // Type aliases for database tables
 type Tables = Database['public']['Tables'];
-type TorrentFavoriteRow = Tables['torrent_favorites']['Row'];
+type TorrentFavoriteRow = Tables['bt_torrent_favorites']['Row'];
 type IptvChannelFavoriteRow = Tables['iptv_channel_favorites']['Row'];
-type TorrentRow = Tables['torrents']['Row'];
+type TorrentRow = Tables['bt_torrents']['Row'];
 type IptvPlaylistRow = Tables['iptv_playlists']['Row'];
 
 /**
  * Torrent favorite with torrent details
  */
 export interface TorrentFavoriteWithDetails extends TorrentFavoriteRow {
-  torrents?: Partial<TorrentRow>;
+  bt_torrents?: Partial<TorrentRow>;
 }
 
 /**
@@ -75,11 +75,11 @@ export class FavoritesService {
    */
   async getTorrentFavorites(userId: string): Promise<TorrentFavoriteWithDetails[]> {
     const { data, error } = await this.supabase
-      .from('torrent_favorites')
+      .from('bt_torrent_favorites')
       .select(
         `
         *,
-        torrents (
+        bt_torrents (
           id,
           name,
           infohash,
@@ -111,7 +111,7 @@ export class FavoritesService {
    */
   async addTorrentFavorite(userId: string, torrentId: string): Promise<TorrentFavorite> {
     const { data, error } = await this.supabase
-      .from('torrent_favorites')
+      .from('bt_torrent_favorites')
       .insert({
         user_id: userId,
         torrent_id: torrentId,
@@ -134,7 +134,7 @@ export class FavoritesService {
    */
   async removeTorrentFavorite(userId: string, torrentId: string): Promise<void> {
     const { error } = await this.supabase
-      .from('torrent_favorites')
+      .from('bt_torrent_favorites')
       .delete()
       .eq('user_id', userId)
       .eq('torrent_id', torrentId);
@@ -149,7 +149,7 @@ export class FavoritesService {
    */
   async isTorrentFavorite(userId: string, torrentId: string): Promise<boolean> {
     const { data, error } = await this.supabase
-      .from('torrent_favorites')
+      .from('bt_torrent_favorites')
       .select('id')
       .eq('user_id', userId)
       .eq('torrent_id', torrentId)
@@ -167,7 +167,7 @@ export class FavoritesService {
    */
   async getTorrentFavoritesCount(torrentId: string): Promise<number> {
     const { count, error } = await this.supabase
-      .from('torrent_favorites')
+      .from('bt_torrent_favorites')
       .select('*', { count: 'exact', head: true })
       .eq('torrent_id', torrentId);
 

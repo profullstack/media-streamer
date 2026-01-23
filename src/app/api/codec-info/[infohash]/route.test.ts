@@ -221,21 +221,21 @@ describe('Codec Info Dynamic Route', () => {
 
       const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'torrents') {
+          if (table === 'bt_torrents') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
               single: vi.fn().mockResolvedValue({ data: mockTorrent, error: null }),
             };
           }
-          if (table === 'torrent_files') {
+          if (table === 'bt_torrent_files') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
               single: vi.fn().mockResolvedValue({ data: mockFile, error: null }),
             };
           }
-          if (table === 'video_metadata') {
+          if (table === 'bt_video_metadata') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
@@ -295,14 +295,14 @@ describe('Codec Info Dynamic Route', () => {
 
       const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'torrents') {
+          if (table === 'bt_torrents') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
               single: vi.fn().mockResolvedValue({ data: mockTorrent, error: null }),
             };
           }
-          if (table === 'torrent_files') {
+          if (table === 'bt_torrent_files') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
@@ -361,7 +361,7 @@ describe('Codec Info Dynamic Route', () => {
 
       const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'torrents') {
+          if (table === 'bt_torrents') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
@@ -369,7 +369,7 @@ describe('Codec Info Dynamic Route', () => {
               update: vi.fn().mockReturnThis(),
             };
           }
-          if (table === 'torrent_files') {
+          if (table === 'bt_torrent_files') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
@@ -378,7 +378,7 @@ describe('Codec Info Dynamic Route', () => {
               limit: vi.fn().mockResolvedValue({ data: [mockFile], error: null }),
             };
           }
-          if (table === 'video_metadata') {
+          if (table === 'bt_video_metadata') {
             return {
               upsert: vi.fn().mockResolvedValue({ error: null }),
             };
@@ -415,14 +415,14 @@ describe('Codec Info Dynamic Route', () => {
 
       const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'torrents') {
+          if (table === 'bt_torrents') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
               single: vi.fn().mockResolvedValue({ data: mockTorrent, error: null }),
             };
           }
-          if (table === 'torrent_files') {
+          if (table === 'bt_torrent_files') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
@@ -458,14 +458,14 @@ describe('Codec Info Dynamic Route', () => {
 
       const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'torrents') {
+          if (table === 'bt_torrents') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
               single: vi.fn().mockResolvedValue({ data: mockTorrent, error: null }),
             };
           }
-          if (table === 'torrent_files') {
+          if (table === 'bt_torrent_files') {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),

@@ -103,7 +103,7 @@ export async function ingestMagnet(
     
     // Check for existing torrent with same infohash
     const { data: existing } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('id, infohash')
       .eq('infohash', parsed.infohash)
       .maybeSingle();
@@ -131,7 +131,7 @@ export async function ingestMagnet(
     };
     
     const { data: inserted, error: insertError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .insert(insertData)
       .select('id, infohash')
       .single();
@@ -175,7 +175,7 @@ export async function getTorrentByInfohash(
     const supabase = createServerClient();
     
     const { data: torrent, error } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .select('*')
       .eq('infohash', normalizedHash)
       .maybeSingle();
@@ -186,7 +186,7 @@ export async function getTorrentByInfohash(
     
     // Get files for this torrent
     const { data: files } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('*')
       .eq('torrent_id', torrent.id)
       .order('file_index', { ascending: true });
@@ -210,7 +210,7 @@ export async function getTorrentFiles(
     const supabase = createServerClient();
     
     const { data: files, error } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('*')
       .eq('torrent_id', torrentId)
       .order('file_index', { ascending: true });
@@ -258,7 +258,7 @@ export async function updateTorrentStatus(
     }
     
     const { error } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .update(updateData)
       .eq('id', torrentId);
     
@@ -290,7 +290,7 @@ export async function deleteTorrent(
     
     // Files are deleted automatically via CASCADE
     const { error } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .delete()
       .eq('id', torrentId);
     
@@ -356,7 +356,7 @@ export async function storeTorrentFiles(
     });
     
     const { error } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .insert(fileInserts);
     
     if (error) {
@@ -391,7 +391,7 @@ export async function updateTorrentMetadata(
     const supabase = createServerClient();
     
     const { error } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .update({
         total_size: metadata.totalSize,
         file_count: metadata.fileCount,

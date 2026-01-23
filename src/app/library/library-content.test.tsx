@@ -41,11 +41,11 @@ const mockFavorites = [
     user_id: 'user-123',
     file_id: 'file-1',
     created_at: '2024-01-15T00:00:00Z',
-    torrent_files: {
+    bt_torrent_files: {
       id: 'file-1',
       name: 'Song.mp3',
       media_category: 'audio',
-      torrents: {
+      bt_torrents: {
         id: 'torrent-1',
         name: 'Test Album',
         infohash: 'audio123hash',
@@ -57,11 +57,11 @@ const mockFavorites = [
     user_id: 'user-123',
     file_id: 'file-2',
     created_at: '2024-01-14T00:00:00Z',
-    torrent_files: {
+    bt_torrent_files: {
       id: 'file-2',
       name: 'Movie.mp4',
       media_category: 'video',
-      torrents: {
+      bt_torrents: {
         id: 'torrent-2',
         name: 'Test Movie',
         infohash: 'video456hash',
@@ -73,11 +73,11 @@ const mockFavorites = [
     user_id: 'user-123',
     file_id: 'file-ebook-1',
     created_at: '2024-01-13T00:00:00Z',
-    torrent_files: {
+    bt_torrent_files: {
       id: 'file-ebook-1',
       name: 'Programming.epub',
       media_category: 'ebook',
-      torrents: {
+      bt_torrents: {
         id: 'torrent-3',
         name: 'Programming Guide',
         infohash: 'ebook789hash',
@@ -144,7 +144,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
     user_id: 'user-123',
     torrent_id: 'torrent-music-1',
     created_at: '2024-01-15T00:00:00Z',
-    torrents: {
+    bt_torrents: {
       id: 'torrent-music-1',
       name: 'Greatest Hits Album',
       infohash: 'abc123',
@@ -158,7 +158,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
     user_id: 'user-123',
     torrent_id: 'torrent-movie-1',
     created_at: '2024-01-14T00:00:00Z',
-    torrents: {
+    bt_torrents: {
       id: 'torrent-movie-1',
       name: 'Action Movie 2024',
       infohash: 'def456',
@@ -172,7 +172,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
     user_id: 'user-123',
     torrent_id: 'torrent-tvshow-1',
     created_at: '2024-01-13T00:00:00Z',
-    torrents: {
+    bt_torrents: {
       id: 'torrent-tvshow-1',
       name: 'Drama Series Season 1',
       infohash: 'ghi789',
@@ -186,7 +186,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
     user_id: 'user-123',
     torrent_id: 'torrent-book-1',
     created_at: '2024-01-12T00:00:00Z',
-    torrents: {
+    bt_torrents: {
       id: 'torrent-book-1',
       name: 'Programming Guide eBook',
       infohash: 'jkl012',

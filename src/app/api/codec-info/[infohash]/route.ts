@@ -67,7 +67,7 @@ export async function GET(
 
   // Get the torrent
   const { data: torrent, error: torrentError } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, video_codec, audio_codec, container, needs_transcoding, codec_detected_at')
     .eq('infohash', infohash)
     .single();
@@ -117,7 +117,7 @@ export async function GET(
 
   // Get the file
   const { data: file, error: fileError } = await supabase
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select('id, media_category')
     .eq('torrent_id', torrent.id)
     .eq('file_index', fileIndex)
@@ -133,7 +133,7 @@ export async function GET(
   // Check for cached codec info based on media type
   if (file.media_category === 'video') {
     const { data: videoMeta } = await supabase
-      .from('video_metadata')
+      .from('bt_video_metadata')
       .select('codec, audio_codec, container, needs_transcoding, codec_detected_at')
       .eq('file_id', file.id)
       .single();
@@ -152,7 +152,7 @@ export async function GET(
     }
   } else if (file.media_category === 'audio') {
     const { data: audioMeta } = await supabase
-      .from('audio_metadata')
+      .from('bt_audio_metadata')
       .select('codec, container, codec_detected_at')
       .eq('file_id', file.id)
       .single();
@@ -231,7 +231,7 @@ export async function POST(
 
   // Get the torrent
   const { data: torrent, error: torrentError } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id')
     .eq('infohash', infohash)
     .single();
@@ -250,7 +250,7 @@ export async function POST(
   if (fileIndex !== undefined) {
     // Specific file requested
     const { data: specificFile, error: fileError } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('id, media_category')
       .eq('torrent_id', torrent.id)
       .eq('file_index', fileIndex)
@@ -267,7 +267,7 @@ export async function POST(
   } else {
     // Find the first video or audio file
     const { data: mediaFiles } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('id, file_index, media_category')
       .eq('torrent_id', torrent.id)
       .in('media_category', ['video', 'audio'])
@@ -307,7 +307,7 @@ export async function POST(
 
     if (file.media_category === 'video') {
       const { error: updateError } = await supabase
-        .from('video_metadata')
+        .from('bt_video_metadata')
         .upsert({
           file_id: file.id,
           codec: dbData.video_codec,
@@ -328,7 +328,7 @@ export async function POST(
       }
     } else if (file.media_category === 'audio') {
       const { error: updateError } = await supabase
-        .from('audio_metadata')
+        .from('bt_audio_metadata')
         .upsert({
           file_id: file.id,
           codec: dbData.audio_codec,
@@ -351,7 +351,7 @@ export async function POST(
     // This ensures the torrent details page shows codec info regardless of how detection was triggered
     if (saved && file.media_category === 'video') {
       const { error: torrentUpdateError } = await supabase
-        .from('torrents')
+        .from('bt_torrents')
         .update({
           video_codec: dbData.video_codec,
           audio_codec: dbData.audio_codec,

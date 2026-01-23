@@ -64,7 +64,7 @@ export async function POST(
 
   // Fetch the torrent
   const { data: torrent, error: fetchError } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, infohash, status, content_type, poster_url, cover_url')
     .eq('id', torrentId)
     .single();
@@ -134,7 +134,7 @@ export async function POST(
     }
 
     const { error: updateError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .update(updateData)
       .eq('id', torrentId);
 

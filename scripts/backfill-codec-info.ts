@@ -170,14 +170,14 @@ async function fetchTorrentsToProcess(
 ): Promise<Torrent[]> {
   // First, let's see what statuses exist in the database
   const { data: statusData } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id')
     .limit(1);
   
   console.log(`  Debug: Found ${statusData?.length ?? 0} torrents in database`);
 
   let query = supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, infohash, name, video_codec, audio_codec, container, needs_transcoding, codec_detected_at, seeders, leechers, swarm_updated_at');
 
   // Filter by specific infohash if provided
@@ -215,7 +215,7 @@ async function fetchFirstMediaFile(
   torrentId: string
 ): Promise<TorrentFile | null> {
   const { data, error } = await supabase
-    .from('torrent_files')
+    .from('bt_torrent_files')
     .select('id, torrent_id, file_index, name, media_category')
     .eq('torrent_id', torrentId)
     .in('media_category', ['video', 'audio'])
@@ -267,7 +267,7 @@ async function updateSwarmStats(
 
     // Update torrent with swarm stats
     const { error: updateError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .update({
         seeders: swarmStats.seeders,
         leechers: swarmStats.leechers,
@@ -336,7 +336,7 @@ async function updateCodecInfo(
 
     // Update torrent-level codec info
     const { error: updateError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .update({
         video_codec: dbData.video_codec,
         audio_codec: dbData.audio_codec,
@@ -355,7 +355,7 @@ async function updateCodecInfo(
     // Also update file-level metadata
     if (mediaFile.media_category === 'video') {
       const { error: videoMetaError } = await supabase
-        .from('video_metadata')
+        .from('bt_video_metadata')
         .upsert({
           file_id: mediaFile.id,
           codec: dbData.video_codec,
@@ -374,7 +374,7 @@ async function updateCodecInfo(
       }
     } else if (mediaFile.media_category === 'audio') {
       const { error: audioMetaError } = await supabase
-        .from('audio_metadata')
+        .from('bt_audio_metadata')
         .upsert({
           file_id: mediaFile.id,
           codec: dbData.audio_codec,

@@ -142,7 +142,7 @@ describe('Trending Service', () => {
       expect(result.items).toHaveLength(3);
       expect(result.page).toBe(1);
       expect(result.totalResults).toBe(3);
-      expect(mockFrom).toHaveBeenCalledWith('torrents');
+      expect(mockFrom).toHaveBeenCalledWith('bt_torrents');
     });
 
     it('should transform database rows to TrendingItem format', async () => {

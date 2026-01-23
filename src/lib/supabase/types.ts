@@ -15,7 +15,7 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      torrents: {
+      bt_torrents: {
         Row: {
           id: string;
           infohash: string;
@@ -141,7 +141,7 @@ export type Database = {
         };
         Relationships: [];
       };
-      torrent_folders: {
+      bt_torrent_folders: {
         Row: {
           id: string;
           torrent_id: string;
@@ -186,15 +186,15 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'torrent_folders_torrent_id_fkey';
+            foreignKeyName: 'bt_torrent_folders_torrent_id_fkey';
             columns: ['torrent_id'];
             isOneToOne: false;
-            referencedRelation: 'torrents';
+            referencedRelation: 'bt_torrents';
             referencedColumns: ['id'];
           }
         ];
       };
-      torrent_files: {
+      bt_torrent_files: {
         Row: {
           id: string;
           torrent_id: string;
@@ -240,15 +240,15 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'torrent_files_torrent_id_fkey';
+            foreignKeyName: 'bt_torrent_files_torrent_id_fkey';
             columns: ['torrent_id'];
             isOneToOne: false;
-            referencedRelation: 'torrents';
+            referencedRelation: 'bt_torrents';
             referencedColumns: ['id'];
           }
         ];
       };
-      audio_metadata: {
+      bt_audio_metadata: {
         Row: {
           id: string;
           file_id: string;
@@ -303,15 +303,15 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'audio_metadata_file_id_fkey';
+            foreignKeyName: 'bt_audio_metadata_file_id_fkey';
             columns: ['file_id'];
             isOneToOne: true;
-            referencedRelation: 'torrent_files';
+            referencedRelation: 'bt_torrent_files';
             referencedColumns: ['id'];
           }
         ];
       };
-      video_metadata: {
+      bt_video_metadata: {
         Row: {
           id: string;
           file_id: string;
@@ -363,15 +363,15 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'video_metadata_file_id_fkey';
+            foreignKeyName: 'bt_video_metadata_file_id_fkey';
             columns: ['file_id'];
             isOneToOne: true;
-            referencedRelation: 'torrent_files';
+            referencedRelation: 'bt_torrent_files';
             referencedColumns: ['id'];
           }
         ];
       };
-      ebook_metadata: {
+      bt_ebook_metadata: {
         Row: {
           id: string;
           file_id: string;
@@ -411,10 +411,10 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'ebook_metadata_file_id_fkey';
+            foreignKeyName: 'bt_ebook_metadata_file_id_fkey';
             columns: ['file_id'];
             isOneToOne: true;
-            referencedRelation: 'torrent_files';
+            referencedRelation: 'bt_torrent_files';
             referencedColumns: ['id'];
           }
         ];
@@ -443,7 +443,7 @@ export type Database = {
             foreignKeyName: 'user_favorites_file_id_fkey';
             columns: ['file_id'];
             isOneToOne: false;
-            referencedRelation: 'torrent_files';
+            referencedRelation: 'bt_torrent_files';
             referencedColumns: ['id'];
           }
         ];
@@ -509,7 +509,7 @@ export type Database = {
             foreignKeyName: 'collection_items_file_id_fkey';
             columns: ['file_id'];
             isOneToOne: false;
-            referencedRelation: 'torrent_files';
+            referencedRelation: 'bt_torrent_files';
             referencedColumns: ['id'];
           }
         ];
@@ -547,7 +547,7 @@ export type Database = {
             foreignKeyName: 'reading_progress_file_id_fkey';
             columns: ['file_id'];
             isOneToOne: false;
-            referencedRelation: 'torrent_files';
+            referencedRelation: 'bt_torrent_files';
             referencedColumns: ['id'];
           }
         ];
@@ -585,7 +585,7 @@ export type Database = {
             foreignKeyName: 'watch_progress_file_id_fkey';
             columns: ['file_id'];
             isOneToOne: false;
-            referencedRelation: 'torrent_files';
+            referencedRelation: 'bt_torrent_files';
             referencedColumns: ['id'];
           }
         ];
@@ -1301,7 +1301,7 @@ export type Database = {
           }
         ];
       };
-      torrent_comments: {
+      bt_torrent_comments: {
         Row: {
           id: string;
           torrent_id: string;
@@ -1340,22 +1340,22 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'torrent_comments_torrent_id_fkey';
+            foreignKeyName: 'bt_torrent_comments_torrent_id_fkey';
             columns: ['torrent_id'];
             isOneToOne: false;
-            referencedRelation: 'torrents';
+            referencedRelation: 'bt_torrents';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'torrent_comments_parent_id_fkey';
+            foreignKeyName: 'bt_torrent_comments_parent_id_fkey';
             columns: ['parent_id'];
             isOneToOne: false;
-            referencedRelation: 'torrent_comments';
+            referencedRelation: 'bt_torrent_comments';
             referencedColumns: ['id'];
           }
         ];
       };
-      comment_votes: {
+      bt_comment_votes: {
         Row: {
           id: string;
           comment_id: string;
@@ -1382,15 +1382,15 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'comment_votes_comment_id_fkey';
+            foreignKeyName: 'bt_comment_votes_comment_id_fkey';
             columns: ['comment_id'];
             isOneToOne: false;
-            referencedRelation: 'torrent_comments';
+            referencedRelation: 'bt_torrent_comments';
             referencedColumns: ['id'];
           }
         ];
       };
-      torrent_votes: {
+      bt_torrent_votes: {
         Row: {
           id: string;
           torrent_id: string;
@@ -1417,15 +1417,15 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'torrent_votes_torrent_id_fkey';
+            foreignKeyName: 'bt_torrent_votes_torrent_id_fkey';
             columns: ['torrent_id'];
             isOneToOne: false;
-            referencedRelation: 'torrents';
+            referencedRelation: 'bt_torrents';
             referencedColumns: ['id'];
           }
         ];
       };
-      torrent_favorites: {
+      bt_torrent_favorites: {
         Row: {
           id: string;
           user_id: string;
@@ -1446,10 +1446,10 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'torrent_favorites_torrent_id_fkey';
+            foreignKeyName: 'bt_torrent_favorites_torrent_id_fkey';
             columns: ['torrent_id'];
             isOneToOne: false;
-            referencedRelation: 'torrents';
+            referencedRelation: 'bt_torrents';
             referencedColumns: ['id'];
           }
         ];
@@ -1798,29 +1798,29 @@ export type UpdateTables<T extends keyof Database['public']['Tables']> =
   Database['public']['Tables'][T]['Update'];
 
 // Specific table types
-export type Torrent = Tables<'torrents'>;
-export type TorrentInsert = InsertTables<'torrents'>;
-export type TorrentUpdate = UpdateTables<'torrents'>;
+export type Torrent = Tables<'bt_torrents'>;
+export type TorrentInsert = InsertTables<'bt_torrents'>;
+export type TorrentUpdate = UpdateTables<'bt_torrents'>;
 
-export type TorrentFile = Tables<'torrent_files'>;
-export type TorrentFileInsert = InsertTables<'torrent_files'>;
-export type TorrentFileUpdate = UpdateTables<'torrent_files'>;
+export type TorrentFile = Tables<'bt_torrent_files'>;
+export type TorrentFileInsert = InsertTables<'bt_torrent_files'>;
+export type TorrentFileUpdate = UpdateTables<'bt_torrent_files'>;
 
-export type TorrentFolder = Tables<'torrent_folders'>;
-export type TorrentFolderInsert = InsertTables<'torrent_folders'>;
-export type TorrentFolderUpdate = UpdateTables<'torrent_folders'>;
+export type TorrentFolder = Tables<'bt_torrent_folders'>;
+export type TorrentFolderInsert = InsertTables<'bt_torrent_folders'>;
+export type TorrentFolderUpdate = UpdateTables<'bt_torrent_folders'>;
 
-export type AudioMetadata = Tables<'audio_metadata'>;
-export type AudioMetadataInsert = InsertTables<'audio_metadata'>;
-export type AudioMetadataUpdate = UpdateTables<'audio_metadata'>;
+export type AudioMetadata = Tables<'bt_audio_metadata'>;
+export type AudioMetadataInsert = InsertTables<'bt_audio_metadata'>;
+export type AudioMetadataUpdate = UpdateTables<'bt_audio_metadata'>;
 
-export type VideoMetadata = Tables<'video_metadata'>;
-export type VideoMetadataInsert = InsertTables<'video_metadata'>;
-export type VideoMetadataUpdate = UpdateTables<'video_metadata'>;
+export type VideoMetadata = Tables<'bt_video_metadata'>;
+export type VideoMetadataInsert = InsertTables<'bt_video_metadata'>;
+export type VideoMetadataUpdate = UpdateTables<'bt_video_metadata'>;
 
-export type EbookMetadata = Tables<'ebook_metadata'>;
-export type EbookMetadataInsert = InsertTables<'ebook_metadata'>;
-export type EbookMetadataUpdate = UpdateTables<'ebook_metadata'>;
+export type EbookMetadata = Tables<'bt_ebook_metadata'>;
+export type EbookMetadataInsert = InsertTables<'bt_ebook_metadata'>;
+export type EbookMetadataUpdate = UpdateTables<'bt_ebook_metadata'>;
 
 export type UserFavorite = Tables<'user_favorites'>;
 export type Collection = Tables<'collections'>;
@@ -1929,27 +1929,27 @@ export type FamilyMemberRole = 'owner' | 'admin' | 'member';
 export type FamilyInvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'revoked';
 
 // Comment types
-export type TorrentComment = Tables<'torrent_comments'>;
-export type TorrentCommentInsert = InsertTables<'torrent_comments'>;
-export type TorrentCommentUpdate = UpdateTables<'torrent_comments'>;
+export type TorrentComment = Tables<'bt_torrent_comments'>;
+export type TorrentCommentInsert = InsertTables<'bt_torrent_comments'>;
+export type TorrentCommentUpdate = UpdateTables<'bt_torrent_comments'>;
 
 // Comment vote types
-export type CommentVote = Tables<'comment_votes'>;
-export type CommentVoteInsert = InsertTables<'comment_votes'>;
-export type CommentVoteUpdate = UpdateTables<'comment_votes'>;
+export type CommentVote = Tables<'bt_comment_votes'>;
+export type CommentVoteInsert = InsertTables<'bt_comment_votes'>;
+export type CommentVoteUpdate = UpdateTables<'bt_comment_votes'>;
 
 // Torrent vote types
-export type TorrentVote = Tables<'torrent_votes'>;
-export type TorrentVoteInsert = InsertTables<'torrent_votes'>;
-export type TorrentVoteUpdate = UpdateTables<'torrent_votes'>;
+export type TorrentVote = Tables<'bt_torrent_votes'>;
+export type TorrentVoteInsert = InsertTables<'bt_torrent_votes'>;
+export type TorrentVoteUpdate = UpdateTables<'bt_torrent_votes'>;
 
 // Vote value type
 export type VoteValue = 1 | -1;
 
 // Torrent favorites types
-export type TorrentFavorite = Tables<'torrent_favorites'>;
-export type TorrentFavoriteInsert = InsertTables<'torrent_favorites'>;
-export type TorrentFavoriteUpdate = UpdateTables<'torrent_favorites'>;
+export type TorrentFavorite = Tables<'bt_torrent_favorites'>;
+export type TorrentFavoriteInsert = InsertTables<'bt_torrent_favorites'>;
+export type TorrentFavoriteUpdate = UpdateTables<'bt_torrent_favorites'>;
 
 // IPTV channel favorites types
 export type IptvChannelFavorite = Tables<'iptv_channel_favorites'>;

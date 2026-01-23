@@ -266,7 +266,7 @@ async function updateTorrentWithEnrichment(
   }
 
   const { error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .update(updateData)
     .eq('id', torrentId);
 
@@ -340,7 +340,7 @@ export async function triggerCodecDetection(
 
     // Fetch media files for this torrent
     const { data: files, error: filesError } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('id, file_index, media_category, path')
       .eq('torrent_id', torrentId)
       .in('media_category', CODEC_DETECTABLE_CATEGORIES);

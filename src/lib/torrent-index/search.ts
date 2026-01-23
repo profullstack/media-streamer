@@ -325,7 +325,7 @@ export async function getSearchSuggestions(
     
     // Get unique file names matching the query
     const { data, error } = await supabase
-      .from('torrent_files')
+      .from('bt_torrent_files')
       .select('name')
       .ilike('name', `%${sanitizedQuery}%`)
       .limit(limit);

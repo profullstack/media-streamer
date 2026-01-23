@@ -116,7 +116,7 @@ describe('torrent-deletion', () => {
       );
 
       expect(result).toEqual(mockTorrent);
-      expect(mockSupabase.from).toHaveBeenCalledWith('torrents');
+      expect(mockSupabase.from).toHaveBeenCalledWith('bt_torrents');
     });
 
     it('should return null when torrent not found', async () => {
@@ -213,7 +213,7 @@ describe('torrent-deletion', () => {
       );
 
       expect(result).toEqual(['file-1', 'file-2', 'file-3']);
-      expect(mockSupabase.from).toHaveBeenCalledWith('torrent_files');
+      expect(mockSupabase.from).toHaveBeenCalledWith('bt_torrent_files');
     });
 
     it('should return empty array when no files', async () => {
@@ -352,7 +352,7 @@ describe('torrent-deletion', () => {
         )
       ).resolves.toBeUndefined();
 
-      expect(mockSupabase.from).toHaveBeenCalledWith('torrents');
+      expect(mockSupabase.from).toHaveBeenCalledWith('bt_torrents');
     });
 
     it('should throw error on database error', async () => {
@@ -424,7 +424,7 @@ describe('torrent-deletion', () => {
       let queryCount = 0;
 
       mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'torrents') {
+        if (table === 'bt_torrents') {
           queryCount++;
           if (queryCount === 1) {
             // First call: getTorrentByInfohash
@@ -445,7 +445,7 @@ describe('torrent-deletion', () => {
           }
         }
 
-        if (table === 'torrent_files') {
+        if (table === 'bt_torrent_files') {
           return {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ data: mockFiles, error: null }),
@@ -496,7 +496,7 @@ describe('torrent-deletion', () => {
       const metadataCounts = [1, 1, 0, 2, 1, 1, 1]; // audio, video, ebook, favorites, collection, reading, watch
 
       mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'torrents') {
+        if (table === 'bt_torrents') {
           queryCount++;
           if (queryCount === 1) {
             return {
@@ -515,7 +515,7 @@ describe('torrent-deletion', () => {
           }
         }
 
-        if (table === 'torrent_files') {
+        if (table === 'bt_torrent_files') {
           return {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ data: mockFiles, error: null }),

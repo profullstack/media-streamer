@@ -110,7 +110,7 @@ export function LibraryContent({
   const filteredFavorites = favorites.filter((item) => {
     if (mediaFilter === 'all') return true;
     if (mediaFilter === 'livetv') return false;
-    const category = item.torrent_files?.media_category;
+    const category = item.bt_torrent_files?.media_category;
     if (mediaFilter === 'music') return category === 'audio';
     if (mediaFilter === 'video') return category === 'video';
     if (mediaFilter === 'ebook') return category === 'ebook';
@@ -130,7 +130,7 @@ export function LibraryContent({
   const filteredTorrentFavorites = torrentFavorites.filter((item) => {
     if (mediaFilter === 'all') return true;
     if (mediaFilter === 'livetv') return false;
-    const contentType = item.torrents?.content_type;
+    const contentType = item.bt_torrents?.content_type;
     if (mediaFilter === 'music') return contentType === 'music';
     if (mediaFilter === 'video') return contentType === 'movie' || contentType === 'tvshow';
     if (mediaFilter === 'ebook') return contentType === 'book';
@@ -220,7 +220,7 @@ export function LibraryContent({
 
   // Handle play/read action for file favorites
   const handleFileAction = useCallback((item: Favorite): void => {
-    const mediaCategory = item.torrent_files?.media_category;
+    const mediaCategory = item.bt_torrent_files?.media_category;
     const fileId = item.file_id;
 
     if (mediaCategory === 'ebook') {
@@ -228,7 +228,7 @@ export function LibraryContent({
       router.push(`/reader/${fileId}`);
     } else {
       // Navigate to torrent details page for audio/video
-      const infohash = item.torrent_files?.torrents?.infohash;
+      const infohash = item.bt_torrent_files?.bt_torrents?.infohash;
       if (infohash) {
         router.push(`/torrents/${infohash}`);
       }
@@ -356,12 +356,12 @@ export function LibraryContent({
                     className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
                   >
                     {/* Poster/Cover */}
-                    {item.torrents?.poster_url || item.torrents?.cover_url ? (
+                    {item.bt_torrents?.poster_url || item.bt_torrents?.cover_url ? (
                       <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={item.torrents?.poster_url ?? item.torrents?.cover_url ?? ''}
-                          alt={item.torrents?.name ?? 'Torrent'}
+                          src={item.bt_torrents?.poster_url ?? item.bt_torrents?.cover_url ?? ''}
+                          alt={item.bt_torrents?.name ?? 'Torrent'}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
@@ -377,17 +377,17 @@ export function LibraryContent({
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <Link
-                        href={`/torrents/${item.torrents?.infohash}`}
+                        href={`/torrents/${item.bt_torrents?.infohash}`}
                         className="font-medium text-text-primary hover:text-accent-primary truncate block"
                       >
-                        {item.torrents?.name ?? 'Unknown Torrent'}
+                        {item.bt_torrents?.name ?? 'Unknown Torrent'}
                       </Link>
                       <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
-                        {item.torrents?.content_type ? <span className="px-2 py-0.5 rounded bg-bg-tertiary">
-                            {item.torrents.content_type}
+                        {item.bt_torrents?.content_type ? <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                            {item.bt_torrents.content_type}
                           </span> : null}
-                        {item.torrents?.year ? <span>{item.torrents.year}</span> : null}
-                        {item.torrents?.file_count ? <span>{item.torrents.file_count} files</span> : null}
+                        {item.bt_torrents?.year ? <span>{item.bt_torrents.year}</span> : null}
+                        {item.bt_torrents?.file_count ? <span>{item.bt_torrents.file_count} files</span> : null}
                       </div>
                       <p className="text-xs text-text-muted mt-1">
                         Added {formatTimeAgo(item.created_at)}
@@ -417,8 +417,8 @@ export function LibraryContent({
                 </h3>
               )}
               {filteredFavorites.map((item) => {
-                const isEbook = item.torrent_files?.media_category === 'ebook';
-                const infohash = item.torrent_files?.torrents?.infohash;
+                const isEbook = item.bt_torrent_files?.media_category === 'ebook';
+                const infohash = item.bt_torrent_files?.bt_torrents?.infohash;
 
                 return (
                   <div
@@ -427,7 +427,7 @@ export function LibraryContent({
                   >
                     {/* Thumbnail placeholder */}
                     <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-muted">
-                      {getMediaIcon(item.torrent_files?.media_category)}
+                      {getMediaIcon(item.bt_torrent_files?.media_category)}
                     </div>
 
                     {/* Info */}
@@ -437,11 +437,11 @@ export function LibraryContent({
                           href={`/torrents/${infohash}`}
                           className="font-medium text-text-primary hover:text-accent-primary truncate block"
                         >
-                          {item.torrent_files?.name ?? 'Unknown'}
+                          {item.bt_torrent_files?.name ?? 'Unknown'}
                         </Link>
                       ) : (
                         <h3 className="font-medium text-text-primary truncate">
-                          {item.torrent_files?.name ?? 'Unknown'}
+                          {item.bt_torrent_files?.name ?? 'Unknown'}
                         </h3>
                       )}
                       {infohash ? (
@@ -449,11 +449,11 @@ export function LibraryContent({
                           href={`/torrents/${infohash}`}
                           className="text-sm text-text-secondary hover:text-accent-primary truncate block"
                         >
-                          {item.torrent_files?.torrents?.name ?? 'Unknown torrent'}
+                          {item.bt_torrent_files?.bt_torrents?.name ?? 'Unknown torrent'}
                         </Link>
                       ) : (
                         <p className="text-sm text-text-secondary truncate">
-                          {item.torrent_files?.torrents?.name ?? 'Unknown torrent'}
+                          {item.bt_torrent_files?.bt_torrents?.name ?? 'Unknown torrent'}
                         </p>
                       )}
                     </div>

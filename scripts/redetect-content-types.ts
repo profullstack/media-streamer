@@ -36,7 +36,7 @@ async function redetectContentTypes(): Promise<void> {
 
   // Get all torrents
   const { data: torrents, error } = await supabase
-    .from('torrents')
+    .from('bt_torrents')
     .select('id, name, content_type')
     .order('created_at', { ascending: false });
 
@@ -106,7 +106,7 @@ async function redetectContentTypes(): Promise<void> {
 
   for (const change of changes) {
     const { error: updateError } = await supabase
-      .from('torrents')
+      .from('bt_torrents')
       .update({ content_type: change.newType })
       .eq('id', change.id);
 

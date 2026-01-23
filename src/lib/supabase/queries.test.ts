@@ -94,7 +94,7 @@ describe('Supabase Queries', () => {
 
       const result = await getTorrentByInfohash('abc123');
 
-      expect(mockFrom).toHaveBeenCalledWith('torrents');
+      expect(mockFrom).toHaveBeenCalledWith('bt_torrents');
       expect(mockSelect).toHaveBeenCalledWith('*');
       expect(mockEq).toHaveBeenCalledWith('infohash', 'abc123');
       expect(result).toEqual(mockTorrent);
@@ -140,7 +140,7 @@ describe('Supabase Queries', () => {
 
       const result = await createTorrent(torrentData);
 
-      expect(mockFrom).toHaveBeenCalledWith('torrents');
+      expect(mockFrom).toHaveBeenCalledWith('bt_torrents');
       expect(mockInsert).toHaveBeenCalledWith(torrentData);
       expect(result).toEqual(mockCreatedTorrent);
     });
@@ -175,7 +175,7 @@ describe('Supabase Queries', () => {
 
       const result = await getTorrentFiles('123');
 
-      expect(mockFrom).toHaveBeenCalledWith('torrent_files');
+      expect(mockFrom).toHaveBeenCalledWith('bt_torrent_files');
       expect(mockSelect).toHaveBeenCalledWith('*');
       expect(mockEq).toHaveBeenCalledWith('torrent_id', '123');
       expect(result).toEqual(mockFiles);
@@ -225,7 +225,7 @@ describe('Supabase Queries', () => {
 
       const result = await createTorrentFiles(filesData);
 
-      expect(mockFrom).toHaveBeenCalledWith('torrent_files');
+      expect(mockFrom).toHaveBeenCalledWith('bt_torrent_files');
       expect(mockInsert).toHaveBeenCalledWith(filesData);
       expect(result).toEqual(mockCreatedFiles);
     });
@@ -247,7 +247,7 @@ describe('Supabase Queries', () => {
 
       const result = await getAudioMetadata('file-1');
 
-      expect(mockFrom).toHaveBeenCalledWith('audio_metadata');
+      expect(mockFrom).toHaveBeenCalledWith('bt_audio_metadata');
       expect(mockSelect).toHaveBeenCalledWith('*');
       expect(mockEq).toHaveBeenCalledWith('file_id', 'file-1');
       expect(result).toEqual(mockMetadata);
@@ -287,7 +287,7 @@ describe('Supabase Queries', () => {
 
       const result = await createAudioMetadata(metadataData);
 
-      expect(mockFrom).toHaveBeenCalledWith('audio_metadata');
+      expect(mockFrom).toHaveBeenCalledWith('bt_audio_metadata');
       expect(mockInsert).toHaveBeenCalledWith(metadataData);
       expect(result).toEqual(mockCreatedMetadata);
     });
@@ -309,7 +309,7 @@ describe('Supabase Queries', () => {
 
       const result = await getVideoMetadata('file-1');
 
-      expect(mockFrom).toHaveBeenCalledWith('video_metadata');
+      expect(mockFrom).toHaveBeenCalledWith('bt_video_metadata');
       expect(result).toEqual(mockMetadata);
     });
   });
@@ -337,7 +337,7 @@ describe('Supabase Queries', () => {
 
       const result = await createVideoMetadata(metadataData);
 
-      expect(mockFrom).toHaveBeenCalledWith('video_metadata');
+      expect(mockFrom).toHaveBeenCalledWith('bt_video_metadata');
       expect(result).toEqual(mockCreatedMetadata);
     });
   });
@@ -358,7 +358,7 @@ describe('Supabase Queries', () => {
 
       const result = await getEbookMetadata('file-1');
 
-      expect(mockFrom).toHaveBeenCalledWith('ebook_metadata');
+      expect(mockFrom).toHaveBeenCalledWith('bt_ebook_metadata');
       expect(result).toEqual(mockMetadata);
     });
   });
@@ -386,7 +386,7 @@ describe('Supabase Queries', () => {
 
       const result = await createEbookMetadata(metadataData);
 
-      expect(mockFrom).toHaveBeenCalledWith('ebook_metadata');
+      expect(mockFrom).toHaveBeenCalledWith('bt_ebook_metadata');
       expect(result).toEqual(mockCreatedMetadata);
     });
   });
@@ -486,7 +486,7 @@ describe('Supabase Queries', () => {
 
       await deleteTorrent('torrent-123');
 
-      expect(mockFrom).toHaveBeenCalledWith('torrents');
+      expect(mockFrom).toHaveBeenCalledWith('bt_torrents');
       expect(mockDelete).toHaveBeenCalled();
       expect(mockEq).toHaveBeenCalledWith('id', 'torrent-123');
     });
@@ -518,7 +518,7 @@ describe('Supabase Queries', () => {
         leechers: 50,
       });
 
-      expect(mockFrom).toHaveBeenCalledWith('torrents');
+      expect(mockFrom).toHaveBeenCalledWith('bt_torrents');
       expect(mockUpdate).toHaveBeenCalledWith({
         seeders: 100,
         leechers: 50,
