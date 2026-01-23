@@ -118,9 +118,9 @@ export function AddMagnetModal({ isOpen, onClose, onSuccess }: AddMagnetModalPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50" 
+      {/* Backdrop - use fixed inset-0 to cover full viewport */}
+      <div
+        className="fixed inset-0 bg-black/50"
         onClick={handleClose}
       />
       

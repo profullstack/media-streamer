@@ -373,10 +373,10 @@ export function HlsPlayerModal({
       aria-labelledby="hls-player-title"
       className="fixed inset-0 z-50 flex items-center justify-center"
     >
-      {/* Backdrop */}
+      {/* Backdrop - use fixed inset-0 to cover full viewport */}
       <div
         data-testid="modal-backdrop"
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm"
         onClick={handleBackdropClick}
       />
 
