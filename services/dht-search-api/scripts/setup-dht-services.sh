@@ -479,17 +479,17 @@ print_status() {
     echo ""
 }
 
-# Start services if configured
-start_services_if_configured() {
-    log_info "Checking if services can be auto-started..."
+# Restart services to pick up new config
+restart_services() {
+    log_info "Restarting services with new configuration..."
 
     # Check if Bitmagnet has valid credentials
     local BM_PASS=$(grep -E "^POSTGRES_PASSWORD=" "${BITMAGNET_DIR}/.env" 2>/dev/null | cut -d= -f2)
     local API_KEY=$(grep -E "^SUPABASE_SERVICE_KEY=" "${DHT_API_DIR}/.env" 2>/dev/null | cut -d= -f2)
 
     if [ -n "$BM_PASS" ] && [ "$BM_PASS" != "your-password" ]; then
-        log_info "Starting Bitmagnet service..."
-        systemctl start bitmagnet || log_warn "Failed to start bitmagnet"
+        log_info "Restarting Bitmagnet service..."
+        systemctl restart bitmagnet || log_warn "Failed to restart bitmagnet"
         sleep 2
         if systemctl is-active --quiet bitmagnet; then
             log_info "Bitmagnet is running"
@@ -501,8 +501,8 @@ start_services_if_configured() {
     fi
 
     if [ -n "$API_KEY" ] && [ "$API_KEY" != "your-service-key" ]; then
-        log_info "Starting DHT API service..."
-        systemctl start dht-api || log_warn "Failed to start dht-api"
+        log_info "Restarting DHT API service..."
+        systemctl restart dht-api || log_warn "Failed to restart dht-api"
         sleep 2
         if systemctl is-active --quiet dht-api; then
             log_info "DHT API is running"
@@ -527,7 +527,7 @@ main() {
     setup_dht_api
     install_systemd_services
     configure_firewall
-    start_services_if_configured
+    restart_services
     print_status
 }
 
