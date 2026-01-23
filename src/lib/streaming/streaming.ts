@@ -194,26 +194,27 @@ export interface StreamInfo {
  * Options for StreamingService
  */
 export interface StreamingServiceOptions {
-  /** Maximum concurrent streams (default: 10) */
+  /** Maximum concurrent streams (default: 20) */
   maxConcurrentStreams?: number;
-  /** Timeout for stream operations in milliseconds (default: 90000) */
+  /** Timeout for stream operations in milliseconds (default: 120000) */
   streamTimeout?: number;
-  /** Delay before removing torrent after last watcher disconnects in milliseconds (default: 30000) */
+  /** Delay before removing torrent after last watcher disconnects in milliseconds (default: 60000) */
   torrentCleanupDelay?: number;
 }
 
 /**
  * Minimum buffer size in bytes before an audio file is considered "ready" for streaming
- * 2MB is enough for most audio files to start playing without buffering
+ * 4MB provides smoother playback and prevents stuttering on slower connections
  */
-const MIN_AUDIO_BUFFER_SIZE = 2 * 1024 * 1024; // 2MB
+const MIN_AUDIO_BUFFER_SIZE = 4 * 1024 * 1024; // 4MB (increased from 2MB)
 
 /**
  * Minimum buffer size in bytes before a video file is considered "ready" for streaming
  * Video files need more buffer due to higher bitrates and transcoding overhead
- * 10MB provides enough buffer for FFmpeg to start transcoding without stalling
+ * 20MB provides enough buffer for FFmpeg to start transcoding without stalling
+ * and handles network variance better
  */
-const MIN_VIDEO_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+const MIN_VIDEO_BUFFER_SIZE = 20 * 1024 * 1024; // 20MB (increased from 10MB)
 
 /**
  * Live torrent statistics from DHT/peers
@@ -249,9 +250,10 @@ interface ActiveStream {
 }
 
 /**
- * Default cleanup delay: 30 seconds after last watcher disconnects
+ * Default cleanup delay: 60 seconds after last watcher disconnects
+ * Increased to prevent premature cleanup during brief disconnects
  */
-const DEFAULT_CLEANUP_DELAY = 30000;
+const DEFAULT_CLEANUP_DELAY = 60000;
 
 /**
  * Watcher tracking for a torrent
@@ -285,8 +287,8 @@ export class StreamingService {
     ensureDir(this.downloadPath);
 
     logger.info('Initializing StreamingService', {
-      maxConcurrentStreams: options.maxConcurrentStreams ?? 10,
-      streamTimeout: options.streamTimeout ?? 90000,
+      maxConcurrentStreams: options.maxConcurrentStreams ?? 20,
+      streamTimeout: options.streamTimeout ?? 120000,
       torrentCleanupDelay: options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY,
       downloadPath: this.downloadPath,
     });
@@ -302,7 +304,7 @@ export class StreamingService {
       dht: {
         bootstrap: DHT_BOOTSTRAP_NODES,
         // Increase concurrency for faster DHT bootstrapping
-        concurrency: 32,
+        concurrency: 64, // Increased from 32 for faster peer discovery
       },
       // Configure tracker with WebSocket trackers for browser peer discovery
       // This is CRITICAL for hybrid P2P streaming - the server must announce to
@@ -313,10 +315,13 @@ export class StreamingService {
       },
       lsd: true, // Local Service Discovery
       webSeeds: true,
-      // Increase max connections for better peer discovery
-      maxConns: 100,
+      // Increase max connections for better peer discovery and download speeds
+      maxConns: 200, // Increased from 100 for better throughput
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
+      // Download queue settings for better performance
+      downloadLimit: -1, // No download limit
+      uploadLimit: -1, // No upload limit
     } as WebTorrent.Options);
     
     logger.info('WebTorrent client configured with WebSocket trackers for hybrid P2P', {
@@ -324,8 +329,8 @@ export class StreamingService {
       note: 'Server will announce to these trackers so browsers can discover it as a WebRTC peer',
     });
     
-    this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
-    this.streamTimeout = options.streamTimeout ?? 90000;
+    this.maxConcurrentStreams = options.maxConcurrentStreams ?? 20;
+    this.streamTimeout = options.streamTimeout ?? 120000;
     this.torrentCleanupDelay = options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY;
     this.activeStreams = new Map();
     this.torrentWatchers = new Map();
