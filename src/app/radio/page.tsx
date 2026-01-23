@@ -79,6 +79,18 @@ export default function RadioPage(): React.ReactElement {
     [search, activeTab]
   );
 
+  // Handle explicit search submit (for TV remotes and Enter key)
+  const handleSearchSubmit = useCallback(
+    (e?: React.FormEvent): void => {
+      e?.preventDefault();
+      if (searchQuery.trim()) {
+        setActiveTab('search');
+        void search(searchQuery);
+      }
+    },
+    [search, searchQuery]
+  );
+
   // Handle search clear
   const handleSearchClear = useCallback((): void => {
     setSearchQuery('');
@@ -157,28 +169,40 @@ export default function RadioPage(): React.ReactElement {
         </div>
 
         {/* Search Bar */}
-        <div className="relative">
-          <SearchIcon
-            size={20}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-          />
-          <input
-            type="text"
-            placeholder="Search radio stations..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-12 pr-4 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
-          />
-          {searchQuery ? (
-            <button
-              onClick={handleSearchClear}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          ) : null}
-        </div>
+        <form onSubmit={handleSearchSubmit} className="flex gap-2">
+          <div className="relative flex-1">
+            <SearchIcon
+              size={20}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
+            />
+            <input
+              type="text"
+              placeholder="Search radio stations..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-12 pr-10 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={handleSearchClear}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="submit"
+            disabled={!searchQuery.trim() || isSearching}
+            className="flex items-center gap-2 rounded-lg bg-accent-primary px-6 py-3 font-medium text-white transition-colors hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Search"
+          >
+            <SearchIcon size={20} />
+            <span className="hidden sm:inline">Search</span>
+          </button>
+        </form>
 
         {/* Tabs */}
         <div className="flex gap-2 border-b border-border-default">

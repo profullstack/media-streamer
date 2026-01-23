@@ -168,7 +168,11 @@ export function createTuneInService(): TuneInService {
      */
     async search(params: RadioSearchParams): Promise<RadioStation[]> {
       const query = sanitizeQuery(params.query);
-      if (!query) return [];
+      console.log('[TuneIn] Search called with query:', params.query, '-> sanitized:', query);
+      if (!query) {
+        console.log('[TuneIn] Empty query after sanitization');
+        return [];
+      }
 
       try {
         const searchParams = new URLSearchParams({
@@ -184,20 +188,29 @@ export function createTuneInService(): TuneInService {
           searchParams.set('filter', params.filter);
         }
 
+        const hasToken = getTuneInAuthToken() !== null;
+        console.log('[TuneIn] Using auth token:', hasToken);
+        console.log('[TuneIn] Request URL:', `${TUNEIN_SEARCH_URL}?${searchParams}`);
+
         // Use auth for search to get better results
         const response = await fetch(`${TUNEIN_SEARCH_URL}?${searchParams}`, {
           headers: buildHeaders(true),
         });
 
+        console.log('[TuneIn] Response status:', response.status);
+
         if (!response.ok) {
-          console.error('[TuneIn] Search failed:', response.status);
+          const errorText = await response.text();
+          console.error('[TuneIn] Search failed:', response.status, errorText);
           return [];
         }
 
         const data = await response.json() as TuneInSearchResponse;
+        console.log('[TuneIn] Response head:', data.head);
+        console.log('[TuneIn] Response body length:', data.body?.length || 0);
 
         if (data.head.status !== '200') {
-          console.error('[TuneIn] Search error status:', data.head.status);
+          console.error('[TuneIn] Search error status:', data.head.status, data.head);
           return [];
         }
 
@@ -205,6 +218,8 @@ export function createTuneInService(): TuneInService {
         const stations = data.body
           .filter((item) => item.Type === 'station' || item.Actions?.Play)
           .map(toRadioStation);
+
+        console.log('[TuneIn] Filtered to', stations.length, 'stations');
 
         // Apply limit if specified
         return params.limit ? stations.slice(0, params.limit) : stations;

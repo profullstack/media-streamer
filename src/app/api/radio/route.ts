@@ -24,7 +24,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   const limitStr = searchParams.get('limit');
   const limit = limitStr ? parseInt(limitStr, 10) : 50;
 
+  console.log('[Radio API] Search request:', { query, filter, limit });
+
   if (!query || query.trim().length === 0) {
+    console.log('[Radio API] Empty query, returning 400');
     return NextResponse.json(
       { error: 'Search query is required' },
       { status: 400 }
@@ -33,11 +36,14 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const service = getRadioService();
+    console.log('[Radio API] Calling service.searchStations...');
     const stations = await service.searchStations({
       query: query.trim(),
       filter: filter || undefined,
       limit: Math.min(limit, 100), // Cap at 100
     });
+
+    console.log('[Radio API] Search returned', stations.length, 'stations');
 
     return NextResponse.json({
       stations,
