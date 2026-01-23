@@ -264,7 +264,9 @@ export function createTuneInService(): TuneInService {
         });
 
         // IMPORTANT: Use auth token for premium stream access
-        const response = await fetch(`${TUNEIN_TUNE_URL}?${params}`, {
+        const tuneUrl = `${TUNEIN_TUNE_URL}?${params}`;
+        console.log('[TuneIn] Tune URL:', tuneUrl);
+        const response = await fetch(tuneUrl, {
           headers: buildHeaders(true),
         });
 
@@ -275,6 +277,10 @@ export function createTuneInService(): TuneInService {
 
         const data = await response.json() as TuneInTuneResponse;
 
+        console.log('[TuneIn] Tune request for:', stationId);
+        console.log('[TuneIn] Tune response head:', data.head);
+        console.log('[TuneIn] Tune response body:', JSON.stringify(data.body?.slice(0, 3), null, 2));
+
         if (data.head.status !== '200' || data.head.fault) {
           console.error('[TuneIn] Tune error:', data.head.fault);
           return { streams: [], preferred: null };
@@ -282,6 +288,8 @@ export function createTuneInService(): TuneInService {
 
         const streams = data.body.map(toRadioStream);
         const preferred = selectPreferredStream(streams);
+
+        console.log('[TuneIn] Parsed streams:', streams.length, 'preferred:', preferred?.url);
 
         return { streams, preferred };
       } catch (error) {

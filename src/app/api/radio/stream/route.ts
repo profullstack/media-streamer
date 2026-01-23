@@ -27,10 +27,12 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
+    console.log('[Radio Stream API] Getting stream for station:', stationId);
     const service = getRadioService();
 
     // Get stream URLs
     const { streams, preferred } = await service.getStream(stationId.trim());
+    console.log('[Radio Stream API] Got', streams.length, 'streams, preferred:', preferred?.url);
 
     if (streams.length === 0) {
       return NextResponse.json(
