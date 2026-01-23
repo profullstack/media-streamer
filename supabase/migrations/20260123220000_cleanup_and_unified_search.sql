@@ -119,6 +119,7 @@ BEGIN
     UNION ALL
 
     -- DHT torrents from Bitmagnet's torrents table
+    -- Note: Bitmagnet doesn't store seeders/leechers in a way we can easily join
     SELECT
         encode(t.info_hash, 'hex') as id,
         encode(t.info_hash, 'hex') as infohash,
@@ -126,15 +127,14 @@ BEGIN
         'magnet:?xt=urn:btih:' || encode(t.info_hash, 'hex') || '&dn=' || encode(t.name::bytea, 'escape') as magnet_uri,
         t.size as size,
         COALESCE(t.files_count, 0) as files_count,
-        COALESCE(ts.seeders, 0) as seeders,
-        COALESCE(ts.leechers, 0) as leechers,
+        0 as seeders,
+        0 as leechers,
         t.created_at::TIMESTAMPTZ as created_at,
         NULL::TEXT as poster_url,
         NULL::TEXT as cover_url,
         NULL::TEXT as content_type,
         'dht'::TEXT as source
     FROM torrents t
-    LEFT JOIN torrent_sources ts ON ts.info_hash = t.info_hash
     WHERE
         t.name ILIKE '%' || search_query || '%'
         -- Exclude torrents that already exist in bt_torrents (avoid duplicates)

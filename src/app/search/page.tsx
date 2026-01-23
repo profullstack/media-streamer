@@ -9,13 +9,14 @@
  */
 
 import { useState, useCallback, useEffect, Suspense, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
 import { cn, formatBytes } from '@/lib/utils';
-import { LoadingSpinner, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { LoadingSpinner, SortIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon } from '@/components/ui/icons';
 import { MediaPlaceholder } from '@/components/ui/media-placeholder';
+import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
 
 /**
  * Torrent search result from API
@@ -94,14 +95,16 @@ function formatDate(dateString: string): string {
 /**
  * Search results component - compact list view
  */
-function SearchResultsList({ 
-  results, 
-  isLoading, 
-  error 
-}: { 
-  results: TorrentSearchResult[]; 
-  isLoading: boolean; 
+function SearchResultsList({
+  results,
+  isLoading,
+  error,
+  onAddToLibrary,
+}: {
+  results: TorrentSearchResult[];
+  isLoading: boolean;
   error: string | null;
+  onAddToLibrary: (result: TorrentSearchResult) => void;
 }): React.ReactElement {
   if (isLoading && results.length === 0) {
     return (
@@ -132,17 +135,11 @@ function SearchResultsList({
       {results.map((result) => {
         const imageUrl = result.torrent_poster_url ?? result.torrent_cover_url;
         const displayName = result.torrent_clean_title ?? result.torrent_name;
-        
-        return (
-          <Link
-            key={result.torrent_id}
-            href={`/torrents/${result.torrent_id}`}
-            className={cn(
-              'flex items-center gap-3 rounded border border-transparent px-3 py-2',
-              'hover:border-accent-primary/30 hover:bg-bg-hover',
-              'transition-colors'
-            )}
-          >
+        const isDht = result.source === 'dht';
+
+        // Common content for both link and button versions
+        const content = (
+          <>
             {/* Thumbnail */}
             <div className="relative h-10 w-7 shrink-0 overflow-hidden rounded bg-bg-tertiary">
               {imageUrl ? (
@@ -158,7 +155,7 @@ function SearchResultsList({
                 <MediaPlaceholder alt={displayName} contentType="video" size="sm" className="h-full w-full" />
               )}
             </div>
-            
+
             {/* Name - takes most space */}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
@@ -182,7 +179,7 @@ function SearchResultsList({
                   {result.torrent_name}
                 </span> : null}
             </div>
-            
+
             {/* Stats - compact */}
             <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
               <span className="w-16 text-right">{formatBytes(result.torrent_total_size)}</span>
@@ -205,6 +202,55 @@ function SearchResultsList({
                 {formatDate(result.torrent_created_at)}
               </span>
             </div>
+
+            {/* Add to Library button for DHT results */}
+            {isDht ? <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAddToLibrary(result);
+                }}
+                className={cn(
+                  'flex items-center gap-1 rounded px-2 py-1 text-xs',
+                  'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
+                  'transition-colors shrink-0'
+                )}
+                title="Add to Library"
+              >
+                <PlusIcon size={14} />
+                <span className="hidden sm:inline">Add</span>
+              </button> : null}
+          </>
+        );
+
+        // For DHT results, use a div with click handler; for library results, use Link
+        if (isDht) {
+          return (
+            <div
+              key={result.torrent_id}
+              className={cn(
+                'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+                'hover:border-accent-primary/30 hover:bg-bg-hover',
+                'transition-colors cursor-default'
+              )}
+            >
+              {content}
+            </div>
+          );
+        }
+
+        return (
+          <Link
+            key={result.torrent_id}
+            href={`/torrents/${result.torrent_id}`}
+            className={cn(
+              'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+              'hover:border-accent-primary/30 hover:bg-bg-hover',
+              'transition-colors'
+            )}
+          >
+            {content}
           </Link>
         );
       })}
@@ -217,10 +263,11 @@ function SearchResultsList({
  */
 function SearchPageInner(): React.ReactElement {
   const searchParams = useSearchParams();
-  
+  const router = useRouter();
+
   const queryParam = searchParams.get('q') ?? '';
   const typeParam = searchParams.get('type') ?? '';
-  
+
   const [results, setResults] = useState<TorrentSearchResult[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -231,7 +278,11 @@ function SearchPageInner(): React.ReactElement {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [offset, setOffset] = useState(0);
   const [source, setSource] = useState<SearchSource>('all');
-  
+
+  // Add Magnet modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedDhtTorrent, setSelectedDhtTorrent] = useState<TorrentSearchResult | null>(null);
+
   // Track last click time for double-click detection
   const lastClickRef = useRef<{ sortBy: SortBy; time: number } | null>(null);
 
@@ -391,6 +442,26 @@ function SearchPageInner(): React.ReactElement {
     return sortOrder === 'asc' ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />;
   };
 
+  // Handle adding DHT torrent to library
+  const handleAddToLibrary = useCallback((result: TorrentSearchResult): void => {
+    setSelectedDhtTorrent(result);
+    setIsAddModalOpen(true);
+  }, []);
+
+  // Handle successful add - navigate to the new torrent
+  const handleAddSuccess = useCallback((torrent: { id: string }): void => {
+    setIsAddModalOpen(false);
+    setSelectedDhtTorrent(null);
+    router.push(`/torrents/${torrent.id}`);
+  }, [router]);
+
+  // Build magnet URI for DHT torrent
+  const getMagnetUri = (result: TorrentSearchResult): string => {
+    const infohash = result.torrent_infohash;
+    const name = encodeURIComponent(result.torrent_name);
+    return `magnet:?xt=urn:btih:${infohash}&dn=${name}`;
+  };
+
   return (
     <MainLayout>
       <div className="space-y-4">
@@ -462,10 +533,11 @@ function SearchPageInner(): React.ReactElement {
 
         {/* Results */}
         {hasSearched ? (
-          <SearchResultsList 
-            results={results} 
-            isLoading={isLoading} 
-            error={error} 
+          <SearchResultsList
+            results={results}
+            isLoading={isLoading}
+            error={error}
+            onAddToLibrary={handleAddToLibrary}
           />
         ) : (
           <div className="py-12 text-center">
@@ -499,6 +571,17 @@ function SearchPageInner(): React.ReactElement {
             Showing all {results.length.toLocaleString()} results
           </div> : null}
       </div>
+
+      {/* Add Magnet Modal for DHT torrents */}
+      <AddMagnetModal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setSelectedDhtTorrent(null);
+        }}
+        onSuccess={handleAddSuccess}
+        initialMagnetUrl={selectedDhtTorrent ? getMagnetUri(selectedDhtTorrent) : undefined}
+      />
     </MainLayout>
   );
 }

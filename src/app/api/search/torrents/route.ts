@@ -163,6 +163,30 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     offset = parsedOffset;
   }
 
+  // Extract and validate sortBy parameter
+  const sortByParam = searchParams.get('sortBy') ?? 'relevance';
+  const validSortBy = ['relevance', 'date', 'seeders', 'leechers', 'size'] as const;
+  type SortBy = typeof validSortBy[number];
+  if (!validSortBy.includes(sortByParam as SortBy)) {
+    return NextResponse.json(
+      { error: `Invalid sortBy. Must be one of: ${validSortBy.join(', ')}` },
+      { status: 400 }
+    );
+  }
+  const sortBy = sortByParam as SortBy;
+
+  // Extract and validate sortOrder parameter
+  const sortOrderParam = searchParams.get('sortOrder') ?? 'desc';
+  const validSortOrder = ['asc', 'desc'] as const;
+  type SortOrder = typeof validSortOrder[number];
+  if (!validSortOrder.includes(sortOrderParam as SortOrder)) {
+    return NextResponse.json(
+      { error: `Invalid sortOrder. Must be one of: ${validSortOrder.join(', ')}` },
+      { status: 400 }
+    );
+  }
+  const sortOrder = sortOrderParam as SortOrder;
+
   // Perform search
   try {
     let results: ExtendedSearchResult[];
@@ -183,6 +207,8 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         source,
         limit,
         offset,
+        sortBy,
+        sortOrder,
       });
       results = unifiedResults;
     }

@@ -776,20 +776,26 @@ export async function searchDhtTorrents(options: TorrentSearchOptions): Promise<
 
 /**
  * Search all torrents (both user and DHT) using unified search
- * @param options - Search options with optional source filter
+ * @param options - Search options with optional source filter and sorting
  * @returns Array of torrent search results with source field
  */
 export async function searchAllTorrents(
-  options: TorrentSearchOptions & { source?: 'all' | 'user' | 'dht' }
+  options: TorrentSearchOptions & {
+    source?: 'all' | 'user' | 'dht';
+    sortBy?: 'relevance' | 'date' | 'seeders' | 'leechers' | 'size';
+    sortOrder?: 'asc' | 'desc';
+  }
 ): Promise<(TorrentSearchResult & { source: 'user' | 'dht' })[]> {
   const client = getServerClient();
-  const { query, source = 'all', limit = 50, offset = 0 } = options;
+  const { query, source = 'all', limit = 50, offset = 0, sortBy = 'seeders', sortOrder = 'desc' } = options;
 
   // Use the search_all_torrents RPC
   const { data, error } = await client.rpc('search_all_torrents', {
     search_query: query,
     result_limit: source === 'all' ? limit : limit + 100, // Fetch extra if filtering
     result_offset: source === 'all' ? offset : 0,
+    sort_by: sortBy === 'relevance' ? 'seeders' : sortBy, // Relevance defaults to seeders
+    sort_order: sortOrder,
   });
 
   if (error) {
