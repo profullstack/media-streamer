@@ -181,11 +181,12 @@ setup_bitmagnet_config() {
 
 # Database (Supabase PostgreSQL via Connection Pooler)
 # Using pooler for IPv4 compatibility (avoids IPv6 issues on some VPS)
+# Note: bitmagnet uses POSTGRES_NAME (not POSTGRES_DB) for the database name
 POSTGRES_HOST=${PG_HOST}
 POSTGRES_PORT=${PG_PORT}
 POSTGRES_USER=${PG_USER}
 POSTGRES_PASSWORD=${PG_PASS:-your-password}
-POSTGRES_DB=${PG_DB}
+POSTGRES_NAME=${PG_DB}
 
 # DHT Crawler Settings
 DHT_CRAWLER_SAVE_FILES_THRESHOLD=0
