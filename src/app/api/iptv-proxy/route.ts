@@ -30,6 +30,8 @@ import {
  * Custom undici Agent that skips SSL certificate validation.
  * This is necessary because many IPTV providers have misconfigured SSL certificates.
  * WARNING: This disables certificate validation for all IPTV proxy requests.
+ *
+ * Connection pooling settings prevent resource leaks during heavy streaming usage.
  */
 const insecureAgent = new Agent({
   connect: {
@@ -39,6 +41,15 @@ const insecureAgent = new Agent({
     // Don't fail on self-signed or expired certs
     checkServerIdentity: () => undefined,
   },
+  // Connection pool settings to prevent leaks
+  connections: 50, // Max concurrent connections per origin
+  pipelining: 1, // Disable pipelining for live streams (more stable)
+  keepAliveTimeout: 30000, // Close idle connections after 30s
+  keepAliveMaxTimeout: 60000, // Max keep-alive time
+  // Body timeout disabled for live streams (they run indefinitely)
+  bodyTimeout: 0,
+  // Head timeout for initial response
+  headersTimeout: 30000,
 });
 
 /**
@@ -298,17 +309,46 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     // Return the upstream body directly as a ReadableStream
-    // Convert undici's ReadableStream to a web-compatible ReadableStream
-    // by casting through unknown (undici's stream is compatible at runtime)
-    const body = upstreamResponse.body as unknown as ReadableStream<Uint8Array> | null;
-    return new Response(body, {
+    // Use a TransformStream to properly bridge undici's stream to web ReadableStream
+    // This provides better error handling and backpressure support
+    const upstreamBody = upstreamResponse.body;
+    if (!upstreamBody) {
+      return new Response(null, {
+        status: upstreamResponse.status,
+        headers: responseHeaders,
+      });
+    }
+
+    // Create a transform stream to bridge the connection with proper error handling
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+
+    // Pipe the upstream body through the transform stream
+    // This runs in the background and properly handles errors
+    const pipePromise = (upstreamBody as unknown as ReadableStream<Uint8Array>)
+      .pipeTo(writable)
+      .catch((err) => {
+        // Log stream errors for debugging but don't throw
+        // Client disconnects are normal and shouldn't be errors
+        if (err?.name !== 'AbortError') {
+          console.log('[IPTV Proxy] Stream ended:', err?.message || 'unknown reason');
+        }
+      });
+
+    // For live streams, log when streaming starts
+    if (isLiveStream) {
+      console.log('[IPTV Proxy] Live stream started, piping to client');
+      // Don't await the pipe - let it run in the background
+      void pipePromise;
+    }
+
+    return new Response(readable, {
       status: upstreamResponse.status,
       headers: responseHeaders,
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      console.log('[IPTV Proxy] Request timeout');
-      return jsonError('Request timeout', 504);
+      console.log('[IPTV Proxy] Connection timeout');
+      return jsonError('Connection timeout', 504);
     }
 
     console.error('[IPTV Proxy] Error:', error);

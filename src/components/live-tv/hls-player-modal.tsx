@@ -77,10 +77,20 @@ export function HlsPlayerModal({
   const hlsRef = useRef<Hls | null>(null);
   const mpegtsRef = useRef<MpegtsPlayer | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
+  const stallCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPlaybackTimeRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isRecovering, setIsRecovering] = useState(false);
   const { isTv } = useTvDetection();
+
+  // Maximum retry attempts before giving up
+  const MAX_RETRIES = 5;
+  // Base delay for exponential backoff (ms)
+  const BASE_RETRY_DELAY = 2000;
 
   // The stream URL is already proxied by the channels API if needed
   // HTTP URLs are converted to /api/iptv-proxy?url=... by the server
@@ -144,7 +154,13 @@ export function HlsPlayerModal({
   // Handle refresh button click to reload the stream
   const handleRefresh = useCallback((): void => {
     console.log('[HLS Player] Refreshing stream...');
-    
+
+    // Clear any pending retry
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
     // Destroy existing players
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -154,11 +170,51 @@ export function HlsPlayerModal({
       mpegtsRef.current.destroy();
       mpegtsRef.current = null;
     }
-    
+
+    // Reset retry count on manual refresh
+    retryCountRef.current = 0;
+
     // Reset state and trigger re-initialization
     setIsLoading(true);
     setError(null);
+    setIsRecovering(false);
     setRefreshKey((prev) => prev + 1);
+  }, []);
+
+  // Auto-retry with exponential backoff
+  const scheduleRetry = useCallback((): void => {
+    if (retryCountRef.current >= MAX_RETRIES) {
+      console.log('[HLS Player] Max retries reached, giving up');
+      setError('Stream failed after multiple retries. Please try refreshing manually.');
+      setIsRecovering(false);
+      return;
+    }
+
+    const delay = BASE_RETRY_DELAY * Math.pow(2, retryCountRef.current);
+    retryCountRef.current += 1;
+
+    console.log(`[HLS Player] Scheduling retry ${retryCountRef.current}/${MAX_RETRIES} in ${delay}ms`);
+    setIsRecovering(true);
+    setError(`Connection lost. Retrying (${retryCountRef.current}/${MAX_RETRIES})...`);
+
+    retryTimeoutRef.current = setTimeout(() => {
+      console.log('[HLS Player] Auto-retrying stream...');
+
+      // Destroy existing players
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      if (mpegtsRef.current) {
+        mpegtsRef.current.destroy();
+        mpegtsRef.current = null;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      setIsRecovering(false);
+      setRefreshKey((prev) => prev + 1);
+    }, delay);
   }, []);
 
   // Initialize video player
@@ -210,18 +266,25 @@ export function HlsPlayerModal({
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.error('[HLS Player] Fatal network error, attempting reload');
-                setError('Network error - please check your connection');
+                // Try to recover first
                 hls.startLoad();
+                // If still failing, schedule a full retry after a short delay
+                setTimeout(() => {
+                  if (isMounted && hlsRef.current === hls) {
+                    // Check if we're still in error state
+                    scheduleRetry();
+                  }
+                }, 5000);
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.error('[HLS Player] Fatal media error, attempting recovery');
-                setError('Media error - trying to recover');
                 hls.recoverMediaError();
                 break;
               default:
-                console.error('[HLS Player] Fatal error, destroying HLS instance');
-                setError('An error occurred while playing the stream');
+                console.error('[HLS Player] Fatal error, scheduling retry');
                 hls.destroy();
+                hlsRef.current = null;
+                scheduleRetry();
                 break;
             }
           }
@@ -308,7 +371,10 @@ export function HlsPlayerModal({
           player.on(mpegts.Events.ERROR, (errorType: unknown, errorDetail: unknown) => {
             console.error('[HLS Player] MPEG-TS Error:', errorType, errorDetail);
             if (isMounted) {
-              setError(`Stream error: ${String(errorDetail)}`);
+              // Destroy the current player and schedule retry
+              player.destroy();
+              mpegtsRef.current = null;
+              scheduleRetry();
             }
           });
           
@@ -329,8 +395,73 @@ export function HlsPlayerModal({
       });
     }
 
+    // Set up stall detection for live streams
+    // This detects when playback stops progressing and attempts recovery
+    const startStallDetection = (): void => {
+      if (stallCheckIntervalRef.current) {
+        clearInterval(stallCheckIntervalRef.current);
+      }
+
+      lastPlaybackTimeRef.current = 0;
+      let stallCount = 0;
+
+      stallCheckIntervalRef.current = setInterval(() => {
+        if (!isMounted || !video) return;
+
+        const currentTime = video.currentTime;
+
+        // If video is supposed to be playing but time hasn't changed
+        if (!video.paused && !video.ended && currentTime === lastPlaybackTimeRef.current) {
+          stallCount++;
+          console.log(`[HLS Player] Stall detected (${stallCount}/3), currentTime: ${currentTime}`);
+
+          // After 3 consecutive stalls (15 seconds), attempt recovery
+          if (stallCount >= 3) {
+            console.log('[HLS Player] Stream stalled, attempting recovery...');
+            stallCount = 0;
+
+            // For HLS, try to reload
+            if (hlsRef.current) {
+              hlsRef.current.startLoad();
+            }
+            // For mpegts, schedule a retry
+            else if (mpegtsRef.current) {
+              scheduleRetry();
+            }
+          }
+        } else {
+          // Reset stall count if playback is progressing
+          stallCount = 0;
+        }
+
+        lastPlaybackTimeRef.current = currentTime;
+      }, 5000); // Check every 5 seconds
+    };
+
+    // Start stall detection once video starts playing
+    const handlePlaying = (): void => {
+      console.log('[HLS Player] Video playing, starting stall detection');
+      // Reset retry count on successful playback
+      retryCountRef.current = 0;
+      startStallDetection();
+    };
+
+    video.addEventListener('playing', handlePlaying);
+
     return () => {
       isMounted = false;
+      video.removeEventListener('playing', handlePlaying);
+
+      if (stallCheckIntervalRef.current) {
+        clearInterval(stallCheckIntervalRef.current);
+        stallCheckIntervalRef.current = null;
+      }
+
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -340,7 +471,7 @@ export function HlsPlayerModal({
         mpegtsRef.current = null;
       }
     };
-  }, [isOpen, streamUrl, isHlsStream, channel.url, refreshKey]);
+  }, [isOpen, streamUrl, isHlsStream, channel.url, refreshKey, scheduleRetry]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
@@ -482,13 +613,15 @@ export function HlsPlayerModal({
         {/* Video Container */}
         <div className="relative aspect-video bg-black">
           {/* Loading Indicator */}
-          {isLoading && !hasError ? <div
+          {(isLoading || isRecovering) && !hasError ? <div
               data-testid="loading-indicator"
-              className="absolute inset-0 flex items-center justify-center"
+              className="absolute inset-0 flex items-center justify-center bg-black/50"
             >
               <div className="flex flex-col items-center gap-3">
                 <div className="w-12 h-12 border-4 border-zinc-700 border-t-blue-500 rounded-full animate-spin" />
-                <span className="text-zinc-400 text-sm">Loading stream...</span>
+                <span className="text-zinc-400 text-sm">
+                  {isRecovering ? `Reconnecting (${retryCountRef.current}/${MAX_RETRIES})...` : 'Loading stream...'}
+                </span>
               </div>
             </div> : null}
 
