@@ -57,23 +57,23 @@ export interface TuneInFavoritesResponse {
 }
 
 /**
- * TuneIn search result
+ * TuneIn search result (actual API response format)
  */
 export interface TuneInSearchResult {
-  GuideId: string;
-  Title: string;
-  Subtitle?: string;
-  Image?: string;
-  Type: 'station' | 'topic' | 'program';
-  Actions?: {
-    Browse?: string;
-    Play?: string;
-  };
-  CurrentTrack?: string;
-  Bandwidth?: string;
-  Formats?: string;
-  Genre?: string;
-  Reliability?: number;
+  element: string;
+  type: 'audio' | 'link';
+  text: string;
+  URL?: string;
+  bitrate?: string;
+  reliability?: number;
+  guide_id: string;
+  subtext?: string;
+  genre_id?: string;
+  formats?: string;
+  image?: string;
+  item?: 'station' | 'show' | 'topic';
+  now_playing_id?: string;
+  preset_id?: string;
 }
 
 /**

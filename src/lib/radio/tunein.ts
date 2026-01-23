@@ -65,18 +65,37 @@ function sanitizeQuery(query: string): string {
 
 /**
  * Convert TuneIn search result to normalized RadioStation
+ * Handles both search API format (snake_case) and browse API format (PascalCase)
  */
 function toRadioStation(result: TuneInSearchResult | TuneInStation): RadioStation {
-  return {
-    id: result.GuideId,
-    name: result.Title,
-    description: result.Subtitle,
-    imageUrl: result.Image,
-    genre: result.Genre,
-    currentTrack: 'CurrentTrack' in result ? result.CurrentTrack : ('CurrentSong' in result ? result.CurrentSong : undefined),
-    reliability: 'Reliability' in result ? result.Reliability : undefined,
-    formats: 'Formats' in result && result.Formats ? result.Formats.split(',') : undefined,
-  };
+  // Search API uses snake_case, browse API uses PascalCase
+  const isSearchResult = 'guide_id' in result;
+
+  if (isSearchResult) {
+    const r = result as TuneInSearchResult;
+    return {
+      id: r.guide_id,
+      name: r.text,
+      description: r.subtext,
+      imageUrl: r.image,
+      genre: r.genre_id,
+      currentTrack: undefined,
+      reliability: r.reliability,
+      formats: r.formats ? r.formats.split(',') : undefined,
+    };
+  } else {
+    const r = result as TuneInStation;
+    return {
+      id: r.GuideId,
+      name: r.Title,
+      description: r.Subtitle,
+      imageUrl: r.Image,
+      genre: r.Genre,
+      currentTrack: r.CurrentSong,
+      reliability: undefined,
+      formats: undefined,
+    };
+  }
 }
 
 /**
@@ -214,9 +233,9 @@ export function createTuneInService(): TuneInService {
           return [];
         }
 
-        // Filter to only stations and convert to our format
+        // Filter to only playable stations (type=audio with item=station, or has URL)
         const stations = data.body
-          .filter((item) => item.Type === 'station' || item.Actions?.Play)
+          .filter((item) => item.type === 'audio' && (item.item === 'station' || item.URL))
           .map(toRadioStation);
 
         console.log('[TuneIn] Filtered to', stations.length, 'stations');
@@ -300,7 +319,7 @@ export function createTuneInService(): TuneInService {
 
         // Find the station in the response
         const station = data.body.find(
-          (item) => item.GuideId === stationId || item.Type === 'station'
+          (item) => item.guide_id === stationId || item.item === 'station'
         );
 
         return station ? toRadioStation(station) : null;
@@ -339,7 +358,7 @@ export function createTuneInService(): TuneInService {
         }
 
         return data.body
-          .filter((item) => item.Type === 'station' || item.Actions?.Play)
+          .filter((item) => item.type === 'audio' && (item.item === 'station' || item.URL))
           .map(toRadioStation);
       } catch (error) {
         console.error('[TuneIn] Get popular stations error:', error);

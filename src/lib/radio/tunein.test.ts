@@ -41,20 +41,25 @@ describe('TuneIn Service', () => {
           head: { status: '200' },
           body: [
             {
-              GuideId: 's123',
-              Title: 'NPR News',
-              Subtitle: 'National Public Radio',
-              Image: 'https://example.com/npr.png',
-              Type: 'station',
-              Genre: 'News',
-              Actions: { Play: 'http://...' },
+              element: 'outline',
+              type: 'audio',
+              guide_id: 's123',
+              text: 'NPR News',
+              subtext: 'National Public Radio',
+              image: 'https://example.com/npr.png',
+              item: 'station',
+              genre_id: 'News',
+              URL: 'http://...',
+              reliability: 99,
             },
             {
-              GuideId: 's456',
-              Title: 'ESPN Radio',
-              Type: 'station',
-              Genre: 'Sports',
-              Actions: { Play: 'http://...' },
+              element: 'outline',
+              type: 'audio',
+              guide_id: 's456',
+              text: 'ESPN Radio',
+              item: 'station',
+              genre_id: 'Sports',
+              URL: 'http://...',
             },
           ],
         }),
@@ -71,7 +76,7 @@ describe('TuneIn Service', () => {
         imageUrl: 'https://example.com/npr.png',
         genre: 'News',
         currentTrack: undefined,
-        reliability: undefined,
+        reliability: 99,
         formats: undefined,
       });
     });
@@ -82,9 +87,9 @@ describe('TuneIn Service', () => {
         json: async () => ({
           head: { status: '200' },
           body: [
-            { GuideId: 's1', Title: 'Station 1', Type: 'station' },
-            { GuideId: 's2', Title: 'Station 2', Type: 'station' },
-            { GuideId: 's3', Title: 'Station 3', Type: 'station' },
+            { element: 'outline', type: 'audio', guide_id: 's1', text: 'Station 1', item: 'station', URL: 'http://...' },
+            { element: 'outline', type: 'audio', guide_id: 's2', text: 'Station 2', item: 'station', URL: 'http://...' },
+            { element: 'outline', type: 'audio', guide_id: 's3', text: 'Station 3', item: 'station', URL: 'http://...' },
           ],
         }),
       });
@@ -235,10 +240,12 @@ describe('TuneIn Service', () => {
           head: { status: '200' },
           body: [
             {
-              GuideId: 's123',
-              Title: 'NPR News',
-              Type: 'station',
-              Genre: 'News',
+              element: 'outline',
+              type: 'audio',
+              guide_id: 's123',
+              text: 'NPR News',
+              item: 'station',
+              genre_id: 'News',
             },
           ],
         }),
@@ -280,8 +287,8 @@ describe('TuneIn Service', () => {
         json: async () => ({
           head: { status: '200' },
           body: [
-            { GuideId: 's1', Title: 'Station 1', Type: 'station' },
-            { GuideId: 's2', Title: 'Station 2', Type: 'station' },
+            { element: 'outline', type: 'audio', guide_id: 's1', text: 'Station 1', item: 'station', URL: 'http://...' },
+            { element: 'outline', type: 'audio', guide_id: 's2', text: 'Station 2', item: 'station', URL: 'http://...' },
           ],
         }),
       });
