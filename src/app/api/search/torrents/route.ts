@@ -192,12 +192,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     let results: ExtendedSearchResult[];
 
     if (source === 'user') {
-      // Search only user-submitted torrents (original behavior)
+      // Search only user-submitted torrents with sorting support
       const userResults = await searchTorrents({
         query,
         mediaType: mediaType as MediaCategory | null,
         limit,
         offset,
+        sortBy,
+        sortOrder,
       });
       results = userResults.map(r => ({ ...r, source: 'user' as const }));
     } else {

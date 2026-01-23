@@ -655,6 +655,8 @@ export interface TorrentSearchOptions {
   mediaType?: MediaCategory | null;
   limit?: number;
   offset?: number;
+  sortBy?: 'relevance' | 'date' | 'seeders' | 'leechers' | 'size';
+  sortOrder?: 'asc' | 'desc';
 }
 
 /**
@@ -665,19 +667,35 @@ export interface TorrentSearchOptions {
 export async function searchTorrents(options: TorrentSearchOptions): Promise<TorrentSearchResult[]> {
   const client = getServerClient();
 
-  const { query, mediaType = null, limit = 50, offset = 0 } = options;
+  const { query, mediaType = null, limit = 50, offset = 0, sortBy = 'seeders', sortOrder = 'desc' } = options;
 
   // Build the search pattern
   const searchPattern = `%${query.toLowerCase()}%`;
 
+  // Map sortBy to database column
+  const sortColumn = sortBy === 'relevance' ? 'seeders'
+    : sortBy === 'date' ? 'created_at'
+    : sortBy === 'size' ? 'total_size'
+    : sortBy; // 'seeders' or 'leechers'
+
   // Query bt_torrents with ILIKE search
-  const queryBuilder = client
+  let queryBuilder = client
     .from('bt_torrents')
     .select('id, name, clean_title, infohash, total_size, file_count, seeders, leechers, created_at, poster_url, cover_url')
-    .ilike('name', searchPattern)
-    .order('seeders', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .ilike('name', searchPattern);
+
+  // Apply primary sort
+  queryBuilder = queryBuilder.order(sortColumn, { ascending: sortOrder === 'asc', nullsFirst: false });
+
+  // Add secondary sort for tie-breaking (unless already sorting by these)
+  if (sortColumn !== 'seeders') {
+    queryBuilder = queryBuilder.order('seeders', { ascending: false, nullsFirst: false });
+  }
+  if (sortColumn !== 'created_at') {
+    queryBuilder = queryBuilder.order('created_at', { ascending: false });
+  }
+
+  queryBuilder = queryBuilder.range(offset, offset + limit - 1);
 
   const { data, error } = await queryBuilder;
 

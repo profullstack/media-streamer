@@ -151,6 +151,8 @@ describe('Torrent Search API', () => {
         mediaType: 'audio',
         limit: 50,
         offset: 0,
+        sortBy: 'relevance',
+        sortOrder: 'desc',
       });
     });
 
@@ -165,6 +167,8 @@ describe('Torrent Search API', () => {
         mediaType: null,
         limit: 20,
         offset: 10,
+        sortBy: 'relevance',
+        sortOrder: 'desc',
       });
     });
 

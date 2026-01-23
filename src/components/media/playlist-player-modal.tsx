@@ -266,6 +266,8 @@ export function PlaylistPlayerModal({
       setCurrentIndex(currentIndex - 1);
       setIsPlayerReady(false);
       setError(null);
+      setConnectionStatus(null); // Reset to show loading state until new SSE connects
+      setPlaybackProgress({ currentTime: 0, duration: 0 });
     }
   }, [currentIndex]);
 
@@ -275,6 +277,8 @@ export function PlaylistPlayerModal({
       setCurrentIndex(currentIndex + 1);
       setIsPlayerReady(false);
       setError(null);
+      setConnectionStatus(null); // Reset to show loading state until new SSE connects
+      setPlaybackProgress({ currentTime: 0, duration: 0 });
     }
   }, [currentIndex, files.length]);
 
@@ -283,6 +287,7 @@ export function PlaylistPlayerModal({
     setCurrentIndex(index);
     setIsPlayerReady(false);
     setError(null);
+    setConnectionStatus(null); // Reset to show loading state until new SSE connects
     // Reset playback progress when changing tracks
     setPlaybackProgress({ currentTime: 0, duration: 0 });
   }, []);
@@ -626,6 +631,7 @@ export function PlaylistPlayerModal({
               </div>
             ) : null}
             <AudioPlayer
+              key={`${infohash}-${currentFile.fileIndex}-${refreshKey}`}
               src={streamUrl}
               filename={currentFile.name}
               title={displayTitle}

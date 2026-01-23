@@ -1166,7 +1166,7 @@ export function MediaPlayerModal({
               album={album}
               coverArt={coverArt}
               connectionStatus={connectionStatus}
-              showConnectionStats={true}
+              showConnectionStats={false}
               onReady={handlePlayerReady}
               onError={handlePlayerError}
               showTranscodingNotice={false}
