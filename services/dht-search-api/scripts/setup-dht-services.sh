@@ -154,6 +154,10 @@ install_bitmagnet() {
 # Setup Bitmagnet configuration
 setup_bitmagnet_config() {
     log_info "Creating Bitmagnet configuration..."
+    log_info "MAIN_ENV_FILE: ${MAIN_ENV_FILE}"
+    log_info "SUPABASE_URL: ${SUPABASE_URL:-NOT SET}"
+    log_info "SUPABASE_DB_PASSWORD: ${SUPABASE_DB_PASSWORD:+[SET]}"
+    log_info "TMDB_API_KEY: ${TMDB_API_KEY:+[SET]}"
 
     # Use Supabase direct connection (requires IPv4 add-on enabled in Supabase)
     # Host format: db.{project_ref}.supabase.co
@@ -168,15 +172,21 @@ setup_bitmagnet_config() {
     # Extract project ref from SUPABASE_URL for direct connection host
     if [ -n "${SUPABASE_URL:-}" ]; then
         local PROJECT_REF=$(echo "$SUPABASE_URL" | sed -n 's|https://\([^.]*\)\.supabase\.co.*|\1|p')
+        log_info "Extracted PROJECT_REF: ${PROJECT_REF:-EMPTY}"
         if [ -n "$PROJECT_REF" ]; then
             PG_HOST="db.${PROJECT_REF}.supabase.co"
         fi
+    else
+        log_error "SUPABASE_URL is not set! Check that ${MAIN_ENV_FILE} exists and contains SUPABASE_URL"
     fi
 
     if [ -z "$PG_HOST" ]; then
-        log_error "Could not extract project ref from SUPABASE_URL"
+        log_error "Could not extract project ref from SUPABASE_URL (${SUPABASE_URL:-empty})"
+        log_error "Make sure .env file exists at: ${MAIN_ENV_FILE}"
         return 1
     fi
+
+    log_info "Using PostgreSQL host: ${PG_HOST}"
 
     cat > "${BITMAGNET_DIR}/.env" << EOF
 # Bitmagnet Configuration
