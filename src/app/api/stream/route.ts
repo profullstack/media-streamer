@@ -211,9 +211,17 @@ function nodeStreamToWebStreamWithPreBuffer(
       preBufferTimeout = setTimeout(() => {
         if (!preBufferComplete) {
           // Check if we have enough data to even start playback
-          // FFmpeg needs at least ~64KB to read file headers
-          const MIN_BYTES_FOR_PLAYBACK = 64 * 1024; // 64KB minimum
-          
+          // For HEVC/H.265 video, FFmpeg needs significantly more data to:
+          // 1. Parse NAL units and find SPS/PPS (Sequence/Picture Parameter Sets)
+          // 2. Initialize the HEVC decoder
+          // 3. Build the reference frame buffer
+          // Use 5% of target buffer as minimum, with 512KB floor for video
+          // This means: video (10MB target) -> 512KB min, audio (2MB target) -> 100KB min
+          const MIN_BYTES_FOR_PLAYBACK = Math.max(
+            Math.floor(preBufferBytes * 0.05), // 5% of target
+            preBufferBytes >= 5 * 1024 * 1024 ? 512 * 1024 : 64 * 1024 // 512KB for video, 64KB for audio
+          );
+
           if (preBufferSize < MIN_BYTES_FOR_PLAYBACK) {
             reqLogger.error('Pre-buffer timeout with insufficient data - torrent may have no seeders', {
               bufferedBytes: preBufferSize,
@@ -874,10 +882,15 @@ export async function GET(request: NextRequest): Promise<Response> {
       const bufferedStream = new PassThrough();
       let firstChunkReceived = false;
 
+      // Use longer timeout for video (especially HEVC/H.265) which needs more initial data
+      // Video files have larger pieces and HEVC requires more data for decoder initialization
+      const mediaType = detectMediaType(info.fileName);
+      const firstChunkTimeoutMs = mediaType === 'video' ? 60000 : 30000; // 60s for video, 30s for audio
+
       const streamFlowingPromise = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error('Stream did not start flowing within 30 seconds'));
-        }, 30000);
+          reject(new Error(`Stream did not start flowing within ${firstChunkTimeoutMs / 1000} seconds`));
+        }, firstChunkTimeoutMs);
 
         const onData = (chunk: Buffer): void => {
           if (!firstChunkReceived) {

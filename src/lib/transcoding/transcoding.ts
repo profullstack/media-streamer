@@ -373,6 +373,15 @@ export function buildStreamingFFmpegArgs(
   // Use 0 (auto) to let FFmpeg use optimal thread count for the system
   args.push('-threads', '0');
 
+  // CRITICAL: Set probesize and analyzeduration for HEVC/H.265 streams
+  // HEVC requires more data to parse NAL units, SPS (Sequence Parameter Sets),
+  // and PPS (Picture Parameter Sets) before decoding can start.
+  // Without these, FFmpeg may fail with "Invalid data" or stall waiting for data.
+  // 20MB probesize: enough to read HEVC headers even with slow torrent downloads
+  // 10 seconds analyzeduration: allows time for stream analysis with slow data arrival
+  args.push('-probesize', '20000000');      // 20MB - larger for HEVC streams
+  args.push('-analyzeduration', '10000000'); // 10 seconds in microseconds
+
   // CRITICAL: Specify input format for pipe input
   // FFmpeg cannot reliably auto-detect format from pipes because:
   // 1. Pipes are not seekable - FFmpeg can't seek back to re-read headers
