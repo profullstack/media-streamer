@@ -160,9 +160,9 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
       // Smaller padding on TV to maximize usable space
       isTv ? 'p-1' : 'p-2 sm:p-4'
     )}>
-      {/* Backdrop */}
+      {/* Backdrop - use fixed inset-0 to cover full viewport regardless of parent padding */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
         onClick={handleClose}
       />
       

@@ -171,16 +171,15 @@ export default function RadioPage(): React.ReactElement {
         {/* Search Bar */}
         <form onSubmit={handleSearchSubmit} className="flex gap-2">
           <div className="relative flex-1">
-            <SearchIcon
-              size={20}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-            />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+              <SearchIcon className="text-text-muted" size={20} />
+            </div>
             <input
               type="text"
               placeholder="Search radio stations..."
               value={searchQuery}
               onChange={handleSearchChange}
-              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-12 pr-10 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-14 pr-10 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
             />
             {searchQuery ? (
               <button

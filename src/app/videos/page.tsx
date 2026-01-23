@@ -249,14 +249,16 @@ export default function VideosPage(): React.ReactElement {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
           <form onSubmit={handleSearch} className="relative flex-1 max-w-md">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <SearchIcon className="text-text-muted" size={18} />
+            </div>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search videos..."
               className={cn(
-                'w-full rounded-lg border border-border-subtle bg-bg-secondary py-2 pl-10 pr-4',
+                'w-full rounded-lg border border-border-subtle bg-bg-secondary py-2 pl-11 pr-4',
                 'text-text-primary placeholder:text-text-muted',
                 'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
               )}

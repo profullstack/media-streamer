@@ -428,7 +428,15 @@ html.tv select {
 }
 
 html.tv .pl-10 {
-  padding-left: 2rem;
+  padding-left: 2.25rem;
+}
+
+html.tv .pl-11 {
+  padding-left: 2.5rem;
+}
+
+html.tv .pl-14 {
+  padding-left: 3rem;
 }
 
 /* TV space-y utilities - more compact */

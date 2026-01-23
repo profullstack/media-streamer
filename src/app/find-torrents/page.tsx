@@ -405,16 +405,15 @@ function FindTorrentsPageInner(): React.ReactElement {
             {/* Search Input */}
             <div className="flex-1">
               <div className="relative">
-                <SearchIcon 
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" 
-                  size={20} 
-                />
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <SearchIcon className="text-text-muted" size={20} />
+                </div>
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search for torrents..."
-                  className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary py-3 pl-10 pr-4 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                  className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary py-3 pl-11 pr-4 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
                 />
               </div>
             </div>

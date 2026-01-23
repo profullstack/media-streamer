@@ -725,14 +725,16 @@ export default function PodcastsPage(): React.ReactElement {
         {activeTab === 'search' && (
           <div className="space-y-6">
             <div className="relative">
-              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={20} />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <SearchIcon className="text-text-muted" size={20} />
+              </div>
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 placeholder="Search for podcasts..."
                 className={cn(
-                  'w-full rounded-xl border border-border-default bg-bg-secondary py-4 pl-12 pr-12',
+                  'w-full rounded-xl border border-border-default bg-bg-secondary py-4 pl-14 pr-12',
                   'text-base text-text-primary placeholder:text-text-muted',
                   'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
                 )}

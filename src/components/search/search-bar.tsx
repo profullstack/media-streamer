@@ -120,10 +120,9 @@ export function SearchBar({
     <form onSubmit={handleSubmit} className={cn('relative', className)}>
       <div className="relative flex items-center">
         {/* Search icon */}
-        <SearchIcon
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
-          size={18}
-        />
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+          <SearchIcon className="text-text-muted" size={18} />
+        </div>
 
         {/* Input */}
         <input
@@ -132,7 +131,7 @@ export function SearchBar({
           onChange={handleQueryChange}
           placeholder={placeholder}
           className={cn(
-            'w-full rounded-lg border border-border-subtle bg-bg-secondary py-2.5 pl-10 pr-20',
+            'w-full rounded-lg border border-border-subtle bg-bg-secondary py-2.5 pl-11 pr-20',
             'text-text-primary placeholder:text-text-muted',
             'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
             'transition-colors'
