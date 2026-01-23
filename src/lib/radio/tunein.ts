@@ -99,31 +99,55 @@ function toRadioStation(result: TuneInSearchResult | TuneInStation): RadioStatio
 }
 
 /**
- * Convert TuneIn stream to normalized RadioStream
+ * Raw stream data from TuneIn API
  */
-function toRadioStream(stream: {
+interface TuneInStreamData {
   url: string;
   media_type: string;
   bitrate?: number;
   is_direct: boolean;
-}): RadioStream {
+  is_boost_station?: string; // "true" or "false" - promotional content from different station
+}
+
+/**
+ * Extended RadioStream with boost station flag
+ */
+interface ExtendedRadioStream extends RadioStream {
+  isBoostStation?: boolean;
+}
+
+/**
+ * Convert TuneIn stream to normalized RadioStream
+ */
+function toRadioStream(stream: TuneInStreamData): ExtendedRadioStream {
   return {
     url: stream.url,
     mediaType: stream.media_type as RadioStream['mediaType'],
     bitrate: stream.bitrate,
     isDirect: stream.is_direct,
+    isBoostStation: stream.is_boost_station === 'true',
   };
 }
 
 /**
  * Select the best stream from available options
  * Prefers MP3 > AAC > OGG > HLS for broad compatibility
+ * Filters out "boost stations" (promotional content from different stations)
  */
-function selectPreferredStream(streams: RadioStream[]): RadioStream | null {
+function selectPreferredStream(streams: ExtendedRadioStream[]): RadioStream | null {
   if (streams.length === 0) return null;
 
+  // Filter out boost stations (promotional content from different stations)
+  // Only if there are non-boost alternatives available
+  const nonBoostStreams = streams.filter(s => !s.isBoostStation);
+  const streamsToSort = nonBoostStreams.length > 0 ? nonBoostStreams : streams;
+
+  if (nonBoostStreams.length !== streams.length) {
+    console.log('[TuneIn] Filtered out', streams.length - nonBoostStreams.length, 'boost station(s)');
+  }
+
   // Sort by format preference and bitrate
-  const sorted = [...streams].sort((a, b) => {
+  const sorted = [...streamsToSort].sort((a, b) => {
     const aIndex = PREFERRED_FORMATS.indexOf(a.mediaType as typeof PREFERRED_FORMATS[number]);
     const bIndex = PREFERRED_FORMATS.indexOf(b.mediaType as typeof PREFERRED_FORMATS[number]);
 
@@ -286,7 +310,7 @@ export function createTuneInService(): TuneInService {
           return { streams: [], preferred: null };
         }
 
-        const streams = data.body.map(toRadioStream);
+        const streams = data.body.map(toRadioStream) as ExtendedRadioStream[];
         const preferred = selectPreferredStream(streams);
 
         console.log('[TuneIn] Parsed streams:', streams.length, 'preferred:', preferred?.url);

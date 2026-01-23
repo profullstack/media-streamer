@@ -181,6 +181,7 @@ describe('TuneIn Service', () => {
         mediaType: 'mp3',
         bitrate: 128,
         isDirect: true,
+        isBoostStation: false,
       });
       // MP3 should be preferred over AAC
       expect(preferred?.mediaType).toBe('mp3');
