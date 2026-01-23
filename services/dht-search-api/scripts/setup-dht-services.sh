@@ -153,11 +153,6 @@ install_bitmagnet() {
 
 # Setup Bitmagnet configuration
 setup_bitmagnet_config() {
-    if [ -f "${BITMAGNET_DIR}/.env" ]; then
-        log_info "Bitmagnet config already exists at ${BITMAGNET_DIR}/.env"
-        return
-    fi
-
     log_info "Creating Bitmagnet configuration..."
 
     # Use Supabase connection pooler (IPv4 compatible, avoids IPv6 issues)
@@ -190,7 +185,7 @@ POSTGRES_HOST=${PG_HOST}
 POSTGRES_PORT=${PG_PORT}
 POSTGRES_USER=${PG_USER}
 POSTGRES_PASSWORD=${PG_PASS:-your-password}
-POSTGRES_DATABASE=${PG_DB}
+POSTGRES_DB=${PG_DB}
 
 # DHT Crawler Settings
 DHT_CRAWLER_SAVE_FILES_THRESHOLD=0
