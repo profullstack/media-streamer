@@ -88,6 +88,7 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [total, setTotal] = useState(0);
+  const [isDhtTorrent, setIsDhtTorrent] = useState(false);
 
   // Fetch comments
   const fetchComments = useCallback(async () => {
@@ -100,9 +101,10 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
         throw new Error('Failed to load comments');
       }
 
-      const data = await response.json() as { comments: Comment[]; total: number };
+      const data = await response.json() as { comments: Comment[]; total: number; isDhtTorrent?: boolean };
       setComments(data.comments);
       setTotal(data.total);
+      setIsDhtTorrent(data.isDhtTorrent ?? false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -437,55 +439,72 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
       </div>
 
       <div className="p-4">
-        {/* New comment form */}
-        {user ? (
-          <form onSubmit={handleSubmitComment} className="mb-6">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Write a comment..."
-              className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none"
-              rows={3}
-            />
-            <div className="mt-2 flex justify-end">
-              <button
-                type="submit"
-                disabled={isSubmitting || !newComment.trim()}
-                className="flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50"
-              >
-                {isSubmitting ? <LoadingSpinner size={14} /> : null}
-                Post Comment
-              </button>
+        {/* DHT torrent notice */}
+        {isDhtTorrent ? (
+          <div className="py-8 text-center">
+            <div className="mb-2 text-text-muted">
+              <MessageCircleIcon size={32} className="mx-auto mb-3 opacity-50" />
             </div>
-          </form>
-        ) : (
-          <div className="mb-6 rounded-lg border border-border-subtle bg-bg-secondary p-4 text-center">
             <p className="text-sm text-text-muted">
-              <a href="/login" className="text-accent-primary hover:underline">Log in</a>
-              {' '}to leave a comment
+              Comments are not available for DHT torrents.
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Add this torrent to your library to enable comments.
             </p>
           </div>
-        )}
-
-        {/* Error message */}
-        {error ? <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">
-            {error}
-          </div> : null}
-
-        {/* Comments list */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <LoadingSpinner size={24} className="text-accent-primary" />
-            <span className="ml-2 text-text-muted">Loading comments...</span>
-          </div>
-        ) : rootComments.length > 0 ? (
-          <div className="divide-y divide-border-subtle">
-            {rootComments.map(comment => renderComment(comment))}
-          </div>
         ) : (
-          <div className="py-8 text-center text-text-muted">
-            No comments yet. Be the first to comment!
-          </div>
+          <>
+            {/* New comment form */}
+            {user ? (
+              <form onSubmit={handleSubmitComment} className="mb-6">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Write a comment..."
+                  className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none"
+                  rows={3}
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !newComment.trim()}
+                    className="flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50"
+                  >
+                    {isSubmitting ? <LoadingSpinner size={14} /> : null}
+                    Post Comment
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="mb-6 rounded-lg border border-border-subtle bg-bg-secondary p-4 text-center">
+                <p className="text-sm text-text-muted">
+                  <a href="/login" className="text-accent-primary hover:underline">Log in</a>
+                  {' '}to leave a comment
+                </p>
+              </div>
+            )}
+
+            {/* Error message */}
+            {error ? <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">
+                {error}
+              </div> : null}
+
+            {/* Comments list */}
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <LoadingSpinner size={24} className="text-accent-primary" />
+                <span className="ml-2 text-text-muted">Loading comments...</span>
+              </div>
+            ) : rootComments.length > 0 ? (
+              <div className="divide-y divide-border-subtle">
+                {rootComments.map(comment => renderComment(comment))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-text-muted">
+                No comments yet. Be the first to comment!
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

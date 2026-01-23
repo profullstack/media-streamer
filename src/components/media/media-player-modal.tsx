@@ -33,6 +33,16 @@ import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection } from 
 import type { TorrentFile } from '@/types';
 
 /**
+ * Check if a string is a valid UUID v4
+ * Used to determine if a file ID is from bt_torrent_files (valid UUID)
+ * or a synthetic DHT file ID (infohash-index format)
+ */
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+/**
  * Codec information from the API
  */
 interface CodecInfo {
@@ -829,8 +839,8 @@ export function MediaPlayerModal({
             ) : null}
           </div>
 
-          {/* Favorite Button */}
-          {file.id ? <FileFavoriteButton
+          {/* Favorite Button - only show for user torrents with valid file IDs */}
+          {file.id && isValidUUID(file.id) ? <FileFavoriteButton
               fileId={file.id}
               size="md"
               className="flex-shrink-0 hover:bg-bg-tertiary rounded-full"

@@ -3,6 +3,9 @@
  *
  * GET /api/torrents/:id/comments - Get comments for a torrent
  * POST /api/torrents/:id/comments - Create a new comment (requires auth)
+ *
+ * Note: Comments are only supported for user-submitted torrents (bt_torrents).
+ * DHT torrents (identified by infohash) return empty results.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,6 +14,15 @@ import { getAuthenticatedUser } from '@/lib/auth';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+/**
+ * Check if a string is a valid UUID v4
+ * User torrents use UUIDs, DHT torrents use 40-char hex infohashes
+ */
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
 }
 
 /**
@@ -39,6 +51,18 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get('limit') ?? '50', 10);
     const offset = parseInt(searchParams.get('offset') ?? '0', 10);
+
+    // DHT torrents (non-UUID IDs) don't support comments
+    // Return empty results instead of failing
+    if (!isValidUUID(torrentId)) {
+      return NextResponse.json({
+        comments: [],
+        total: 0,
+        limit,
+        offset,
+        isDhtTorrent: true,
+      });
+    }
 
     // Get authenticated user (optional for viewing comments)
     const user = await getAuthenticatedUser(request);
@@ -84,6 +108,14 @@ export async function POST(
     if (!torrentId) {
       return NextResponse.json(
         { error: 'Torrent ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // DHT torrents (non-UUID IDs) don't support comments
+    if (!isValidUUID(torrentId)) {
+      return NextResponse.json(
+        { error: 'Comments are not available for DHT torrents. Add this torrent to your library first.' },
         { status: 400 }
       );
     }

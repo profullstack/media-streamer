@@ -74,7 +74,7 @@ export async function getTorrentByInfohash(infohash: string): Promise<Torrent | 
 
 /**
  * DHT Torrent type - a torrent from Bitmagnet's DHT crawl
- * This is a lightweight representation since DHT torrents don't have all the metadata
+ * Includes TMDB metadata when available from Bitmagnet's content tables
  */
 export interface DhtTorrent {
   infohash: string;
@@ -84,6 +84,9 @@ export interface DhtTorrent {
   created_at: string;
   seeders: number;
   leechers: number;
+  poster_url: string | null;
+  cover_url: string | null;
+  content_type: string | null;
   source: 'dht';
 }
 
@@ -137,6 +140,9 @@ export async function getDhtTorrentByInfohash(infohash: string): Promise<DhtTorr
     created_at: dhtResult.created_at as string,
     seeders: Number(dhtResult.seeders ?? 0),
     leechers: Number(dhtResult.leechers ?? 0),
+    poster_url: (dhtResult.poster_url as string | null) ?? null,
+    cover_url: (dhtResult.cover_url as string | null) ?? null,
+    content_type: (dhtResult.content_type as string | null) ?? null,
     source: 'dht',
   };
 }

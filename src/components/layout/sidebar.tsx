@@ -44,10 +44,10 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { href: '/', label: 'Home', icon: HomeIcon },
   { href: '/search', label: 'Search', icon: SearchIcon },
+  { href: '/find-torrents', label: 'Find Torrents', icon: SearchPlusIcon },
   { href: '/trending', label: 'Trending', icon: TrendingIcon },
   { href: '/library', label: 'My Library', icon: LibraryIcon, requiresAuth: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
-  { href: '/find-torrents', label: 'Find Torrents', icon: SearchPlusIcon },
   { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
   { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon, requiresAuth: true },

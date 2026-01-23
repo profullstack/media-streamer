@@ -91,6 +91,7 @@ interface TorrentWithSource {
 
 /**
  * Transform a DHT torrent to the response format
+ * Includes TMDB metadata (poster, cover) when available
  */
 function transformDhtTorrent(dht: DhtTorrent): TorrentWithSource {
   return {
@@ -105,9 +106,9 @@ function transformDhtTorrent(dht: DhtTorrent): TorrentWithSource {
     seeders: dht.seeders,
     leechers: dht.leechers,
     swarmUpdatedAt: null,
-    posterUrl: null,
-    coverUrl: null,
-    contentType: null,
+    posterUrl: dht.poster_url,
+    coverUrl: dht.cover_url,
+    contentType: dht.content_type,
     year: null,
     description: null,
     director: null,
