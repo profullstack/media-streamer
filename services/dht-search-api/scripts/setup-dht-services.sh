@@ -191,6 +191,9 @@ POSTGRES_USER=${PG_USER}
 POSTGRES_PASSWORD=${PG_PASS:-your-password}
 POSTGRES_NAME=${PG_DB}
 
+# TMDB API Key (optional, removes rate limiting warning)
+TMDB_API_KEY=${TMDB_API_KEY:-}
+
 # DHT Crawler Settings
 DHT_CRAWLER_SAVE_FILES_THRESHOLD=0
 DHT_CRAWLER_SAVE_PIECES=false
