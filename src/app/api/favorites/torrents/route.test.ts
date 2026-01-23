@@ -27,9 +27,21 @@ vi.mock('@/lib/favorites', () => ({
   }),
 }));
 
+// Mock the supabase queries (for getUserTorrentId check)
+const mockGetTorrentById = vi.fn();
+const mockGetTorrentByInfohash = vi.fn();
+
+vi.mock('@/lib/supabase/queries', () => ({
+  getTorrentById: () => mockGetTorrentById(),
+  getTorrentByInfohash: () => mockGetTorrentByInfohash(),
+}));
+
 describe('GET /api/favorites/torrents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock torrent lookup to return a valid torrent (so favorites are allowed)
+    mockGetTorrentByInfohash.mockResolvedValue({ id: 'torrent-1' });
+    mockGetTorrentById.mockResolvedValue(null);
   });
 
   it('returns 401 when not authenticated', async () => {
@@ -99,6 +111,9 @@ describe('GET /api/favorites/torrents', () => {
 describe('POST /api/favorites/torrents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock torrent lookup to return a valid torrent (so favorites are allowed)
+    mockGetTorrentByInfohash.mockResolvedValue({ id: 'torrent-1' });
+    mockGetTorrentById.mockResolvedValue(null);
   });
 
   it('returns 401 when not authenticated', async () => {
@@ -191,6 +206,9 @@ describe('POST /api/favorites/torrents', () => {
 describe('DELETE /api/favorites/torrents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock torrent lookup to return a valid torrent (so favorites are allowed)
+    mockGetTorrentByInfohash.mockResolvedValue({ id: 'torrent-1' });
+    mockGetTorrentById.mockResolvedValue(null);
   });
 
   it('returns 401 when not authenticated', async () => {

@@ -296,7 +296,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           year: enrichmentResult.year ?? null,
           description: enrichmentResult.description ?? null,
           director: enrichmentResult.director ?? null,
-          actors: enrichmentResult.actors ?? null,
+          actors: enrichmentResult.actors ? enrichmentResult.actors.split(', ').map(s => s.trim()) : null,
           external_id: enrichmentResult.externalId ?? null,
           external_source: enrichmentResult.externalSource ?? null,
           metadata_fetched_at: new Date().toISOString(),

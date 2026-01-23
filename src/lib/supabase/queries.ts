@@ -73,6 +73,89 @@ export async function getTorrentByInfohash(infohash: string): Promise<Torrent | 
 }
 
 /**
+ * DHT Torrent type - a torrent from Bitmagnet's DHT crawl
+ * This is a lightweight representation since DHT torrents don't have all the metadata
+ */
+export interface DhtTorrent {
+  infohash: string;
+  name: string;
+  size: number;
+  files_count: number | null;
+  created_at: string;
+  seeders: number;
+  leechers: number;
+  source: 'dht';
+}
+
+/**
+ * DHT Torrent File type - a file from Bitmagnet's DHT crawl
+ */
+export interface DhtTorrentFile {
+  index: number;
+  path: string;
+  extension: string | null;
+  size: number;
+}
+
+/**
+ * Get a DHT torrent by its infohash from Bitmagnet's torrents table
+ * Uses the search_all_torrents RPC to find DHT torrents
+ * @param infohash - The torrent's infohash (40 hex chars)
+ * @returns The DHT torrent or null if not found
+ */
+export async function getDhtTorrentByInfohash(infohash: string): Promise<DhtTorrent | null> {
+  const client = getServerClient();
+
+  // Use the search_all_torrents RPC with the infohash as search query
+  // This will find exact matches in DHT torrents
+  const { data, error } = await client.rpc('search_all_torrents', {
+    search_query: infohash,
+    result_limit: 10,
+    result_offset: 0,
+  });
+
+  if (error) {
+    console.error('DHT torrent lookup error:', error);
+    throw new Error(error.message);
+  }
+
+  // Find the DHT torrent with matching infohash
+  const dhtResult = (data ?? []).find(
+    (row: Record<string, unknown>) =>
+      row.source === 'dht' && (row.infohash as string).toLowerCase() === infohash.toLowerCase()
+  );
+
+  if (!dhtResult) {
+    return null;
+  }
+
+  return {
+    infohash: dhtResult.infohash as string,
+    name: dhtResult.name as string,
+    size: Number(dhtResult.size),
+    files_count: Number(dhtResult.files_count ?? 0),
+    created_at: dhtResult.created_at as string,
+    seeders: Number(dhtResult.seeders ?? 0),
+    leechers: Number(dhtResult.leechers ?? 0),
+    source: 'dht',
+  };
+}
+
+/**
+ * Get files for a DHT torrent from Bitmagnet's torrent_files table
+ * Uses direct SQL query via RPC since Supabase doesn't support bytea filtering well
+ * @param infohash - The torrent's infohash (40 hex chars)
+ * @returns Array of DHT torrent files (empty if not found or table doesn't exist)
+ */
+export async function getDhtTorrentFiles(infohash: string): Promise<DhtTorrentFile[]> {
+  // DHT torrents may not have file info indexed
+  // Return empty array - the torrent detail page will show the torrent without file browser
+  // In the future, we could add an RPC function to query torrent_files by bytea info_hash
+  console.log(`getDhtTorrentFiles called for ${infohash} - DHT file listing not implemented`);
+  return [];
+}
+
+/**
  * Create a new torrent
  * @param torrent - The torrent data to insert
  * @returns The created torrent
@@ -629,7 +712,7 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
     torrent_file_count: t.file_count,
     torrent_seeders: t.seeders,
     torrent_leechers: t.leechers,
-    torrent_created_at: t.created_at,
+    torrent_created_at: t.created_at ?? new Date().toISOString(),
     torrent_poster_url: t.poster_url,
     torrent_cover_url: t.cover_url,
     match_type: 'torrent_name',
@@ -645,4 +728,103 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
 export async function searchTorrentsByName(options: TorrentSearchOptions): Promise<TorrentSearchResult[]> {
   // This is the same as searchTorrents for now
   return searchTorrents(options);
+}
+
+/**
+ * Search DHT torrents in Bitmagnet's torrents table
+ * @param options - Search options
+ * @returns Array of DHT torrent search results
+ */
+export async function searchDhtTorrents(options: TorrentSearchOptions): Promise<TorrentSearchResult[]> {
+  const client = getServerClient();
+  const { query, limit = 50, offset = 0 } = options;
+
+  // Use the search_all_torrents RPC with source='dht' filtering
+  const { data, error } = await client.rpc('search_all_torrents', {
+    search_query: query,
+    result_limit: limit + offset + 100, // Fetch extra to filter by source
+    result_offset: 0,
+  });
+
+  if (error) {
+    console.error('DHT search error:', error);
+    throw new Error(error.message);
+  }
+
+  // Filter to only DHT results and apply pagination
+  const dhtResults = (data ?? [])
+    .filter((row: Record<string, unknown>) => row.source === 'dht')
+    .slice(offset, offset + limit);
+
+  return dhtResults.map((row: Record<string, unknown>) => ({
+    torrent_id: row.id as string,
+    torrent_name: row.name as string,
+    torrent_clean_title: null,
+    torrent_infohash: row.infohash as string,
+    torrent_total_size: Number(row.size),
+    torrent_file_count: Number(row.files_count ?? 0),
+    torrent_seeders: Number(row.seeders ?? 0),
+    torrent_leechers: Number(row.leechers ?? 0),
+    torrent_created_at: row.created_at as string,
+    torrent_poster_url: row.poster_url as string | null,
+    torrent_cover_url: row.cover_url as string | null,
+    match_type: 'torrent_name',
+    rank: 1.0,
+    source: 'dht' as const,
+  }));
+}
+
+/**
+ * Search all torrents (both user and DHT) using unified search
+ * @param options - Search options with optional source filter
+ * @returns Array of torrent search results with source field
+ */
+export async function searchAllTorrents(
+  options: TorrentSearchOptions & { source?: 'all' | 'user' | 'dht' }
+): Promise<(TorrentSearchResult & { source: 'user' | 'dht' })[]> {
+  const client = getServerClient();
+  const { query, source = 'all', limit = 50, offset = 0 } = options;
+
+  // Use the search_all_torrents RPC
+  const { data, error } = await client.rpc('search_all_torrents', {
+    search_query: query,
+    result_limit: source === 'all' ? limit : limit + 100, // Fetch extra if filtering
+    result_offset: source === 'all' ? offset : 0,
+  });
+
+  if (error) {
+    console.error('Unified search error:', error);
+    throw new Error(error.message);
+  }
+
+  let results = (data ?? []).map((row: Record<string, unknown>) => ({
+    torrent_id: row.id as string,
+    torrent_name: row.name as string,
+    torrent_clean_title: (row.source === 'user' ? null : null) as string | null, // DHT torrents don't have clean_title
+    torrent_infohash: row.infohash as string,
+    torrent_total_size: Number(row.size),
+    torrent_file_count: Number(row.files_count ?? 0),
+    torrent_seeders: Number(row.seeders ?? 0),
+    torrent_leechers: Number(row.leechers ?? 0),
+    torrent_created_at: row.created_at as string,
+    torrent_poster_url: row.poster_url as string | null,
+    torrent_cover_url: row.cover_url as string | null,
+    match_type: 'torrent_name',
+    rank: 1.0,
+    source: row.source as 'user' | 'dht',
+  }));
+
+  // Filter by source if specified
+  if (source === 'user') {
+    results = results.filter(r => r.source === 'user');
+  } else if (source === 'dht') {
+    results = results.filter(r => r.source === 'dht');
+  }
+
+  // Apply pagination if we fetched extra for filtering
+  if (source !== 'all') {
+    results = results.slice(offset, offset + limit);
+  }
+
+  return results;
 }

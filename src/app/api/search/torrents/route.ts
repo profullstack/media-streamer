@@ -4,11 +4,21 @@
  * GET /api/search/torrents - Search for torrents by name
  *
  * FREE - No authentication required to encourage usage.
+ *
+ * Supports filtering by source:
+ * - all: Both user-submitted and DHT torrents (default)
+ * - user: Only user-submitted torrents (bt_torrents)
+ * - dht: Only DHT torrents from Bitmagnet
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { searchTorrents } from '@/lib/supabase';
+import { searchTorrents, searchAllTorrents } from '@/lib/supabase';
 import type { MediaCategory, TorrentSearchResult } from '@/lib/supabase';
+
+/**
+ * Valid source values
+ */
+type SearchSource = 'all' | 'user' | 'dht';
 
 /**
  * Valid media types for filtering
@@ -26,11 +36,18 @@ const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
 
 /**
+ * Extended search result with source
+ */
+interface ExtendedSearchResult extends TorrentSearchResult {
+  source?: 'user' | 'dht';
+}
+
+/**
  * Search API Response
  */
 interface SearchResponse {
   query: string;
-  results: TorrentSearchResult[];
+  results: ExtendedSearchResult[];
   pagination: {
     limit: number;
     offset: number;
@@ -39,6 +56,7 @@ interface SearchResponse {
   };
   filters: {
     mediaType: string | null;
+    source: SearchSource;
   };
 }
 
@@ -58,11 +76,12 @@ interface ErrorResponse {
  * Query Parameters:
  * - q: Search query (required)
  * - type: Media type filter (audio, video, ebook, document, other)
+ * - source: Source filter - 'all' (default), 'user', or 'dht'
  * - limit: Maximum results to return (default: 50, max: 100)
  * - offset: Pagination offset (default: 0)
  *
  * Response:
- * - 200: Search results
+ * - 200: Search results with source field
  * - 400: Invalid request
  * - 500: Server error
  */
@@ -77,6 +96,17 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       { status: 400 }
     );
   }
+
+  // Extract and validate source parameter
+  const sourceParam = searchParams.get('source') ?? 'all';
+  const validSources: SearchSource[] = ['all', 'user', 'dht'];
+  if (!validSources.includes(sourceParam as SearchSource)) {
+    return NextResponse.json(
+      { error: `Invalid source. Must be one of: ${validSources.join(', ')}` },
+      { status: 400 }
+    );
+  }
+  const source = sourceParam as SearchSource;
 
   // Extract and validate media type filter
   const mediaType = searchParams.get('type');
@@ -135,12 +165,27 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
 
   // Perform search
   try {
-    const results = await searchTorrents({
-      query,
-      mediaType: mediaType as MediaCategory | null,
-      limit,
-      offset,
-    });
+    let results: ExtendedSearchResult[];
+
+    if (source === 'user') {
+      // Search only user-submitted torrents (original behavior)
+      const userResults = await searchTorrents({
+        query,
+        mediaType: mediaType as MediaCategory | null,
+        limit,
+        offset,
+      });
+      results = userResults.map(r => ({ ...r, source: 'user' as const }));
+    } else {
+      // Search all torrents or DHT only using unified search
+      const unifiedResults = await searchAllTorrents({
+        query,
+        source,
+        limit,
+        offset,
+      });
+      results = unifiedResults;
+    }
 
     // Determine if there are more results
     const hasMore = results.length === limit;
@@ -156,6 +201,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       },
       filters: {
         mediaType,
+        source,
       },
     });
   } catch (error) {

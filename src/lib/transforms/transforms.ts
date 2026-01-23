@@ -33,7 +33,7 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     description: dbTorrent.description,
     // Credits fields
     director: dbTorrent.director,
-    actors: dbTorrent.actors,
+    actors: dbTorrent.actors ? dbTorrent.actors.join(', ') : null,
     genre: dbTorrent.genre,
     // Codec fields
     videoCodec: dbTorrent.video_codec,
@@ -41,8 +41,8 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     container: dbTorrent.container,
     needsTranscoding: dbTorrent.needs_transcoding,
     codecDetectedAt: dbTorrent.codec_detected_at,
-    createdAt: dbTorrent.created_at,
-    updatedAt: dbTorrent.updated_at,
+    createdAt: dbTorrent.created_at ?? new Date().toISOString(),
+    updatedAt: dbTorrent.updated_at ?? new Date().toISOString(),
   };
 }
 

@@ -35,13 +35,24 @@ vi.mock('@/lib/auth', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 
+// Mock the supabase queries (for getUserTorrentId check)
+vi.mock('@/lib/supabase/queries', () => ({
+  getTorrentById: vi.fn(),
+  getTorrentByInfohash: vi.fn(),
+}));
+
 import { getCommentsService } from '@/lib/comments';
 import { getFavoritesService } from '@/lib/favorites';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getTorrentById, getTorrentByInfohash } from '@/lib/supabase/queries';
 
 describe('Torrent Vote API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock torrent lookup to return a valid torrent (so votes are allowed)
+    // The ID 'torrent-123' is not a valid UUID, so it falls through to getTorrentByInfohash
+    (getTorrentByInfohash as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'torrent-123' });
+    (getTorrentById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
   });
 
   describe('GET /api/torrents/:id/vote', () => {

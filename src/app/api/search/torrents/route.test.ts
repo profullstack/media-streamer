@@ -9,11 +9,13 @@ import { NextRequest } from 'next/server';
 // Mock the supabase module
 vi.mock('@/lib/supabase', () => ({
   searchTorrents: vi.fn(),
+  searchAllTorrents: vi.fn(),
 }));
 
-import { searchTorrents } from '@/lib/supabase';
+import { searchTorrents, searchAllTorrents } from '@/lib/supabase';
 
 const mockSearchTorrents = vi.mocked(searchTorrents);
+const mockSearchAllTorrents = vi.mocked(searchAllTorrents);
 
 function createRequest(params: Record<string, string>): NextRequest {
   const url = new URL('http://localhost/api/search/torrents');
@@ -117,31 +119,33 @@ describe('Torrent Search API', () => {
           torrent_cover_url: null,
           match_type: 'torrent_name',
           rank: 0.9,
+          source: 'user' as const,
         },
       ];
 
-      mockSearchTorrents.mockResolvedValue(mockResults);
+      mockSearchAllTorrents.mockResolvedValue(mockResults);
 
       const request = createRequest({ q: 'pennywise' });
       const response = await GET(request);
-      
+
       expect(response.status).toBe(200);
       const data = await response.json();
-      
+
       expect(data.query).toBe('pennywise');
       expect(data.results).toEqual(mockResults);
       expect(data.pagination.count).toBe(1);
       expect(data.pagination.limit).toBe(50);
       expect(data.pagination.offset).toBe(0);
       expect(data.pagination.hasMore).toBe(false);
+      expect(data.filters.source).toBe('all');
     });
 
-    it('should pass media type filter to search', async () => {
+    it('should pass media type filter to search (user source)', async () => {
       mockSearchTorrents.mockResolvedValue([]);
 
-      const request = createRequest({ q: 'test', type: 'audio' });
+      const request = createRequest({ q: 'test', type: 'audio', source: 'user' });
       await GET(request);
-      
+
       expect(mockSearchTorrents).toHaveBeenCalledWith({
         query: 'test',
         mediaType: 'audio',
@@ -150,12 +154,12 @@ describe('Torrent Search API', () => {
       });
     });
 
-    it('should pass pagination parameters to search', async () => {
+    it('should pass pagination parameters to search (user source)', async () => {
       mockSearchTorrents.mockResolvedValue([]);
 
-      const request = createRequest({ q: 'test', limit: '20', offset: '10' });
+      const request = createRequest({ q: 'test', limit: '20', offset: '10', source: 'user' });
       await GET(request);
-      
+
       expect(mockSearchTorrents).toHaveBeenCalledWith({
         query: 'test',
         mediaType: null,
@@ -179,23 +183,24 @@ describe('Torrent Search API', () => {
         torrent_cover_url: null,
         match_type: 'torrent_name',
         rank: 0.5,
+        source: 'user' as const,
       });
 
-      mockSearchTorrents.mockResolvedValue(mockResults);
+      mockSearchAllTorrents.mockResolvedValue(mockResults);
 
       const request = createRequest({ q: 'test' });
       const response = await GET(request);
-      
+
       const data = await response.json();
       expect(data.pagination.hasMore).toBe(true);
     });
 
     it('should handle search errors gracefully', async () => {
-      mockSearchTorrents.mockRejectedValue(new Error('Database error'));
+      mockSearchAllTorrents.mockRejectedValue(new Error('Database error'));
 
       const request = createRequest({ q: 'test' });
       const response = await GET(request);
-      
+
       expect(response.status).toBe(500);
       const data = await response.json();
       expect(data.error).toBe('Search failed');

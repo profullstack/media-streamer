@@ -34,7 +34,22 @@ interface TorrentSearchResult {
   torrent_cover_url?: string | null;
   match_type: string;
   rank: number;
+  source?: 'user' | 'dht';
 }
+
+/**
+ * Source filter type
+ */
+type SearchSource = 'all' | 'user' | 'dht';
+
+/**
+ * Source tab labels
+ */
+const SOURCE_TABS: { key: SearchSource; label: string; description: string }[] = [
+  { key: 'all', label: 'All', description: 'Search all torrents' },
+  { key: 'user', label: 'Library', description: 'User-submitted torrents' },
+  { key: 'dht', label: 'DHT', description: 'Torrents from the DHT network' },
+];
 
 /**
  * Category labels for display
@@ -146,9 +161,22 @@ function SearchResultsList({
             
             {/* Name - takes most space */}
             <div className="min-w-0 flex-1">
-              <span className="truncate text-sm text-text-primary">
-                {displayName}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm text-text-primary">
+                  {displayName}
+                </span>
+                {/* Source badge */}
+                {result.source ? <span
+                    className={cn(
+                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+                      result.source === 'dht'
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'bg-green-500/20 text-green-400'
+                    )}
+                  >
+                    {result.source === 'dht' ? 'DHT' : 'Library'}
+                  </span> : null}
+              </div>
               {/* Show raw name if different from clean title */}
               {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name ? <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>
                   {result.torrent_name}
@@ -202,6 +230,7 @@ function SearchPageInner(): React.ReactElement {
   const [sortBy, setSortBy] = useState<SortBy>('relevance');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [offset, setOffset] = useState(0);
+  const [source, setSource] = useState<SearchSource>('all');
   
   // Track last click time for double-click detection
   const lastClickRef = useRef<{ sortBy: SortBy; time: number } | null>(null);
@@ -229,6 +258,7 @@ function SearchPageInner(): React.ReactElement {
         q: queryParam,
         limit: String(PAGE_SIZE),
         offset: String(currentOffset),
+        source,
       });
 
       if (typeParam) {
@@ -266,7 +296,7 @@ function SearchPageInner(): React.ReactElement {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [queryParam, typeParam, sortBy, sortOrder, offset]);
+  }, [queryParam, typeParam, sortBy, sortOrder, offset, source]);
 
   // Search when query or type changes
   useEffect(() => {
@@ -274,13 +304,19 @@ function SearchPageInner(): React.ReactElement {
     performSearch(false);
   }, [queryParam, typeParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-search when sort changes
+  // Re-search when sort or source changes
   useEffect(() => {
     if (hasSearched) {
       setOffset(0);
       performSearch(false);
     }
-  }, [sortBy, sortOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortBy, sortOrder, source]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle source tab change
+  const handleSourceChange = useCallback((newSource: SearchSource): void => {
+    setSource(newSource);
+    setOffset(0);
+  }, []);
 
   // Handle sort click
   const handleSort = useCallback((newSortBy: SortBy): void => {
@@ -308,7 +344,7 @@ function SearchPageInner(): React.ReactElement {
   const handleLoadMore = useCallback((): void => {
     const newOffset = offset + PAGE_SIZE;
     setOffset(newOffset);
-    
+
     const fetchMore = async (): Promise<void> => {
       setIsLoadingMore(true);
       try {
@@ -316,6 +352,7 @@ function SearchPageInner(): React.ReactElement {
           q: queryParam,
           limit: String(PAGE_SIZE),
           offset: String(newOffset),
+          source,
         });
 
         if (typeParam) {
@@ -328,7 +365,7 @@ function SearchPageInner(): React.ReactElement {
         }
 
         const response = await fetch(`/api/search/torrents?${params.toString()}`);
-        
+
         if (!response.ok) {
           throw new Error('Failed to load more');
         }
@@ -341,9 +378,9 @@ function SearchPageInner(): React.ReactElement {
         setIsLoadingMore(false);
       }
     };
-    
+
     fetchMore();
-  }, [offset, queryParam, typeParam, sortBy, sortOrder]);
+  }, [offset, queryParam, typeParam, sortBy, sortOrder, source]);
 
   const categoryLabel = CATEGORY_LABELS[typeParam] ?? 'All';
   const hasMore = results.length < total;
@@ -396,6 +433,27 @@ function SearchPageInner(): React.ReactElement {
               </div>
             </div> : null}
         </div>
+
+        {/* Source Tabs */}
+        {hasSearched ? <div className="flex border-b border-border-subtle">
+            {SOURCE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleSourceChange(tab.key)}
+                title={tab.description}
+                className={cn(
+                  'relative px-4 py-2 text-sm font-medium transition-colors',
+                  source === tab.key
+                    ? 'text-accent-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                )}
+              >
+                {tab.label}
+                {source === tab.key ? <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary" /> : null}
+              </button>
+            ))}
+          </div> : null}
 
         {/* Results count */}
         {hasSearched && !isLoading ? <div className="text-xs text-text-muted">

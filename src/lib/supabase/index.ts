@@ -58,7 +58,19 @@ export {
   searchFiles,
   searchTorrents,
   searchTorrentsByName,
+  searchAllTorrents,
+  searchDhtTorrents,
+  getDhtTorrentByInfohash,
+  getDhtTorrentFiles,
   updateTorrentSwarmStats,
 } from './queries';
 
-export type { SearchResult, SearchOptions, TorrentSearchResult, TorrentSearchOptions, SwarmStatsUpdate } from './queries';
+export type {
+  SearchResult,
+  SearchOptions,
+  TorrentSearchResult,
+  TorrentSearchOptions,
+  SwarmStatsUpdate,
+  DhtTorrent,
+  DhtTorrentFile,
+} from './queries';

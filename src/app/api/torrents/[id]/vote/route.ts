@@ -4,12 +4,54 @@
  * GET /api/torrents/:id/vote - Get vote counts, favorites count, and user's vote/favorite status
  * POST /api/torrents/:id/vote - Vote on a torrent (requires auth)
  * DELETE /api/torrents/:id/vote - Remove vote from a torrent (requires auth)
+ *
+ * NOTE: Voting and favorites only work for user-submitted torrents (bt_torrents).
+ * DHT torrents must be added to the library first before they can be voted/favorited.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsService, type VoteValue } from '@/lib/comments';
 import { getFavoritesService } from '@/lib/favorites';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getTorrentById, getTorrentByInfohash } from '@/lib/supabase/queries';
+
+/**
+ * Check if a string is a valid UUID v4
+ */
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+/**
+ * Check if a string is a valid infohash (40 hex characters)
+ */
+function isInfohash(str: string): boolean {
+  const infohashRegex = /^[0-9a-f]{40}$/i;
+  return infohashRegex.test(str);
+}
+
+/**
+ * Verify the torrent exists in bt_torrents and get its UUID
+ * Returns null if it's a DHT torrent or doesn't exist
+ */
+async function getUserTorrentId(id: string): Promise<string | null> {
+  // If it's a UUID, check if torrent exists
+  if (isUUID(id)) {
+    const torrent = await getTorrentById(id);
+    return torrent?.id ?? null;
+  }
+
+  // If it's an infohash, look up the torrent
+  if (isInfohash(id)) {
+    const torrent = await getTorrentByInfohash(id);
+    return torrent?.id ?? null;
+  }
+
+  // Neither UUID nor infohash - try infohash lookup
+  const torrent = await getTorrentByInfohash(id);
+  return torrent?.id ?? null;
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -18,19 +60,36 @@ interface RouteParams {
 /**
  * GET /api/torrents/:id/vote
  * Get vote counts, favorites count, and user's vote/favorite status if authenticated
+ *
+ * For DHT torrents (not in bt_torrents), returns zero counts and isDhtTorrent: true
  */
 export async function GET(
   request: NextRequest,
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const { id: torrentId } = await params;
+    const { id: torrentIdParam } = await params;
 
-    if (!torrentId) {
+    if (!torrentIdParam) {
       return NextResponse.json(
         { error: 'Torrent ID is required' },
         { status: 400 }
       );
+    }
+
+    // Get the user torrent ID (null if DHT torrent)
+    const torrentId = await getUserTorrentId(torrentIdParam);
+
+    // If it's a DHT torrent, return empty stats with isDhtTorrent flag
+    if (!torrentId) {
+      return NextResponse.json({
+        upvotes: 0,
+        downvotes: 0,
+        userVote: null,
+        favoritesCount: 0,
+        isFavorited: false,
+        isDhtTorrent: true,
+      });
     }
 
     // Get authenticated user (optional)
@@ -60,6 +119,7 @@ export async function GET(
       userVote,
       favoritesCount,
       isFavorited,
+      isDhtTorrent: false,
     });
   } catch (error) {
     console.error('Error fetching torrent votes:', error);
@@ -82,15 +142,18 @@ export async function GET(
  * - upvotes: Updated upvote count
  * - downvotes: Updated downvote count
  * - userVote: The user's current vote value
+ *
+ * NOTE: Only user-submitted torrents can be voted on.
+ * DHT torrents must be added to the library first.
  */
 export async function POST(
   request: NextRequest,
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const { id: torrentId } = await params;
+    const { id: torrentIdParam } = await params;
 
-    if (!torrentId) {
+    if (!torrentIdParam) {
       return NextResponse.json(
         { error: 'Torrent ID is required' },
         { status: 400 }
@@ -103,6 +166,16 @@ export async function POST(
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
+      );
+    }
+
+    // Get the user torrent ID (null if DHT torrent)
+    const torrentId = await getUserTorrentId(torrentIdParam);
+
+    if (!torrentId) {
+      return NextResponse.json(
+        { error: 'Cannot vote on DHT torrents. Add the torrent to your library first.' },
+        { status: 400 }
       );
     }
 
@@ -165,9 +238,9 @@ export async function DELETE(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const { id: torrentId } = await params;
+    const { id: torrentIdParam } = await params;
 
-    if (!torrentId) {
+    if (!torrentIdParam) {
       return NextResponse.json(
         { error: 'Torrent ID is required' },
         { status: 400 }
@@ -181,6 +254,19 @@ export async function DELETE(
         { error: 'Authentication required' },
         { status: 401 }
       );
+    }
+
+    // Get the user torrent ID (null if DHT torrent)
+    const torrentId = await getUserTorrentId(torrentIdParam);
+
+    if (!torrentId) {
+      // DHT torrents can't have votes, so nothing to remove
+      return NextResponse.json({
+        success: true,
+        upvotes: 0,
+        downvotes: 0,
+        userVote: null,
+      });
     }
 
     // Remove vote

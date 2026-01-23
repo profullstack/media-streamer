@@ -1,12 +1,13 @@
 /**
  * Search API
  *
- * GET /api/search - Search for files across all indexed torrents
+ * GET /api/search - Search for torrents across user-submitted and DHT sources
  *
  * FREE - No authentication required to encourage usage.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerClient } from '@/lib/supabase/client';
 import { searchFiles } from '@/lib/supabase';
 import type { MediaCategory } from '@/lib/supabase';
 
@@ -26,25 +27,65 @@ const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
 
 /**
- * Search API Response
+ * Torrent search result from unified search
  */
-interface SearchResponse {
+interface TorrentResult {
+  id: string;
+  infohash: string;
+  name: string;
+  magnet_uri: string;
+  size: number;
+  files_count: number;
+  seeders: number;
+  leechers: number;
+  created_at: string;
+  poster_url: string | null;
+  cover_url: string | null;
+  content_type: string | null;
+  source: 'user' | 'dht';
+}
+
+/**
+ * File search result
+ */
+interface FileResult {
+  file_id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number;
+  file_media_category: string;
+  file_index: number;
+  torrent_id: string;
+  torrent_name: string;
+  torrent_infohash: string;
+  torrent_poster_url: string | null;
+  torrent_cover_url: string | null;
+  torrent_clean_title: string | null;
+  rank: number;
+}
+
+/**
+ * Search API Response for torrents
+ */
+interface TorrentSearchResponse {
   query: string;
-  results: Array<{
-    file_id: string;
-    file_name: string;
-    file_path: string;
-    file_size: number;
-    file_media_category: string;
-    file_index: number;
-    torrent_id: string;
-    torrent_name: string;
-    torrent_infohash: string;
-    torrent_poster_url: string | null;
-    torrent_cover_url: string | null;
-    torrent_clean_title: string | null;
-    rank: number;
-  }>;
+  mode: 'torrents';
+  results: TorrentResult[];
+  pagination: {
+    limit: number;
+    offset: number;
+    count: number;
+    hasMore: boolean;
+  };
+}
+
+/**
+ * Search API Response for files
+ */
+interface FileSearchResponse {
+  query: string;
+  mode: 'files';
+  results: FileResult[];
   pagination: {
     limit: number;
     offset: number;
@@ -57,6 +98,8 @@ interface SearchResponse {
   };
 }
 
+type SearchResponse = TorrentSearchResponse | FileSearchResponse;
+
 /**
  * Error Response
  */
@@ -67,13 +110,14 @@ interface ErrorResponse {
 /**
  * GET /api/search
  *
- * Search for files across all indexed torrents.
+ * Search for torrents or files.
  * FREE - No authentication required.
  *
  * Query Parameters:
  * - q: Search query (required)
- * - type: Media type filter (audio, video, ebook, document, other)
- * - torrent: Torrent ID to search within
+ * - mode: Search mode - 'torrents' (default) or 'files'
+ * - type: Media type filter for file search (audio, video, ebook, document, other)
+ * - torrent: Torrent ID to search within (forces file mode)
  * - limit: Maximum results to return (default: 50, max: 100)
  * - offset: Pagination offset (default: 0)
  *
@@ -94,7 +138,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     );
   }
 
-  // Extract and validate media type filter
+  // Extract search mode (default to torrents)
+  const modeParam = searchParams.get('mode') ?? 'torrents';
+  const torrentId = searchParams.get('torrent');
+
+  // If torrent filter is specified, force file mode
+  const mode = torrentId ? 'files' : modeParam;
+
+  // Extract and validate media type filter (only for file mode)
   const mediaType = searchParams.get('type');
   if (mediaType && !VALID_MEDIA_TYPES.includes(mediaType as MediaCategory)) {
     return NextResponse.json(
@@ -102,9 +153,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       { status: 400 }
     );
   }
-
-  // Extract torrent ID filter
-  const torrentId = searchParams.get('torrent');
 
   // Extract and validate limit
   const limitParam = searchParams.get('limit');
@@ -152,8 +200,57 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     offset = parsedOffset;
   }
 
-  // Perform search
   try {
+    // Torrent search mode - searches both bt_torrents and Bitmagnet's DHT torrents
+    if (mode === 'torrents') {
+      const supabase = getServerClient();
+
+      const { data, error } = await supabase.rpc('search_all_torrents', {
+        search_query: query,
+        result_limit: limit,
+        result_offset: offset,
+      });
+
+      if (error) {
+        console.error('Torrent search error:', error);
+        return NextResponse.json(
+          { error: 'Search failed' },
+          { status: 500 }
+        );
+      }
+
+      const results: TorrentResult[] = (data ?? []).map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        infohash: row.infohash as string,
+        name: row.name as string,
+        magnet_uri: row.magnet_uri as string,
+        size: Number(row.size),
+        files_count: Number(row.files_count),
+        seeders: Number(row.seeders ?? 0),
+        leechers: Number(row.leechers ?? 0),
+        created_at: row.created_at as string,
+        poster_url: row.poster_url as string | null,
+        cover_url: row.cover_url as string | null,
+        content_type: row.content_type as string | null,
+        source: row.source as 'user' | 'dht',
+      }));
+
+      const hasMore = results.length === limit;
+
+      return NextResponse.json({
+        query,
+        mode: 'torrents' as const,
+        results,
+        pagination: {
+          limit,
+          offset,
+          count: results.length,
+          hasMore,
+        },
+      });
+    }
+
+    // File search mode - searches bt_torrent_files
     const results = await searchFiles({
       query,
       mediaType: mediaType as MediaCategory | null,
@@ -162,11 +259,11 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       offset,
     });
 
-    // Determine if there are more results
     const hasMore = results.length === limit;
 
     return NextResponse.json({
       query,
+      mode: 'files' as const,
       results,
       pagination: {
         limit,

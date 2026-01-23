@@ -1,7 +1,25 @@
 #!/bin/sh
 # BitTorrented.com Pre-commit Hook
-# Runs security audit and GitHub Actions locally via act before every commit
+# Runs formatter on staged files, security audit, and GitHub Actions locally via act
 
+echo "🎨 Running formatter on staged files..."
+
+# Get list of staged JS/TS files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js|jsx|ts|tsx)$')
+
+if [ -n "$STAGED_FILES" ]; then
+    # Run ESLint with --fix on staged files
+    echo "$STAGED_FILES" | xargs pnpm eslint --fix 2>/dev/null
+
+    # Re-add the formatted files to staging
+    echo "$STAGED_FILES" | xargs git add
+
+    echo "✅ Formatter applied to staged files"
+else
+    echo "ℹ️  No JS/TS files to format"
+fi
+
+echo ""
 echo "🔐 Running security audit..."
 pnpm audit --audit-level=critical
 AUDIT_EXIT_CODE=$?

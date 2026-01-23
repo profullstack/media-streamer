@@ -42,20 +42,20 @@ export type Database = {
           description: string | null;
           // Credits fields (from OMDb)
           director: string | null;
-          actors: string | null;
+          actors: string[] | null;
           genre: string | null;
           metadata_fetched_at: string | null;
           // Codec fields (from representative file in collection)
           video_codec: string | null;
           audio_codec: string | null;
           container: string | null;
-          needs_transcoding: boolean;
+          needs_transcoding: boolean | null;
           codec_detected_at: string | null;
           // Vote counts (denormalized for performance)
           upvotes: number;
           downvotes: number;
-          created_at: string;
-          updated_at: string;
+          created_at: string | null;
+          updated_at: string | null;
         };
         Insert: {
           id?: string;
@@ -83,7 +83,7 @@ export type Database = {
           description?: string | null;
           // Credits fields (from OMDb)
           director?: string | null;
-          actors?: string | null;
+          actors?: string[] | null;
           genre?: string | null;
           metadata_fetched_at?: string | null;
           // Codec fields (from representative file in collection)
@@ -124,7 +124,7 @@ export type Database = {
           description?: string | null;
           // Credits fields (from OMDb)
           director?: string | null;
-          actors?: string | null;
+          actors?: string[] | null;
           genre?: string | null;
           metadata_fetched_at?: string | null;
           // Codec fields (from representative file in collection)
@@ -1537,6 +1537,28 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      search_all_torrents: {
+        Args: {
+          search_query: string;
+          result_limit?: number;
+          result_offset?: number;
+        };
+        Returns: {
+          id: string;
+          infohash: string;
+          name: string;
+          magnet_uri: string;
+          size: number;
+          files_count: number;
+          seeders: number;
+          leechers: number;
+          created_at: string;
+          poster_url: string | null;
+          cover_url: string | null;
+          content_type: string | null;
+          source: string;
+        }[];
+      };
       search_files: {
         Args: {
           search_query: string;

@@ -6,13 +6,52 @@
  * DELETE - Remove torrent from favorites
  *
  * Server-side only - maintains Supabase security rules.
+ *
+ * NOTE: Only user-submitted torrents can be favorited.
+ * DHT torrents must be added to the library first.
  */
 
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getFavoritesService } from '@/lib/favorites';
+import { getTorrentById, getTorrentByInfohash } from '@/lib/supabase/queries';
 import type { TorrentFavoriteWithDetails } from '@/lib/favorites';
 import type { TorrentFavorite } from '@/lib/supabase/types';
+
+/**
+ * Check if a string is a valid UUID v4
+ */
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+/**
+ * Check if a string is a valid infohash (40 hex characters)
+ */
+function isInfohash(str: string): boolean {
+  const infohashRegex = /^[0-9a-f]{40}$/i;
+  return infohashRegex.test(str);
+}
+
+/**
+ * Verify the torrent exists in bt_torrents and get its UUID
+ * Returns null if it's a DHT torrent or doesn't exist
+ */
+async function getUserTorrentId(id: string): Promise<string | null> {
+  if (isUUID(id)) {
+    const torrent = await getTorrentById(id);
+    return torrent?.id ?? null;
+  }
+
+  if (isInfohash(id)) {
+    const torrent = await getTorrentByInfohash(id);
+    return torrent?.id ?? null;
+  }
+
+  const torrent = await getTorrentByInfohash(id);
+  return torrent?.id ?? null;
+}
 
 /**
  * Favorites response
@@ -86,6 +125,9 @@ export async function GET(): Promise<
  * POST /api/favorites/torrents
  *
  * Add a torrent to favorites
+ *
+ * NOTE: Only user-submitted torrents can be favorited.
+ * DHT torrents must be added to the library first.
  */
 export async function POST(
   request: Request
@@ -102,11 +144,21 @@ export async function POST(
 
     // Parse request body
     const body = (await request.json()) as { torrentId?: string };
-    const { torrentId } = body;
+    const { torrentId: torrentIdParam } = body;
+
+    if (!torrentIdParam) {
+      return NextResponse.json(
+        { error: 'torrentId is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get the user torrent ID (null if DHT torrent)
+    const torrentId = await getUserTorrentId(torrentIdParam);
 
     if (!torrentId) {
       return NextResponse.json(
-        { error: 'torrentId is required' },
+        { error: 'Cannot favorite DHT torrents. Add the torrent to your library first.' },
         { status: 400 }
       );
     }
@@ -153,13 +205,21 @@ export async function DELETE(
 
     // Parse request body
     const body = (await request.json()) as { torrentId?: string };
-    const { torrentId } = body;
+    const { torrentId: torrentIdParam } = body;
 
-    if (!torrentId) {
+    if (!torrentIdParam) {
       return NextResponse.json(
         { error: 'torrentId is required' },
         { status: 400 }
       );
+    }
+
+    // Get the user torrent ID (null if DHT torrent)
+    const torrentId = await getUserTorrentId(torrentIdParam);
+
+    if (!torrentId) {
+      // DHT torrents can't be favorited, so nothing to remove
+      return NextResponse.json({ success: true }, { status: 200 });
     }
 
     // Remove from favorites
