@@ -140,6 +140,25 @@ function SearchResultsList({
         // Common content for both link and button versions
         const content = (
           <>
+            {/* Add to Library button for DHT results - positioned first */}
+            {isDht ? <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAddToLibrary(result);
+                }}
+                className={cn(
+                  'flex items-center gap-1 rounded px-2 py-1 text-xs',
+                  'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
+                  'transition-colors shrink-0'
+                )}
+                title="Add to Library"
+              >
+                <PlusIcon size={14} />
+                <span className="hidden sm:inline">Add</span>
+              </button> : null}
+
             {/* Thumbnail */}
             <div className="relative h-10 w-7 shrink-0 overflow-hidden rounded bg-bg-tertiary">
               {imageUrl ? (
@@ -202,25 +221,6 @@ function SearchResultsList({
                 {formatDate(result.torrent_created_at)}
               </span>
             </div>
-
-            {/* Add to Library button for DHT results */}
-            {isDht ? <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onAddToLibrary(result);
-                }}
-                className={cn(
-                  'flex items-center gap-1 rounded px-2 py-1 text-xs',
-                  'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
-                  'transition-colors shrink-0'
-                )}
-                title="Add to Library"
-              >
-                <PlusIcon size={14} />
-                <span className="hidden sm:inline">Add</span>
-              </button> : null}
           </>
         );
 
