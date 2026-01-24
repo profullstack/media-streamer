@@ -108,7 +108,7 @@ export function HlsPlayerModal({
     ))
   ) : false;
 
-  // Handle escape key
+  // Handle escape key and overflow
   useEffect(() => {
     if (!isOpen) return;
 
@@ -119,7 +119,15 @@ export function HlsPlayerModal({
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    // Hide overflow on both html and body to prevent scrolling on large TV screens
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    };
   }, [isOpen, onClose]);
 
   // Focus close button when modal opens
@@ -502,12 +510,12 @@ export function HlsPlayerModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="hls-player-title"
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center min-w-[100vw] min-h-[100vh]"
     >
-      {/* Backdrop - use fixed inset-0 to cover full viewport */}
+      {/* Backdrop - use fixed with explicit sizing for large TV screens */}
       <div
         data-testid="modal-backdrop"
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 min-w-[100vw] min-h-[100vh] bg-black/80 backdrop-blur-sm"
         onClick={handleBackdropClick}
       />
 

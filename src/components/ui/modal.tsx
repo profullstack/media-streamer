@@ -69,11 +69,14 @@ export function Modal({
   useEffect(() => {
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
+      // Hide overflow on both html and body to prevent scrolling on large TV screens
+      document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
     };
   }, [isOpen, handleEscape]);
@@ -85,13 +88,13 @@ export function Modal({
 
   return (
     <div className={cn(
-      'fixed inset-0 z-50 flex items-center justify-center',
+      'fixed inset-0 z-50 flex items-center justify-center min-w-[100vw] min-h-[100vh]',
       // Smaller padding on TV to maximize usable space
       isTv ? 'p-1' : 'p-2 sm:p-4 md:p-6 lg:p-8'
     )}>
-      {/* Backdrop - use fixed inset-0 to cover full viewport regardless of parent padding */}
+      {/* Backdrop - use fixed with explicit sizing for large TV screens */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 min-w-[100vw] min-h-[100vh] bg-black/60 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />

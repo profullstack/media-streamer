@@ -532,17 +532,33 @@ function FindTorrentsPageInner(): React.ReactElement {
                     <table className="w-full">
                       <thead className="bg-bg-tertiary">
                         <tr>
+                          <th className="px-4 py-3 text-left text-sm font-medium text-text-secondary">Add</th>
                           <SortableHeader provider={providerResult.provider} column="name" label="Name" align="left" />
                           <SortableHeader provider={providerResult.provider} column="size" label="Size" align="left" />
                           <SortableHeader provider={providerResult.provider} column="seeders" label="Seeders" align="center" />
                           <SortableHeader provider={providerResult.provider} column="leechers" label="Leechers" align="center" />
                           <SortableHeader provider={providerResult.provider} column="date" label="Date" align="left" />
-                          <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-bg-tertiary bg-bg-secondary">
                         {getSortedResults(providerResult.provider, providerResult.results).map((result, index) => (
                           <tr key={`${result.magnet}-${index}`} className="hover:bg-bg-hover">
+                            <td className="whitespace-nowrap px-4 py-3">
+                              {addedMagnets[result.magnet] ? (
+                                <span className="inline-flex items-center gap-1 text-sm text-green-500">
+                                  <CheckIcon size={16} />
+                                  Added
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleOpenAddModal(result.magnet, result.name)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-accent-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90"
+                                >
+                                  <MagnetIcon size={14} />
+                                  <span>Add</span>
+                                </button>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               <div className="max-w-md">
                                 <p className="truncate text-sm font-medium text-text-primary" title={result.name}>
@@ -568,22 +584,6 @@ function FindTorrentsPageInner(): React.ReactElement {
                             </td>
                             <td className="whitespace-nowrap px-4 py-3 text-sm text-text-muted">
                               {result.date ?? '-'}
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-3 text-right">
-                              {addedMagnets[result.magnet] ? (
-                                <span className="inline-flex items-center gap-1 text-sm text-green-500">
-                                  <CheckIcon size={16} />
-                                  Added
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => handleOpenAddModal(result.magnet, result.name)}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-accent-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90"
-                                >
-                                  <MagnetIcon size={14} />
-                                  <span>Add Magnet</span>
-                                </button>
-                              )}
                             </td>
                           </tr>
                         ))}

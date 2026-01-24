@@ -81,7 +81,7 @@ export function RadioPlayerModal({
     }
   }, [isOpen]);
 
-  // Handle keyboard events
+  // Handle keyboard events and overflow
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (!isOpen) return;
@@ -97,7 +97,20 @@ export function RadioPlayerModal({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    // Hide overflow on both html and body to prevent scrolling on large TV screens
+    if (isOpen) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (isOpen) {
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+      }
+    };
   }, [isOpen, onClose, togglePlayPause]);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -150,7 +163,7 @@ export function RadioPlayerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+      className="fixed inset-0 z-50 flex items-center justify-center min-w-[100vw] min-h-[100vh] bg-black/80"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
