@@ -21,9 +21,11 @@ import {
   BookIcon,
   PlayIcon,
   DownloadIcon,
+  CheckIcon,
 } from '@/components/ui/icons';
-import type { TorrentFile, MediaCategory } from '@/types';
+import type { TorrentFile, MediaCategory, FileProgress } from '@/types';
 import { formatBytes } from '@/lib/utils';
+import { formatProgressTime } from '@/lib/progress/progress';
 
 /**
  * Folder metadata for album cover display
@@ -52,6 +54,8 @@ interface FileTreeProps {
   files: TorrentFile[];
   /** Folder metadata for album cover display */
   folders?: FolderMetadata[];
+  /** Progress data keyed by file ID (for logged-in users) */
+  progress?: Map<string, FileProgress>;
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
@@ -180,6 +184,7 @@ function createFolderMetadataMap(folders: FolderMetadata[]): Map<string, FolderM
 export function FileTree({
   files,
   folders = [],
+  progress,
   onFileSelect,
   onFilePlay,
   onFileDownload,
@@ -198,6 +203,7 @@ export function FileTree({
           node={node}
           depth={0}
           folderMetadataMap={folderMetadataMap}
+          progress={progress}
           onFileSelect={onFileSelect}
           onFilePlay={onFilePlay}
           onFileDownload={onFileDownload}
@@ -213,6 +219,7 @@ interface FileTreeNodeComponentProps {
   node: FileTreeNode;
   depth: number;
   folderMetadataMap: Map<string, FolderMetadata>;
+  progress?: Map<string, FileProgress>;
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
@@ -224,6 +231,7 @@ function FileTreeNodeComponent({
   node,
   depth,
   folderMetadataMap,
+  progress,
   onFileSelect,
   onFilePlay,
   onFileDownload,
@@ -231,6 +239,9 @@ function FileTreeNodeComponent({
   onPlayAll,
 }: FileTreeNodeComponentProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(depth < 2);
+
+  // Get progress for this file (if it's a file)
+  const fileProgress = node.file && progress ? progress.get(node.file.id) : undefined;
 
   // Get folder metadata for this directory (if available)
   const folderMetadata = node.isDirectory ? folderMetadataMap.get(node.path) : undefined;
@@ -431,6 +442,31 @@ function FileTreeNodeComponent({
               {folderMetadata.year}
             </span>
           ) : null}
+          {/* Progress bar for files with progress */}
+          {!node.isDirectory && fileProgress && fileProgress.percentage > 0 ? (
+            <div className="mt-1 flex items-center gap-2">
+              {/* Progress bar */}
+              <div className="h-1 flex-1 max-w-32 rounded-full bg-bg-tertiary overflow-hidden">
+                <div
+                  className={cn(
+                    'h-full transition-all',
+                    fileProgress.completed ? 'bg-green-500' : 'bg-accent-primary'
+                  )}
+                  style={{ width: `${Math.min(fileProgress.percentage, 100)}%` }}
+                />
+              </div>
+              {/* Time or percentage text */}
+              <span className="text-[10px] text-text-muted">
+                {fileProgress.currentTimeSeconds !== undefined && fileProgress.durationSeconds
+                  ? formatProgressTime(fileProgress.currentTimeSeconds)
+                  : `${fileProgress.percentage.toFixed(0)}%`}
+              </span>
+              {/* Completed checkmark */}
+              {fileProgress.completed ? (
+                <CheckIcon className="h-3 w-3 text-green-500 flex-shrink-0" />
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {/* File size */}
@@ -445,6 +481,7 @@ function FileTreeNodeComponent({
               node={child}
               depth={depth + 1}
               folderMetadataMap={folderMetadataMap}
+              progress={progress}
               onFileSelect={onFileSelect}
               onFilePlay={onFilePlay}
               onFileDownload={onFileDownload}

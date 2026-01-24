@@ -28,7 +28,7 @@ import { formatBytes } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import { useAuth } from '@/hooks';
-import type { Torrent, TorrentFile } from '@/types';
+import type { Torrent, TorrentFile, FileProgress } from '@/types';
 
 interface TorrentDetailResponse {
   torrent: Torrent;
@@ -109,6 +109,9 @@ export default function TorrentDetailPage(): React.ReactElement {
   const [playlistFolderMetadata, setPlaylistFolderMetadata] = useState<FolderMetadata | undefined>(undefined);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
 
+  // Progress tracking state (for logged-in users only)
+  const [fileProgress, setFileProgress] = useState<Map<string, FileProgress>>(new Map());
+
   // Fetch torrent details and folder metadata
   useEffect(() => {
     const fetchTorrent = async (): Promise<void> => {
@@ -162,6 +165,111 @@ export default function TorrentDetailPage(): React.ReactElement {
       void fetchTorrent();
     }
   }, [torrentId]);
+
+  // Fetch progress for logged-in users
+  useEffect(() => {
+    if (!user || !torrentId) {
+      setFileProgress(new Map());
+      return;
+    }
+
+    const fetchProgress = async (): Promise<void> => {
+      try {
+        const response = await fetch(`/api/torrents/${torrentId}/progress`);
+        if (response.ok) {
+          const data = await response.json() as {
+            watchProgress: Array<{
+              fileId: string;
+              currentTimeSeconds: number;
+              durationSeconds: number | null;
+              percentage: number;
+              lastWatchedAt: string;
+            }>;
+            readingProgress: Array<{
+              fileId: string;
+              currentPage: number;
+              totalPages: number | null;
+              percentage: number;
+              lastReadAt: string;
+            }>;
+          };
+
+          // Convert to Map for O(1) lookups
+          const progressMap = new Map<string, FileProgress>();
+
+          // Add watch progress
+          for (const wp of data.watchProgress) {
+            progressMap.set(wp.fileId, {
+              fileId: wp.fileId,
+              percentage: wp.percentage,
+              completed: wp.percentage >= 95,
+              currentTimeSeconds: wp.currentTimeSeconds,
+              durationSeconds: wp.durationSeconds ?? undefined,
+              lastWatchedAt: wp.lastWatchedAt,
+            });
+          }
+
+          // Add reading progress
+          for (const rp of data.readingProgress) {
+            progressMap.set(rp.fileId, {
+              fileId: rp.fileId,
+              percentage: rp.percentage,
+              completed: rp.percentage >= 95,
+              currentPage: rp.currentPage,
+              totalPages: rp.totalPages ?? undefined,
+              lastReadAt: rp.lastReadAt,
+            });
+          }
+
+          setFileProgress(progressMap);
+        }
+      } catch (err) {
+        console.warn('[TorrentDetailPage] Failed to fetch progress:', err);
+      }
+    };
+
+    void fetchProgress();
+  }, [user, torrentId]);
+
+  // Handle saving progress (called by media player)
+  const handleProgressSave = useCallback(async (
+    fileId: string,
+    currentTimeSeconds: number,
+    durationSeconds: number
+  ): Promise<void> => {
+    if (!user || !torrentId) return;
+
+    try {
+      await fetch(`/api/torrents/${torrentId}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId,
+          currentTimeSeconds,
+          durationSeconds,
+        }),
+      });
+
+      // Update local progress state
+      setFileProgress(prev => {
+        const updated = new Map(prev);
+        const percentage = durationSeconds > 0
+          ? (currentTimeSeconds / durationSeconds) * 100
+          : 0;
+        updated.set(fileId, {
+          fileId,
+          percentage,
+          completed: percentage >= 95,
+          currentTimeSeconds,
+          durationSeconds,
+          lastWatchedAt: new Date().toISOString(),
+        });
+        return updated;
+      });
+    } catch (err) {
+      console.warn('[TorrentDetailPage] Failed to save progress:', err);
+    }
+  }, [user, torrentId]);
 
   // Handle search within torrent
   const handleSearch = useCallback((query: string, filters: SearchFilters) => {
@@ -517,6 +625,7 @@ export default function TorrentDetailPage(): React.ReactElement {
               <FileTree
                 files={filteredFiles}
                 folders={folders}
+                progress={user ? fileProgress : undefined}
                 onFilePlay={handleFilePlay}
                 onFileDownload={handleFileDownload}
                 onFileRead={handleFileRead}
@@ -546,6 +655,8 @@ export default function TorrentDetailPage(): React.ReactElement {
           file={selectedFile}
           infohash={torrent.infohash}
           torrentName={torrent.cleanTitle ?? torrent.name}
+          existingProgress={selectedFile && user ? fileProgress.get(selectedFile.id) : undefined}
+          onProgressSave={user ? handleProgressSave : undefined}
         /> : null}
 
       {/* Playlist Player Modal - uses folder-specific metadata when available */}

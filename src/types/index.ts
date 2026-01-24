@@ -241,6 +241,23 @@ export interface WatchProgress {
   lastWatchedAt: string;
 }
 
+/**
+ * File progress for UI display (unified watch/reading progress)
+ */
+export interface FileProgress {
+  fileId: string;
+  percentage: number;
+  completed: boolean;
+  /** For watch progress (audio/video) */
+  currentTimeSeconds?: number;
+  durationSeconds?: number;
+  lastWatchedAt?: string;
+  /** For reading progress (ebooks) */
+  currentPage?: number;
+  totalPages?: number;
+  lastReadAt?: string;
+}
+
 // Magnet Parsing Types
 export interface ParsedMagnet {
   infohash: string;

@@ -29,8 +29,9 @@ import { AudioPlayer } from '@/components/audio/audio-player';
 import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
 import { RefreshIcon } from '@/components/ui/icons';
 import { getMediaCategory } from '@/lib/utils';
+import { formatProgressTime } from '@/lib/progress/progress';
 import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection } from '@/hooks';
-import type { TorrentFile } from '@/types';
+import type { TorrentFile, FileProgress } from '@/types';
 
 /**
  * Check if a string is a valid UUID v4
@@ -223,6 +224,10 @@ export interface MediaPlayerModalProps {
   album?: string;
   /** Optional cover art URL */
   coverArt?: string;
+  /** Existing progress for this file (for resume prompt) */
+  existingProgress?: FileProgress;
+  /** Callback to save progress - called every 15 seconds, on pause, and on close */
+  onProgressSave?: (fileId: string, currentTimeSeconds: number, durationSeconds: number) => void;
 }
 
 /**
@@ -244,6 +249,8 @@ export function MediaPlayerModal({
   artist: artistProp,
   album: albumProp,
   coverArt,
+  existingProgress,
+  onProgressSave,
 }: MediaPlayerModalProps): React.ReactElement | null {
   const { trackPlayback } = useAnalytics();
   const { isTv } = useTvDetection();
@@ -253,7 +260,7 @@ export function MediaPlayerModal({
 
   // Ref for video container to enable fullscreen on TV
   const videoContainerRef = useRef<HTMLDivElement>(null);
-  
+
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
@@ -264,6 +271,17 @@ export function MediaPlayerModal({
   const [isLoadingSwarm, setIsLoadingSwarm] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [userClickedPlay, setUserClickedPlay] = useState(false);
+
+  // Resume dialog state
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [resumeTime, setResumeTime] = useState<number | null>(null);
+
+  // Progress saving refs
+  const PROGRESS_SAVE_INTERVAL = 15000; // 15 seconds
+  const lastSavedTimeRef = useRef<number>(0);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   /** Track if we've already tried transcoding to avoid infinite retry loops */
   const [hasTriedTranscoding, setHasTriedTranscoding] = useState(false);
   /** Track if we're retrying with transcoding after a codec error */
@@ -649,6 +667,121 @@ export function MediaPlayerModal({
     setIsRetryingWithTranscode(false);
   }, [file?.fileIndex, infohash]);
 
+  // Show resume dialog when opening a file with progress (5-95%)
+  useEffect(() => {
+    if (isOpen && existingProgress && existingProgress.currentTimeSeconds !== undefined) {
+      const percentage = existingProgress.percentage;
+      if (percentage > 5 && percentage < 95) {
+        setResumeTime(existingProgress.currentTimeSeconds);
+        setShowResumeDialog(true);
+      } else {
+        setShowResumeDialog(false);
+        setResumeTime(null);
+      }
+    } else {
+      setShowResumeDialog(false);
+      setResumeTime(null);
+    }
+  }, [isOpen, existingProgress]);
+
+  // Save progress function
+  const saveProgress = useCallback((timeSeconds: number, durationSeconds: number) => {
+    if (!file || !onProgressSave || !file.id) return;
+
+    // Don't save if time hasn't changed significantly (more than 2 seconds)
+    if (Math.abs(timeSeconds - lastSavedTimeRef.current) < 2) return;
+
+    console.log('[MediaPlayerModal] Saving progress:', { fileId: file.id, timeSeconds, durationSeconds });
+    lastSavedTimeRef.current = timeSeconds;
+    onProgressSave(file.id, Math.floor(timeSeconds), Math.floor(durationSeconds));
+  }, [file, onProgressSave]);
+
+  // Get current time and duration from player
+  const getCurrentPlaybackState = useCallback((): { currentTime: number; duration: number } | null => {
+    // Try video element first
+    const video = videoRef.current ?? document.querySelector('video');
+    if (video && !isNaN(video.currentTime) && !isNaN(video.duration) && video.duration > 0) {
+      return { currentTime: video.currentTime, duration: video.duration };
+    }
+
+    // Try audio element
+    const audio = audioRef.current ?? document.querySelector('audio');
+    if (audio && !isNaN(audio.currentTime) && !isNaN(audio.duration) && audio.duration > 0) {
+      return { currentTime: audio.currentTime, duration: audio.duration };
+    }
+
+    return null;
+  }, []);
+
+  // Set up periodic progress saving interval
+  useEffect(() => {
+    if (isPlayerReady && !error && onProgressSave) {
+      progressIntervalRef.current = setInterval(() => {
+        const state = getCurrentPlaybackState();
+        if (state) {
+          saveProgress(state.currentTime, state.duration);
+        }
+      }, PROGRESS_SAVE_INTERVAL);
+    }
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, [isPlayerReady, error, onProgressSave, saveProgress, getCurrentPlaybackState, PROGRESS_SAVE_INTERVAL]);
+
+  // Save progress when modal closes
+  const handleCloseWithProgress = useCallback(() => {
+    // Save current progress before closing
+    if (onProgressSave) {
+      const state = getCurrentPlaybackState();
+      if (state) {
+        console.log('[MediaPlayerModal] Saving progress on close');
+        onProgressSave(file?.id ?? '', Math.floor(state.currentTime), Math.floor(state.duration));
+      }
+    }
+
+    // Clear progress interval
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+
+    // Reset resume dialog state
+    setShowResumeDialog(false);
+    setResumeTime(null);
+    lastSavedTimeRef.current = 0;
+
+    // Call original close handler
+    handleClose();
+  }, [onProgressSave, getCurrentPlaybackState, file?.id, handleClose]);
+
+  // Handle resume button click - seek to saved position
+  const handleResume = useCallback(() => {
+    setShowResumeDialog(false);
+    if (resumeTime !== null) {
+      // Wait a bit for the player to be ready, then seek
+      setTimeout(() => {
+        const video = videoRef.current ?? document.querySelector('video');
+        const audio = audioRef.current ?? document.querySelector('audio');
+        const player = video ?? audio;
+        if (player) {
+          console.log('[MediaPlayerModal] Resuming from:', resumeTime);
+          player.currentTime = resumeTime;
+        }
+      }, 500);
+    }
+  }, [resumeTime]);
+
+  // Handle start over button click
+  const handleStartOver = useCallback(() => {
+    setShowResumeDialog(false);
+    setResumeTime(null);
+    // Player starts from beginning by default
+  }, []);
+
   // Handle manual play button click (for browsers that block autoplay)
   // This hides the overlay and lets the user interact with the player's native controls
   const handleManualPlay = useCallback(() => {
@@ -773,7 +906,7 @@ export function MediaPlayerModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleClose}
+      onClose={handleCloseWithProgress}
       title={modalTitle}
       size="3xl"
       className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-3xl"
@@ -1128,6 +1261,33 @@ export function MediaPlayerModal({
                   <span className="text-xs sm:text-sm md:text-base text-white font-medium">Play</span>
                 </div>
               </button> : null}
+            {/* Resume dialog overlay - shown when opening a file with existing progress */}
+            {showResumeDialog && resumeTime !== null ? <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80">
+                <div className="rounded-lg bg-bg-secondary p-4 sm:p-6 max-w-sm text-center mx-4">
+                  <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2">
+                    Resume Playback?
+                  </h3>
+                  <p className="text-xs sm:text-sm text-text-muted mb-4">
+                    You were at {formatProgressTime(resumeTime)} ({existingProgress?.percentage.toFixed(0)}%)
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      type="button"
+                      onClick={handleStartOver}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-bg-tertiary text-text-primary text-sm hover:bg-bg-hover transition-colors"
+                    >
+                      Start Over
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResume}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-accent-primary text-white text-sm hover:bg-accent-primary/90 transition-colors"
+                    >
+                      Resume
+                    </button>
+                  </div>
+                </div>
+              </div> : null}
             <VideoPlayer
               key={`video-${retryCount}-${isTranscoding ? 'transcode' : 'native'}`}
               src={streamUrl}
@@ -1167,6 +1327,33 @@ export function MediaPlayerModal({
                   <span className="text-xs sm:text-sm text-text-primary font-medium">Play</span>
                 </div>
               </button> : null}
+            {/* Resume dialog overlay - shown when opening a file with existing progress */}
+            {showResumeDialog && resumeTime !== null ? <div className="absolute inset-0 z-20 flex items-center justify-center rounded-md sm:rounded-lg bg-bg-tertiary/95">
+                <div className="rounded-lg bg-bg-secondary p-4 sm:p-6 max-w-sm text-center mx-4 shadow-lg">
+                  <h3 className="text-base sm:text-lg font-medium text-text-primary mb-2">
+                    Resume Playback?
+                  </h3>
+                  <p className="text-xs sm:text-sm text-text-muted mb-4">
+                    You were at {formatProgressTime(resumeTime)} ({existingProgress?.percentage.toFixed(0)}%)
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      type="button"
+                      onClick={handleStartOver}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-bg-tertiary text-text-primary text-sm hover:bg-bg-hover transition-colors"
+                    >
+                      Start Over
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResume}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-accent-primary text-white text-sm hover:bg-accent-primary/90 transition-colors"
+                    >
+                      Resume
+                    </button>
+                  </div>
+                </div>
+              </div> : null}
             <AudioPlayer
               key={`audio-${retryCount}-${isTranscoding ? 'transcode' : 'native'}`}
               src={streamUrl}
