@@ -152,6 +152,54 @@ function extractCellFromItem(item: Record<string, unknown>): TuneInPremiumCell |
 }
 
 /**
+ * Extract image URL from premium cell, trying multiple possible field locations
+ * Premium API uses different fields for different cell types:
+ * - BrickCell (stations): ImageUrl
+ * - TileCell (podcasts): LogoUrl
+ */
+function extractImageFromCell(cell: TuneInPremiumCell): string | undefined {
+  const cellAny = cell as Record<string, unknown>;
+
+  // Try various image field locations (in order of preference)
+  // BrickCell uses ImageUrl, TileCell uses LogoUrl
+  const possibleFields = [
+    'ImageUrl',
+    'LogoUrl',
+    'Image',
+    'Logo',
+    'ArtworkUrl',
+    'IconUrl',
+    'Thumbnail',
+    'ThumbnailUrl',
+  ];
+
+  for (const field of possibleFields) {
+    const value = cellAny[field];
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+
+  // Check nested Actions object
+  if (cellAny.Actions && typeof cellAny.Actions === 'object') {
+    const actions = cellAny.Actions as Record<string, unknown>;
+    if (typeof actions.Image === 'string' && actions.Image.length > 0) {
+      return actions.Image;
+    }
+  }
+
+  // Check SEOInfo for image
+  if (cell.SEOInfo && typeof cell.SEOInfo === 'object') {
+    const seoInfo = cell.SEOInfo as Record<string, unknown>;
+    if (typeof seoInfo.Image === 'string' && seoInfo.Image.length > 0) {
+      return seoInfo.Image;
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Convert premium search result cell to RadioStation
  */
 function premiumCellToRadioStation(cell: TuneInPremiumCell): RadioStation | null {
@@ -162,8 +210,8 @@ function premiumCellToRadioStation(cell: TuneInPremiumCell): RadioStation | null
     return null;
   }
 
-  // Premium API uses ImageUrl, fallback to Image for some cell types
-  const imageUrl = cell.ImageUrl || cell.Image;
+  // Extract image using multiple possible field locations
+  const imageUrl = extractImageFromCell(cell);
 
   return {
     id,
@@ -289,31 +337,18 @@ export function createTuneInService(): TuneInService {
     },
 
     /**
-     * Search for radio stations using premium API
-     * Falls back to standard API if premium fails or no auth token
+     * Search for radio stations
+     * Uses standard API for search (better filtering and more results)
+     * Premium auth is used for stream resolution instead
      */
     async search(params: RadioSearchParams): Promise<RadioStation[]> {
       const query = sanitizeQuery(params.query);
-      console.log('[TuneIn] Search called with query:', params.query, '-> sanitized:', query);
       if (!query) {
-        console.log('[TuneIn] Empty query after sanitization');
         return [];
       }
 
-      const hasToken = getTuneInAuthToken() !== null;
-      console.log('[TuneIn] Using auth token:', hasToken);
-
-      // Try premium API first if we have an auth token
-      if (hasToken) {
-        const premiumResults = await this.searchPremium(query, params);
-        if (premiumResults.length > 0) {
-          console.log('[TuneIn] Premium search returned', premiumResults.length, 'results');
-          return params.limit ? premiumResults.slice(0, params.limit) : premiumResults;
-        }
-        console.log('[TuneIn] Premium search returned no results, falling back to standard API');
-      }
-
-      // Fall back to standard API
+      // Use standard API for search - it returns more results with better filtering
+      // Premium auth is still used for stream resolution (getStream)
       return this.searchStandard(query, params);
     },
 
@@ -342,14 +377,10 @@ export function createTuneInService(): TuneInService {
           viewModel: 'true',
         });
 
-        console.log('[TuneIn] Premium search URL:', `${TUNEIN_PREMIUM_SEARCH_URL}?${searchParams}`);
-
         const headers = buildHeaders(true);
         const response = await fetch(`${TUNEIN_PREMIUM_SEARCH_URL}?${searchParams}`, {
           headers,
         });
-
-        console.log('[TuneIn] Premium search response status:', response.status);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -358,7 +389,6 @@ export function createTuneInService(): TuneInService {
         }
 
         const data = await response.json() as TuneInPremiumSearchResponse;
-        console.log('[TuneIn] Premium search items count:', data.Items?.length || 0);
 
         const stations: RadioStation[] = [];
 
@@ -370,37 +400,22 @@ export function createTuneInService(): TuneInService {
 
           for (const listItem of list.Items) {
             const cell = extractCellFromItem(listItem as Record<string, unknown>);
-            if (!cell || !cell.GuideId) {
+            if (!cell || !cell.GuideId || !cell.SEOInfo) {
               continue;
             }
 
-            const seoInfo = cell.SEOInfo;
-            if (!seoInfo) {
-              console.log('[TuneIn] No SEO info for item, skipping');
+            // Only include live radio stations (filter out podcasts, audiobooks, shows)
+            if (cell.ContentInfo?.Type !== 'Station') {
               continue;
             }
 
-            const contentInfo = cell.ContentInfo;
-
-            // Skip audiobooks
-            if (contentInfo?.Type === 'Audiobook') {
-              continue;
-            }
-
-            // For non-Station types (podcasts/shows), we still include them
-            // but they'll need stream resolution at play time
             const station = premiumCellToRadioStation(cell);
             if (station) {
-              // Add content type info to help with stream resolution
-              if (contentInfo?.Type && contentInfo.Type !== 'Station') {
-                (station as RadioStation & { contentType?: string }).contentType = contentInfo.Type;
-              }
               stations.push(station);
             }
           }
         }
 
-        console.log('[TuneIn] Premium search extracted', stations.length, 'stations');
         return stations;
       } catch (error) {
         console.error('[TuneIn] Premium search error:', error);
@@ -421,32 +436,24 @@ export function createTuneInService(): TuneInService {
           render: 'json',
         });
 
-        // Add filter if provided (s = stations, t = topics, p = programs)
-        if (params.filter) {
-          searchParams.set('filter', params.filter);
-        }
-
-        console.log('[TuneIn] Standard search URL:', `${TUNEIN_SEARCH_URL}?${searchParams}`);
+        // Default to stations only filter for live radio search
+        // s = stations, t = topics, p = programs
+        searchParams.set('filter', params.filter || 's');
 
         // Use auth for search to get better results
         const response = await fetch(`${TUNEIN_SEARCH_URL}?${searchParams}`, {
           headers: buildHeaders(true),
         });
 
-        console.log('[TuneIn] Standard search response status:', response.status);
-
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[TuneIn] Standard search failed:', response.status, errorText);
+          console.error('[TuneIn] Search failed:', response.status);
           return [];
         }
 
         const data = await response.json() as TuneInSearchResponse;
-        console.log('[TuneIn] Standard search response head:', data.head);
-        console.log('[TuneIn] Standard search response body length:', data.body?.length || 0);
 
         if (data.head.status !== '200') {
-          console.error('[TuneIn] Standard search error status:', data.head.status, data.head);
+          console.error('[TuneIn] Search error status:', data.head.status);
           return [];
         }
 
@@ -454,8 +461,6 @@ export function createTuneInService(): TuneInService {
         const stations = data.body
           .filter((item) => item.type === 'audio' && (item.item === 'station' || item.URL))
           .map(toRadioStation);
-
-        console.log('[TuneIn] Standard search filtered to', stations.length, 'stations');
 
         // Apply limit if specified
         return params.limit ? stations.slice(0, params.limit) : stations;
