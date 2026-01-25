@@ -16,6 +16,12 @@ import {
   LoadingSpinner,
 } from '@/components/ui/icons';
 import { useRadioStream, type RadioStation } from '@/hooks/use-radio';
+import {
+  setMediaSessionMetadata,
+  updateMediaSessionPlaybackState,
+  setMediaSessionActionHandlers,
+  clearMediaSession,
+} from '@/lib/media-session';
 
 interface RadioPlayerModalProps {
   station: RadioStation;
@@ -78,6 +84,8 @@ export function RadioPlayerModal({
       audioRef.current.src = '';
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset play state when closing
       setIsPlaying(false);
+      // Clear media session when modal closes
+      clearMediaSession();
     }
   }, [isOpen]);
 
@@ -112,6 +120,61 @@ export function RadioPlayerModal({
       }
     };
   }, [isOpen, onClose, togglePlayPause]);
+
+  // Media Session API: Set metadata for lock screen, CarPlay, Android Auto, etc.
+  useEffect(() => {
+    if (!isOpen || !preferredStream) {
+      return;
+    }
+
+    setMediaSessionMetadata({
+      title: station.name,
+      artist: station.genre ?? 'Live Radio',
+      album: station.description ?? 'Radio Station',
+      artwork: station.imageUrl ?? undefined,
+    });
+
+    return () => {
+      clearMediaSession();
+    };
+  }, [isOpen, preferredStream, station.name, station.genre, station.description, station.imageUrl]);
+
+  // Media Session API: Update playback state
+  useEffect(() => {
+    if (!isOpen) return;
+    updateMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
+  }, [isPlaying, isOpen]);
+
+  // Media Session API: Set action handlers for lock screen controls
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const audio = audioRef.current;
+
+    setMediaSessionActionHandlers({
+      play: () => {
+        audio?.play().catch(() => {});
+      },
+      pause: () => {
+        audio?.pause();
+      },
+      stop: () => {
+        if (audio) {
+          audio.pause();
+          audio.src = '';
+        }
+        onClose();
+      },
+    });
+
+    return () => {
+      setMediaSessionActionHandlers({
+        play: undefined,
+        pause: undefined,
+        stop: undefined,
+      });
+    };
+  }, [isOpen, onClose]);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
     const newVolume = parseFloat(e.target.value);
