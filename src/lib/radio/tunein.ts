@@ -13,6 +13,9 @@ import type {
   RadioStation,
   RadioStream,
   RadioSearchParams,
+  TuneInPremiumSearchResponse,
+  TuneInPremiumCell,
+  TuneInPodcastContentsResponse,
 } from './types';
 
 // ============================================================================
@@ -24,9 +27,15 @@ const TUNEIN_SEARCH_URL = `${TUNEIN_API_BASE}/Search.ashx`;
 const TUNEIN_TUNE_URL = `${TUNEIN_API_BASE}/Tune.ashx`;
 const TUNEIN_BROWSE_URL = `${TUNEIN_API_BASE}/Browse.ashx`;
 
+// Premium API endpoints (requires auth token)
+const TUNEIN_PREMIUM_API_BASE = 'https://api.radiotime.com';
+const TUNEIN_PREMIUM_SEARCH_URL = `${TUNEIN_PREMIUM_API_BASE}/profiles`;
+
 // Partner ID and version for API requests
 const PARTNER_ID = 'RadioTime';
+const PREMIUM_PARTNER_ID = 'M2t9wS30';
 const API_VERSION = '7.10.2';
+const PREMIUM_API_VERSION = '40.7.1';
 
 // Supported audio formats in order of preference
 const PREFERRED_FORMATS = ['mp3', 'aac', 'ogg', 'hls', 'html', 'flash'] as const;
@@ -130,6 +139,74 @@ function toRadioStream(stream: TuneInStreamData): ExtendedRadioStream {
 }
 
 /**
+ * Extract Cell from premium search result item
+ * Cell keys end with 'Cell' (e.g., 'StationCell', 'ShowCell')
+ */
+function extractCellFromItem(item: Record<string, unknown>): TuneInPremiumCell | null {
+  for (const [key, value] of Object.entries(item)) {
+    if (key.endsWith('Cell') && value && typeof value === 'object') {
+      return value as TuneInPremiumCell;
+    }
+  }
+  return null;
+}
+
+/**
+ * Convert premium search result cell to RadioStation
+ */
+function premiumCellToRadioStation(cell: TuneInPremiumCell): RadioStation | null {
+  const id = cell.GuideId;
+  const seoInfo = cell.SEOInfo;
+
+  if (!id || !seoInfo) {
+    return null;
+  }
+
+  return {
+    id,
+    name: seoInfo.Title,
+    description: seoInfo.Description,
+    imageUrl: cell.Image as string | undefined,
+    genre: undefined,
+    currentTrack: undefined,
+    reliability: undefined,
+    formats: undefined,
+  };
+}
+
+/**
+ * Get the first episode/content ID for a podcast or show
+ * Used to resolve playable content from non-station items
+ */
+async function _getPodcastContentId(profileId: string, headers: Record<string, string>): Promise<string | null> {
+  try {
+    const response = await fetch(`${TUNEIN_PREMIUM_API_BASE}/profiles/${profileId}/contents`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      console.log('[TuneIn] Failed to get podcast contents:', response.status);
+      return null;
+    }
+
+    const data = await response.json() as TuneInPodcastContentsResponse;
+
+    // Find the first episode with a GuideId
+    for (const item of data.Items || []) {
+      const children = item.Children;
+      if (children && children.length > 0) {
+        return children[0].GuideId;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[TuneIn] Get podcast content ID error:', error);
+    return null;
+  }
+}
+
+/**
  * Select the best stream from available options
  * Prefers MP3 > AAC > OGG > HLS for broad compatibility
  * Filters out "boost stations" (promotional content from different stations)
@@ -188,6 +265,8 @@ function buildHeaders(includeAuth: boolean = false): Record<string, string> {
 
 export interface TuneInService {
   search(params: RadioSearchParams): Promise<RadioStation[]>;
+  searchPremium(query: string, params: RadioSearchParams): Promise<RadioStation[]>;
+  searchStandard(query: string, params: RadioSearchParams): Promise<RadioStation[]>;
   getStream(stationId: string): Promise<{ streams: RadioStream[]; preferred: RadioStream | null }>;
   getStationInfo(stationId: string): Promise<RadioStation | null>;
   getPopularStations(genre?: string): Promise<RadioStation[]>;
@@ -207,7 +286,8 @@ export function createTuneInService(): TuneInService {
     },
 
     /**
-     * Search for radio stations
+     * Search for radio stations using premium API
+     * Falls back to standard API if premium fails or no auth token
      */
     async search(params: RadioSearchParams): Promise<RadioStation[]> {
       const query = sanitizeQuery(params.query);
@@ -217,6 +297,118 @@ export function createTuneInService(): TuneInService {
         return [];
       }
 
+      const hasToken = getTuneInAuthToken() !== null;
+      console.log('[TuneIn] Using auth token:', hasToken);
+
+      // Try premium API first if we have an auth token
+      if (hasToken) {
+        const premiumResults = await this.searchPremium(query, params);
+        if (premiumResults.length > 0) {
+          console.log('[TuneIn] Premium search returned', premiumResults.length, 'results');
+          return params.limit ? premiumResults.slice(0, params.limit) : premiumResults;
+        }
+        console.log('[TuneIn] Premium search returned no results, falling back to standard API');
+      }
+
+      // Fall back to standard API
+      return this.searchStandard(query, params);
+    },
+
+    /**
+     * Search using premium API (api.radiotime.com/profiles)
+     * Returns more live streams with premium auth
+     */
+    async searchPremium(query: string, _params: RadioSearchParams): Promise<RadioStation[]> {
+      try {
+        const searchParams = new URLSearchParams({
+          audioport: 'Speaker',
+          con: 'wifi',
+          device: 'phone',
+          fulltextsearch: 'true',
+          itemUrlScheme: 'secure',
+          listenId: Date.now().toString(),
+          locale: 'en',
+          orientation: 'portrait',
+          origin: 'active',
+          partnerId: PREMIUM_PARTNER_ID,
+          query,
+          render: 'json',
+          resolution: '440,956',
+          serial: crypto.randomUUID(),
+          version: PREMIUM_API_VERSION,
+          viewModel: 'true',
+        });
+
+        console.log('[TuneIn] Premium search URL:', `${TUNEIN_PREMIUM_SEARCH_URL}?${searchParams}`);
+
+        const headers = buildHeaders(true);
+        const response = await fetch(`${TUNEIN_PREMIUM_SEARCH_URL}?${searchParams}`, {
+          headers,
+        });
+
+        console.log('[TuneIn] Premium search response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[TuneIn] Premium search failed:', response.status, errorText);
+          return [];
+        }
+
+        const data = await response.json() as TuneInPremiumSearchResponse;
+        console.log('[TuneIn] Premium search items count:', data.Items?.length || 0);
+
+        const stations: RadioStation[] = [];
+
+        for (const item of data.Items || []) {
+          const list = item.List || item.Gallery;
+          if (!list || !list.Items) {
+            continue;
+          }
+
+          for (const listItem of list.Items) {
+            const cell = extractCellFromItem(listItem as Record<string, unknown>);
+            if (!cell || !cell.GuideId) {
+              continue;
+            }
+
+            const seoInfo = cell.SEOInfo;
+            if (!seoInfo) {
+              console.log('[TuneIn] No SEO info for item, skipping');
+              continue;
+            }
+
+            const contentInfo = cell.ContentInfo;
+
+            // Skip audiobooks
+            if (contentInfo?.Type === 'Audiobook') {
+              continue;
+            }
+
+            // For non-Station types (podcasts/shows), we still include them
+            // but they'll need stream resolution at play time
+            const station = premiumCellToRadioStation(cell);
+            if (station) {
+              // Add content type info to help with stream resolution
+              if (contentInfo?.Type && contentInfo.Type !== 'Station') {
+                (station as RadioStation & { contentType?: string }).contentType = contentInfo.Type;
+              }
+              stations.push(station);
+            }
+          }
+        }
+
+        console.log('[TuneIn] Premium search extracted', stations.length, 'stations');
+        return stations;
+      } catch (error) {
+        console.error('[TuneIn] Premium search error:', error);
+        return [];
+      }
+    },
+
+    /**
+     * Search using standard API (opml.radiotime.com/Search.ashx)
+     */
+    async searchStandard(query: string, params: RadioSearchParams): Promise<RadioStation[]> {
       try {
         const searchParams = new URLSearchParams({
           query,
@@ -231,29 +423,27 @@ export function createTuneInService(): TuneInService {
           searchParams.set('filter', params.filter);
         }
 
-        const hasToken = getTuneInAuthToken() !== null;
-        console.log('[TuneIn] Using auth token:', hasToken);
-        console.log('[TuneIn] Request URL:', `${TUNEIN_SEARCH_URL}?${searchParams}`);
+        console.log('[TuneIn] Standard search URL:', `${TUNEIN_SEARCH_URL}?${searchParams}`);
 
         // Use auth for search to get better results
         const response = await fetch(`${TUNEIN_SEARCH_URL}?${searchParams}`, {
           headers: buildHeaders(true),
         });
 
-        console.log('[TuneIn] Response status:', response.status);
+        console.log('[TuneIn] Standard search response status:', response.status);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('[TuneIn] Search failed:', response.status, errorText);
+          console.error('[TuneIn] Standard search failed:', response.status, errorText);
           return [];
         }
 
         const data = await response.json() as TuneInSearchResponse;
-        console.log('[TuneIn] Response head:', data.head);
-        console.log('[TuneIn] Response body length:', data.body?.length || 0);
+        console.log('[TuneIn] Standard search response head:', data.head);
+        console.log('[TuneIn] Standard search response body length:', data.body?.length || 0);
 
         if (data.head.status !== '200') {
-          console.error('[TuneIn] Search error status:', data.head.status, data.head);
+          console.error('[TuneIn] Standard search error status:', data.head.status, data.head);
           return [];
         }
 
@@ -262,12 +452,12 @@ export function createTuneInService(): TuneInService {
           .filter((item) => item.type === 'audio' && (item.item === 'station' || item.URL))
           .map(toRadioStation);
 
-        console.log('[TuneIn] Filtered to', stations.length, 'stations');
+        console.log('[TuneIn] Standard search filtered to', stations.length, 'stations');
 
         // Apply limit if specified
         return params.limit ? stations.slice(0, params.limit) : stations;
       } catch (error) {
-        console.error('[TuneIn] Search error:', error);
+        console.error('[TuneIn] Standard search error:', error);
         return [];
       }
     },

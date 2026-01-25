@@ -32,17 +32,28 @@ fi
 
 echo "✅ No critical security vulnerabilities found"
 echo ""
-echo "🔨 Running pre-commit checks via act..."
-echo ""
+echo "🔍 Running TypeScript type check..."
+pnpm typecheck
+TYPECHECK_EXIT_CODE=$?
 
-act
-ACT_EXIT_CODE=$?
-
-if [ $ACT_EXIT_CODE -ne 0 ]; then
+if [ $TYPECHECK_EXIT_CODE -ne 0 ]; then
     echo ""
-    echo "❌ act failed! Please fix issues before committing."
+    echo "❌ TypeScript type errors found! Please fix before committing."
     exit 1
 fi
 
+echo "✅ TypeScript type check passed"
+echo ""
+echo "🧪 Running tests..."
+pnpm test
+TEST_EXIT_CODE=$?
+
+if [ $TEST_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ Tests failed! Please fix before committing."
+    exit 1
+fi
+
+echo "✅ All tests passed"
 echo ""
 echo "🚀 Pre-commit checks complete. Proceeding with commit..."

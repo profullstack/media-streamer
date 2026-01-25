@@ -156,3 +156,80 @@ export interface RadioStreamResponse {
   streams: RadioStream[];
   preferredStream: RadioStream | null;
 }
+
+// ============================================================================
+// Premium TuneIn API Types (api.radiotime.com/profiles)
+// ============================================================================
+
+/**
+ * Content info from premium search result
+ */
+export interface TuneInPremiumContentInfo {
+  Type: 'Station' | 'Audiobook' | 'Podcast' | 'Show' | string;
+  [key: string]: unknown;
+}
+
+/**
+ * SEO info from premium search result (contains title)
+ */
+export interface TuneInPremiumSEOInfo {
+  Title: string;
+  Description?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Cell structure from premium search result
+ */
+export interface TuneInPremiumCell {
+  GuideId?: string;
+  ContentInfo?: TuneInPremiumContentInfo;
+  SEOInfo?: TuneInPremiumSEOInfo;
+  Image?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Item in premium search result List/Gallery
+ */
+export interface TuneInPremiumListItem {
+  [key: string]: TuneInPremiumCell | unknown;
+}
+
+/**
+ * List/Gallery structure in premium search
+ */
+export interface TuneInPremiumList {
+  Items: TuneInPremiumListItem[];
+  [key: string]: unknown;
+}
+
+/**
+ * Top-level item in premium search response
+ */
+export interface TuneInPremiumItem {
+  List?: TuneInPremiumList;
+  Gallery?: TuneInPremiumList;
+  [key: string]: unknown;
+}
+
+/**
+ * Premium search API response
+ */
+export interface TuneInPremiumSearchResponse {
+  Items: TuneInPremiumItem[];
+  [key: string]: unknown;
+}
+
+/**
+ * Podcast contents response for getting episode IDs
+ */
+export interface TuneInPodcastContentsResponse {
+  Items: Array<{
+    Children?: Array<{
+      GuideId: string;
+      [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+  }>;
+}
