@@ -162,11 +162,14 @@ function premiumCellToRadioStation(cell: TuneInPremiumCell): RadioStation | null
     return null;
   }
 
+  // Premium API uses ImageUrl, fallback to Image for some cell types
+  const imageUrl = cell.ImageUrl || cell.Image;
+
   return {
     id,
     name: seoInfo.Title,
     description: seoInfo.Description,
-    imageUrl: cell.Image as string | undefined,
+    imageUrl,
     genre: undefined,
     currentTrack: undefined,
     reliability: undefined,

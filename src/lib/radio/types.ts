@@ -185,7 +185,8 @@ export interface TuneInPremiumCell {
   GuideId?: string;
   ContentInfo?: TuneInPremiumContentInfo;
   SEOInfo?: TuneInPremiumSEOInfo;
-  Image?: string;
+  ImageUrl?: string;  // Premium API uses ImageUrl, not Image
+  Image?: string;     // Fallback for some cell types
   [key: string]: unknown;
 }
 
