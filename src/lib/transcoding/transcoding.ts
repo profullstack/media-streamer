@@ -382,6 +382,13 @@ export function buildStreamingFFmpegArgs(
   args.push('-probesize', '20000000');      // 20MB - larger for HEVC streams
   args.push('-analyzeduration', '10000000'); // 10 seconds in microseconds
 
+  // CRITICAL: Generate PTS (Presentation Time Stamps) for input streams
+  // Some input formats (especially from pipes) may not have proper timestamps.
+  // +genpts: Generate PTS if missing - critical for browsers like Amazon Silk
+  //          that have strict demuxers requiring valid timestamps
+  // +discardcorrupt: Discard corrupt packets that could cause parsing errors
+  args.push('-fflags', '+genpts+discardcorrupt');
+
   // CRITICAL: Specify input format for pipe input
   // FFmpeg cannot reliably auto-detect format from pipes because:
   // 1. Pipes are not seekable - FFmpeg can't seek back to re-read headers
@@ -477,20 +484,26 @@ export function buildStreamingFFmpegArgs(
     if (profile.audioBitrate) {
       args.push('-b:a', profile.audioBitrate);
     }
-    
+
     // iOS Safari MP3 compatibility options:
     // 1. write_xing: Writes Xing/LAME header for proper duration estimation
     //    Without this, iOS Safari shows incorrect duration and may abort playback
     args.push('-write_xing', '1');
-    
+
     // 2. id3v2_version: Use ID3v2.3 for maximum compatibility
     //    iOS Safari handles ID3v2.3 better than ID3v2.4
     args.push('-id3v2_version', '3');
-    
+
     // 3. reservoir: Disable bit reservoir for consistent frame sizes
     //    This helps with streaming as each frame is self-contained
     args.push('-reservoir', '0');
-    
+
+    // 4. flush_packets: Immediately flush each packet to output
+    //    Critical for streaming - ensures complete frames are sent immediately
+    //    Without this, FFmpeg may buffer partial frames causing "PTS is not defined"
+    //    errors on stricter browsers like Amazon Silk (Fire TV)
+    args.push('-flush_packets', '1');
+
     args.push('-f', 'mp3');
   }
 

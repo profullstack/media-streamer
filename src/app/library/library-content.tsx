@@ -353,7 +353,12 @@ export function LibraryContent({
                 {filteredTorrentFavorites.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                    onClick={() => {
+                      if (item.bt_torrents?.infohash) {
+                        router.push(`/torrents/${item.bt_torrents.infohash}`);
+                      }
+                    }}
+                    className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group cursor-pointer"
                   >
                     {/* Poster/Cover */}
                     {item.bt_torrents?.poster_url || item.bt_torrents?.cover_url ? (
@@ -396,7 +401,10 @@ export function LibraryContent({
 
                     {/* Remove button */}
                     <button
-                      onClick={() => removeTorrentFavorite(item.torrent_id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeTorrentFavorite(item.torrent_id);
+                      }}
                       className="p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all"
                       title="Remove from favorites"
                     >
