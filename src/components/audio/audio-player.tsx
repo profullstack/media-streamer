@@ -404,7 +404,7 @@ export function AudioPlayer({
             </svg>
             <div className="text-sm">
               <span className="font-medium text-accent-secondary">
-                Auto-transcoding: {audioSource.format.toUpperCase()} → MP3
+                Auto-transcoding: {audioSource.format.toUpperCase()} → AAC
               </span>
             </div>
           </div>

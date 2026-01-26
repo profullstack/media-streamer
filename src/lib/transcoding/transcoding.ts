@@ -294,11 +294,16 @@ const STREAMING_VIDEO_PROFILE: TranscodeProfile = {
 
 /**
  * Streaming-optimized audio transcoding profile
+ * Uses ADTS AAC for better streaming compatibility:
+ * - ADTS has explicit frame sync markers (0xFFF)
+ * - Each frame is self-contained with headers
+ * - Better browser support than raw MP3 for streaming
+ * - Works on strict demuxers like Amazon Silk (Fire TV)
  */
 const STREAMING_AUDIO_PROFILE: TranscodeProfile = {
-  outputFormat: 'mp3',
-  audioCodec: 'libmp3lame',
-  audioBitrate: '192k', // Slightly lower for faster streaming
+  outputFormat: 'adts',
+  audioCodec: 'aac',
+  audioBitrate: '192k',
   sampleRate: 44100,
 };
 
@@ -381,13 +386,6 @@ export function buildStreamingFFmpegArgs(
   // 10 seconds analyzeduration: allows time for stream analysis with slow data arrival
   args.push('-probesize', '20000000');      // 20MB - larger for HEVC streams
   args.push('-analyzeduration', '10000000'); // 10 seconds in microseconds
-
-  // CRITICAL: Generate PTS (Presentation Time Stamps) for input streams
-  // Some input formats (especially from pipes) may not have proper timestamps.
-  // +genpts: Generate PTS if missing - critical for browsers like Amazon Silk
-  //          that have strict demuxers requiring valid timestamps
-  // +discardcorrupt: Discard corrupt packets that could cause parsing errors
-  args.push('-fflags', '+genpts+discardcorrupt');
 
   // CRITICAL: Specify input format for pipe input
   // FFmpeg cannot reliably auto-detect format from pipes because:
@@ -478,32 +476,44 @@ export function buildStreamingFFmpegArgs(
     args.push('-f', 'mp4');
   }
 
-  // MP3 specific: iOS/Safari-compatible settings
-  if (profile.outputFormat === 'mp3') {
-    // Audio bitrate for MP3
+  // ADTS AAC specific: Universal streaming compatibility
+  // ADTS (Audio Data Transport Stream) is ideal for streaming because:
+  // - Each frame has a sync word (0xFFF) making it easy to find frame boundaries
+  // - Each frame is self-contained with its own header
+  // - Better support than MP3 on strict demuxers (Amazon Silk, older devices)
+  // - Native AAC support in all modern browsers
+  if (profile.outputFormat === 'adts') {
+    // Audio bitrate
     if (profile.audioBitrate) {
       args.push('-b:a', profile.audioBitrate);
     }
 
-    // iOS Safari MP3 compatibility options:
-    // 1. write_xing: Writes Xing/LAME header for proper duration estimation
-    //    Without this, iOS Safari shows incorrect duration and may abort playback
-    args.push('-write_xing', '1');
+    // Sample rate for consistent output
+    if (profile.sampleRate) {
+      args.push('-ar', String(profile.sampleRate));
+    }
 
-    // 2. id3v2_version: Use ID3v2.3 for maximum compatibility
-    //    iOS Safari handles ID3v2.3 better than ID3v2.4
-    args.push('-id3v2_version', '3');
+    // AAC profile: Use AAC-LC (Low Complexity) for maximum compatibility
+    // AAC-LC is supported by all browsers and devices
+    args.push('-aac_coder', 'twoloop');
+    args.push('-profile:a', 'aac_low');
 
-    // 3. reservoir: Disable bit reservoir for consistent frame sizes
-    //    This helps with streaming as each frame is self-contained
-    args.push('-reservoir', '0');
-
-    // 4. flush_packets: Immediately flush each packet to output
-    //    Critical for streaming - ensures complete frames are sent immediately
-    //    Without this, FFmpeg may buffer partial frames causing "PTS is not defined"
-    //    errors on stricter browsers like Amazon Silk (Fire TV)
+    // Flush packets immediately for streaming
     args.push('-flush_packets', '1');
 
+    // Output as ADTS (raw AAC with frame headers)
+    args.push('-f', 'adts');
+  }
+
+  // MP3 specific: iOS/Safari-compatible settings (fallback if needed)
+  if (profile.outputFormat === 'mp3') {
+    if (profile.audioBitrate) {
+      args.push('-b:a', profile.audioBitrate);
+    }
+    args.push('-write_xing', '1');
+    args.push('-id3v2_version', '3');
+    args.push('-reservoir', '0');
+    args.push('-flush_packets', '1');
     args.push('-f', 'mp3');
   }
 
@@ -532,6 +542,9 @@ export function getTranscodedMimeType(
 
   if (profile.outputFormat === 'mp4') {
     return 'video/mp4';
+  }
+  if (profile.outputFormat === 'adts') {
+    return 'audio/aac';
   }
   if (profile.outputFormat === 'mp3') {
     return 'audio/mpeg';
