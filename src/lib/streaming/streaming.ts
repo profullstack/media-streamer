@@ -479,10 +479,19 @@ export class StreamingService {
     }
 
     const file = torrent.files[fileIndex];
+
+    // Check for potential Unicode/emoji issues in filename
+    const hasNonAscii = /[^\x00-\x7F]/.test(file.name);
+    const hasEmoji = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(file.name);
+
     logger.debug('File selected', {
       fileName: file.name,
       fileSize: file.length,
-      filePath: file.path
+      filePath: file.path,
+      hasNonAscii,
+      hasEmoji,
+      fileNameBytes: Buffer.byteLength(file.name, 'utf8'),
+      fileNameLength: file.name.length,
     });
 
     // Validate range if provided

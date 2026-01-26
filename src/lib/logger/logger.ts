@@ -70,10 +70,11 @@ function shouldLog(level: LogLevel): boolean {
 
 /**
  * Format error for logging
+ * Handles both Error instances and plain objects/values
  */
 function formatError(error: unknown): LogEntry['error'] | undefined {
   if (!error) return undefined;
-  
+
   if (error instanceof Error) {
     return {
       name: error.name,
@@ -81,7 +82,18 @@ function formatError(error: unknown): LogEntry['error'] | undefined {
       stack: error.stack,
     };
   }
-  
+
+  // Handle plain objects (e.g., WebTorrent errors that aren't Error instances)
+  if (typeof error === 'object' && error !== null) {
+    const errObj = error as Record<string, unknown>;
+    // Try to extract meaningful error information from the object
+    const message = errObj.message ?? errObj.error ?? errObj.reason ?? errObj.code;
+    return {
+      name: String(errObj.name ?? errObj.type ?? 'UnknownError'),
+      message: message ? String(message) : JSON.stringify(error),
+    };
+  }
+
   return {
     name: 'UnknownError',
     message: String(error),

@@ -459,12 +459,23 @@ function createTranscodedStream(
       }
     };
 
-    const safeDestroyOutput = (err?: Error): void => {
+    // Helper to ensure we always have an Error instance
+    const toError = (err: unknown): Error => {
+      if (err instanceof Error) return err;
+      if (typeof err === 'object' && err !== null) {
+        const errObj = err as Record<string, unknown>;
+        const message = errObj.message ?? errObj.error ?? errObj.reason ?? JSON.stringify(err);
+        return new Error(String(message));
+      }
+      return new Error(String(err));
+    };
+
+    const safeDestroyOutput = (err?: unknown): void => {
       if (!outputDestroyed) {
         outputDestroyed = true;
         try {
           if (err) {
-            outputStream.destroy(err);
+            outputStream.destroy(toError(err));
           } else {
             outputStream.destroy();
           }
