@@ -75,3 +75,40 @@ export function cleanupOldParties(): number {
 
   return cleaned;
 }
+
+// Cleanup interval (runs every hour)
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Start the automatic cleanup interval
+ */
+export function startCleanupInterval(): void {
+  if (cleanupIntervalId !== null) {
+    return; // Already running
+  }
+  cleanupIntervalId = setInterval(() => {
+    const cleaned = cleanupOldParties();
+    if (cleaned > 0) {
+      console.log(`[watch-party] Cleaned up ${cleaned} expired parties`);
+    }
+  }, CLEANUP_INTERVAL_MS);
+
+  // Don't prevent Node.js from exiting if this is the only timer
+  if (cleanupIntervalId.unref) {
+    cleanupIntervalId.unref();
+  }
+}
+
+/**
+ * Stop the automatic cleanup interval
+ */
+export function stopCleanupInterval(): void {
+  if (cleanupIntervalId !== null) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+  }
+}
+
+// Auto-start cleanup on module load
+startCleanupInterval();

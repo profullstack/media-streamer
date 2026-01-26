@@ -199,6 +199,9 @@ function nodeStreamToWebStreamWithPreBuffer(
   let preBufferSize = 0;
   let preBufferResolver: (() => void) | null = null;
   let preBufferTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Maximum preBuffer size to prevent memory exhaustion (3x target or 100MB, whichever is smaller)
+  const MAX_PREBUFFER_SIZE = Math.min(preBufferBytes * 3, 100 * 1024 * 1024);
   
   // Create a promise that resolves when pre-buffer is ready
   const preBufferReady = new Promise<void>((resolve) => {
@@ -250,12 +253,33 @@ function nodeStreamToWebStreamWithPreBuffer(
       
       nodeStream.on('data', (chunk: Buffer) => {
         if (controllerClosed) return;
-        
+
         if (!preBufferComplete) {
           // Still collecting pre-buffer
           preBuffer.push(chunk);
           preBufferSize += chunk.length;
-          
+
+          // Safety check: abort if preBuffer grows too large (prevents memory exhaustion)
+          if (preBufferSize > MAX_PREBUFFER_SIZE) {
+            reqLogger.error('Pre-buffer exceeded maximum size, aborting stream', {
+              bufferedBytes: preBufferSize,
+              maxBytes: MAX_PREBUFFER_SIZE,
+              targetBytes: preBufferBytes,
+            });
+            preBufferComplete = true;
+            if (preBufferTimeout) {
+              clearTimeout(preBufferTimeout);
+              preBufferTimeout = null;
+            }
+            if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
+              nodeStream.destroy(new Error('Pre-buffer exceeded maximum size'));
+            }
+            // Clear the buffer to free memory immediately
+            preBuffer.length = 0;
+            preBufferResolver?.();
+            return;
+          }
+
           if (preBufferSize >= preBufferBytes) {
             reqLogger.info('Pre-buffer complete, starting playback', {
               bufferedBytes: preBufferSize,
