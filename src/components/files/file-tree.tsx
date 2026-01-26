@@ -406,7 +406,7 @@ function FileTreeNodeComponent({
                 <button
                   type="button"
                   onClick={handlePlay}
-                  className="rounded-lg p-2 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/30 active:bg-accent-primary/40 transition-colors"
+                  className="rounded-full p-2 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/30 active:bg-accent-primary/40 transition-colors"
                   title="Play"
                   aria-label={`Play ${node.name}`}
                 >
@@ -418,7 +418,7 @@ function FileTreeNodeComponent({
                 <button
                   type="button"
                   onClick={handleRead}
-                  className="rounded-lg p-2 bg-accent-ebook/10 text-accent-ebook hover:bg-accent-ebook/30 active:bg-accent-ebook/40 transition-colors"
+                  className="rounded-full p-2 bg-accent-ebook/10 text-accent-ebook hover:bg-accent-ebook/30 active:bg-accent-ebook/40 transition-colors"
                   title="Read"
                   aria-label={`Read ${node.name}`}
                 >
@@ -430,7 +430,7 @@ function FileTreeNodeComponent({
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="rounded-lg p-2 bg-accent-secondary/10 text-accent-secondary hover:bg-accent-secondary/30 active:bg-accent-secondary/40 transition-colors"
+                  className="rounded-full p-2 bg-accent-secondary/10 text-accent-secondary hover:bg-accent-secondary/30 active:bg-accent-secondary/40 transition-colors"
                   title="Download"
                   aria-label={`Download ${node.name}`}
                 >

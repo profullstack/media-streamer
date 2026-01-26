@@ -267,6 +267,9 @@ function SearchPageInner(): React.ReactElement {
 
   const queryParam = searchParams.get('q') ?? '';
   const typeParam = searchParams.get('type') ?? '';
+  const sortByParam = searchParams.get('sortBy') as SortBy | null;
+  const sortOrderParam = searchParams.get('sortOrder') as SortOrder | null;
+  const sourceParam = searchParams.get('source') as SearchSource | null;
 
   const [results, setResults] = useState<TorrentSearchResult[]>([]);
   const [total, setTotal] = useState(0);
@@ -274,10 +277,11 @@ function SearchPageInner(): React.ReactElement {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [sortBy, setSortBy] = useState<SortBy>('relevance');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortBy, setSortBy] = useState<SortBy>(sortByParam && SORT_OPTIONS.some(o => o.key === sortByParam) ? sortByParam : 'relevance');
+  const [sortOrder, setSortOrder] = useState<SortOrder>(sortOrderParam === 'asc' || sortOrderParam === 'desc' ? sortOrderParam : 'desc');
   const [offset, setOffset] = useState(0);
-  const [source, setSource] = useState<SearchSource>('all');
+  const [source, setSource] = useState<SearchSource>(sourceParam && ['all', 'user', 'dht'].includes(sourceParam) ? sourceParam : 'all');
+  const [totalTorrentsInDb, setTotalTorrentsInDb] = useState<number | null>(null);
 
   // Add Magnet modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -285,6 +289,22 @@ function SearchPageInner(): React.ReactElement {
 
   // Track last click time for double-click detection
   const lastClickRef = useRef<{ sortBy: SortBy; time: number } | null>(null);
+
+  // Fetch total torrent count on mount
+  useEffect(() => {
+    const fetchStats = async (): Promise<void> => {
+      try {
+        const response = await fetch('/api/search/stats');
+        if (response.ok) {
+          const data = await response.json() as { totalTorrents: number };
+          setTotalTorrentsInDb(data.totalTorrents);
+        }
+      } catch {
+        // Silently fail - this is a non-critical feature
+      }
+    };
+    fetchStats();
+  }, []);
 
   // Perform search
   const performSearch = useCallback(async (append: boolean = false): Promise<void> => {
@@ -363,33 +383,79 @@ function SearchPageInner(): React.ReactElement {
     }
   }, [sortBy, sortOrder, source]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Update URL with current filters (preserving existing params)
+  const updateUrlParams = useCallback((updates: { sortBy?: SortBy; sortOrder?: SortOrder; source?: SearchSource }): void => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    // Update sortBy
+    if (updates.sortBy !== undefined) {
+      if (updates.sortBy === 'relevance') {
+        params.delete('sortBy');
+      } else {
+        params.set('sortBy', updates.sortBy);
+      }
+    }
+
+    // Update sortOrder
+    if (updates.sortOrder !== undefined) {
+      if (updates.sortOrder === 'desc') {
+        params.delete('sortOrder');
+      } else {
+        params.set('sortOrder', updates.sortOrder);
+      }
+    }
+
+    // Update source
+    if (updates.source !== undefined) {
+      if (updates.source === 'all') {
+        params.delete('source');
+      } else {
+        params.set('source', updates.source);
+      }
+    }
+
+    const newUrl = params.toString() ? `?${params.toString()}` : '/search';
+    router.replace(newUrl, { scroll: false });
+  }, [searchParams, router]);
+
   // Handle source tab change
   const handleSourceChange = useCallback((newSource: SearchSource): void => {
     setSource(newSource);
     setOffset(0);
-  }, []);
+    updateUrlParams({ source: newSource });
+  }, [updateUrlParams]);
 
   // Handle sort click
   const handleSort = useCallback((newSortBy: SortBy): void => {
     const now = Date.now();
     const lastClick = lastClickRef.current;
-    
+
+    let newSortOrder: SortOrder;
+    let finalSortBy: SortBy;
+
     if (lastClick && lastClick.sortBy === newSortBy && now - lastClick.time < 300) {
       // Double-click: reverse order
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+      newSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      finalSortBy = sortBy;
+      setSortOrder(newSortOrder);
       lastClickRef.current = null;
     } else if (sortBy === newSortBy) {
       // Single click on same column: toggle order
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+      newSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      finalSortBy = sortBy;
+      setSortOrder(newSortOrder);
       lastClickRef.current = { sortBy: newSortBy, time: now };
     } else {
       // Single click on different column: select with desc order
+      finalSortBy = newSortBy;
+      newSortOrder = 'desc';
       setSortBy(newSortBy);
       setSortOrder('desc');
       lastClickRef.current = { sortBy: newSortBy, time: now };
     }
     setOffset(0);
-  }, [sortBy]);
+    updateUrlParams({ sortBy: finalSortBy, sortOrder: newSortOrder });
+  }, [sortBy, sortOrder, updateUrlParams]);
 
   // Handle load more
   const handleLoadMore = useCallback((): void => {
@@ -544,6 +610,11 @@ function SearchPageInner(): React.ReactElement {
             <p className="text-text-muted">
               Use the search bar above to find torrents
             </p>
+            {totalTorrentsInDb !== null && totalTorrentsInDb > 0 ? (
+              <p className="mt-2 text-sm text-text-secondary">
+                Search all {totalTorrentsInDb.toLocaleString()} torrents in our database
+              </p>
+            ) : null}
           </div>
         )}
 
