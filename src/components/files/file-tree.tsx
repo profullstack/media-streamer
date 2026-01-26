@@ -22,6 +22,7 @@ import {
   PlayIcon,
   DownloadIcon,
   CheckIcon,
+  ShuffleIcon,
 } from '@/components/ui/icons';
 import type { TorrentFile, MediaCategory, FileProgress } from '@/types';
 import { formatBytes } from '@/lib/utils';
@@ -63,6 +64,8 @@ interface FileTreeProps {
   onFileRead?: (file: TorrentFile) => void;
   /** Callback when "Play All" is clicked for a folder or the entire collection */
   onPlayAll?: (files: TorrentFile[]) => void;
+  /** Callback when "Shuffle and Play All" is clicked for a folder or the entire collection */
+  onPlayAllShuffled?: (files: TorrentFile[]) => void;
   className?: string;
 }
 
@@ -190,6 +193,7 @@ export function FileTree({
   onFileDownload,
   onFileRead,
   onPlayAll,
+  onPlayAllShuffled,
   className,
 }: FileTreeProps): React.ReactElement {
   const tree = useMemo(() => buildFileTree(files), [files]);
@@ -209,6 +213,7 @@ export function FileTree({
           onFileDownload={onFileDownload}
           onFileRead={onFileRead}
           onPlayAll={onPlayAll}
+          onPlayAllShuffled={onPlayAllShuffled}
         />
       ))}
     </div>
@@ -225,6 +230,7 @@ interface FileTreeNodeComponentProps {
   onFileDownload?: (file: TorrentFile) => void;
   onFileRead?: (file: TorrentFile) => void;
   onPlayAll?: (files: TorrentFile[]) => void;
+  onPlayAllShuffled?: (files: TorrentFile[]) => void;
 }
 
 function FileTreeNodeComponent({
@@ -237,6 +243,7 @@ function FileTreeNodeComponent({
   onFileDownload,
   onFileRead,
   onPlayAll,
+  onPlayAllShuffled,
 }: FileTreeNodeComponentProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(depth < 2);
 
@@ -291,6 +298,16 @@ function FileTreeNodeComponent({
       const audioFiles = collectAudioFiles(node);
       if (audioFiles.length > 0) {
         onPlayAll(audioFiles);
+      }
+    }
+  };
+
+  const handlePlayAllShuffled = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    if (onPlayAllShuffled && node.isDirectory) {
+      const audioFiles = collectAudioFiles(node);
+      if (audioFiles.length > 0) {
+        onPlayAllShuffled(audioFiles);
       }
     }
   };
@@ -357,16 +374,29 @@ function FileTreeNodeComponent({
               </span>
               {/* Play All button for directories with audio files - pill style */}
               {audioFileCount > 0 && onPlayAll ? (
-                <button
-                  type="button"
-                  onClick={handlePlayAll}
-                  className="flex items-center gap-1 rounded-full bg-accent-audio/10 px-2 py-0.5 text-xs font-medium text-accent-audio hover:bg-accent-audio/20 active:bg-accent-audio/30 transition-colors"
-                  title={`Play all ${audioFileCount} audio files`}
-                  aria-label={`Play all ${audioFileCount} audio files in ${node.name}`}
-                >
-                  <PlayIcon size={12} />
-                  <span>Play All ({audioFileCount})</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePlayAll}
+                    className="flex items-center gap-1 rounded-full bg-accent-audio/10 px-2 py-0.5 text-xs font-medium text-accent-audio hover:bg-accent-audio/20 active:bg-accent-audio/30 transition-colors"
+                    title={`Play all ${audioFileCount} audio files`}
+                    aria-label={`Play all ${audioFileCount} audio files in ${node.name}`}
+                  >
+                    <PlayIcon size={12} />
+                    <span>Play All ({audioFileCount})</span>
+                  </button>
+                  {onPlayAllShuffled ? (
+                    <button
+                      type="button"
+                      onClick={handlePlayAllShuffled}
+                      className="flex items-center justify-center rounded-full bg-accent-audio/10 p-1 text-accent-audio hover:bg-accent-audio/20 active:bg-accent-audio/30 transition-colors"
+                      title={`Shuffle and play all ${audioFileCount} audio files`}
+                      aria-label={`Shuffle and play all ${audioFileCount} audio files in ${node.name}`}
+                    >
+                      <ShuffleIcon size={12} />
+                    </button>
+                  ) : null}
+                </>
               ) : null}
             </>
           ) : (
@@ -487,6 +517,7 @@ function FileTreeNodeComponent({
               onFileDownload={onFileDownload}
               onFileRead={onFileRead}
               onPlayAll={onPlayAll}
+              onPlayAllShuffled={onPlayAllShuffled}
             />
           ))}
         </div> : null}

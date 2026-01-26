@@ -22,6 +22,7 @@ import {
   BookIcon,
   FileIcon,
   PlayIcon,
+  ShuffleIcon,
 } from '@/components/ui/icons';
 import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeholder';
 import { formatBytes } from '@/lib/utils';
@@ -332,6 +333,23 @@ export default function TorrentDetailPage(): React.ReactElement {
     }
   }, [folders]);
 
+  // Handle play all shuffled - shuffles files before playing
+  const handlePlayAllShuffled = useCallback((audioFiles: TorrentFile[]) => {
+    if (audioFiles.length > 0) {
+      // Shuffle the array using Fisher-Yates algorithm
+      const shuffled = [...audioFiles];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      // Find folder metadata for these files
+      const folderMeta = findFolderMetadataForFiles(audioFiles, folders);
+      setPlaylistFolderMetadata(folderMeta);
+      setPlaylistFiles(shuffled);
+      setIsPlaylistModalOpen(true);
+    }
+  }, [folders]);
+
   // Handle playlist modal close
   const handlePlaylistModalClose = useCallback(() => {
     setIsPlaylistModalOpen(false);
@@ -562,14 +580,25 @@ export default function TorrentDetailPage(): React.ReactElement {
           <div className="mt-6 flex flex-wrap items-center gap-3">
             {/* Play All button for audio collections */}
             {allAudioFiles.length > 1 ? (
-              <button
-                type="button"
-                onClick={() => handlePlayAll(allAudioFiles)}
-                className="flex items-center gap-2 rounded-full bg-accent-audio px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-audio/90 transition-colors"
-              >
-                <PlayIcon size={14} />
-                <span>Play All ({allAudioFiles.length})</span>
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handlePlayAll(allAudioFiles)}
+                  className="flex items-center gap-2 rounded-full bg-accent-audio px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-audio/90 transition-colors"
+                >
+                  <PlayIcon size={14} />
+                  <span>Play All ({allAudioFiles.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePlayAllShuffled(allAudioFiles)}
+                  className="flex items-center justify-center rounded-full bg-accent-audio/20 p-1.5 text-accent-audio hover:bg-accent-audio/30 transition-colors"
+                  title="Shuffle and play all"
+                  aria-label="Shuffle and play all audio files"
+                >
+                  <ShuffleIcon size={14} />
+                </button>
+              </div>
             ) : null}
             {mediaCounts.audio && mediaCounts.audio > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
                 <MusicIcon className="text-accent-audio" size={14} />
@@ -630,6 +659,7 @@ export default function TorrentDetailPage(): React.ReactElement {
                 onFileDownload={handleFileDownload}
                 onFileRead={handleFileRead}
                 onPlayAll={handlePlayAll}
+                onPlayAllShuffled={handlePlayAllShuffled}
               />
             ) : (
               <div className="py-8 text-center text-text-muted">
