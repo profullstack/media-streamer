@@ -336,12 +336,20 @@ export default function TorrentDetailPage(): React.ReactElement {
   // Handle play all shuffled - shuffles files before playing
   const handlePlayAllShuffled = useCallback((audioFiles: TorrentFile[]) => {
     if (audioFiles.length > 0) {
+      // Log original order (first 5 files) for debugging
+      console.log('[Shuffle] Original order (first 5):', audioFiles.slice(0, 5).map(f => f.path));
+
       // Shuffle the array using Fisher-Yates algorithm
       const shuffled = [...audioFiles];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
+
+      // Log shuffled order (first 10 files) for debugging
+      console.log('[Shuffle] Shuffled order (first 10):', shuffled.slice(0, 10).map(f => f.path));
+      console.log('[Shuffle] Total files shuffled:', shuffled.length);
+
       // Find folder metadata for these files
       const folderMeta = findFolderMetadataForFiles(audioFiles, folders);
       setPlaylistFolderMetadata(folderMeta);

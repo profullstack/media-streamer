@@ -741,12 +741,13 @@ export function PlaylistPlayerModal({
               const isDownloading = downloadStatus && !downloadStatus.ready && progress > 0;
               const isReady = downloadStatus?.ready ?? false;
               const isCurrentTrack = index === currentIndex;
-              
+              const folderName = extractAlbumFromPath(file.path);
+
               // Calculate playback progress percentage for current track
               const playbackPercent = isCurrentTrack && playbackProgress.duration > 0
                 ? (playbackProgress.currentTime / playbackProgress.duration) * 100
                 : 0;
-              
+
               return (
                 <button
                   key={file.fileIndex}
@@ -771,21 +772,26 @@ export function PlaylistPlayerModal({
                         )}
                         style={{ width: `${Math.round(progress * 100)}%` }}
                       /> : null}
-                    
+
                     {/* Track number / play icon */}
-                    <span className="relative z-10 w-6 text-center text-xs">
+                    <span className="relative z-10 w-6 text-center text-xs flex-shrink-0">
                       {isCurrentTrack ? (
                         <PlayIcon size={14} className="inline" />
                       ) : (
                         index + 1
                       )}
                     </span>
-                    
-                    {/* Track name */}
-                    <span className="relative z-10 flex-1 truncate text-sm">{file.name}</span>
-                    
+
+                    {/* Track name and folder */}
+                    <div className="relative z-10 flex-1 min-w-0">
+                      <span className="block truncate text-sm">{file.name}</span>
+                      {folderName ? (
+                        <span className="block truncate text-xs text-text-muted">{folderName}</span>
+                      ) : null}
+                    </div>
+
                     {/* Download status indicator */}
-                    {downloadStatus ? <span className="relative z-10 flex items-center gap-1 text-xs">
+                    {downloadStatus ? <span className="relative z-10 flex items-center gap-1 text-xs flex-shrink-0">
                         {isDownloading ? (
                           <>
                             <DownloadIcon size={12} className="text-accent-primary animate-pulse" />
@@ -808,7 +814,7 @@ export function PlaylistPlayerModal({
                         ) : null}
                       </span> : null}
                   </div>
-                  
+
                   {/* Playback progress bar - only for currently playing track */}
                   {isCurrentTrack && playbackProgress.duration > 0 ? <div className="h-1 w-full bg-bg-tertiary">
                       <div
