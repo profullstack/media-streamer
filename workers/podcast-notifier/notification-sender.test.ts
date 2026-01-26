@@ -287,7 +287,7 @@ describe('NotificationSender', () => {
       expect(payload.icon).toBe('https://example.com/episode.jpg');
     });
 
-    it('should handle both podcast and episode without image', async () => {
+    it('should handle both podcast and episode without image (falls back to app logo)', async () => {
       vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
@@ -306,7 +306,8 @@ describe('NotificationSender', () => {
       const call = vi.mocked(webPush.sendNotification).mock.calls[0];
       const payload = JSON.parse(call[1] as string);
 
-      expect(payload.icon).toBeUndefined();
+      // Falls back to app logo when no episode or podcast image
+      expect(payload.icon).toBe('/favicon.png');
     });
   });
 });

@@ -91,13 +91,13 @@ function createEpisodeNotificationPayload(
     ? episode.title.slice(0, 97) + '...'
     : episode.title;
 
-  // Use episode image if available, otherwise fall back to podcast image
-  const imageUrl = episode.image_url ?? podcast.image_url ?? undefined;
+  // Use episode image if available, fall back to podcast image, then app logo
+  const imageUrl = episode.image_url ?? podcast.image_url ?? '/favicon.png';
 
   return {
     title: `New Episode: ${podcast.title}`,
     body,
-    // Icon - small image shown in notification (use podcast/episode image)
+    // Icon - small image shown in notification (episode -> podcast -> app logo)
     icon: imageUrl,
     // Badge - small monochrome icon for status bar (keep as app badge)
     badge: '/icons/podcast-badge.png',
