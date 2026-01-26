@@ -136,7 +136,8 @@ describe('NotificationSender', () => {
 
       expect(payload.title).toBe('New Episode: Test Podcast');
       expect(payload.body).toBe('Test Episode Title');
-      expect(payload.icon).toBe('https://example.com/image.jpg');
+      // Uses episode image when available, falls back to podcast image
+      expect(payload.icon).toBe('https://example.com/episode.jpg');
       expect(payload.tag).toBe('podcast-podcast-123-episode-456');
       expect(payload.data).toMatchObject({
         type: 'new-episode',
@@ -268,7 +269,7 @@ describe('NotificationSender', () => {
       ]);
     });
 
-    it('should handle podcast without image', async () => {
+    it('should handle podcast without image (uses episode image)', async () => {
       vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
@@ -278,6 +279,29 @@ describe('NotificationSender', () => {
       };
 
       await sendNewEpisodeNotifications(podcastWithoutImage, mockEpisode, [mockUsers[0]]);
+
+      const call = vi.mocked(webPush.sendNotification).mock.calls[0];
+      const payload = JSON.parse(call[1] as string);
+
+      // Should use episode image when podcast has no image
+      expect(payload.icon).toBe('https://example.com/episode.jpg');
+    });
+
+    it('should handle both podcast and episode without image', async () => {
+      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(recordNotification).mockResolvedValue(undefined);
+
+      const podcastWithoutImage: Podcast = {
+        ...mockPodcast,
+        image_url: null,
+      };
+
+      const episodeWithoutImage: PodcastEpisode = {
+        ...mockEpisode,
+        image_url: null,
+      };
+
+      await sendNewEpisodeNotifications(podcastWithoutImage, episodeWithoutImage, [mockUsers[0]]);
 
       const call = vi.mocked(webPush.sendNotification).mock.calls[0];
       const payload = JSON.parse(call[1] as string);

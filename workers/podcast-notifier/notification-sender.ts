@@ -91,11 +91,18 @@ function createEpisodeNotificationPayload(
     ? episode.title.slice(0, 97) + '...'
     : episode.title;
 
+  // Use episode image if available, otherwise fall back to podcast image
+  const imageUrl = episode.image_url ?? podcast.image_url ?? undefined;
+
   return {
     title: `New Episode: ${podcast.title}`,
     body,
-    icon: podcast.image_url ?? undefined,
+    // Icon - small image shown in notification (use podcast/episode image)
+    icon: imageUrl,
+    // Badge - small monochrome icon for status bar (keep as app badge)
     badge: '/icons/podcast-badge.png',
+    // Image - large image preview for rich notifications (supported on desktop/Android)
+    image: imageUrl,
     tag: `podcast-${podcast.id}-${episode.id}`,
     data: {
       type: 'new-episode',
@@ -104,6 +111,8 @@ function createEpisodeNotificationPayload(
       feedUrl: podcast.feed_url,
       audioUrl: episode.audio_url,
       action: 'play-episode',
+      // Also pass the image URL in data for service worker fallback
+      imageUrl,
     },
     actions: [
       {

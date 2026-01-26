@@ -237,15 +237,41 @@ export function PlaylistPlayerModal({
     ? `/api/stream?infohash=${infohash}&fileIndex=${currentFile.fileIndex}${isTranscoding ? '&transcode=auto' : ''}${refreshKey > 0 ? `&_r=${refreshKey}` : ''}`
     : null;
 
+  // Track retry attempts for automatic recovery
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 2;
+
   // Handle player ready
   const handlePlayerReady = useCallback(() => {
     console.log('[PlaylistPlayerModal] Player ready');
     setIsPlayerReady(true);
+    retryCountRef.current = 0; // Reset retry count on successful playback
   }, []);
 
-  // Handle player error
+  // Handle player error with automatic retry for format errors
   const handlePlayerError = useCallback((err: Error) => {
     console.error('[PlaylistPlayerModal] Player error:', err);
+
+    // Check if it's a format error that might be recoverable (buffering issue)
+    const isFormatError = err.message.toLowerCase().includes('format') ||
+                          err.message.includes('MEDIA_ELEMENT_ERROR');
+
+    if (isFormatError && retryCountRef.current < MAX_RETRIES) {
+      retryCountRef.current++;
+      console.log(`[PlaylistPlayerModal] Format error, attempting retry ${retryCountRef.current}/${MAX_RETRIES}`);
+
+      // Reset state and retry after a short delay to allow more buffering
+      setIsPlayerReady(false);
+      setConnectionStatus(null);
+
+      setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 1000);
+      return;
+    }
+
+    // Reset retry count for non-format errors or after max retries
+    retryCountRef.current = 0;
     setError(err.message);
     setIsPlayerReady(true);
   }, []);
@@ -257,6 +283,9 @@ export function PlaylistPlayerModal({
       setCurrentIndex(currentIndex + 1);
       setIsPlayerReady(false);
       setError(null);
+      setConnectionStatus(null); // Reset to wait for new track to buffer before playing
+      setPlaybackProgress({ currentTime: 0, duration: 0 });
+      retryCountRef.current = 0; // Reset retry count for new track
     }
   }, [currentIndex, files.length]);
 
@@ -268,6 +297,7 @@ export function PlaylistPlayerModal({
       setError(null);
       setConnectionStatus(null); // Reset to show loading state until new SSE connects
       setPlaybackProgress({ currentTime: 0, duration: 0 });
+      retryCountRef.current = 0; // Reset retry count for new track
     }
   }, [currentIndex]);
 
@@ -279,6 +309,7 @@ export function PlaylistPlayerModal({
       setError(null);
       setConnectionStatus(null); // Reset to show loading state until new SSE connects
       setPlaybackProgress({ currentTime: 0, duration: 0 });
+      retryCountRef.current = 0; // Reset retry count for new track
     }
   }, [currentIndex, files.length]);
 
@@ -290,6 +321,7 @@ export function PlaylistPlayerModal({
     setConnectionStatus(null); // Reset to show loading state until new SSE connects
     // Reset playback progress when changing tracks
     setPlaybackProgress({ currentTime: 0, duration: 0 });
+    retryCountRef.current = 0; // Reset retry count for new track
   }, []);
 
   // Handle playback time updates from AudioPlayer
