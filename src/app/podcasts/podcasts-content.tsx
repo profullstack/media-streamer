@@ -56,33 +56,30 @@ function sanitizeHtml(html: string): string {
   return result;
 }
 
-/**
- * Strip HTML tags and return plain text. Used for collapsed episode previews
- * so we avoid running DOMPurify + dangerouslySetInnerHTML for off-screen content.
- */
-const stripHtmlCache = new Map<string, string>();
-function stripHtml(html: string): string {
-  const cached = stripHtmlCache.get(html);
-  if (cached !== undefined) return cached;
-
-  const result = DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
-  stripHtmlCache.set(html, result);
-  return result;
-}
 
 /**
  * Decode HTML entities in text (for titles that may contain &amp; &#39; etc.)
- * Results are cached to avoid creating textarea DOM elements on every render.
+ * Uses a lightweight regex approach instead of DOMPurify + DOM element creation.
  */
+const ENTITY_MAP: Record<string, string> = {
+  '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"',
+  '&#39;': "'", '&apos;': "'", '&nbsp;': ' ', '&ndash;': '\u2013',
+  '&mdash;': '\u2014', '&lsquo;': '\u2018', '&rsquo;': '\u2019',
+  '&ldquo;': '\u201C', '&rdquo;': '\u201D', '&hellip;': '\u2026',
+  '&copy;': '\u00A9', '&reg;': '\u00AE', '&trade;': '\u2122',
+};
 const decodeCache = new Map<string, string>();
 function decodeHtmlEntities(text: string): string {
   const cached = decodeCache.get(text);
   if (cached !== undefined) return cached;
 
-  const stripped = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
-  const textarea = document.createElement('textarea');
-  textarea.innerHTML = stripped;
-  const result = textarea.value;
+  const result = text
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(?:#(\d+)|#x([0-9a-fA-F]+)|(\w+));/g, (match, dec, hex, named) => {
+      if (dec) return String.fromCharCode(parseInt(dec, 10));
+      if (hex) return String.fromCharCode(parseInt(hex, 16));
+      return ENTITY_MAP[`&${named};`] ?? match;
+    });
   decodeCache.set(text, result);
   return result;
 }
@@ -304,20 +301,14 @@ const EpisodeItem = memo(function EpisodeItem({
             </div> : null}
 
           {episode.description ? <div className="mt-2">
-              {isExpanded ? (
-                <div
+              {isExpanded ? <div
                   className={cn(
                     'text-sm text-text-secondary prose prose-sm prose-invert max-w-none',
                     '[&_a]:text-accent-primary [&_a]:hover:underline',
                     '[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1',
                   )}
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(episode.description) }}
-                />
-              ) : (
-                <p className="text-sm text-text-secondary line-clamp-2">
-                  {stripHtml(episode.description)}
-                </p>
-              )}
+                /> : null}
               <button
                 onClick={() => onToggleExpand(episode.id)}
                 className="text-xs text-accent-primary hover:underline mt-1 flex items-center gap-1"
@@ -477,7 +468,7 @@ export function PodcastsContent(): React.ReactElement {
       try {
         // Fetch episodes and progress in parallel
         const [episodesResponse, progressResponse] = await Promise.all([
-          fetch(`/api/podcasts/${selectedPodcast.id}/episodes`),
+          fetch(`/api/podcasts/${selectedPodcast.id}/episodes?limit=10`),
           fetch(`/api/podcasts/progress?podcastId=${selectedPodcast.id}`),
         ]);
 
