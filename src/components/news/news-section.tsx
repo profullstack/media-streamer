@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, ExternalLink, RefreshCw, Newspaper, Sparkles, FileText, Loader2, ChevronUp, ChevronDown, AlertCircle } from 'lucide-react';
+import { X, ExternalLink, RefreshCw, Newspaper, Sparkles, FileText, Loader2, ChevronUp, ChevronDown, AlertCircle, Play, Pause, Volume2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 
 // Supported categories from TheNewsAPI
@@ -99,6 +99,13 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [_showExtractedContent, setShowExtractedContent] = useState(false);
+
+  // TTS audio state
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Scroll refs for TV navigation
   const contentRef = useRef<HTMLDivElement>(null);
@@ -248,7 +255,65 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
     }
   };
 
+  // Generate TTS audio for summary
+  const handleGenerateAudio = async (): Promise<void> => {
+    if (!selectedArticle || !summary) return;
+
+    setIsGeneratingAudio(true);
+    setAudioError(null);
+
+    try {
+      // Combine summary text with key points for TTS
+      const textToSpeak = `${summary.title}. ${summary.summary}. Key points: ${summary.keyPoints.join('. ')}`;
+
+      const response = await fetch('/api/news/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: selectedArticle.url,
+          text: textToSpeak,
+        }),
+      });
+
+      const data = await response.json() as { success: boolean; audioUrl?: string; error?: string };
+
+      if (!response.ok || !data.success) {
+        setAudioError(data.error || 'Failed to generate audio');
+        return;
+      }
+
+      setAudioUrl(data.audioUrl || null);
+    } catch (err) {
+      setAudioError(err instanceof Error ? err.message : 'Failed to generate audio');
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
+  // Toggle audio playback
+  const handleTogglePlayback = (): void => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      void audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  // Handle audio ended
+  const handleAudioEnded = (): void => {
+    setIsPlaying(false);
+  };
+
   const handleCloseModal = (): void => {
+    // Stop audio if playing
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     setSelectedArticle(null);
     setSummary(null);
     setSummaryError(null);
@@ -258,6 +323,11 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
     setExtractionError(null);
     setShowExtractedContent(false);
     setIsExtracting(false);
+    // Reset audio state
+    setAudioUrl(null);
+    setAudioError(null);
+    setIsGeneratingAudio(false);
+    setIsPlaying(false);
   };
 
   // Handle iframe load error - also detect X-Frame-Options blocking
@@ -493,12 +563,61 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
 
                 {/* Summary Header */}
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold mb-2">{summary.title}</h2>
+                  <div className="flex items-start justify-between gap-4">
+                    <h2 className="text-2xl font-bold mb-2">{summary.title}</h2>
+                    {/* TTS Audio Controls */}
+                    {isPremium ? (
+                      <div className="flex-shrink-0">
+                        {audioUrl ? (
+                          <button
+                            onClick={handleTogglePlayback}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg transition-colors text-sm"
+                            title={isPlaying ? 'Pause audio' : 'Play audio'}
+                          >
+                            {isPlaying ? (
+                              <Pause className="w-4 h-4" />
+                            ) : (
+                              <Play className="w-4 h-4" />
+                            )}
+                            <span>{isPlaying ? 'Pause' : 'Listen'}</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => void handleGenerateAudio()}
+                            disabled={isGeneratingAudio}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors text-sm"
+                            title="Listen to summary"
+                          >
+                            {isGeneratingAudio ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Volume2 className="w-4 h-4" />
+                            )}
+                            <span>{isGeneratingAudio ? 'Generating...' : 'Listen'}</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                     <span>{selectedArticle.source}</span>
                     {summary.author ? <span>By {summary.author}</span> : null}
                     <span>{formatDate(selectedArticle.publishedAt)}</span>
                   </div>
+                  {/* Audio Error */}
+                  {audioError ? (
+                    <div className="mt-2 text-sm text-red-400">{audioError}</div>
+                  ) : null}
+                  {/* Hidden Audio Element */}
+                  {audioUrl ? (
+                    <audio
+                      ref={audioRef}
+                      src={audioUrl}
+                      onEnded={handleAudioEnded}
+                      onError={() => setAudioError('Failed to play audio')}
+                      className="hidden"
+                    />
+                  ) : null}
                 </div>
 
                 {/* Summary Text */}
