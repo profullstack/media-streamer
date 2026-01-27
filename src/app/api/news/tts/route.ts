@@ -24,10 +24,10 @@ interface TTSResponse {
 }
 
 /**
- * ElevenLabs voice ID for American male voice
- * "Adam" - A deep, American male voice
+ * ElevenLabs voice ID for British male voice
+ * "Brian" - A British male voice, great for narration
  */
-const ELEVENLABS_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam
+const ELEVENLABS_VOICE_ID = 'nPczCjzI2devNBz1zQrb'; // Brian
 
 /**
  * ElevenLabs model ID
