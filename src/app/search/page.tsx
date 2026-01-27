@@ -273,11 +273,11 @@ function SearchPageInner(): React.ReactElement {
   const sourceParam = searchParams.get('source') as SearchSource | null;
 
   const [results, setResults] = useState<TorrentSearchResult[]>([]);
-  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [hasMoreFromApi, setHasMoreFromApi] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>(sortByParam && SORT_OPTIONS.some(o => o.key === sortByParam) ? sortByParam : 'relevance');
   const [sortOrder, setSortOrder] = useState<SortOrder>(sortOrderParam === 'asc' || sortOrderParam === 'desc' ? sortOrderParam : 'desc');
   const [offset, setOffset] = useState(0);
@@ -311,7 +311,7 @@ function SearchPageInner(): React.ReactElement {
   const performSearch = useCallback(async (append: boolean = false): Promise<void> => {
     if (!queryParam.trim()) {
       setResults([]);
-      setTotal(0);
+      setHasMoreFromApi(false);
       setHasSearched(false);
       return;
     }
@@ -350,19 +350,19 @@ function SearchPageInner(): React.ReactElement {
         throw new Error(errorData.error ?? 'Search failed');
       }
 
-      const data = await response.json() as { results: TorrentSearchResult[]; total?: number };
-      
+      const data = await response.json() as { results: TorrentSearchResult[]; pagination?: { hasMore: boolean } };
+
       if (append) {
         setResults(prev => [...prev, ...data.results]);
       } else {
         setResults(data.results);
       }
-      setTotal(data.total ?? data.results.length);
+      setHasMoreFromApi(data.pagination?.hasMore ?? false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       if (!append) {
         setResults([]);
-        setTotal(0);
+        setHasMoreFromApi(false);
       }
     } finally {
       setIsLoading(false);
@@ -488,8 +488,9 @@ function SearchPageInner(): React.ReactElement {
           throw new Error('Failed to load more');
         }
 
-        const data = await response.json() as { results: TorrentSearchResult[] };
+        const data = await response.json() as { results: TorrentSearchResult[]; pagination?: { hasMore: boolean } };
         setResults(prev => [...prev, ...data.results]);
+        setHasMoreFromApi(data.pagination?.hasMore ?? false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load more');
       } finally {
@@ -501,7 +502,7 @@ function SearchPageInner(): React.ReactElement {
   }, [offset, queryParam, typeParam, sortBy, sortOrder, source]);
 
   const categoryLabel = CATEGORY_LABELS[typeParam] ?? 'All';
-  const hasMore = results.length < total && results.length < MAX_RESULTS;
+  const hasMore = hasMoreFromApi && results.length < MAX_RESULTS;
   const reachedMax = results.length >= MAX_RESULTS;
 
   // Get sort icon
@@ -600,8 +601,11 @@ function SearchPageInner(): React.ReactElement {
           </div> : null}
 
         {/* Results count */}
-        {hasSearched && !isLoading ? <div className="text-xs text-text-muted">
-            {total > 0 ? `${total.toLocaleString()} result${total !== 1 ? 's' : ''} found` : 'No results found'}
+        {hasSearched && !isLoading && results.length > 0 ? <div className="text-xs text-text-muted">
+            {results.length.toLocaleString()} result{results.length !== 1 ? 's' : ''} loaded{hasMore ? ' (more available)' : ''}
+          </div> : null}
+        {hasSearched && !isLoading && results.length === 0 ? <div className="text-xs text-text-muted">
+            No results found
           </div> : null}
 
         {/* Results */}
@@ -639,7 +643,7 @@ function SearchPageInner(): React.ReactElement {
                   Loading...
                 </span>
               ) : (
-                `Load more (${results.length} of ${total.toLocaleString()})`
+                `Load more (${results.length.toLocaleString()} loaded)`
               )}
             </button>
           </div> : null}
@@ -647,7 +651,7 @@ function SearchPageInner(): React.ReactElement {
         {/* Show count when all loaded or max reached */}
         {hasSearched && !hasMore && results.length > 0 && !isLoading ? <div className="text-center text-xs text-text-secondary">
             {reachedMax
-              ? `Showing first ${results.length.toLocaleString()} of ${total.toLocaleString()} results (max ${MAX_RESULTS})`
+              ? `Showing ${MAX_RESULTS} results (max limit reached)`
               : `Showing all ${results.length.toLocaleString()} results`
             }
           </div> : null}
