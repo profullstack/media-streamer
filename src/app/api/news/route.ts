@@ -1,11 +1,13 @@
 /**
  * News API Route
- * 
+ *
  * Server-side endpoint for fetching news from TheNewsAPI.
+ * Requires authentication.
  * The API key is stored securely in THENEWSAPI_API_KEY env var.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 
 const THENEWSAPI_BASE_URL = 'https://api.thenewsapi.com/v1/news/all';
 const DEFAULT_SEARCH_TERM = '';
@@ -90,6 +92,15 @@ function transformArticle(article: TheNewsApiArticle): NewsArticle {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  // Check authentication
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
   const apiKey = process.env.THENEWSAPI_API_KEY;
 
   if (!apiKey) {

@@ -1,6 +1,6 @@
 /**
  * News API Route Tests
- * 
+ *
  * Tests for fetching news from TheNewsAPI.
  * The API key is stored server-side in THENEWSAPI_API_KEY env var.
  */
@@ -8,13 +8,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
+// Mock getCurrentUser for auth
+const mockGetCurrentUser = vi.fn();
+vi.mock('@/lib/auth', () => ({
+  getCurrentUser: () => mockGetCurrentUser(),
+}));
+
 // Store original env
 const originalEnv = process.env;
 
 describe('News API Routes', () => {
   beforeEach(() => {
-    vi.resetModules();
+    vi.clearAllMocks();
     process.env = { ...originalEnv, THENEWSAPI_API_KEY: 'test-api-key' };
+    // Default: user is authenticated
+    mockGetCurrentUser.mockResolvedValue({ id: 'test-user-id', email: 'test@example.com' });
   });
 
   afterEach(() => {

@@ -71,12 +71,12 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 // Import after mocks
-import LiveTvPage from './page';
+import { LiveTvContent } from './live-tv-content';
 import { useAuth } from '@/hooks/use-auth';
 
 const mockUseAuth = vi.mocked(useAuth);
 
-describe('LiveTvPage', () => {
+describe('LiveTvContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -111,7 +111,7 @@ describe('LiveTvPage', () => {
 
   describe('Search Input', () => {
     it('renders search input with type="text" to avoid duplicate clear buttons', async () => {
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       const searchInput = screen.getByPlaceholderText(/search channels/i);
       
@@ -146,7 +146,7 @@ describe('LiveTvPage', () => {
         }),
       });
       
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       // Wait for initialization
       await vi.advanceTimersByTimeAsync(100);
@@ -185,7 +185,7 @@ describe('LiveTvPage', () => {
         }),
       });
       
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       await vi.advanceTimersByTimeAsync(100);
       
@@ -233,7 +233,7 @@ describe('LiveTvPage', () => {
         });
       });
       
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       // Wait for initial load
       await vi.advanceTimersByTimeAsync(100);
@@ -297,7 +297,7 @@ describe('LiveTvPage', () => {
         });
       });
       
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       // Type search while initial load is pending
       const searchInput = screen.getByPlaceholderText(/search channels/i);
@@ -365,7 +365,7 @@ describe('LiveTvPage', () => {
         });
       });
       
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       await vi.advanceTimersByTimeAsync(100);
       
@@ -406,7 +406,7 @@ describe('LiveTvPage', () => {
       // Never-resolving fetch
       mockFetch.mockImplementation(() => new Promise(() => {}));
       
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       await vi.advanceTimersByTimeAsync(100);
       
@@ -448,7 +448,7 @@ describe('LiveTvPage', () => {
         return new Promise(() => {});
       });
       
-      render(<LiveTvPage />);
+      render(<LiveTvContent />);
       
       await vi.advanceTimersByTimeAsync(100);
       
