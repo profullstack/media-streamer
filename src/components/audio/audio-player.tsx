@@ -528,7 +528,7 @@ export function AudioPlayer({
           type="button"
           onClick={togglePlay}
           disabled={isLoading || !!error}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-primary text-white hover:bg-accent-primary/90 disabled:opacity-50"
+          className="flex h-12 w-12 shrink-0 aspect-square items-center justify-center rounded-full bg-accent-primary text-white hover:bg-accent-primary/90 disabled:opacity-50"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isLoading ? (
@@ -806,7 +806,7 @@ export function AudioPlayerCompact({
       <button
         type="button"
         onClick={togglePlay}
-        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent-primary text-white hover:bg-accent-primary/90"
+        className="flex h-8 w-8 shrink-0 aspect-square items-center justify-center rounded-full bg-accent-primary text-white hover:bg-accent-primary/90"
         aria-label={isPlaying ? 'Pause' : 'Play'}
       >
         {isPlaying ? (

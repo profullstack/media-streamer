@@ -101,7 +101,8 @@
   "packageManager": "pnpm@9.15.1",
   "pnpm": {
     "overrides": {
-      "bittorrent-tracker>undici": "^7.16.0"
+      "bittorrent-tracker>undici": "^7.16.0",
+      "webworkify-webpack": "^2.1.5"
     }
   }
 }
