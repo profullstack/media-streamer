@@ -79,6 +79,7 @@ const SORT_OPTIONS: { key: SortBy; label: string }[] = [
 ];
 
 const PAGE_SIZE = 50;
+const MAX_RESULTS = 500;
 
 /**
  * Format date for display
@@ -500,7 +501,8 @@ function SearchPageInner(): React.ReactElement {
   }, [offset, queryParam, typeParam, sortBy, sortOrder, source]);
 
   const categoryLabel = CATEGORY_LABELS[typeParam] ?? 'All';
-  const hasMore = results.length < total;
+  const hasMore = results.length < total && results.length < MAX_RESULTS;
+  const reachedMax = results.length >= MAX_RESULTS;
 
   // Get sort icon
   const getSortIcon = (column: SortBy): React.ReactElement | null => {
@@ -642,9 +644,12 @@ function SearchPageInner(): React.ReactElement {
             </button>
           </div> : null}
 
-        {/* Show count when all loaded */}
+        {/* Show count when all loaded or max reached */}
         {hasSearched && !hasMore && results.length > 0 && !isLoading ? <div className="text-center text-xs text-text-secondary">
-            Showing all {results.length.toLocaleString()} results
+            {reachedMax
+              ? `Showing first ${results.length.toLocaleString()} of ${total.toLocaleString()} results (max ${MAX_RESULTS})`
+              : `Showing all ${results.length.toLocaleString()} results`
+            }
           </div> : null}
       </div>
 
