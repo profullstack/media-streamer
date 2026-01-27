@@ -515,10 +515,15 @@ function SearchPageInner(): React.ReactElement {
   }, []);
 
   // Handle successful add - navigate to the new torrent
+  // Small delay to ensure database write is fully committed before navigation
   const handleAddSuccess = useCallback((torrent: { id: string }): void => {
     setIsAddModalOpen(false);
     setSelectedDhtTorrent(null);
-    router.push(`/torrents/${torrent.id}`);
+    // Allow a brief moment for the DB write to fully propagate before navigating
+    // This prevents a race condition where the details page fetches before the torrent is available
+    setTimeout(() => {
+      router.push(`/torrents/${torrent.id}`);
+    }, 100);
   }, [router]);
 
   // Build magnet URI for DHT torrent
