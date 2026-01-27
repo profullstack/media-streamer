@@ -12,7 +12,7 @@
  * - Push notification subscription for new episodes
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import DOMPurify from 'isomorphic-dompurify';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
@@ -34,34 +34,57 @@ import { useAuth } from '@/hooks/use-auth';
 import { usePodcastPlayer } from '@/contexts/podcast-player';
 
 /**
- * Sanitize HTML content from RSS feeds for safe rendering
- * Allows basic formatting tags but strips potentially dangerous content
+ * Sanitize HTML content from RSS feeds for safe rendering.
+ * Results are cached to avoid re-running DOMPurify on every render.
  */
+const sanitizeHtmlCache = new Map<string, string>();
 function sanitizeHtml(html: string): string {
-  // Strip CDATA wrappers first if present
+  const cached = sanitizeHtmlCache.get(html);
+  if (cached !== undefined) return cached;
+
   let cleaned = html;
   cleaned = cleaned.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1');
   cleaned = cleaned.replace(/&lt;!\[CDATA\[([\s\S]*?)\]\]&gt;/gi, '$1');
 
-  return DOMPurify.sanitize(cleaned, {
+  const result = DOMPurify.sanitize(cleaned, {
     ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'span', 'div'],
     ALLOWED_ATTR: ['href', 'target', 'rel'],
     ADD_ATTR: ['target'],
     FORCE_BODY: true,
   });
+  sanitizeHtmlCache.set(html, result);
+  return result;
+}
+
+/**
+ * Strip HTML tags and return plain text. Used for collapsed episode previews
+ * so we avoid running DOMPurify + dangerouslySetInnerHTML for off-screen content.
+ */
+const stripHtmlCache = new Map<string, string>();
+function stripHtml(html: string): string {
+  const cached = stripHtmlCache.get(html);
+  if (cached !== undefined) return cached;
+
+  const result = DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
+  stripHtmlCache.set(html, result);
+  return result;
 }
 
 /**
  * Decode HTML entities in text (for titles that may contain &amp; &#39; etc.)
- * Strips all HTML tags and only decodes entities
+ * Results are cached to avoid creating textarea DOM elements on every render.
  */
+const decodeCache = new Map<string, string>();
 function decodeHtmlEntities(text: string): string {
-  // First sanitize to strip any HTML tags, then decode entities
+  const cached = decodeCache.get(text);
+  if (cached !== undefined) return cached;
+
   const stripped = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
-  // Create a textarea to decode HTML entities
   const textarea = document.createElement('textarea');
   textarea.innerHTML = stripped;
-  return textarea.value;
+  const result = textarea.value;
+  decodeCache.set(text, result);
+  return result;
 }
 
 /**
@@ -192,6 +215,132 @@ function formatDate(dateString: string): string {
   });
 }
 
+/**
+ * Memoized episode list item. Only re-renders when its specific props change,
+ * preventing the entire list from re-rendering on unrelated state changes
+ * (e.g. audio currentTime updates from the player context).
+ */
+interface EpisodeItemProps {
+  episode: PodcastEpisode;
+  progress: EpisodeProgress | undefined;
+  isCurrentEpisode: boolean;
+  isPlaying: boolean;
+  isExpanded: boolean;
+  onPlay: (episode: PodcastEpisode) => void;
+  onToggleExpand: (episodeId: string) => void;
+}
+
+const EpisodeItem = memo(function EpisodeItem({
+  episode,
+  progress,
+  isCurrentEpisode,
+  isPlaying,
+  isExpanded,
+  onPlay,
+  onToggleExpand,
+}: EpisodeItemProps) {
+  const isCompleted = progress?.completed ?? false;
+  const progressPercent = progress?.percentage ?? 0;
+  const hasProgress = progressPercent > 0 && !isCompleted;
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border bg-bg-secondary p-4 transition-colors',
+        isCurrentEpisode
+          ? 'border-accent-primary/50'
+          : isCompleted
+            ? 'border-green-500/30'
+            : 'border-border-subtle hover:border-border-default'
+      )}
+    >
+      <div className="flex items-start gap-4">
+        <button
+          onClick={() => onPlay(episode)}
+          className={cn(
+            'flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 transition-colors',
+            isCompleted
+              ? 'bg-green-500 text-white hover:bg-green-600'
+              : 'bg-accent-primary text-white hover:bg-accent-primary/90'
+          )}
+        >
+          {isCompleted ? (
+            <CheckIcon size={20} />
+          ) : isCurrentEpisode && isPlaying ? (
+            <PauseIcon size={20} />
+          ) : (
+            <PlayIcon size={20} />
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h4 className={cn(
+              'font-medium',
+              isCompleted ? 'text-text-muted' : 'text-text-primary'
+            )}>
+              {decodeHtmlEntities(episode.title)}
+            </h4>
+            {isCompleted ? <span className="text-xs text-green-500 font-medium">Played</span> : null}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
+            <span>{formatDate(episode.publishedAt)}</span>
+            <span>&bull;</span>
+            <span>{formatDuration(episode.duration)}</span>
+            {hasProgress ? <>
+                <span>&bull;</span>
+                <span className="text-accent-primary">{Math.round(progressPercent)}% played</span>
+              </> : null}
+          </div>
+
+          {/* Progress bar */}
+          {(hasProgress || isCompleted) ? <div className="mt-2 h-1 w-full rounded-full bg-bg-tertiary overflow-hidden">
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all',
+                  isCompleted ? 'bg-green-500' : 'bg-accent-primary'
+                )}
+                style={{ width: `${isCompleted ? 100 : progressPercent}%` }}
+              />
+            </div> : null}
+
+          {episode.description ? <div className="mt-2">
+              {isExpanded ? (
+                <div
+                  className={cn(
+                    'text-sm text-text-secondary prose prose-sm prose-invert max-w-none',
+                    '[&_a]:text-accent-primary [&_a]:hover:underline',
+                    '[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1',
+                  )}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(episode.description) }}
+                />
+              ) : (
+                <p className="text-sm text-text-secondary line-clamp-2">
+                  {stripHtml(episode.description)}
+                </p>
+              )}
+              <button
+                onClick={() => onToggleExpand(episode.id)}
+                className="text-xs text-accent-primary hover:underline mt-1 flex items-center gap-1"
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronUpIcon size={12} />
+                    <span>Show less</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDownIcon size={12} />
+                    <span>Show more</span>
+                  </>
+                )}
+              </button>
+            </div> : null}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export function PodcastsContent(): React.ReactElement {
   const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
 
@@ -275,27 +424,31 @@ export function PodcastsContent(): React.ReactElement {
     void checkPushSupport();
   }, []);
 
+  // Ref to track whether we've auto-selected a podcast (avoids selectedPodcast in deps)
+  const hasAutoSelectedRef = useRef(false);
+
   // Load subscriptions when logged in
   useEffect(() => {
     if (isAuthLoading || !isLoggedIn) return;
-    
+
     const loadSubscriptions = async (): Promise<void> => {
       setIsLoadingSubscriptions(true);
       setSubscriptionsError(null);
-      
+
       try {
         const response = await fetch('/api/podcasts');
-        
+
         if (!response.ok) {
           const data = await response.json() as { error?: string };
           throw new Error(data.error ?? 'Failed to load subscriptions');
         }
-        
+
         const data = await response.json() as SubscriptionsResponse;
         setSubscriptions(data.subscriptions);
-        
-        // Auto-select first subscription if any
-        if (data.subscriptions.length > 0 && !selectedPodcast) {
+
+        // Auto-select first subscription if any (only once)
+        if (data.subscriptions.length > 0 && !hasAutoSelectedRef.current) {
+          hasAutoSelectedRef.current = true;
           setSelectedPodcast(data.subscriptions[0]);
         }
       } catch (err) {
@@ -305,9 +458,9 @@ export function PodcastsContent(): React.ReactElement {
         setIsLoadingSubscriptions(false);
       }
     };
-    
+
     void loadSubscriptions();
-  }, [isLoggedIn, isAuthLoading, selectedPodcast]);
+  }, [isLoggedIn, isAuthLoading]);
 
   // Load episodes and progress when podcast is selected
   useEffect(() => {
@@ -965,105 +1118,18 @@ export function PodcastsContent(): React.ReactElement {
                       <p className="text-sm text-text-secondary py-4">No episodes found</p>
                     ) : (
                       <div className="space-y-2">
-                        {episodes.map((episode) => {
-                          const progress = episodeProgress.get(episode.id);
-                          const isCompleted = progress?.completed ?? false;
-                          const progressPercent = progress?.percentage ?? 0;
-                          const hasProgress = progressPercent > 0 && !isCompleted;
-
-                          return (
-                            <div
-                              key={episode.id}
-                              className={cn(
-                                'rounded-lg border bg-bg-secondary p-4 transition-colors',
-                                currentEpisode?.id === episode.id
-                                  ? 'border-accent-primary/50'
-                                  : isCompleted
-                                    ? 'border-green-500/30'
-                                    : 'border-border-subtle hover:border-border-default'
-                              )}
-                            >
-                              <div className="flex items-start gap-4">
-                                <button
-                                  onClick={() => handlePlayEpisode(episode)}
-                                  className={cn(
-                                    'flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 transition-colors',
-                                    isCompleted
-                                      ? 'bg-green-500 text-white hover:bg-green-600'
-                                      : 'bg-accent-primary text-white hover:bg-accent-primary/90'
-                                  )}
-                                >
-                                  {isCompleted ? (
-                                    <CheckIcon size={20} />
-                                  ) : currentEpisode?.id === episode.id && isPlaying ? (
-                                    <PauseIcon size={20} />
-                                  ) : (
-                                    <PlayIcon size={20} />
-                                  )}
-                                </button>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <h4 className={cn(
-                                      'font-medium',
-                                      isCompleted ? 'text-text-muted' : 'text-text-primary'
-                                    )}>
-                                      {decodeHtmlEntities(episode.title)}
-                                    </h4>
-                                    {isCompleted ? <span className="text-xs text-green-500 font-medium">Played</span> : null}
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
-                                    <span>{formatDate(episode.publishedAt)}</span>
-                                    <span>•</span>
-                                    <span>{formatDuration(episode.duration)}</span>
-                                    {hasProgress ? <>
-                                        <span>•</span>
-                                        <span className="text-accent-primary">{Math.round(progressPercent)}% played</span>
-                                      </> : null}
-                                  </div>
-
-                                  {/* Progress bar */}
-                                  {(hasProgress || isCompleted) ? <div className="mt-2 h-1 w-full rounded-full bg-bg-tertiary overflow-hidden">
-                                      <div
-                                        className={cn(
-                                          'h-full rounded-full transition-all',
-                                          isCompleted ? 'bg-green-500' : 'bg-accent-primary'
-                                        )}
-                                        style={{ width: `${isCompleted ? 100 : progressPercent}%` }}
-                                      />
-                                    </div> : null}
-
-                                  {episode.description ? <div className="mt-2">
-                                      <div
-                                        className={cn(
-                                          'text-sm text-text-secondary prose prose-sm prose-invert max-w-none',
-                                          '[&_a]:text-accent-primary [&_a]:hover:underline',
-                                          '[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1',
-                                          expandedEpisodeId !== episode.id && 'line-clamp-2'
-                                        )}
-                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(episode.description) }}
-                                      />
-                                      <button
-                                        onClick={() => toggleEpisodeExpand(episode.id)}
-                                        className="text-xs text-accent-primary hover:underline mt-1 flex items-center gap-1"
-                                      >
-                                        {expandedEpisodeId === episode.id ? (
-                                          <>
-                                            <ChevronUpIcon size={12} />
-                                            <span>Show less</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <ChevronDownIcon size={12} />
-                                            <span>Show more</span>
-                                          </>
-                                        )}
-                                      </button>
-                                    </div> : null}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {episodes.map((episode) => (
+                          <EpisodeItem
+                            key={episode.id}
+                            episode={episode}
+                            progress={episodeProgress.get(episode.id)}
+                            isCurrentEpisode={currentEpisode?.id === episode.id}
+                            isPlaying={isPlaying}
+                            isExpanded={expandedEpisodeId === episode.id}
+                            onPlay={handlePlayEpisode}
+                            onToggleExpand={toggleEpisodeExpand}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>

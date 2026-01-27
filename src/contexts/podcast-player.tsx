@@ -15,6 +15,7 @@ import {
   useCallback,
   useRef,
   useEffect,
+  useMemo,
   type ReactNode,
 } from 'react';
 import {
@@ -159,6 +160,9 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
     }
   }, []);
 
+  // Throttle ref for timeupdate (fires ~4x/sec, we only need 1x/sec)
+  const lastTimeUpdateRef = useRef<number>(0);
+
   // Initialize audio element
   useEffect(() => {
     audioRef.current = new Audio();
@@ -167,6 +171,9 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
 
     // Event handlers
     const handleTimeUpdate = (): void => {
+      const now = Date.now();
+      if (now - lastTimeUpdateRef.current < 1000) return;
+      lastTimeUpdateRef.current = now;
       setCurrentTime(audio.currentTime);
     };
 
@@ -449,8 +456,8 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
     setDuration(0);
   }, []);
   
-  // Context value
-  const value: PodcastPlayerContextValue = {
+  // Context value - memoized to prevent unnecessary consumer re-renders
+  const value = useMemo<PodcastPlayerContextValue>(() => ({
     currentEpisode,
     currentPodcast,
     isPlaying,
@@ -461,7 +468,7 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
     togglePlayPause,
     seek,
     stop,
-  };
+  }), [currentEpisode, currentPodcast, isPlaying, currentTime, duration, lastCompletedEpisodeId, playEpisode, togglePlayPause, seek, stop]);
   
   return (
     <PodcastPlayerContext.Provider value={value}>
