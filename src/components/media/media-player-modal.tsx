@@ -140,9 +140,10 @@ function isCodecError(errorMessage: string): boolean {
 }
 
 /**
- * Swarm stats polling interval in milliseconds (30 seconds)
+ * Swarm stats polling interval in milliseconds (60 seconds)
+ * Increased from 30s to reduce CPU/network pressure on low-resource devices (Fire Stick)
  */
-const SWARM_STATS_POLL_INTERVAL = 30000;
+const SWARM_STATS_POLL_INTERVAL = 60000;
 
 /**
  * WebSocket trackers for browser WebTorrent

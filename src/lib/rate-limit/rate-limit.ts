@@ -75,11 +75,60 @@ export const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
   },
 };
 
+/** Maximum number of identifiers to track per limiter before forced eviction */
+const MAX_IDENTIFIERS = 10000;
+
+/** Interval for periodic cleanup of stale identifiers (5 minutes) */
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
- * Create a rate limiter with the given configuration
+ * Prune stale identifiers from a limiter's request map.
+ * Removes entries with no recent activity (empty timestamps, full tokens, or zero bucket level).
+ */
+function pruneStaleIdentifiers(limiter: RateLimiter): number {
+  const now = Date.now();
+  const cutoff = now - limiter.windowMs * 2; // 2x window as staleness threshold
+  let pruned = 0;
+
+  for (const [identifier, record] of limiter.requests) {
+    let isStale = false;
+
+    switch (limiter.algorithm) {
+      case 'sliding-window': {
+        // Remove timestamps outside window first
+        cleanupExpiredTimestamps(record, limiter.windowMs);
+        isStale = record.timestamps.length === 0;
+        break;
+      }
+      case 'token-bucket': {
+        // Stale if tokens are full and last refill was long ago
+        isStale = (record.tokens ?? 0) >= limiter.maxRequests &&
+          (record.lastRefill ?? 0) < cutoff;
+        break;
+      }
+      case 'leaky-bucket': {
+        // Stale if bucket is empty and last leak was long ago
+        isStale = (record.bucketLevel ?? 0) === 0 &&
+          (record.lastLeak ?? 0) < cutoff;
+        break;
+      }
+    }
+
+    if (isStale) {
+      limiter.requests.delete(identifier);
+      pruned++;
+    }
+  }
+
+  return pruned;
+}
+
+/**
+ * Create a rate limiter with the given configuration.
+ * Includes automatic periodic cleanup to prevent unbounded memory growth.
  */
 export function createRateLimiter(config: RateLimitConfig): RateLimiter {
-  return {
+  const limiter: RateLimiter = {
     key: config.key,
     maxRequests: config.maxRequests,
     windowMs: config.windowMs,
@@ -88,6 +137,30 @@ export function createRateLimiter(config: RateLimitConfig): RateLimiter {
     leakRate: config.leakRate,
     requests: new Map(),
   };
+
+  // Periodic cleanup to prevent memory leaks from accumulated identifiers
+  const cleanupInterval = setInterval(() => {
+    pruneStaleIdentifiers(limiter);
+
+    // Hard cap: if still over limit after pruning, evict oldest entries
+    if (limiter.requests.size > MAX_IDENTIFIERS) {
+      const excess = limiter.requests.size - MAX_IDENTIFIERS;
+      const keys = limiter.requests.keys();
+      for (let i = 0; i < excess; i++) {
+        const next = keys.next();
+        if (!next.done) {
+          limiter.requests.delete(next.value);
+        }
+      }
+    }
+  }, CLEANUP_INTERVAL_MS);
+
+  // Don't let the cleanup interval prevent process exit
+  if (cleanupInterval.unref) {
+    cleanupInterval.unref();
+  }
+
+  return limiter;
 }
 
 /**

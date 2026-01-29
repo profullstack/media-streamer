@@ -12,7 +12,7 @@
  * - Click to sort, double-click to reverse order
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { SearchIcon, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
@@ -408,7 +408,7 @@ interface TorrentCardProps {
   torrent: BrowseTorrent;
 }
 
-function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
+const TorrentCard = memo(function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const imageUrl = torrent.posterUrl ?? torrent.coverUrl;
   
   // Map ContentType to MediaContentType for the placeholder
@@ -428,6 +428,7 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
             alt={torrent.cleanTitle ?? torrent.name}
             className="h-full w-full object-cover"
             loading="lazy"
+            decoding="async"
           />
         ) : (
           <MediaPlaceholder
@@ -460,4 +461,4 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
       </div>
     </Link>
   );
-}
+});

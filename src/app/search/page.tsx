@@ -8,7 +8,7 @@
  * Features: sorting, load more pagination, compact results with thumbnails.
  */
 
-import { useState, useCallback, useEffect, Suspense, useRef } from 'react';
+import { useState, useCallback, useEffect, Suspense, useRef, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -94,9 +94,10 @@ function formatDate(dateString: string): string {
 }
 
 /**
- * Search results component - compact list view
+ * Search results component - compact list view.
+ * Memoized to prevent re-renders when parent state changes (e.g. sort button hover).
  */
-function SearchResultsList({
+const SearchResultsList = memo(function SearchResultsList({
   results,
   isLoading,
   error,
@@ -257,7 +258,7 @@ function SearchResultsList({
       })}
     </div>
   );
-}
+});
 
 /**
  * Inner search page component that uses useSearchParams

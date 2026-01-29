@@ -54,6 +54,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+# Limit Node.js heap to 2GB to prevent unbounded memory growth
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs

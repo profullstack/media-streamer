@@ -373,10 +373,11 @@ export function buildStreamingFFmpegArgs(
 ): string[] {
   const args: string[] = [];
 
-  // CRITICAL: Set thread count BEFORE input for decoder threads
-  // This affects both decoding and encoding performance
-  // Use 0 (auto) to let FFmpeg use optimal thread count for the system
-  args.push('-threads', '0');
+  // Set thread count BEFORE input for decoder threads
+  // Limit to 2 threads to prevent FFmpeg from consuming all CPU cores
+  // on shared hosting. Each concurrent stream spawns its own FFmpeg process,
+  // so with 15 max streams, 2 threads each = 30 threads max total.
+  args.push('-threads', '2');
 
   // CRITICAL: Set probesize and analyzeduration for HEVC/H.265 streams
   // HEVC requires more data to parse NAL units, SPS (Sequence Parameter Sets),

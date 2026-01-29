@@ -1,12 +1,14 @@
 /**
  * Article Extractor
  *
- * Extracts article content using Readability with Puppeteer fallback
- * for sites that block regular fetch requests (403, paywall, etc.)
+ * Extracts article content using Readability with fetch + Puppeteer fallback.
+ * Tries fetch with multiple user agents first, then falls back to Puppeteer
+ * for sites that block all fetch attempts.
  */
 
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
+import puppeteer from 'puppeteer';
 import type { ArticleContent } from './content-cache';
 
 /**
@@ -17,12 +19,7 @@ const MAX_HTML_SIZE = 500000;
 /**
  * Fetch timeout in milliseconds
  */
-const FETCH_TIMEOUT = 30000;
-
-/**
- * Puppeteer timeout in milliseconds
- */
-const PUPPETEER_TIMEOUT = 45000;
+const FETCH_TIMEOUT = 15000;
 
 /**
  * Result of extraction attempt
@@ -33,6 +30,15 @@ export interface ExtractionResult {
   error?: string;
   errorCode?: number;
 }
+
+/**
+ * User agents to rotate through when sites block requests
+ */
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+];
 
 /**
  * Extract article content from HTML using Readability
@@ -72,15 +78,17 @@ function extractWithReadability(
 }
 
 /**
- * Fetch article HTML using regular fetch
+ * Fetch article HTML using fetch with a specific user agent
  */
-async function fetchWithFetch(url: string): Promise<{ html: string; status: number } | null> {
+async function fetchWithUserAgent(
+  url: string,
+  userAgent: string
+): Promise<{ html: string; status: number } | null> {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'User-Agent': userAgent,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
         Connection: 'keep-alive',
@@ -101,62 +109,42 @@ async function fetchWithFetch(url: string): Promise<{ html: string; status: numb
 }
 
 /**
- * Fetch article HTML using Puppeteer (headless browser)
- * This works for sites that block regular fetch or require JavaScript
+ * Fetch article HTML using Puppeteer as a fallback.
+ * Browser is always closed in a finally block to prevent memory leaks.
  */
-async function fetchWithPuppeteer(url: string): Promise<{ html: string; status: number } | null> {
-  let browser;
+async function fetchWithPuppeteer(url: string): Promise<string | null> {
+  let browser = null;
   try {
-    // Dynamic import to avoid loading Puppeteer when not needed
-    const puppeteer = await import('puppeteer');
-
-    console.log('[ArticleExtractor] Launching Puppeteer for:', url);
-
-    browser = await puppeteer.default.launch({
+    browser = await puppeteer.launch({
       headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
         '--disable-gpu',
-        '--window-size=1920,1080',
       ],
     });
 
     const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setUserAgent(USER_AGENTS[0]);
 
-    // Set realistic viewport and user agent
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    );
-
-    // Block unnecessary resources to speed up loading
+    // Block unnecessary resources to save memory/bandwidth
     await page.setRequestInterception(true);
-    page.on('request', (request) => {
-      const resourceType = request.resourceType();
-      if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
-        void request.abort();
+    page.on('request', (req) => {
+      const type = req.resourceType();
+      if (['image', 'stylesheet', 'font', 'media'].includes(type)) {
+        req.abort();
       } else {
-        void request.continue();
+        req.continue();
       }
     });
 
-    // Navigate to the page
-    const response = await page.goto(url, {
-      waitUntil: 'domcontentloaded',
-      timeout: PUPPETEER_TIMEOUT,
-    });
-
-    // Wait a bit for any JavaScript to execute
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: FETCH_TIMEOUT });
     await page.waitForSelector('body', { timeout: 5000 }).catch(() => {});
 
-    // Get the page HTML
     const html = await page.content();
-    const status = response?.status() || 200;
-
-    return { html, status };
+    return html;
   } catch (error) {
     console.error('[ArticleExtractor] Puppeteer error:', error);
     return null;
@@ -168,49 +156,59 @@ async function fetchWithPuppeteer(url: string): Promise<{ html: string; status: 
 }
 
 /**
- * Extract article content from a URL
- * Tries regular fetch first, falls back to Puppeteer on failure
+ * Extract article content from a URL.
+ * Tries fetch with multiple user agents first, then falls back to Puppeteer.
  */
 export async function extractArticle(url: string): Promise<ExtractionResult> {
   console.log('[ArticleExtractor] Extracting article:', url);
 
-  // Try regular fetch first
-  let fetchResult = await fetchWithFetch(url);
-  let fetchMethod: 'fetch' | 'puppeteer' = 'fetch';
+  let fetchResult: { html: string; status: number } | null = null;
 
-  // If fetch failed or returned error status, try Puppeteer
-  if (!fetchResult || fetchResult.status >= 400) {
-    console.log(
-      '[ArticleExtractor] Fetch failed with status:',
-      fetchResult?.status || 'network error',
-      '- trying Puppeteer'
-    );
-
-    const puppeteerResult = await fetchWithPuppeteer(url);
-    if (puppeteerResult && puppeteerResult.status < 400) {
-      fetchResult = puppeteerResult;
-      fetchMethod = 'puppeteer';
-    } else if (!fetchResult) {
-      // Puppeteer also failed and we have no content
-      return {
-        success: false,
-        error: 'Failed to fetch article from any source',
-        errorCode: 502,
-      };
+  // Try each user agent until one succeeds
+  for (const userAgent of USER_AGENTS) {
+    fetchResult = await fetchWithUserAgent(url, userAgent);
+    if (fetchResult && fetchResult.status < 400) {
+      break;
     }
-    // If Puppeteer also failed but we have content from fetch (even with error status),
-    // try to extract from it anyway - some sites return content with 403
   }
 
-  // Limit HTML size
-  let html = fetchResult.html;
+  // If fetch succeeded with a good status, try extraction
+  if (fetchResult && fetchResult.status < 400) {
+    let html = fetchResult.html;
+    if (html.length > MAX_HTML_SIZE) {
+      console.log('[ArticleExtractor] HTML too large, truncating:', html.length);
+      html = html.substring(0, MAX_HTML_SIZE);
+    }
+
+    const content = extractWithReadability(html, url, 'fetch');
+    if (content) {
+      console.log(
+        '[ArticleExtractor] Successfully extracted article - length:',
+        content.textContent.length
+      );
+      return { success: true, content };
+    }
+  }
+
+  // Fall back to Puppeteer
+  console.log('[ArticleExtractor] Fetch failed or insufficient, falling back to Puppeteer');
+  const puppeteerHtml = await fetchWithPuppeteer(url);
+
+  if (!puppeteerHtml) {
+    return {
+      success: false,
+      error: 'Failed to fetch article from any source',
+      errorCode: 502,
+    };
+  }
+
+  let html = puppeteerHtml;
   if (html.length > MAX_HTML_SIZE) {
     console.log('[ArticleExtractor] HTML too large, truncating:', html.length);
     html = html.substring(0, MAX_HTML_SIZE);
   }
 
-  // Extract content with Readability
-  const content = extractWithReadability(html, url, fetchMethod);
+  const content = extractWithReadability(html, url, 'puppeteer');
 
   if (!content) {
     return {
@@ -221,9 +219,7 @@ export async function extractArticle(url: string): Promise<ExtractionResult> {
   }
 
   console.log(
-    '[ArticleExtractor] Successfully extracted article via',
-    fetchMethod,
-    '- length:',
+    '[ArticleExtractor] Successfully extracted article via Puppeteer - length:',
     content.textContent.length
   );
 

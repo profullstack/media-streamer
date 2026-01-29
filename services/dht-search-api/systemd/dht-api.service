@@ -24,7 +24,7 @@ StandardOutput=append:/var/log/dht-api.log
 StandardError=append:/var/log/dht-api.error.log
 
 LimitNOFILE=65535
-MemoryMax=512M
+MemoryMax=384M
 
 NoNewPrivileges=true
 ProtectSystem=strict

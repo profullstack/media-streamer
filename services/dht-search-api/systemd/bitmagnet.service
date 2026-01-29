@@ -22,7 +22,7 @@ StandardOutput=append:/var/log/bitmagnet.log
 StandardError=append:/var/log/bitmagnet.error.log
 
 LimitNOFILE=65535
-MemoryMax=2G
+MemoryMax=1G
 
 NoNewPrivileges=true
 ProtectSystem=strict

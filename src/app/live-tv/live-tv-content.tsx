@@ -13,7 +13,7 @@
  * - Playlist persistence via Supabase (authenticated) or localStorage (guest)
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner, EditIcon, TrashIcon, HeartFilledIcon } from '@/components/ui/icons';
@@ -22,6 +22,62 @@ import { useAuth } from '@/hooks/use-auth';
 import { useIptvChannelFavorites } from '@/hooks/use-favorites';
 import type { Channel } from '@/lib/iptv';
 import Link from 'next/link';
+
+/**
+ * Memoized channel card to prevent re-renders of the entire grid
+ * when parent state changes (search, loading, etc.)
+ * Critical for Silk/Fire Stick performance.
+ */
+const ChannelCard = memo(function ChannelCard({
+  channel,
+  onClick,
+}: {
+  channel: Channel;
+  onClick: (channel: Channel) => void;
+}) {
+  return (
+    <div
+      onClick={() => onClick(channel)}
+      className={cn(
+        'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-4',
+        'hover:border-accent-primary/50 hover:bg-bg-hover transition-colors'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        {channel.logo ? (
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element -- External IPTV channel logos with onError fallback */}
+            <img
+              src={channel.logo}
+              alt={`${channel.name} logo`}
+              className="h-full w-full object-contain"
+              loading="lazy"
+              decoding="async"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                const parent = (e.target as HTMLImageElement).parentElement;
+                if (parent) {
+                  parent.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-muted"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>';
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary">
+            <TvIcon size={24} className="text-text-muted" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-text-primary truncate">{channel.name}</h3>
+          {channel.group ? <p className="text-sm text-text-muted truncate">{channel.group}</p> : null}
+        </div>
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          <PlayIcon size={20} className="text-accent-primary" />
+        </div>
+      </div>
+    </div>
+  );
+});
 
 /**
  * localStorage key for persisting playlists (guest users only)
@@ -606,6 +662,8 @@ export function LiveTvContent(): React.ReactElement {
                             src={favorite.channel_logo}
                             alt={`${favorite.channel_name} logo`}
                             className="h-full w-full object-contain"
+                            loading="lazy"
+                            decoding="async"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';
                               const parent = (e.target as HTMLImageElement).parentElement;
@@ -818,48 +876,11 @@ export function LiveTvContent(): React.ReactElement {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {channels.map(channel => (
-                <div
+                <ChannelCard
                   key={channel.id}
-                  onClick={() => handleChannelClick(channel)}
-                  className={cn(
-                    'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-4',
-                    'hover:border-accent-primary/50 hover:bg-bg-hover transition-colors'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Channel Logo */}
-                    {channel.logo ? (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- External IPTV channel logos with onError fallback */}
-                        <img
-                          src={channel.logo}
-                          alt={`${channel.name} logo`}
-                          className="h-full w-full object-contain"
-                          onError={(e) => {
-                            // Replace with placeholder on error
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            const parent = (e.target as HTMLImageElement).parentElement;
-                            if (parent) {
-                              parent.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-muted"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>';
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary">
-                        <TvIcon size={24} className="text-text-muted" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-text-primary truncate">{channel.name}</h3>
-                      {channel.group ? <p className="text-sm text-text-muted truncate">{channel.group}</p> : null}
-                    </div>
-                    {/* Play indicator on hover */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <PlayIcon size={20} className="text-accent-primary" />
-                    </div>
-                  </div>
-                </div>
+                  channel={channel}
+                  onClick={handleChannelClick}
+                />
               ))}
             </div>
             

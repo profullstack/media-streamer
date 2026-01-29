@@ -303,8 +303,8 @@ export class StreamingService {
     this.client = new WebTorrent({
       dht: {
         bootstrap: DHT_BOOTSTRAP_NODES,
-        // Increase concurrency for faster DHT bootstrapping
-        concurrency: 64, // Increased from 32 for faster peer discovery
+        // Moderate concurrency to balance peer discovery vs resource usage
+        concurrency: 16,
       },
       // Configure tracker with WebSocket trackers for browser peer discovery
       // This is CRITICAL for hybrid P2P streaming - the server must announce to
@@ -315,13 +315,13 @@ export class StreamingService {
       },
       lsd: true, // Local Service Discovery
       webSeeds: true,
-      // Increase max connections for better peer discovery and download speeds
-      maxConns: 200, // Increased from 100 for better throughput
+      // Moderate max connections to limit memory and CPU overhead
+      maxConns: 55,
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
       // Download queue settings for better performance
       downloadLimit: -1, // No download limit
-      uploadLimit: -1, // No upload limit
+      uploadLimit: 512 * 1024, // 512 KB/s upload limit to reduce CPU/bandwidth
     } as WebTorrent.Options);
     
     logger.info('WebTorrent client configured with WebSocket trackers for hybrid P2P', {
@@ -750,18 +750,17 @@ export class StreamingService {
         // Pass path option to ensure downloads go to configured directory
         // Type assertion needed because WebTorrent types are incomplete
         const torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
-        
-        // Log peer connections (debug level to avoid log spam)
-        torrent.on('wire', (wire) => {
+
+        // Use named handlers so they can be removed when torrent is destroyed
+        const onWire = (wire: { remoteAddress: string }): void => {
           logger.debug('Peer connected (status tracking)', {
             infohash,
             peerAddress: wire.remoteAddress,
             numPeers: torrent.numPeers,
           });
-        });
+        };
 
-        // Log when ready
-        torrent.on('ready', () => {
+        const onReady = (): void => {
           logger.info('Torrent ready (status tracking)', {
             infohash,
             name: torrent.name,
@@ -769,19 +768,30 @@ export class StreamingService {
           });
           // Deselect all files initially - status endpoint will select specific files
           torrent.deselect(0, torrent.pieces.length - 1, 0);
-        });
+          // Remove one-time listeners after ready
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('wire', onWire);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('warning', onWarning);
+        };
 
-        torrent.on('warning', (warn) => {
+        const onWarning = (warn: string | Error): void => {
           const warnStr = String(warn);
           if (!warnStr.includes('fetch failed')) {
             logger.warn('Torrent warning (status tracking)', { infohash, warning: warnStr });
           }
-        });
+        };
 
-        // Use type assertion for error event
-        (torrent as unknown as NodeJS.EventEmitter).on('error', (err: Error) => {
+        const onError = (err: Error): void => {
           logger.error('Torrent error (status tracking)', err, { infohash });
-        });
+          // Clean up listeners on error
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('wire', onWire);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('ready', onReady);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('warning', onWarning);
+        };
+
+        (torrent as unknown as NodeJS.EventEmitter).on('wire', onWire);
+        torrent.on('ready', onReady);
+        (torrent as unknown as NodeJS.EventEmitter).on('warning', onWarning);
+        (torrent as unknown as NodeJS.EventEmitter).on('error', onError);
 
         // Resolve immediately - we don't wait for ready
         resolve();
@@ -1328,19 +1338,28 @@ export class StreamingService {
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let torrent: WebTorrent.Torrent | null = null;
+      let settled = false;
 
-      const cleanup = (): void => {
+      const cleanupListeners = (): void => {
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
+        // Remove all temporary listeners to prevent accumulation
+        if (torrent) {
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('wire', onWire);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('warning', onWarning);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('trackerAnnounce', onTrackerAnnounce);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('error', onError);
+        }
       };
 
       const removeTorrentAndReject = (error: StreamingError): void => {
-        cleanup();
+        if (settled) return;
+        settled = true;
+        cleanupListeners();
         if (torrent) {
           logger.debug('Destroying torrent and deleting files after failure', { infohash });
-          // Use destroy() with destroyStore to delete downloaded files
           (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
             { destroyStore: true },
             (err: Error | null) => {
@@ -1355,68 +1374,25 @@ export class StreamingService {
         reject(error);
       };
 
-      timeoutId = setTimeout(() => {
-        logger.warn('Torrent metadata fetch timeout', {
-          infohash,
-          timeout: this.streamTimeout,
-          elapsed: `${Date.now() - startTime}ms`
-        });
-        removeTorrentAndReject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
-      }, this.streamTimeout);
-
-      // Pass path option to ensure downloads go to configured directory
-      // Type assertion needed because WebTorrent types are incomplete
-      torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions, (t) => {
-        logger.debug('Torrent add callback fired', {
-          infohash: t.infoHash,
-          ready: t.ready,
-          numPeers: t.numPeers
-        });
-
-        // Wait for ready event
-        const onReady = (): void => {
-          cleanup();
-          logger.info('Torrent ready', {
-            infohash: t.infoHash,
-            name: t.name,
-            fileCount: t.files.length,
-            totalSize: t.length,
-            numPeers: t.numPeers,
-            elapsed: `${Date.now() - startTime}ms`
-          });
-          // Deselect all files initially
-          t.deselect(0, t.pieces.length - 1, 0);
-          resolve(t);
-        };
-
-        if (t.ready) {
-          onReady();
-        } else {
-          t.on('ready', onReady);
-        }
-      });
-
-      // Log peer connections (debug level to avoid log spam)
-      torrent.on('wire', (wire) => {
+      // Named handlers for proper removal
+      const onWire = (wire: { remoteAddress: string }): void => {
         logger.debug('Peer connected', {
           infohash,
           peerAddress: wire.remoteAddress,
           numPeers: torrent?.numPeers,
           elapsed: `${Date.now() - startTime}ms`,
         });
-      });
+      };
 
-      // Log tracker announcements (event exists at runtime but not in types)
-      (torrent as unknown as NodeJS.EventEmitter).on('trackerAnnounce', () => {
+      const onTrackerAnnounce = (): void => {
         logger.info('Tracker announce successful', {
           infohash,
           numPeers: torrent?.numPeers,
           elapsed: `${Date.now() - startTime}ms`,
         });
-      });
+      };
 
-      torrent.on('warning', (warn) => {
-        // Only log non-fetch warnings at warn level, fetch failures are common
+      const onWarning = (warn: string | Error): void => {
         const warnStr = String(warn);
         if (warnStr.includes('fetch failed')) {
           logger.debug('Tracker fetch failed (common on cloud platforms)', {
@@ -1429,13 +1405,58 @@ export class StreamingService {
             warning: warnStr,
           });
         }
-      });
+      };
 
-      // Use type assertion for error event since WebTorrent types are incomplete
-      (torrent as unknown as NodeJS.EventEmitter).on('error', (err: Error) => {
+      const onError = (err: Error): void => {
         logger.error('Torrent error', err, { infohash });
         removeTorrentAndReject(new StreamingError(`Torrent error: ${err.message}`));
+      };
+
+      timeoutId = setTimeout(() => {
+        logger.warn('Torrent metadata fetch timeout', {
+          infohash,
+          timeout: this.streamTimeout,
+          elapsed: `${Date.now() - startTime}ms`
+        });
+        removeTorrentAndReject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
+      }, this.streamTimeout);
+
+      // Pass path option to ensure downloads go to configured directory
+      torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions, (t) => {
+        logger.debug('Torrent add callback fired', {
+          infohash: t.infoHash,
+          ready: t.ready,
+          numPeers: t.numPeers
+        });
+
+        const onReady = (): void => {
+          if (settled) return;
+          settled = true;
+          cleanupListeners();
+          logger.info('Torrent ready', {
+            infohash: t.infoHash,
+            name: t.name,
+            fileCount: t.files.length,
+            totalSize: t.length,
+            numPeers: t.numPeers,
+            elapsed: `${Date.now() - startTime}ms`
+          });
+          t.deselect(0, t.pieces.length - 1, 0);
+          resolve(t);
+        };
+
+        if (t.ready) {
+          onReady();
+        } else {
+          t.on('ready', onReady);
+        }
       });
+
+      // Attach named listeners (type assertions needed - WebTorrent types are incomplete)
+      (torrent as unknown as NodeJS.EventEmitter).on('wire', onWire);
+      (torrent as unknown as NodeJS.EventEmitter).on('trackerAnnounce', onTrackerAnnounce);
+      (torrent as unknown as NodeJS.EventEmitter).on('warning', onWarning);
+      (torrent as unknown as NodeJS.EventEmitter).on('error', onError);
     });
   }
 
@@ -1445,18 +1466,22 @@ export class StreamingService {
   private waitForTorrentReady(torrent: WebTorrent.Torrent, infohash: string, startTime: number): Promise<WebTorrent.Torrent> {
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let settled = false;
 
-      const cleanup = (): void => {
+      const cleanupAll = (): void => {
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
+        torrent.removeListener('ready', onReady);
+        (torrent as unknown as NodeJS.EventEmitter).removeListener('error', onError);
       };
 
       const removeTorrentAndReject = (error: StreamingError): void => {
-        cleanup();
+        if (settled) return;
+        settled = true;
+        cleanupAll();
         logger.debug('Destroying torrent and deleting files after failure', { infohash });
-        // Use destroy() with destroyStore to delete downloaded files
         (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
           { destroyStore: true },
           (err: Error | null) => {
@@ -1470,6 +1495,33 @@ export class StreamingService {
         reject(error);
       };
 
+      const onReady = (): void => {
+        if (settled) return;
+        settled = true;
+        cleanupAll();
+        logger.info('Existing torrent ready', {
+          infohash: torrent.infoHash,
+          name: torrent.name,
+          fileCount: torrent.files.length,
+          totalSize: torrent.length,
+          numPeers: torrent.numPeers,
+          elapsed: `${Date.now() - startTime}ms`
+        });
+        torrent.deselect(0, torrent.pieces.length - 1, 0);
+        resolve(torrent);
+      };
+
+      const onError = (err: Error): void => {
+        logger.error('Torrent error (waiting for existing)', err, { infohash });
+        removeTorrentAndReject(new StreamingError(`Torrent error: ${err.message}`));
+      };
+
+      // Check if already ready (race condition protection)
+      if (torrent.ready) {
+        onReady();
+        return;
+      }
+
       timeoutId = setTimeout(() => {
         logger.warn('Torrent metadata fetch timeout (waiting for existing)', {
           infohash,
@@ -1479,34 +1531,8 @@ export class StreamingService {
         removeTorrentAndReject(new StreamingError(`Torrent metadata fetch timed out after ${this.streamTimeout}ms`));
       }, this.streamTimeout);
 
-      const onReady = (): void => {
-        cleanup();
-        logger.info('Existing torrent ready', {
-          infohash: torrent.infoHash,
-          name: torrent.name,
-          fileCount: torrent.files.length,
-          totalSize: torrent.length,
-          numPeers: torrent.numPeers,
-          elapsed: `${Date.now() - startTime}ms`
-        });
-        // Deselect all files initially
-        torrent.deselect(0, torrent.pieces.length - 1, 0);
-        resolve(torrent);
-      };
-
-      // Check if already ready (race condition protection)
-      if (torrent.ready) {
-        onReady();
-        return;
-      }
-
       torrent.on('ready', onReady);
-
-      // Use type assertion for error event since WebTorrent types are incomplete
-      (torrent as unknown as NodeJS.EventEmitter).on('error', (err: Error) => {
-        logger.error('Torrent error (waiting for existing)', err, { infohash });
-        removeTorrentAndReject(new StreamingError(`Torrent error: ${err.message}`));
-      });
+      (torrent as unknown as NodeJS.EventEmitter).on('error', onError);
     });
   }
 

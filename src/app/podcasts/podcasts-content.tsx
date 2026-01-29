@@ -35,8 +35,9 @@ import { usePodcastPlayer } from '@/contexts/podcast-player';
 
 /**
  * Sanitize HTML content from RSS feeds for safe rendering.
- * Results are cached to avoid re-running DOMPurify on every render.
+ * Results are cached with a size limit to avoid unbounded memory growth.
  */
+const MAX_SANITIZE_CACHE_SIZE = 500;
 const sanitizeHtmlCache = new Map<string, string>();
 function sanitizeHtml(html: string): string {
   const cached = sanitizeHtmlCache.get(html);
@@ -52,6 +53,12 @@ function sanitizeHtml(html: string): string {
     ADD_ATTR: ['target'],
     FORCE_BODY: true,
   });
+
+  // Evict oldest entries when cache gets too large
+  if (sanitizeHtmlCache.size >= MAX_SANITIZE_CACHE_SIZE) {
+    const firstKey = sanitizeHtmlCache.keys().next().value;
+    if (firstKey !== undefined) sanitizeHtmlCache.delete(firstKey);
+  }
   sanitizeHtmlCache.set(html, result);
   return result;
 }
@@ -68,6 +75,7 @@ const ENTITY_MAP: Record<string, string> = {
   '&ldquo;': '\u201C', '&rdquo;': '\u201D', '&hellip;': '\u2026',
   '&copy;': '\u00A9', '&reg;': '\u00AE', '&trade;': '\u2122',
 };
+const MAX_DECODE_CACHE_SIZE = 500;
 const decodeCache = new Map<string, string>();
 function decodeHtmlEntities(text: string): string {
   const cached = decodeCache.get(text);
@@ -80,6 +88,12 @@ function decodeHtmlEntities(text: string): string {
       if (hex) return String.fromCharCode(parseInt(hex, 16));
       return ENTITY_MAP[`&${named};`] ?? match;
     });
+
+  // Evict oldest entries when cache gets too large
+  if (decodeCache.size >= MAX_DECODE_CACHE_SIZE) {
+    const firstKey = decodeCache.keys().next().value;
+    if (firstKey !== undefined) decodeCache.delete(firstKey);
+  }
   decodeCache.set(text, result);
   return result;
 }
@@ -905,6 +919,8 @@ export function PodcastsContent(): React.ReactElement {
                             src={podcast.imageUrl}
                             alt={decodeHtmlEntities(podcast.title)}
                             className="h-20 w-20 rounded-lg object-cover"
+                            loading="lazy"
+                            decoding="async"
                           />
                         ) : (
                           <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-bg-tertiary">
@@ -1013,6 +1029,8 @@ export function PodcastsContent(): React.ReactElement {
                         src={podcast.imageUrl}
                         alt={decodeHtmlEntities(podcast.title)}
                         className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary flex-shrink-0">
@@ -1040,6 +1058,8 @@ export function PodcastsContent(): React.ReactElement {
                         src={selectedPodcast.imageUrl}
                         alt={decodeHtmlEntities(selectedPodcast.title)}
                         className="h-24 w-24 rounded-lg object-cover flex-shrink-0"
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div className="flex h-24 w-24 items-center justify-center rounded-lg bg-bg-tertiary flex-shrink-0">

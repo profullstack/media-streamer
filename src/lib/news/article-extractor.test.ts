@@ -113,8 +113,8 @@ describe('Article Extractor', () => {
 
     describe('fallback to Puppeteer on fetch failure', () => {
       it('falls back to Puppeteer when fetch returns 403', async () => {
-        // First call fails with 403
-        mockFetch.mockResolvedValueOnce({
+        // All fetch attempts return 403
+        mockFetch.mockResolvedValue({
           ok: false,
           status: 403,
           text: () => Promise.resolve('Forbidden'),
@@ -145,7 +145,7 @@ describe('Article Extractor', () => {
       });
 
       it('falls back to Puppeteer when fetch throws network error', async () => {
-        mockFetch.mockRejectedValueOnce(new Error('Network error'));
+        mockFetch.mockRejectedValue(new Error('Network error'));
 
         const mockPage = {
           setViewport: vi.fn(),
@@ -172,7 +172,7 @@ describe('Article Extractor', () => {
 
     describe('extraction failures', () => {
       it('returns error when both fetch and Puppeteer fail', async () => {
-        mockFetch.mockRejectedValueOnce(new Error('Network error'));
+        mockFetch.mockRejectedValue(new Error('Network error'));
         mocks.mockLaunch.mockRejectedValueOnce(new Error('Puppeteer failed'));
 
         const result = await extractArticle('https://example.com/total-failure');
@@ -189,6 +189,22 @@ describe('Article Extractor', () => {
           status: 200,
           text: () => Promise.resolve('<html><body></body></html>'),
         });
+
+        // Puppeteer fallback also returns empty content
+        const mockPage = {
+          setViewport: vi.fn(),
+          setUserAgent: vi.fn(),
+          setRequestInterception: vi.fn(),
+          on: vi.fn(),
+          goto: vi.fn().mockResolvedValue({ status: () => 200 }),
+          waitForSelector: vi.fn().mockResolvedValue(undefined),
+          content: vi.fn().mockResolvedValue('<html><body></body></html>'),
+        };
+        const mockBrowser = {
+          newPage: vi.fn().mockResolvedValue(mockPage),
+          close: vi.fn(),
+        };
+        mocks.mockLaunch.mockResolvedValueOnce(mockBrowser);
 
         const result = await extractArticle('https://example.com/empty');
 
@@ -234,7 +250,7 @@ describe('Article Extractor', () => {
 
     describe('Puppeteer browser configuration', () => {
       it('launches browser with security flags', async () => {
-        mockFetch.mockResolvedValueOnce({
+        mockFetch.mockResolvedValue({
           ok: false,
           status: 403,
           text: () => Promise.resolve('Forbidden'),
@@ -267,7 +283,7 @@ describe('Article Extractor', () => {
       });
 
       it('sets up request interception to block images/css/fonts', async () => {
-        mockFetch.mockResolvedValueOnce({
+        mockFetch.mockResolvedValue({
           ok: false,
           status: 403,
           text: () => Promise.resolve('Forbidden'),
@@ -296,7 +312,7 @@ describe('Article Extractor', () => {
       });
 
       it('closes browser even on extraction error', async () => {
-        mockFetch.mockResolvedValueOnce({
+        mockFetch.mockResolvedValue({
           ok: false,
           status: 403,
           text: () => Promise.resolve('Forbidden'),
