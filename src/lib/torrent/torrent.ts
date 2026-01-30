@@ -341,6 +341,7 @@ export class TorrentService {
       let progressIntervalId: ReturnType<typeof setInterval> | null = null;
       let torrent: WebTorrent.Torrent | null = null;
       let metadataReceived = false;
+      let cleanupTorrentListeners: (() => void) | null = null;
 
       // Set up timeout
       timeoutId = setTimeout(() => {
@@ -359,7 +360,8 @@ export class TorrentService {
         if (progressIntervalId) {
           clearInterval(progressIntervalId);
         }
-        
+        cleanupTorrentListeners?.();
+
         // Emit error progress event
         emitProgress('error', 0, torrent?.numPeers ?? 0, 'Metadata fetch timed out');
         
@@ -386,6 +388,7 @@ export class TorrentService {
       const extractMetadata = (t: WebTorrent.Torrent): void => {
         if (metadataReceived) return; // Prevent double processing
         metadataReceived = true;
+        cleanupTorrentListeners?.();
         
         const elapsed = Date.now() - startTime;
         logger.info('Metadata received', {
@@ -511,8 +514,8 @@ export class TorrentService {
           }
         }, 2000);
 
-        // Listen for various events for debugging
-        torrent.on('wire', (wire) => {
+        // Listen for various events for debugging - use named handlers for cleanup
+        const onWire = (wire: { remoteAddress: string }): void => {
           logger.debug('New peer connected', {
             infohash: t.infoHash,
             peerAddress: wire.remoteAddress,
@@ -527,27 +530,27 @@ export class TorrentService {
               `Connected to ${t.numPeers} peer${t.numPeers > 1 ? 's' : ''}, downloading metadata...`
             );
           }
-        });
+        };
 
-        torrent.on('warning', (warn) => {
+        const onWarning = (warn: unknown): void => {
           logger.warn('Torrent warning', {
             infohash: t.infoHash,
             warning: String(warn)
           });
-        });
+        };
 
-        torrent.on('error', (err) => {
+        const onTorrentError = (err: Error): void => {
           logger.error('Torrent error', err, { infohash: t.infoHash });
-        });
+        };
 
         // Listen for metadata event - this fires when metadata is received from peers
-        torrent.on('metadata', () => {
+        const onMetadata = (): void => {
           logger.debug('metadata event fired');
           extractMetadata(t);
-        });
+        };
 
         // Also listen for 'ready' event as a backup - this fires when torrent is ready to use
-        torrent.on('ready', () => {
+        const onReady = (): void => {
           logger.debug('ready event fired', {
             infohash: t.infoHash,
             fileCount: t.files?.length ?? 0,
@@ -557,7 +560,28 @@ export class TorrentService {
           if (!metadataReceived && t.files && t.files.length > 0) {
             extractMetadata(t);
           }
-        });
+        };
+
+        // Set up cleanup to remove all listeners and prevent accumulation
+        // Type assertions needed - WebTorrent types are incomplete
+        const emitter = torrent as unknown as NodeJS.EventEmitter;
+        cleanupTorrentListeners = () => {
+          if (torrent) {
+            const e = torrent as unknown as NodeJS.EventEmitter;
+            e.removeListener('wire', onWire);
+            e.removeListener('warning', onWarning);
+            e.removeListener('error', onTorrentError);
+            e.removeListener('metadata', onMetadata);
+            e.removeListener('ready', onReady);
+          }
+          cleanupTorrentListeners = null;
+        };
+
+        emitter.on('wire', onWire);
+        emitter.on('warning', onWarning);
+        emitter.on('error', onTorrentError);
+        emitter.on('metadata', onMetadata);
+        emitter.on('ready', onReady);
       } catch (error) {
         if (timeoutId) {
           clearTimeout(timeoutId);
@@ -565,6 +589,7 @@ export class TorrentService {
         if (progressIntervalId) {
           clearInterval(progressIntervalId);
         }
+        cleanupTorrentListeners?.();
         emitProgress('error', 0, 0, `Failed to add torrent: ${error instanceof Error ? error.message : 'Unknown error'}`);
         logger.error('Failed to add torrent', error, { magnetUri: magnetUri.substring(0, 100) });
         reject(new TorrentMetadataError(`Failed to add torrent: ${error instanceof Error ? error.message : 'Unknown error'}`));

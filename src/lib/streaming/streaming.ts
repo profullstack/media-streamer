@@ -1339,6 +1339,7 @@ export class StreamingService {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let torrent: WebTorrent.Torrent | null = null;
       let settled = false;
+      let onReadyHandler: (() => void) | null = null;
 
       const cleanupListeners = (): void => {
         if (timeoutId) {
@@ -1351,6 +1352,10 @@ export class StreamingService {
           (torrent as unknown as NodeJS.EventEmitter).removeListener('warning', onWarning);
           (torrent as unknown as NodeJS.EventEmitter).removeListener('trackerAnnounce', onTrackerAnnounce);
           (torrent as unknown as NodeJS.EventEmitter).removeListener('error', onError);
+          if (onReadyHandler) {
+            torrent.removeListener('ready', onReadyHandler);
+            onReadyHandler = null;
+          }
         }
       };
 
@@ -1445,6 +1450,7 @@ export class StreamingService {
           resolve(t);
         };
 
+        onReadyHandler = onReady;
         if (t.ready) {
           onReady();
         } else {

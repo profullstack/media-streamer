@@ -203,13 +203,117 @@ function nodeStreamToWebStreamWithPreBuffer(
   // Maximum preBuffer size to prevent memory exhaustion (3x target or 100MB, whichever is smaller)
   const MAX_PREBUFFER_SIZE = Math.min(preBufferBytes * 3, 100 * 1024 * 1024);
   
+  // Controller reference captured from start() for use in named handlers
+  let controller: ReadableStreamDefaultController<Uint8Array>;
+
   // Create a promise that resolves when pre-buffer is ready
   const preBufferReady = new Promise<void>((resolve) => {
     preBufferResolver = resolve;
   });
-  
+
+  // Named handlers for proper listener cleanup
+  const onData = (chunk: Buffer): void => {
+    if (controllerClosed) return;
+
+    if (!preBufferComplete) {
+      // Still collecting pre-buffer
+      preBuffer.push(chunk);
+      preBufferSize += chunk.length;
+
+      // Safety check: abort if preBuffer grows too large (prevents memory exhaustion)
+      if (preBufferSize > MAX_PREBUFFER_SIZE) {
+        reqLogger.error('Pre-buffer exceeded maximum size, aborting stream', {
+          bufferedBytes: preBufferSize,
+          maxBytes: MAX_PREBUFFER_SIZE,
+          targetBytes: preBufferBytes,
+        });
+        preBufferComplete = true;
+        if (preBufferTimeout) {
+          clearTimeout(preBufferTimeout);
+          preBufferTimeout = null;
+        }
+        if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
+          nodeStream.destroy(new Error('Pre-buffer exceeded maximum size'));
+        }
+        // Clear the buffer to free memory immediately
+        preBuffer.length = 0;
+        preBufferResolver?.();
+        return;
+      }
+
+      if (preBufferSize >= preBufferBytes) {
+        reqLogger.info('Pre-buffer complete, starting playback', {
+          bufferedBytes: preBufferSize,
+          targetBytes: preBufferBytes,
+        });
+        preBufferComplete = true;
+        if (preBufferTimeout) {
+          clearTimeout(preBufferTimeout);
+          preBufferTimeout = null;
+        }
+        preBufferResolver?.();
+      }
+    } else {
+      // Pre-buffer complete, send directly
+      try {
+        controller.enqueue(new Uint8Array(chunk));
+      } catch {
+        controllerClosed = true;
+      }
+    }
+  };
+
+  const onEnd = (): void => {
+    removeStreamListeners();
+    // If stream ends before pre-buffer is complete, flush what we have
+    if (!preBufferComplete) {
+      reqLogger.info('Stream ended before pre-buffer complete, flushing', {
+        bufferedBytes: preBufferSize,
+        targetBytes: preBufferBytes,
+      });
+      preBufferComplete = true;
+      if (preBufferTimeout) {
+        clearTimeout(preBufferTimeout);
+        preBufferTimeout = null;
+      }
+      preBufferResolver?.();
+    }
+
+    if (!controllerClosed) {
+      controllerClosed = true;
+      try {
+        controller.close();
+      } catch {
+        // Controller may already be closed
+      }
+    }
+  };
+
+  const onError = (err: Error): void => {
+    removeStreamListeners();
+    if (preBufferTimeout) {
+      clearTimeout(preBufferTimeout);
+      preBufferTimeout = null;
+    }
+    if (!controllerClosed) {
+      controllerClosed = true;
+      try {
+        controller.error(err);
+      } catch {
+        // Controller may already be closed
+      }
+    }
+  };
+
+  const removeStreamListeners = (): void => {
+    nodeStream.removeListener('data', onData);
+    nodeStream.removeListener('end', onEnd);
+    nodeStream.removeListener('error', onError);
+  };
+
   return new ReadableStream({
-    async start(controller) {
+    async start(ctrl) {
+      controller = ctrl;
       // Set up timeout for pre-buffer
       preBufferTimeout = setTimeout(() => {
         if (!preBufferComplete) {
@@ -240,7 +344,7 @@ function nodeStreamToWebStreamWithPreBuffer(
             preBufferResolver?.();
             return;
           }
-          
+
           reqLogger.info('Pre-buffer timeout reached, starting playback with partial buffer', {
             bufferedBytes: preBufferSize,
             targetBytes: preBufferBytes,
@@ -250,97 +354,10 @@ function nodeStreamToWebStreamWithPreBuffer(
           preBufferResolver?.();
         }
       }, preBufferTimeoutMs);
-      
-      nodeStream.on('data', (chunk: Buffer) => {
-        if (controllerClosed) return;
 
-        if (!preBufferComplete) {
-          // Still collecting pre-buffer
-          preBuffer.push(chunk);
-          preBufferSize += chunk.length;
-
-          // Safety check: abort if preBuffer grows too large (prevents memory exhaustion)
-          if (preBufferSize > MAX_PREBUFFER_SIZE) {
-            reqLogger.error('Pre-buffer exceeded maximum size, aborting stream', {
-              bufferedBytes: preBufferSize,
-              maxBytes: MAX_PREBUFFER_SIZE,
-              targetBytes: preBufferBytes,
-            });
-            preBufferComplete = true;
-            if (preBufferTimeout) {
-              clearTimeout(preBufferTimeout);
-              preBufferTimeout = null;
-            }
-            if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
-              nodeStream.destroy(new Error('Pre-buffer exceeded maximum size'));
-            }
-            // Clear the buffer to free memory immediately
-            preBuffer.length = 0;
-            preBufferResolver?.();
-            return;
-          }
-
-          if (preBufferSize >= preBufferBytes) {
-            reqLogger.info('Pre-buffer complete, starting playback', {
-              bufferedBytes: preBufferSize,
-              targetBytes: preBufferBytes,
-            });
-            preBufferComplete = true;
-            if (preBufferTimeout) {
-              clearTimeout(preBufferTimeout);
-              preBufferTimeout = null;
-            }
-            preBufferResolver?.();
-          }
-        } else {
-          // Pre-buffer complete, send directly
-          try {
-            controller.enqueue(new Uint8Array(chunk));
-          } catch {
-            controllerClosed = true;
-          }
-        }
-      });
-      
-      nodeStream.on('end', () => {
-        // If stream ends before pre-buffer is complete, flush what we have
-        if (!preBufferComplete) {
-          reqLogger.info('Stream ended before pre-buffer complete, flushing', {
-            bufferedBytes: preBufferSize,
-            targetBytes: preBufferBytes,
-          });
-          preBufferComplete = true;
-          if (preBufferTimeout) {
-            clearTimeout(preBufferTimeout);
-            preBufferTimeout = null;
-          }
-          preBufferResolver?.();
-        }
-        
-        if (!controllerClosed) {
-          controllerClosed = true;
-          try {
-            controller.close();
-          } catch {
-            // Controller may already be closed
-          }
-        }
-      });
-      
-      nodeStream.on('error', (err: Error) => {
-        if (preBufferTimeout) {
-          clearTimeout(preBufferTimeout);
-          preBufferTimeout = null;
-        }
-        if (!controllerClosed) {
-          controllerClosed = true;
-          try {
-            controller.error(err);
-          } catch {
-            // Controller may already be closed
-          }
-        }
-      });
+      nodeStream.on('data', onData);
+      nodeStream.on('end', onEnd);
+      nodeStream.on('error', onError);
       
       // Wait for pre-buffer to be ready
       await preBufferReady;
@@ -365,6 +382,7 @@ function nodeStreamToWebStreamWithPreBuffer(
     },
     cancel() {
       controllerClosed = true;
+      removeStreamListeners();
       if (preBufferTimeout) {
         clearTimeout(preBufferTimeout);
         preBufferTimeout = null;
