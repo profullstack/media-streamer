@@ -22,7 +22,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, className }: MainLayoutProps): React.ReactElement {
   const router = useRouter();
-  const { isLoggedIn, isLoading, isPremium, user, refresh } = useAuth();
+  const { isLoggedIn, isPremium, user, refresh } = useAuth();
 
   const handleLogout = useCallback(async (): Promise<void> => {
     try {
@@ -54,15 +54,9 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
           onLogout={handleLogout}
         />
 
-        {/* Page content */}
+        {/* Page content — never block on auth; children render immediately */}
         <main className={cn('flex-1 p-4 md:p-6', className)}>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
-            </div>
-          ) : (
-            children
-          )}
+          {children}
         </main>
       </div>
     </div>

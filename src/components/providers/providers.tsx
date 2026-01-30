@@ -9,6 +9,7 @@
  */
 
 import { type ReactNode } from 'react';
+import { AuthProvider } from '@/contexts/auth-context';
 import { PodcastPlayerProvider } from '@/contexts/podcast-player';
 import { NowPlayingBar } from '@/components/podcasts/now-playing-bar';
 
@@ -18,9 +19,11 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps): React.ReactElement {
   return (
-    <PodcastPlayerProvider>
-      {children}
-      <NowPlayingBar />
-    </PodcastPlayerProvider>
+    <AuthProvider>
+      <PodcastPlayerProvider>
+        {children}
+        <NowPlayingBar />
+      </PodcastPlayerProvider>
+    </AuthProvider>
   );
 }

@@ -2,71 +2,26 @@
 
 /**
  * useAuth Hook
- * 
+ *
  * Client-side hook for checking authentication state.
- * Fetches auth status from server API to maintain server-side Supabase rule.
+ * Reads from the shared AuthContext (populated once at app root)
+ * so that route changes reuse cached auth data instead of refetching.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useContext } from 'react';
+import { AuthContext } from '@/contexts/auth-context';
+import type { AuthContextValue, AuthUser } from '@/contexts/auth-context';
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  subscription_tier?: 'free' | 'trial' | 'premium' | 'family';
-  display_name?: string;
-  avatar_url?: string;
-}
+export type { AuthUser };
 
-export interface UseAuthResult {
-  isLoading: boolean;
-  isLoggedIn: boolean;
-  isPremium: boolean;
-  user: AuthUser | null;
-  error: string | null;
-  refresh: () => void;
-}
+export type UseAuthResult = AuthContextValue;
 
 export function useAuth(): UseAuthResult {
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const ctx = useContext(AuthContext);
 
-  const fetchAuthState = useCallback(async (): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+  if (!ctx) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
 
-    try {
-      const response = await fetch('/api/auth/me');
-      
-      if (!response.ok) {
-        setUser(null);
-        return;
-      }
-
-      const data = await response.json() as { user: AuthUser | null };
-      setUser(data.user);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchAuthState();
-  }, [fetchAuthState]);
-
-  const isLoggedIn = user !== null;
-  const isPremium = user?.subscription_tier === 'trial' || user?.subscription_tier === 'premium' || user?.subscription_tier === 'family';
-
-  return {
-    isLoading,
-    isLoggedIn,
-    isPremium,
-    user,
-    error,
-    refresh: fetchAuthState,
-  };
+  return ctx;
 }

@@ -1,16 +1,27 @@
 /**
  * useAuth Hook Tests
- * 
- * Tests for client-side auth state hook
+ *
+ * Tests for client-side auth state hook.
+ * The hook now reads from AuthContext, so each renderHook call
+ * must be wrapped in an AuthProvider.
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useAuth } from './use-auth';
+import { AuthProvider } from '@/contexts/auth-context';
 
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+/**
+ * Wrapper that provides AuthContext to the hook under test.
+ */
+function wrapper({ children }: { children: React.ReactNode }) {
+  return React.createElement(AuthProvider, null, children);
+}
 
 describe('useAuth', () => {
   beforeEach(() => {
@@ -24,9 +35,9 @@ describe('useAuth', () => {
   describe('initial state', () => {
     it('should start with loading true', () => {
       mockFetch.mockImplementation(() => new Promise(() => {})); // Never resolves
-      
-      const { result } = renderHook(() => useAuth());
-      
+
+      const { result } = renderHook(() => useAuth(), { wrapper });
+
       expect(result.current.isLoading).toBe(true);
       expect(result.current.isLoggedIn).toBe(false);
       expect(result.current.user).toBeNull();
@@ -46,7 +57,7 @@ describe('useAuth', () => {
         json: async () => ({ user: mockUser }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -68,7 +79,7 @@ describe('useAuth', () => {
         json: async () => ({ user: mockUser }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -85,7 +96,7 @@ describe('useAuth', () => {
         json: async () => ({ user: null }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -101,7 +112,7 @@ describe('useAuth', () => {
         status: 401,
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -116,7 +127,7 @@ describe('useAuth', () => {
     it('should handle network errors gracefully', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -133,7 +144,7 @@ describe('useAuth', () => {
         json: async () => { throw new Error('Invalid JSON'); },
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -151,7 +162,7 @@ describe('useAuth', () => {
         json: async () => ({ user: null }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -171,7 +182,7 @@ describe('useAuth', () => {
           json: async () => ({ user: { id: 'user-123', email: 'test@example.com' } }),
         });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -197,7 +208,7 @@ describe('useAuth', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -214,7 +225,7 @@ describe('useAuth', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -231,7 +242,7 @@ describe('useAuth', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -248,13 +259,25 @@ describe('useAuth', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuth());
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
 
       expect(result.current.isPremium).toBe(false);
+    });
+  });
+
+  describe('context requirement', () => {
+    it('should throw when used outside AuthProvider', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => {
+        renderHook(() => useAuth());
+      }).toThrow('useAuth must be used within an AuthProvider');
+
+      consoleSpy.mockRestore();
     });
   });
 });

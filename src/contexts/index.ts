@@ -11,3 +11,10 @@ export {
   type PodcastPlayback,
   type PodcastPlayerContextValue,
 } from './podcast-player';
+
+export {
+  AuthProvider,
+  AuthContext,
+  type AuthUser,
+  type AuthContextValue,
+} from './auth-context';

@@ -71,7 +71,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       {
         status: 200,
         headers: {
-          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
         },
       }
     );
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       {
         status: 200,
         headers: {
-          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
         },
       }
     );
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       {
         status: 200,
         headers: {
-          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
         },
       }
     );
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     {
       status: 200,
       headers: {
-        'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+        'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
       },
     }
   );

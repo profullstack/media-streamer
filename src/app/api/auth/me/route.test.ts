@@ -188,7 +188,7 @@ describe('GET /api/auth/me', () => {
       const response = await GET(request);
 
       expect(response.headers.get('Cache-Control')).toBe(
-        'private, no-cache, no-store, must-revalidate'
+        'private, max-age=30, stale-while-revalidate=300'
       );
     });
   });
