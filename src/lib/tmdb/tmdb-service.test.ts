@@ -1,8 +1,8 @@
 /**
  * TMDB Service Tests
  *
- * Tests for TMDB API client: fetching upcoming movies/TV, merging
- * endpoints, deduplication, credit enrichment, and caching.
+ * Tests for TMDB API client: /discover endpoints with date-range
+ * filtering, credit enrichment, genre resolution, and caching.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -19,7 +19,7 @@ function createMockCache(): TMDBCache {
 }
 
 // TMDB API response factories
-function createMovieListResponse(movies: Array<{ id: number; title: string; release_date?: string }>) {
+function createDiscoverMovieResponse(movies: Array<{ id: number; title: string; release_date?: string }>) {
   return {
     page: 1,
     total_pages: 1,
@@ -39,7 +39,7 @@ function createMovieListResponse(movies: Array<{ id: number; title: string; rele
   };
 }
 
-function createTVListResponse(shows: Array<{ id: number; name: string; first_air_date?: string }>) {
+function createDiscoverTVResponse(shows: Array<{ id: number; name: string; first_air_date?: string }>) {
   return {
     page: 1,
     total_pages: 1,
@@ -123,7 +123,6 @@ describe('TMDBService', () => {
     vi.restoreAllMocks();
   });
 
-  // Helper to create a mock Response
   function mockFetchResponse(data: unknown, ok = true, status = 200) {
     return Promise.resolve({
       ok,
@@ -133,16 +132,12 @@ describe('TMDBService', () => {
   }
 
   describe('getUpcomingMovies', () => {
-    it('returns upcoming movies with credits', async () => {
-      const movieList = createMovieListResponse([
+    it('returns upcoming movies with credits via /discover', async () => {
+      const discoverResponse = createDiscoverMovieResponse([
         { id: 1, title: 'Movie A', release_date: '2026-03-01' },
         { id: 2, title: 'Movie B', release_date: '2026-04-01' },
       ]);
 
-      // Setup fetch responses in order:
-      // 1-2. Genre lists (movie + tv)
-      // 3+. List endpoints (upcoming pages + now_playing pages)
-      // Then credits and details for each movie
       fetchSpy.mockImplementation((url: string) => {
         const urlStr = String(url);
 
@@ -152,8 +147,8 @@ describe('TMDBService', () => {
         if (urlStr.includes('/genre/tv/list')) {
           return mockFetchResponse(createGenresResponse('tv'));
         }
-        if (urlStr.includes('/movie/upcoming') || urlStr.includes('/movie/now_playing')) {
-          return mockFetchResponse(movieList);
+        if (urlStr.includes('/discover/movie')) {
+          return mockFetchResponse(discoverResponse);
         }
         if (urlStr.includes('/credits')) {
           return mockFetchResponse(createCreditsResponse(['Actor A', 'Actor B'], ['Director X']));
@@ -173,6 +168,26 @@ describe('TMDBService', () => {
       expect(result.items[0].directors).toContain('Director X');
       expect(result.items[0].runtime).toBe(120);
       expect(result.page).toBe(1);
+    });
+
+    it('uses discover endpoint with date range and sort params', async () => {
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/discover/movie')) {
+          // Verify the URL has the right params
+          expect(urlStr).toContain('primary_release_date.gte=');
+          expect(urlStr).toContain('primary_release_date.lte=');
+          expect(urlStr).toContain('sort_by=primary_release_date.desc');
+          expect(urlStr).toContain('with_original_language=en');
+          return mockFetchResponse(createDiscoverMovieResponse([]));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      await service.getUpcomingMovies(1);
     });
 
     it('returns cached result when available', async () => {
@@ -208,55 +223,49 @@ describe('TMDBService', () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it('deduplicates movies from overlapping endpoints', async () => {
-      // Same movie appears in both upcoming and now_playing
-      const list = createMovieListResponse([
-        { id: 1, title: 'Same Movie', release_date: '2026-03-15' },
-      ]);
-
-      fetchSpy.mockImplementation((url: string) => {
-        const urlStr = String(url);
-        if (urlStr.includes('/genre/')) {
-          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
-        }
-        if (urlStr.includes('/movie/')) {
-          if (urlStr.includes('/credits')) {
-            return mockFetchResponse(createCreditsResponse([], []));
-          }
-          if (urlStr.match(/\/movie\/\d+\?/)) {
-            return mockFetchResponse(createMovieDetailResponse(90));
-          }
-          return mockFetchResponse(list);
-        }
-        return mockFetchResponse({}, false, 404);
-      });
-
-      const result = await service.getUpcomingMovies(1);
-
-      // Should only have 1 item despite appearing in both endpoints
-      expect(result.items).toHaveLength(1);
-      expect(result.items[0].id).toBe(1);
-    });
-
     it('handles API errors gracefully', async () => {
       fetchSpy.mockImplementation((url: string) => {
         const urlStr = String(url);
         if (urlStr.includes('/genre/')) {
           return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
         }
-        // All list endpoints fail
         return mockFetchResponse({ status_message: 'Not found' }, false, 404);
       });
 
       const result = await service.getUpcomingMovies(1);
 
       expect(result.items).toHaveLength(0);
+      expect(result.totalResults).toBe(0);
+    });
+
+    it('passes pagination through to TMDB', async () => {
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/discover/movie')) {
+          expect(urlStr).toContain('page=3');
+          return mockFetchResponse({
+            ...createDiscoverMovieResponse([]),
+            page: 3,
+            total_pages: 10,
+            total_results: 200,
+          });
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      const result = await service.getUpcomingMovies(3);
+
+      expect(result.page).toBe(3);
+      expect(result.totalPages).toBe(10);
     });
   });
 
   describe('getUpcomingTVSeries', () => {
-    it('returns upcoming TV series with credits', async () => {
-      const tvList = createTVListResponse([
+    it('returns upcoming TV series with credits via /discover', async () => {
+      const discoverResponse = createDiscoverTVResponse([
         { id: 10, name: 'Show A', first_air_date: '2026-03-01' },
         { id: 20, name: 'Show B', first_air_date: '2026-04-01' },
       ]);
@@ -269,8 +278,8 @@ describe('TMDBService', () => {
         if (urlStr.includes('/genre/tv/list')) {
           return mockFetchResponse(createGenresResponse('tv'));
         }
-        if (urlStr.includes('/tv/on_the_air') || urlStr.includes('/tv/airing_today')) {
-          return mockFetchResponse(tvList);
+        if (urlStr.includes('/discover/tv')) {
+          return mockFetchResponse(discoverResponse);
         }
         if (urlStr.includes('/credits')) {
           return mockFetchResponse(createCreditsResponse(['TV Actor'], []));
@@ -288,6 +297,24 @@ describe('TMDBService', () => {
       expect(result.items[0].mediaType).toBe('tv');
       expect(result.items[0].cast).toContain('TV Actor');
       expect(result.items[0].runtime).toBe(45);
+    });
+
+    it('uses discover endpoint with TV date range params', async () => {
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/discover/tv')) {
+          expect(urlStr).toContain('first_air_date.gte=');
+          expect(urlStr).toContain('first_air_date.lte=');
+          expect(urlStr).toContain('sort_by=first_air_date.desc');
+          return mockFetchResponse(createDiscoverTVResponse([]));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      await service.getUpcomingTVSeries(1);
     });
 
     it('returns cached result when available', async () => {
@@ -326,7 +353,7 @@ describe('TMDBService', () => {
 
   describe('credit enrichment', () => {
     it('limits cast to top 5 by order', async () => {
-      const movieList = createMovieListResponse([
+      const discoverResponse = createDiscoverMovieResponse([
         { id: 1, title: 'Big Cast Movie' },
       ]);
 
@@ -337,14 +364,14 @@ describe('TMDBService', () => {
         if (urlStr.includes('/genre/')) {
           return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
         }
+        if (urlStr.includes('/discover/movie')) {
+          return mockFetchResponse(discoverResponse);
+        }
         if (urlStr.includes('/credits')) {
           return mockFetchResponse(createCreditsResponse(bigCast, ['Director']));
         }
         if (urlStr.match(/\/movie\/\d+\?/)) {
           return mockFetchResponse(createMovieDetailResponse(150));
-        }
-        if (urlStr.includes('/movie/')) {
-          return mockFetchResponse(movieList);
         }
         return mockFetchResponse({}, false, 404);
       });
@@ -357,7 +384,7 @@ describe('TMDBService', () => {
     });
 
     it('handles credit fetch failures gracefully', async () => {
-      const movieList = createMovieListResponse([
+      const discoverResponse = createDiscoverMovieResponse([
         { id: 1, title: 'No Credits Movie' },
       ]);
 
@@ -366,8 +393,8 @@ describe('TMDBService', () => {
         if (urlStr.includes('/genre/')) {
           return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
         }
-        if (urlStr.includes('/movie/upcoming') || urlStr.includes('/movie/now_playing')) {
-          return mockFetchResponse(movieList);
+        if (urlStr.includes('/discover/movie')) {
+          return mockFetchResponse(discoverResponse);
         }
         // Credits and details fail
         return mockFetchResponse({}, false, 500);
@@ -375,7 +402,6 @@ describe('TMDBService', () => {
 
       const result = await service.getUpcomingMovies(1);
 
-      // Should still return the movie, just without credits
       expect(result.items).toHaveLength(1);
       expect(result.items[0].cast).toEqual([]);
       expect(result.items[0].directors).toEqual([]);
@@ -383,8 +409,8 @@ describe('TMDBService', () => {
   });
 
   describe('genre resolution', () => {
-    it('maps genre IDs to names', async () => {
-      const movieList = createMovieListResponse([
+    it('maps genre IDs to names from detail endpoint', async () => {
+      const discoverResponse = createDiscoverMovieResponse([
         { id: 1, title: 'Genre Movie' },
       ]);
 
@@ -396,22 +422,20 @@ describe('TMDBService', () => {
         if (urlStr.includes('/genre/tv/list')) {
           return mockFetchResponse(createGenresResponse('tv'));
         }
+        if (urlStr.includes('/discover/movie')) {
+          return mockFetchResponse(discoverResponse);
+        }
         if (urlStr.includes('/credits')) {
           return mockFetchResponse(createCreditsResponse([], []));
         }
         if (urlStr.match(/\/movie\/\d+\?/)) {
-          // Return details with genre names
           return mockFetchResponse(createMovieDetailResponse(100));
-        }
-        if (urlStr.includes('/movie/')) {
-          return mockFetchResponse(movieList);
         }
         return mockFetchResponse({}, false, 404);
       });
 
       const result = await service.getUpcomingMovies(1);
 
-      // Genre names from detail endpoint override genre_ids
       expect(result.items[0].genres).toContain('Action');
       expect(result.items[0].genres).toContain('Adventure');
     });
@@ -419,7 +443,7 @@ describe('TMDBService', () => {
 
   describe('image URLs', () => {
     it('constructs poster and backdrop URLs from TMDB paths', async () => {
-      const movieList = createMovieListResponse([
+      const discoverResponse = createDiscoverMovieResponse([
         { id: 1, title: 'Image Movie' },
       ]);
 
@@ -428,14 +452,14 @@ describe('TMDBService', () => {
         if (urlStr.includes('/genre/')) {
           return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
         }
+        if (urlStr.includes('/discover/movie')) {
+          return mockFetchResponse(discoverResponse);
+        }
         if (urlStr.includes('/credits')) {
           return mockFetchResponse(createCreditsResponse([], []));
         }
         if (urlStr.match(/\/movie\/\d+\?/)) {
           return mockFetchResponse(createMovieDetailResponse(90));
-        }
-        if (urlStr.includes('/movie/')) {
-          return mockFetchResponse(movieList);
         }
         return mockFetchResponse({}, false, 404);
       });

@@ -1,8 +1,9 @@
 /**
  * TMDB Service
  *
- * Fetches upcoming/now-playing movies and on-the-air/airing-today TV
- * from TMDB API v3. Enriches with credits (cast, directors).
+ * Uses /discover/movie and /discover/tv endpoints with server-side
+ * date filtering (last 30 days → 6 months ahead) sorted by release
+ * date descending. Enriches with credits (cast, directors).
  * All responses are cached via TMDBCache.
  */
 
@@ -10,7 +11,6 @@ import { TMDBCache, CACHE_TTL, getTMDBCache } from './tmdb-cache';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
-const ITEMS_PER_PAGE = 50;
 
 // ============================================================================
 // Types
@@ -67,7 +67,7 @@ interface TMDBRawTV {
   popularity: number;
 }
 
-interface TMDBListApiResponse {
+interface TMDBDiscoverResponse {
   page: number;
   total_pages: number;
   total_results: number;
@@ -95,6 +95,11 @@ interface TMDBGenre {
   name: string;
 }
 
+/** Format a Date as YYYY-MM-DD */
+function toDateStr(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 // ============================================================================
 // Service
 // ============================================================================
@@ -109,106 +114,71 @@ export class TMDBService {
   ) {}
 
   /**
-   * Fetch upcoming movies (combines upcoming + now_playing)
+   * Fetch upcoming movies via /discover/movie
+   * Date window: 30 days ago → 6 months from now, sorted newest first
    */
   async getUpcomingMovies(page: number = 1): Promise<TMDBListResponse> {
-    const cacheKey = `movies:page:${page}`;
+    const cacheKey = `movies:v2:page:${page}`;
     const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
     if (cached) return cached;
 
-    const result = await this.fetchMergedList(
-      '/movie/upcoming',
-      '/movie/now_playing',
-      'movie',
-      page,
-    );
+    const result = await this.fetchDiscover('movie', page);
 
     await this.cache.set('response', cacheKey, result, CACHE_TTL.RESPONSE);
     return result;
   }
 
   /**
-   * Fetch upcoming TV series (combines on_the_air + airing_today)
+   * Fetch upcoming TV series via /discover/tv
+   * Date window: 30 days ago → 6 months from now, sorted newest first
    */
   async getUpcomingTVSeries(page: number = 1): Promise<TMDBListResponse> {
-    const cacheKey = `tv:page:${page}`;
+    const cacheKey = `tv:v2:page:${page}`;
     const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
     if (cached) return cached;
 
-    const result = await this.fetchMergedList(
-      '/tv/on_the_air',
-      '/tv/airing_today',
-      'tv',
-      page,
-    );
+    const result = await this.fetchDiscover('tv', page);
 
     await this.cache.set('response', cacheKey, result, CACHE_TTL.RESPONSE);
     return result;
   }
 
   /**
-   * Fetch and merge two TMDB list endpoints, deduplicate by ID
+   * Fetch from /discover endpoint with server-side date range and sort
    */
-  private async fetchMergedList(
-    endpoint1: string,
-    endpoint2: string,
+  private async fetchDiscover(
     mediaType: 'movie' | 'tv',
     page: number,
   ): Promise<TMDBListResponse> {
-    // Ensure genre maps are loaded
     await this.ensureGenreMaps();
 
-    // We need enough items to fill our page. TMDB returns 20 per page.
-    // For 50 items per page, we need ~3 TMDB pages from each endpoint.
-    const tmdbPagesNeeded = Math.ceil(ITEMS_PER_PAGE / 20) + 1; // 4 pages
-    const startTmdbPage = (page - 1) * tmdbPagesNeeded + 1;
+    const now = new Date();
+    const dateFrom = new Date(now);
+    dateFrom.setDate(dateFrom.getDate() - 30);
+    const dateTo = new Date(now);
+    dateTo.setMonth(dateTo.getMonth() + 6);
 
-    // Fetch from both endpoints in parallel
-    const fetchPromises: Promise<TMDBListApiResponse | null>[] = [];
-    for (let i = 0; i < tmdbPagesNeeded; i++) {
-      const tmdbPage = startTmdbPage + i;
-      fetchPromises.push(this.fetchTMDBList(endpoint1, tmdbPage));
-      fetchPromises.push(this.fetchTMDBList(endpoint2, tmdbPage));
+    const dateFromStr = toDateStr(dateFrom);
+    const dateToStr = toDateStr(dateTo);
+
+    // Build discover URL with date range + sort
+    const dateParams = mediaType === 'movie'
+      ? `primary_release_date.gte=${dateFromStr}&primary_release_date.lte=${dateToStr}&sort_by=primary_release_date.desc`
+      : `first_air_date.gte=${dateFromStr}&first_air_date.lte=${dateToStr}&sort_by=first_air_date.desc`;
+
+    const discoverUrl = `${TMDB_BASE_URL}/discover/${mediaType}`
+      + `?api_key=${this.apiKey}&language=en-US&page=${page}&region=US`
+      + `&${dateParams}&include_adult=false&with_original_language=en`;
+
+    const data = await this.fetchUrl<TMDBDiscoverResponse>(discoverUrl, `discover:${mediaType}:${page}`);
+
+    if (!data) {
+      return { items: [], page, totalPages: 0, totalResults: 0 };
     }
-
-    const responses = await Promise.allSettled(fetchPromises);
-    const allItems: (TMDBRawMovie | TMDBRawTV)[] = [];
-    let maxTotalResults = 0;
-
-    for (const response of responses) {
-      if (response.status === 'fulfilled' && response.value) {
-        allItems.push(...response.value.results);
-        maxTotalResults = Math.max(maxTotalResults, response.value.total_results);
-      }
-    }
-
-    // Deduplicate by ID
-    const seen = new Set<number>();
-    const uniqueItems: (TMDBRawMovie | TMDBRawTV)[] = [];
-    for (const item of allItems) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        uniqueItems.push(item);
-      }
-    }
-
-    // Sort by release date (ascending - soonest first)
-    uniqueItems.sort((a, b) => {
-      const dateA = mediaType === 'movie'
-        ? (a as TMDBRawMovie).release_date
-        : (a as TMDBRawTV).first_air_date;
-      const dateB = mediaType === 'movie'
-        ? (b as TMDBRawMovie).release_date
-        : (b as TMDBRawTV).first_air_date;
-      return (dateA || '').localeCompare(dateB || '');
-    });
-
-    // Take items for current page
-    const pageItems = uniqueItems.slice(0, ITEMS_PER_PAGE);
 
     // Map to our format
     const genreMap = mediaType === 'movie' ? this.genreMapMovie : this.genreMapTV;
-    const items: TMDBUpcomingItem[] = pageItems.map(raw => {
+    const items: TMDBUpcomingItem[] = data.results.map(raw => {
       const isMovie = mediaType === 'movie';
       const movieRaw = raw as TMDBRawMovie;
       const tvRaw = raw as TMDBRawTV;
@@ -236,38 +206,34 @@ export class TMDBService {
     // Enrich with credits
     const enriched = await this.enrichWithCredits(items, mediaType);
 
-    const totalPages = Math.ceil(maxTotalResults / ITEMS_PER_PAGE);
-
     return {
       items: enriched,
-      page,
-      totalPages,
-      totalResults: maxTotalResults,
+      page: data.page,
+      totalPages: data.total_pages,
+      totalResults: data.total_results,
     };
   }
 
   /**
-   * Fetch a single TMDB list endpoint
+   * Generic URL fetcher with cache
    */
-  private async fetchTMDBList(endpoint: string, page: number): Promise<TMDBListApiResponse | null> {
-    const cacheKey = `${endpoint}:${page}`;
-    const cached = await this.cache.get<TMDBListApiResponse>('list', cacheKey);
+  private async fetchUrl<T>(url: string, cacheKey: string): Promise<T | null> {
+    const cached = await this.cache.get<T>('list', cacheKey);
     if (cached) return cached;
 
     try {
-      const url = `${TMDB_BASE_URL}${endpoint}?api_key=${this.apiKey}&language=en-US&page=${page}&region=US`;
       const response = await fetch(url);
 
       if (!response.ok) {
-        console.error(`[TMDB] Failed to fetch ${endpoint} page ${page}: ${response.status}`);
+        console.error(`[TMDB] Failed to fetch ${cacheKey}: ${response.status}`);
         return null;
       }
 
-      const data = await response.json() as TMDBListApiResponse;
+      const data = await response.json() as T;
       await this.cache.set('list', cacheKey, data, CACHE_TTL.LIST);
       return data;
     } catch (error) {
-      console.error(`[TMDB] Error fetching ${endpoint}:`, error);
+      console.error(`[TMDB] Error fetching ${cacheKey}:`, error);
       return null;
     }
   }

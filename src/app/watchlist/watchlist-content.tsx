@@ -7,7 +7,7 @@
  * - Watchlist selector dropdown
  * - Create/rename/delete watchlist actions
  * - Card layout matching Upcoming page
- * - Find Torrent, Add magnet, Remove buttons per item
+ * - Find Torrent, Remove buttons per item
  */
 
 import { useState, useCallback } from 'react';
@@ -15,7 +15,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { MediaThumbnail } from '@/components/ui/media-placeholder';
-import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
 import {
   SearchIcon,
   StarIcon,
@@ -92,13 +91,11 @@ function buildSearchQuery(title: string, releaseDate: string | null): string {
 function WatchlistItemCard({
   item,
   onFindTorrent,
-  onAddMagnet,
   onRemove,
   isRemoving,
 }: {
   item: WatchlistItemData;
   onFindTorrent: (query: string) => void;
-  onAddMagnet: () => void;
   onRemove: () => void;
   isRemoving: boolean;
 }): React.ReactElement {
@@ -208,20 +205,6 @@ function WatchlistItemCard({
 
             <button
               type="button"
-              onClick={onAddMagnet}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium',
-                'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
-                'transition-colors'
-              )}
-              title="Add magnet URL"
-            >
-              <PlusIcon size={14} />
-              Add
-            </button>
-
-            <button
-              type="button"
               onClick={onRemove}
               disabled={isRemoving}
               className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
@@ -263,9 +246,6 @@ export function WatchlistContent({
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-
-  // Add Magnet modal state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const activeWatchlist = watchlists.find(w => w.id === activeWatchlistId);
 
@@ -393,14 +373,7 @@ export function WatchlistContent({
   }, [activeWatchlistId]);
 
   const handleFindTorrent = (query: string): void => {
-    router.push(`/find-torrents?q=${encodeURIComponent(query)}`);
-  };
-
-  const handleAddSuccess = (torrent: { id: string }): void => {
-    setIsAddModalOpen(false);
-    setTimeout(() => {
-      router.push(`/torrents/${torrent.id}`);
-    }, 100);
+    router.push(`/search?q=${encodeURIComponent(query)}`);
   };
 
   return (
@@ -562,7 +535,6 @@ export function WatchlistContent({
                 key={item.id}
                 item={item}
                 onFindTorrent={handleFindTorrent}
-                onAddMagnet={() => setIsAddModalOpen(true)}
                 onRemove={() => handleRemoveItem(item)}
                 isRemoving={removingItems.has(itemKey)}
               />
@@ -589,12 +561,6 @@ export function WatchlistContent({
         </div>
       ) : null}
 
-      {/* Add Magnet Modal */}
-      <AddMagnetModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSuccess={handleAddSuccess}
-      />
     </div>
   );
 }

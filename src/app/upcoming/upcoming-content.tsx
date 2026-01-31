@@ -5,7 +5,7 @@
  *
  * Displays upcoming movies and TV series from TMDB.
  * Features: tab switching (Movies/TV), card layout, Add to Watchlist,
- * Find Torrent button, Add magnet button, load more pagination.
+ * Find Torrent button, load more pagination.
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -15,14 +15,12 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { MediaThumbnail } from '@/components/ui/media-placeholder';
 import { AddToWatchlistButton, type WatchlistItemData } from '@/components/watchlist';
-import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
 import {
   MovieIcon,
   TvIcon,
   SearchIcon,
   StarIcon,
   ClockIcon,
-  PlusIcon,
   LoadingSpinner,
   CreditCardIcon,
 } from '@/components/ui/icons';
@@ -99,11 +97,9 @@ function toWatchlistItemData(item: UpcomingItem): WatchlistItemData {
 function UpcomingItemCard({
   item,
   onFindTorrent,
-  onAddMagnet,
 }: {
   item: UpcomingItem;
   onFindTorrent: (query: string) => void;
-  onAddMagnet: (title: string) => void;
 }): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -216,20 +212,6 @@ function UpcomingItemCard({
               <SearchIcon size={14} />
               Find Torrent
             </button>
-
-            <button
-              type="button"
-              onClick={() => onAddMagnet(item.title)}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium',
-                'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
-                'transition-colors'
-              )}
-              title="Add magnet URL"
-            >
-              <PlusIcon size={14} />
-              Add
-            </button>
           </div>
         </div>
       </div>
@@ -275,10 +257,6 @@ export function UpcomingContent(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
-
-  // Add Magnet modal state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addModalTitle, setAddModalTitle] = useState('');
 
   const fetchItems = useCallback(async (tab: ActiveTab, pageNum: number, append: boolean = false): Promise<void> => {
     if (append) {
@@ -344,19 +322,7 @@ export function UpcomingContent(): React.ReactElement {
   };
 
   const handleFindTorrent = (query: string): void => {
-    router.push(`/find-torrents?q=${encodeURIComponent(query)}`);
-  };
-
-  const handleAddMagnet = (title: string): void => {
-    setAddModalTitle(title);
-    setIsAddModalOpen(true);
-  };
-
-  const handleAddSuccess = (torrent: { id: string }): void => {
-    setIsAddModalOpen(false);
-    setTimeout(() => {
-      router.push(`/torrents/${torrent.id}`);
-    }, 100);
+    router.push(`/search?q=${encodeURIComponent(query)}`);
   };
 
   if (!isPremium) {
@@ -430,7 +396,6 @@ export function UpcomingContent(): React.ReactElement {
               key={`${item.mediaType}-${item.id}`}
               item={item}
               onFindTorrent={handleFindTorrent}
-              onAddMagnet={handleAddMagnet}
             />
           ))}
         </div>
@@ -464,16 +429,6 @@ export function UpcomingContent(): React.ReactElement {
         </div>
       ) : null}
 
-      {/* Add Magnet Modal */}
-      <AddMagnetModal
-        isOpen={isAddModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setAddModalTitle('');
-        }}
-        onSuccess={handleAddSuccess}
-        initialMagnetUrl={addModalTitle ? undefined : undefined}
-      />
     </div>
   );
 }
