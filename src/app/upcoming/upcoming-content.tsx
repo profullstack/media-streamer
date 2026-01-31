@@ -3,12 +3,13 @@
 /**
  * Upcoming Content (Client Component)
  *
- * Displays upcoming movies and TV series from TMDB.
- * Features: tab switching (Movies/TV), card layout, Add to Watchlist,
- * Find Torrent button, load more pagination.
+ * Displays upcoming, recent, and TMDB search results.
+ * Features: Upcoming/Recent mode toggle, Movies/TV tabs,
+ * search bar, card layout, Add to Watchlist, Find Torrent
+ * (recent + search only), load more pagination.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ import {
   SearchIcon,
   StarIcon,
   ClockIcon,
+  CloseIcon,
   LoadingSpinner,
   CreditCardIcon,
 } from '@/components/ui/icons';
@@ -42,9 +44,10 @@ interface UpcomingItem {
   popularity: number;
 }
 
-type ActiveTab = 'movies' | 'tv';
+type ViewMode = 'upcoming' | 'recent';
+type MediaTab = 'movies' | 'tv';
 
-const TAB_OPTIONS: { key: ActiveTab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const TAB_OPTIONS: { key: MediaTab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { key: 'movies', label: 'Movies', icon: MovieIcon },
   { key: 'tv', label: 'TV Series', icon: TvIcon },
 ];
@@ -91,15 +94,28 @@ function toWatchlistItemData(item: UpcomingItem): WatchlistItemData {
   };
 }
 
+function getEndpoint(mode: ViewMode, tab: MediaTab, pageNum: number): string {
+  if (mode === 'upcoming') {
+    return tab === 'movies'
+      ? `/api/upcoming/movies?page=${pageNum}`
+      : `/api/upcoming/tvseries?page=${pageNum}`;
+  }
+  return tab === 'movies'
+    ? `/api/recent/movies?page=${pageNum}`
+    : `/api/recent/tvseries?page=${pageNum}`;
+}
+
 /**
- * Upcoming Item Card
+ * Upcoming/Recent Item Card
  */
 function UpcomingItemCard({
   item,
+  showFindButton,
   onFindTorrent,
 }: {
   item: UpcomingItem;
-  onFindTorrent: (query: string) => void;
+  showFindButton: boolean;
+  onFindTorrent?: (query: string) => void;
 }): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -204,14 +220,16 @@ function UpcomingItemCard({
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <AddToWatchlistButton item={toWatchlistItemData(item)} />
 
-            <button
-              type="button"
-              onClick={() => onFindTorrent(buildSearchQuery(item))}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-primary/90 transition-colors"
-            >
-              <SearchIcon size={14} />
-              Find Torrent
-            </button>
+            {showFindButton && onFindTorrent ? (
+              <button
+                type="button"
+                onClick={() => onFindTorrent(buildSearchQuery(item))}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-accent-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-primary/90 transition-colors"
+              >
+                <SearchIcon size={14} />
+                Find Torrent
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -249,7 +267,8 @@ export function UpcomingContent(): React.ReactElement {
   const { isPremium } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('movies');
+  const [viewMode, setViewMode] = useState<ViewMode>('upcoming');
+  const [mediaTab, setMediaTab] = useState<MediaTab>('movies');
   const [items, setItems] = useState<UpcomingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -258,7 +277,18 @@ export function UpcomingContent(): React.ReactElement {
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
 
-  const fetchItems = useCallback(async (tab: ActiveTab, pageNum: number, append: boolean = false): Promise<void> => {
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch items for current mode/tab
+  const fetchItems = useCallback(async (
+    mode: ViewMode,
+    tab: MediaTab,
+    pageNum: number,
+    append: boolean = false,
+  ): Promise<void> => {
     if (append) {
       setIsLoadingMore(true);
     } else {
@@ -267,15 +297,12 @@ export function UpcomingContent(): React.ReactElement {
     setError(null);
 
     try {
-      const endpoint = tab === 'movies'
-        ? `/api/upcoming/movies?page=${pageNum}`
-        : `/api/upcoming/tvseries?page=${pageNum}`;
-
+      const endpoint = getEndpoint(mode, tab, pageNum);
       const response = await fetch(endpoint);
 
       if (!response.ok) {
         const data = await response.json() as { error?: string };
-        throw new Error(data.error ?? 'Failed to fetch upcoming content');
+        throw new Error(data.error ?? 'Failed to fetch content');
       }
 
       const data = await response.json() as {
@@ -304,26 +331,119 @@ export function UpcomingContent(): React.ReactElement {
     }
   }, []);
 
-  // Fetch on tab change
-  useEffect(() => {
-    if (isPremium) {
-      setPage(1);
-      fetchItems(activeTab, 1);
+  // Fetch search results
+  const fetchSearchResults = useCallback(async (
+    query: string,
+    pageNum: number,
+    append: boolean = false,
+  ): Promise<void> => {
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
     }
-  }, [activeTab, isPremium, fetchItems]);
+    setError(null);
 
-  const handleTabChange = (tab: ActiveTab): void => {
-    setActiveTab(tab);
+    try {
+      const response = await fetch(
+        `/api/tmdb/search?q=${encodeURIComponent(query)}&page=${pageNum}`,
+      );
+
+      if (!response.ok) {
+        const data = await response.json() as { error?: string };
+        throw new Error(data.error ?? 'Search failed');
+      }
+
+      const data = await response.json() as {
+        items: UpcomingItem[];
+        page: number;
+        totalPages: number;
+        totalResults: number;
+      };
+
+      if (append) {
+        setItems(prev => [...prev, ...data.items]);
+      } else {
+        setItems(data.items);
+      }
+      setPage(data.page);
+      setTotalPages(data.totalPages);
+      setTotalResults(data.totalResults);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      if (!append) {
+        setItems([]);
+      }
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, []);
+
+  // Fetch on mode/tab change (non-search)
+  useEffect(() => {
+    if (isPremium && !isSearchActive) {
+      setPage(1);
+      fetchItems(viewMode, mediaTab, 1);
+    }
+  }, [viewMode, mediaTab, isPremium, isSearchActive, fetchItems]);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+
+    if (!searchQuery || searchQuery.trim().length < 2) {
+      if (isSearchActive) {
+        setIsSearchActive(false);
+      }
+      return;
+    }
+
+    searchTimerRef.current = setTimeout(() => {
+      setIsSearchActive(true);
+      setPage(1);
+      fetchSearchResults(searchQuery.trim(), 1);
+    }, 400);
+
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+    };
+  }, [searchQuery, fetchSearchResults, isSearchActive]);
+
+  const handleModeChange = (mode: ViewMode): void => {
+    setViewMode(mode);
+    setPage(1);
+  };
+
+  const handleTabChange = (tab: MediaTab): void => {
+    setMediaTab(tab);
+    setPage(1);
   };
 
   const handleLoadMore = (): void => {
     const nextPage = page + 1;
-    fetchItems(activeTab, nextPage, true);
+    if (isSearchActive) {
+      fetchSearchResults(searchQuery.trim(), nextPage, true);
+    } else {
+      fetchItems(viewMode, mediaTab, nextPage, true);
+    }
   };
 
   const handleFindTorrent = (query: string): void => {
     router.push(`/search?q=${encodeURIComponent(query)}`);
   };
+
+  const handleClearSearch = (): void => {
+    setSearchQuery('');
+    setIsSearchActive(false);
+  };
+
+  // Show Find button for recent and search results (not upcoming)
+  const showFindButton = isSearchActive || viewMode === 'recent';
 
   if (!isPremium) {
     return <PremiumGate />;
@@ -335,40 +455,93 @@ export function UpcomingContent(): React.ReactElement {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Upcoming</h1>
+        <h1 className="text-2xl font-bold text-text-primary">Upcoming & Recent</h1>
         <p className="text-sm text-text-secondary mt-1">
-          Discover upcoming and recently released movies and TV series
+          Discover upcoming, recently released, and search for movies and TV series
         </p>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex border-b border-border-subtle">
-        {TAB_OPTIONS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => handleTabChange(tab.key)}
-              className={cn(
-                'relative flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors',
-                activeTab === tab.key
-                  ? 'text-accent-primary'
-                  : 'text-text-secondary hover:text-text-primary',
-              )}
-            >
-              <Icon size={16} />
-              {tab.label}
-              {activeTab === tab.key ? (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary" />
-              ) : null}
-            </button>
-          );
-        })}
+      {/* Search Bar */}
+      <div className="relative">
+        <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search movies & TV series..."
+          className="w-full rounded-lg border border-border-primary bg-bg-secondary pl-10 pr-10 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+        />
+        {searchQuery ? (
+          <button
+            type="button"
+            onClick={handleClearSearch}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+          >
+            <CloseIcon size={16} />
+          </button>
+        ) : null}
       </div>
 
-      {/* Results count */}
-      {!isLoading && items.length > 0 ? (
+      {/* Mode Toggle + Media Tabs (hidden during search) */}
+      {!isSearchActive ? (
+        <>
+          {/* View Mode Toggle: Upcoming | Recent */}
+          <div className="flex gap-2">
+            {(['upcoming', 'recent'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => handleModeChange(mode)}
+                className={cn(
+                  'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                  viewMode === mode
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-bg-tertiary text-text-secondary hover:text-text-primary',
+                )}
+              >
+                {mode === 'upcoming' ? 'Upcoming' : 'Recent'}
+              </button>
+            ))}
+          </div>
+
+          {/* Media Tab Bar */}
+          <div className="flex border-b border-border-subtle">
+            {TAB_OPTIONS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => handleTabChange(tab.key)}
+                  className={cn(
+                    'relative flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors',
+                    mediaTab === tab.key
+                      ? 'text-accent-primary'
+                      : 'text-text-secondary hover:text-text-primary',
+                  )}
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                  {mediaTab === tab.key ? (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+
+      {/* Search Results Header */}
+      {isSearchActive && !isLoading ? (
+        <div className="text-sm text-text-secondary">
+          Results for &ldquo;<span className="text-text-primary font-medium">{searchQuery}</span>&rdquo;
+          {totalResults > 0 ? ` (${totalResults.toLocaleString()} results)` : null}
+        </div>
+      ) : null}
+
+      {/* Results count (non-search) */}
+      {!isSearchActive && !isLoading && items.length > 0 ? (
         <div className="text-xs text-text-muted">
           Showing {items.length.toLocaleString()} of {totalResults.toLocaleString()} results
         </div>
@@ -395,6 +568,7 @@ export function UpcomingContent(): React.ReactElement {
             <UpcomingItemCard
               key={`${item.mediaType}-${item.id}`}
               item={item}
+              showFindButton={showFindButton}
               onFindTorrent={handleFindTorrent}
             />
           ))}
@@ -404,7 +578,9 @@ export function UpcomingContent(): React.ReactElement {
       {/* Empty State */}
       {!isLoading && !error && items.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-text-muted">No upcoming content found</p>
+          <p className="text-text-muted">
+            {isSearchActive ? 'No results found' : 'No content found'}
+          </p>
         </div>
       ) : null}
 
@@ -428,7 +604,6 @@ export function UpcomingContent(): React.ReactElement {
           </button>
         </div>
       ) : null}
-
     </div>
   );
 }

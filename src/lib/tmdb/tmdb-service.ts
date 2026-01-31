@@ -1,9 +1,8 @@
 /**
  * TMDB Service
  *
- * Uses /discover/movie and /discover/tv endpoints with server-side
- * date filtering (last 30 days → 6 months ahead) sorted by release
- * date descending. Enriches with credits (cast, directors).
+ * Uses /discover, /movie/now_playing, /tv/on_the_air, /tv/airing_today,
+ * and /search/multi endpoints. Enriches with credits (cast, directors).
  * All responses are cached via TMDBCache.
  */
 
@@ -74,6 +73,29 @@ interface TMDBDiscoverResponse {
   results: (TMDBRawMovie | TMDBRawTV)[];
 }
 
+interface TMDBSearchMultiResult {
+  id: number;
+  media_type: 'movie' | 'tv' | 'person';
+  title?: string;
+  name?: string;
+  overview?: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average: number;
+  vote_count: number;
+  genre_ids: number[];
+  popularity: number;
+}
+
+interface TMDBSearchMultiResponse {
+  page: number;
+  total_pages: number;
+  total_results: number;
+  results: TMDBSearchMultiResult[];
+}
+
 interface TMDBCreditsResponse {
   cast: { name: string; character: string; order: number }[];
   crew: { name: string; job: string }[];
@@ -113,12 +135,16 @@ export class TMDBService {
     private readonly cache: TMDBCache,
   ) {}
 
+  // --------------------------------------------------------------------------
+  // Public: Upcoming (discover with future date range)
+  // --------------------------------------------------------------------------
+
   /**
    * Fetch upcoming movies via /discover/movie
    * Date window: 30 days ago → 6 months from now, sorted newest first
    */
   async getUpcomingMovies(page: number = 1): Promise<TMDBListResponse> {
-    const cacheKey = `movies:v2:page:${page}`;
+    const cacheKey = `movies:v3:page:${page}`;
     const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
     if (cached) return cached;
 
@@ -130,10 +156,10 @@ export class TMDBService {
 
   /**
    * Fetch upcoming TV series via /discover/tv
-   * Date window: 30 days ago → 6 months from now, sorted newest first
+   * Date window: 30 days ago → 6 months from now, sorted soonest first
    */
   async getUpcomingTVSeries(page: number = 1): Promise<TMDBListResponse> {
-    const cacheKey = `tv:v2:page:${page}`;
+    const cacheKey = `tv:v3:page:${page}`;
     const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
     if (cached) return cached;
 
@@ -143,9 +169,65 @@ export class TMDBService {
     return result;
   }
 
+  // --------------------------------------------------------------------------
+  // Public: Recent releases
+  // --------------------------------------------------------------------------
+
   /**
-   * Fetch from /discover endpoint with server-side date range and sort
+   * Fetch recently released movies.
+   * Merges /movie/now_playing with /discover/movie (last 30 days),
+   * deduplicates, sorts by release date desc.
    */
+  async getRecentMovies(page: number = 1): Promise<TMDBListResponse> {
+    const cacheKey = `recent:movies:v1:page:${page}`;
+    const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
+    if (cached) return cached;
+
+    const result = await this.fetchRecentMovies(page);
+
+    await this.cache.set('response', cacheKey, result, CACHE_TTL.RESPONSE);
+    return result;
+  }
+
+  /**
+   * Fetch recently airing TV series.
+   * Merges /tv/on_the_air + /tv/airing_today + /discover/tv (last 30 days),
+   * deduplicates, sorts by air date desc.
+   */
+  async getRecentTVSeries(page: number = 1): Promise<TMDBListResponse> {
+    const cacheKey = `recent:tv:v1:page:${page}`;
+    const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
+    if (cached) return cached;
+
+    const result = await this.fetchRecentTV(page);
+
+    await this.cache.set('response', cacheKey, result, CACHE_TTL.RESPONSE);
+    return result;
+  }
+
+  // --------------------------------------------------------------------------
+  // Public: Search
+  // --------------------------------------------------------------------------
+
+  /**
+   * Search TMDB for movies and TV series.
+   * Uses /search/multi, filters out person results, enriches with credits.
+   */
+  async searchMulti(query: string, page: number = 1): Promise<TMDBListResponse> {
+    const cacheKey = `search:multi:${query}:page:${page}`;
+    const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
+    if (cached) return cached;
+
+    const result = await this.fetchSearchMulti(query, page);
+
+    await this.cache.set('response', cacheKey, result, CACHE_TTL.RESPONSE);
+    return result;
+  }
+
+  // --------------------------------------------------------------------------
+  // Private: Discover (upcoming)
+  // --------------------------------------------------------------------------
+
   private async fetchDiscover(
     mediaType: 'movie' | 'tv',
     page: number,
@@ -161,10 +243,9 @@ export class TMDBService {
     const dateFromStr = toDateStr(dateFrom);
     const dateToStr = toDateStr(dateTo);
 
-    // Build discover URL with date range + sort
     const dateParams = mediaType === 'movie'
-      ? `primary_release_date.gte=${dateFromStr}&primary_release_date.lte=${dateToStr}&sort_by=primary_release_date.desc`
-      : `first_air_date.gte=${dateFromStr}&first_air_date.lte=${dateToStr}&sort_by=first_air_date.desc`;
+      ? `primary_release_date.gte=${dateFromStr}&primary_release_date.lte=${dateToStr}&sort_by=primary_release_date.asc`
+      : `first_air_date.gte=${dateFromStr}&first_air_date.lte=${dateToStr}&sort_by=first_air_date.asc`;
 
     const discoverUrl = `${TMDB_BASE_URL}/discover/${mediaType}`
       + `?api_key=${this.apiKey}&language=en-US&page=${page}&region=US`
@@ -176,34 +257,7 @@ export class TMDBService {
       return { items: [], page, totalPages: 0, totalResults: 0 };
     }
 
-    // Map to our format
-    const genreMap = mediaType === 'movie' ? this.genreMapMovie : this.genreMapTV;
-    const items: TMDBUpcomingItem[] = data.results.map(raw => {
-      const isMovie = mediaType === 'movie';
-      const movieRaw = raw as TMDBRawMovie;
-      const tvRaw = raw as TMDBRawTV;
-
-      return {
-        id: raw.id,
-        title: isMovie ? movieRaw.title : tvRaw.name,
-        mediaType,
-        posterUrl: raw.poster_path ? `${TMDB_IMAGE_BASE}/w500${raw.poster_path}` : null,
-        backdropUrl: raw.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${raw.backdrop_path}` : null,
-        overview: raw.overview || null,
-        releaseDate: isMovie ? movieRaw.release_date : tvRaw.first_air_date,
-        voteAverage: raw.vote_average || null,
-        voteCount: raw.vote_count || 0,
-        genres: (raw.genre_ids || [])
-          .map(id => genreMap?.get(id))
-          .filter((g): g is string => !!g),
-        cast: [],
-        directors: [],
-        runtime: null,
-        popularity: raw.popularity || 0,
-      };
-    });
-
-    // Enrich with credits
+    const items = this.mapRawResults(data.results, mediaType);
     const enriched = await this.enrichWithCredits(items, mediaType);
 
     return {
@@ -214,9 +268,272 @@ export class TMDBService {
     };
   }
 
-  /**
-   * Generic URL fetcher with cache
-   */
+  // --------------------------------------------------------------------------
+  // Private: Recent releases
+  // --------------------------------------------------------------------------
+
+  private async fetchRecentMovies(page: number): Promise<TMDBListResponse> {
+    await this.ensureGenreMaps();
+
+    const now = new Date();
+    const dateFrom = new Date(now);
+    dateFrom.setDate(dateFrom.getDate() - 30);
+    const dateFromStr = toDateStr(dateFrom);
+    const dateToStr = toDateStr(now);
+
+    const nowPlayingUrl = `${TMDB_BASE_URL}/movie/now_playing`
+      + `?api_key=${this.apiKey}&language=en-US&page=${page}&region=US`;
+
+    const discoverUrl = `${TMDB_BASE_URL}/discover/movie`
+      + `?api_key=${this.apiKey}&language=en-US&page=${page}&region=US`
+      + `&primary_release_date.gte=${dateFromStr}&primary_release_date.lte=${dateToStr}`
+      + `&sort_by=primary_release_date.desc&include_adult=false&with_original_language=en`;
+
+    const [nowPlaying, discover] = await Promise.all([
+      this.fetchUrl<TMDBDiscoverResponse>(nowPlayingUrl, `now_playing:movie:${page}`),
+      this.fetchUrl<TMDBDiscoverResponse>(discoverUrl, `recent_discover:movie:${page}`),
+    ]);
+
+    const allRaw = [
+      ...(nowPlaying?.results ?? []),
+      ...(discover?.results ?? []),
+    ];
+
+    // Deduplicate by ID
+    const seen = new Map<number, TMDBRawMovie>();
+    for (const raw of allRaw) {
+      if (!seen.has(raw.id)) {
+        seen.set(raw.id, raw as TMDBRawMovie);
+      }
+    }
+
+    // Sort by release_date descending
+    const unique = Array.from(seen.values()).sort((a, b) => {
+      const da = a.release_date || '';
+      const db = b.release_date || '';
+      return db.localeCompare(da);
+    });
+
+    const items = unique.map(raw => this.mapRawMovieToItem(raw));
+    const enriched = await this.enrichWithCredits(items, 'movie');
+
+    // Use discover totals as authoritative (filtered by date range)
+    const totalPages = discover?.total_pages ?? nowPlaying?.total_pages ?? 0;
+    const totalResults = discover?.total_results ?? nowPlaying?.total_results ?? 0;
+
+    return {
+      items: enriched,
+      page,
+      totalPages,
+      totalResults,
+    };
+  }
+
+  private async fetchRecentTV(page: number): Promise<TMDBListResponse> {
+    await this.ensureGenreMaps();
+
+    const now = new Date();
+    const dateFrom = new Date(now);
+    dateFrom.setDate(dateFrom.getDate() - 30);
+    const dateFromStr = toDateStr(dateFrom);
+    const dateToStr = toDateStr(now);
+
+    const onTheAirUrl = `${TMDB_BASE_URL}/tv/on_the_air`
+      + `?api_key=${this.apiKey}&language=en-US&page=${page}`;
+
+    const airingTodayUrl = `${TMDB_BASE_URL}/tv/airing_today`
+      + `?api_key=${this.apiKey}&language=en-US&page=${page}`;
+
+    const discoverUrl = `${TMDB_BASE_URL}/discover/tv`
+      + `?api_key=${this.apiKey}&language=en-US&page=${page}&region=US`
+      + `&first_air_date.gte=${dateFromStr}&first_air_date.lte=${dateToStr}`
+      + `&sort_by=first_air_date.desc&include_adult=false&with_original_language=en`;
+
+    const [onTheAir, airingToday, discover] = await Promise.all([
+      this.fetchUrl<TMDBDiscoverResponse>(onTheAirUrl, `on_the_air:tv:${page}`),
+      this.fetchUrl<TMDBDiscoverResponse>(airingTodayUrl, `airing_today:tv:${page}`),
+      this.fetchUrl<TMDBDiscoverResponse>(discoverUrl, `recent_discover:tv:${page}`),
+    ]);
+
+    const allRaw = [
+      ...(onTheAir?.results ?? []),
+      ...(airingToday?.results ?? []),
+      ...(discover?.results ?? []),
+    ];
+
+    // Deduplicate by ID
+    const seen = new Map<number, TMDBRawTV>();
+    for (const raw of allRaw) {
+      if (!seen.has(raw.id)) {
+        seen.set(raw.id, raw as TMDBRawTV);
+      }
+    }
+
+    // Sort by first_air_date descending
+    const unique = Array.from(seen.values()).sort((a, b) => {
+      const da = a.first_air_date || '';
+      const db = b.first_air_date || '';
+      return db.localeCompare(da);
+    });
+
+    const items = unique.map(raw => this.mapRawTVToItem(raw));
+    const enriched = await this.enrichWithCredits(items, 'tv');
+
+    const totalPages = discover?.total_pages ?? onTheAir?.total_pages ?? 0;
+    const totalResults = discover?.total_results ?? onTheAir?.total_results ?? 0;
+
+    return {
+      items: enriched,
+      page,
+      totalPages,
+      totalResults,
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // Private: Search
+  // --------------------------------------------------------------------------
+
+  private async fetchSearchMulti(
+    query: string,
+    page: number,
+  ): Promise<TMDBListResponse> {
+    await this.ensureGenreMaps();
+
+    const searchUrl = `${TMDB_BASE_URL}/search/multi`
+      + `?api_key=${this.apiKey}&language=en-US`
+      + `&query=${encodeURIComponent(query)}&page=${page}&include_adult=false`;
+
+    const data = await this.fetchUrl<TMDBSearchMultiResponse>(
+      searchUrl,
+      `search:multi:${query}:${page}`,
+    );
+
+    if (!data) {
+      return { items: [], page, totalPages: 0, totalResults: 0 };
+    }
+
+    // Filter out person results
+    const mediaResults = data.results.filter(
+      r => r.media_type === 'movie' || r.media_type === 'tv',
+    );
+
+    // Map to items
+    const items: TMDBUpcomingItem[] = mediaResults.map(raw => {
+      if (raw.media_type === 'movie') {
+        return this.mapRawMovieToItem({
+          id: raw.id,
+          title: raw.title ?? '',
+          overview: raw.overview ?? '',
+          poster_path: raw.poster_path,
+          backdrop_path: raw.backdrop_path,
+          release_date: raw.release_date ?? '',
+          vote_average: raw.vote_average,
+          vote_count: raw.vote_count,
+          genre_ids: raw.genre_ids ?? [],
+          popularity: raw.popularity,
+        });
+      }
+      return this.mapRawTVToItem({
+        id: raw.id,
+        name: raw.name ?? '',
+        overview: raw.overview ?? '',
+        poster_path: raw.poster_path,
+        backdrop_path: raw.backdrop_path,
+        first_air_date: raw.first_air_date ?? '',
+        vote_average: raw.vote_average,
+        vote_count: raw.vote_count,
+        genre_ids: raw.genre_ids ?? [],
+        popularity: raw.popularity,
+      });
+    });
+
+    // Enrich movies and TV separately, then merge back in original order
+    const movieItems = items.filter(i => i.mediaType === 'movie');
+    const tvItems = items.filter(i => i.mediaType === 'tv');
+
+    const [enrichedMovies, enrichedTv] = await Promise.all([
+      movieItems.length > 0 ? this.enrichWithCredits(movieItems, 'movie') : Promise.resolve([]),
+      tvItems.length > 0 ? this.enrichWithCredits(tvItems, 'tv') : Promise.resolve([]),
+    ]);
+
+    // Rebuild in original order
+    const enrichedMap = new Map<string, TMDBUpcomingItem>();
+    for (const item of [...enrichedMovies, ...enrichedTv]) {
+      enrichedMap.set(`${item.mediaType}-${item.id}`, item);
+    }
+    const finalItems = items.map(i => enrichedMap.get(`${i.mediaType}-${i.id}`) ?? i);
+
+    return {
+      items: finalItems,
+      page: data.page,
+      totalPages: data.total_pages,
+      totalResults: data.total_results,
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // Private: Mapping helpers
+  // --------------------------------------------------------------------------
+
+  private mapRawMovieToItem(raw: TMDBRawMovie): TMDBUpcomingItem {
+    const genreMap = this.genreMapMovie;
+    return {
+      id: raw.id,
+      title: raw.title,
+      mediaType: 'movie',
+      posterUrl: raw.poster_path ? `${TMDB_IMAGE_BASE}/w500${raw.poster_path}` : null,
+      backdropUrl: raw.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${raw.backdrop_path}` : null,
+      overview: raw.overview || null,
+      releaseDate: raw.release_date || null,
+      voteAverage: raw.vote_average || null,
+      voteCount: raw.vote_count || 0,
+      genres: (raw.genre_ids || [])
+        .map(id => genreMap?.get(id))
+        .filter((g): g is string => !!g),
+      cast: [],
+      directors: [],
+      runtime: null,
+      popularity: raw.popularity || 0,
+    };
+  }
+
+  private mapRawTVToItem(raw: TMDBRawTV): TMDBUpcomingItem {
+    const genreMap = this.genreMapTV;
+    return {
+      id: raw.id,
+      title: raw.name,
+      mediaType: 'tv',
+      posterUrl: raw.poster_path ? `${TMDB_IMAGE_BASE}/w500${raw.poster_path}` : null,
+      backdropUrl: raw.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${raw.backdrop_path}` : null,
+      overview: raw.overview || null,
+      releaseDate: raw.first_air_date || null,
+      voteAverage: raw.vote_average || null,
+      voteCount: raw.vote_count || 0,
+      genres: (raw.genre_ids || [])
+        .map(id => genreMap?.get(id))
+        .filter((g): g is string => !!g),
+      cast: [],
+      directors: [],
+      runtime: null,
+      popularity: raw.popularity || 0,
+    };
+  }
+
+  private mapRawResults(
+    results: (TMDBRawMovie | TMDBRawTV)[],
+    mediaType: 'movie' | 'tv',
+  ): TMDBUpcomingItem[] {
+    if (mediaType === 'movie') {
+      return results.map(raw => this.mapRawMovieToItem(raw as TMDBRawMovie));
+    }
+    return results.map(raw => this.mapRawTVToItem(raw as TMDBRawTV));
+  }
+
+  // --------------------------------------------------------------------------
+  // Private: Fetching and enrichment
+  // --------------------------------------------------------------------------
+
   private async fetchUrl<T>(url: string, cacheKey: string): Promise<T | null> {
     const cached = await this.cache.get<T>('list', cacheKey);
     if (cached) return cached;
@@ -238,9 +555,6 @@ export class TMDBService {
     }
   }
 
-  /**
-   * Enrich items with credits (cast + directors)
-   */
   private async enrichWithCredits(
     items: TMDBUpcomingItem[],
     mediaType: 'movie' | 'tv',
@@ -270,9 +584,6 @@ export class TMDBService {
     );
   }
 
-  /**
-   * Fetch credits for a single item
-   */
   private async fetchCredits(
     tmdbId: number,
     mediaType: 'movie' | 'tv',
@@ -308,9 +619,6 @@ export class TMDBService {
     }
   }
 
-  /**
-   * Fetch details for a single item (runtime, genres)
-   */
   private async fetchDetails(
     tmdbId: number,
     mediaType: 'movie' | 'tv',
@@ -354,9 +662,6 @@ export class TMDBService {
     }
   }
 
-  /**
-   * Ensure genre maps are loaded
-   */
   private async ensureGenreMaps(): Promise<void> {
     if (this.genreMapMovie && this.genreMapTV) return;
 
@@ -369,9 +674,6 @@ export class TMDBService {
     this.genreMapTV = tvGenres;
   }
 
-  /**
-   * Fetch genre list from TMDB
-   */
   private async fetchGenres(type: 'movie' | 'tv'): Promise<Map<number, string>> {
     const cacheKey = `genres:${type}`;
     const cached = await this.cache.get<{ id: number; name: string }[]>('detail', cacheKey);

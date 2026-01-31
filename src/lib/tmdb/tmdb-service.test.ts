@@ -180,7 +180,7 @@ describe('TMDBService', () => {
           // Verify the URL has the right params
           expect(urlStr).toContain('primary_release_date.gte=');
           expect(urlStr).toContain('primary_release_date.lte=');
-          expect(urlStr).toContain('sort_by=primary_release_date.desc');
+          expect(urlStr).toContain('sort_by=primary_release_date.asc');
           expect(urlStr).toContain('with_original_language=en');
           return mockFetchResponse(createDiscoverMovieResponse([]));
         }
@@ -308,7 +308,7 @@ describe('TMDBService', () => {
         if (urlStr.includes('/discover/tv')) {
           expect(urlStr).toContain('first_air_date.gte=');
           expect(urlStr).toContain('first_air_date.lte=');
-          expect(urlStr).toContain('sort_by=first_air_date.desc');
+          expect(urlStr).toContain('sort_by=first_air_date.asc');
           return mockFetchResponse(createDiscoverTVResponse([]));
         }
         return mockFetchResponse({}, false, 404);
@@ -469,6 +469,360 @@ describe('TMDBService', () => {
       expect(result.items[0].posterUrl).toContain('image.tmdb.org');
       expect(result.items[0].posterUrl).toContain('/w500');
       expect(result.items[0].backdropUrl).toContain('/w1280');
+    });
+  });
+
+  describe('getRecentMovies', () => {
+    it('merges now_playing and discover results, deduplicates by ID', async () => {
+      const nowPlayingResponse = createDiscoverMovieResponse([
+        { id: 1, title: 'NP Movie A', release_date: '2026-01-20' },
+        { id: 2, title: 'NP Movie B', release_date: '2026-01-15' },
+      ]);
+      const discoverResponse = createDiscoverMovieResponse([
+        { id: 2, title: 'Discover Movie B', release_date: '2026-01-15' },
+        { id: 3, title: 'Discover Movie C', release_date: '2026-01-25' },
+      ]);
+
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/movie/now_playing')) {
+          return mockFetchResponse(nowPlayingResponse);
+        }
+        if (urlStr.includes('/discover/movie')) {
+          return mockFetchResponse(discoverResponse);
+        }
+        if (urlStr.includes('/credits')) {
+          return mockFetchResponse(createCreditsResponse(['Actor'], ['Director']));
+        }
+        if (urlStr.match(/\/movie\/\d+\?/)) {
+          return mockFetchResponse(createMovieDetailResponse(120));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      const result = await service.getRecentMovies(1);
+
+      // Should have 3 unique items (id 2 deduplicated)
+      expect(result.items).toHaveLength(3);
+      // Should be sorted by release_date descending
+      expect(result.items[0].title).toBe('Discover Movie C'); // 2026-01-25
+      expect(result.items[1].title).toBe('NP Movie A');        // 2026-01-20
+      expect(result.items[2].title).toBe('NP Movie B');        // 2026-01-15 (first-seen wins)
+    });
+
+    it('returns cached result when available', async () => {
+      const cachedResult: TMDBListResponse = {
+        items: [
+          {
+            id: 1, title: 'Cached Recent', mediaType: 'movie',
+            posterUrl: null, backdropUrl: null, overview: null,
+            releaseDate: '2026-01-20', voteAverage: 7.0, voteCount: 50,
+            genres: [], cast: [], directors: [], runtime: null, popularity: 30,
+          },
+        ],
+        page: 1, totalPages: 1, totalResults: 1,
+      };
+      (mockCache.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(cachedResult);
+
+      const result = await service.getRecentMovies(1);
+
+      expect(result).toEqual(cachedResult);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('handles API errors gracefully', async () => {
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        return mockFetchResponse({}, false, 500);
+      });
+
+      const result = await service.getRecentMovies(1);
+
+      expect(result.items).toHaveLength(0);
+      expect(result.totalResults).toBe(0);
+    });
+
+    it('uses discover with date range and desc sort for recent', async () => {
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/discover/movie')) {
+          expect(urlStr).toContain('primary_release_date.gte=');
+          expect(urlStr).toContain('primary_release_date.lte=');
+          expect(urlStr).toContain('sort_by=primary_release_date.desc');
+          return mockFetchResponse(createDiscoverMovieResponse([]));
+        }
+        if (urlStr.includes('/movie/now_playing')) {
+          return mockFetchResponse(createDiscoverMovieResponse([]));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      await service.getRecentMovies(1);
+    });
+  });
+
+  describe('getRecentTVSeries', () => {
+    it('merges on_the_air, airing_today, and discover results', async () => {
+      const onTheAirResponse = createDiscoverTVResponse([
+        { id: 10, name: 'On Air Show', first_air_date: '2026-01-20' },
+      ]);
+      const airingTodayResponse = createDiscoverTVResponse([
+        { id: 20, name: 'Airing Today', first_air_date: '2026-01-30' },
+        { id: 10, name: 'On Air Show Dup', first_air_date: '2026-01-20' },
+      ]);
+      const discoverResponse = createDiscoverTVResponse([
+        { id: 30, name: 'Discover Show', first_air_date: '2026-01-25' },
+      ]);
+
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/tv/on_the_air')) {
+          return mockFetchResponse(onTheAirResponse);
+        }
+        if (urlStr.includes('/tv/airing_today')) {
+          return mockFetchResponse(airingTodayResponse);
+        }
+        if (urlStr.includes('/discover/tv')) {
+          return mockFetchResponse(discoverResponse);
+        }
+        if (urlStr.includes('/credits')) {
+          return mockFetchResponse(createCreditsResponse(['TV Actor'], []));
+        }
+        if (urlStr.match(/\/tv\/\d+\?/)) {
+          return mockFetchResponse(createTVDetailResponse([45]));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      const result = await service.getRecentTVSeries(1);
+
+      // 3 unique shows (id 10 deduplicated)
+      expect(result.items).toHaveLength(3);
+      // Sorted by first_air_date descending
+      expect(result.items[0].title).toBe('Airing Today');   // 2026-01-30
+      expect(result.items[1].title).toBe('Discover Show');   // 2026-01-25
+      expect(result.items[2].title).toBe('On Air Show');     // 2026-01-20
+    });
+
+    it('returns cached result when available', async () => {
+      const cachedResult: TMDBListResponse = {
+        items: [
+          {
+            id: 10, title: 'Cached TV', mediaType: 'tv',
+            posterUrl: null, backdropUrl: null, overview: null,
+            releaseDate: '2026-01-20', voteAverage: 8.0, voteCount: 100,
+            genres: [], cast: [], directors: [], runtime: null, popularity: 60,
+          },
+        ],
+        page: 1, totalPages: 1, totalResults: 1,
+      };
+      (mockCache.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(cachedResult);
+
+      const result = await service.getRecentTVSeries(1);
+
+      expect(result).toEqual(cachedResult);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('uses discover with TV date range params for recent', async () => {
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/discover/tv')) {
+          expect(urlStr).toContain('first_air_date.gte=');
+          expect(urlStr).toContain('first_air_date.lte=');
+          expect(urlStr).toContain('sort_by=first_air_date.desc');
+          return mockFetchResponse(createDiscoverTVResponse([]));
+        }
+        if (urlStr.includes('/tv/on_the_air') || urlStr.includes('/tv/airing_today')) {
+          return mockFetchResponse(createDiscoverTVResponse([]));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      await service.getRecentTVSeries(1);
+    });
+  });
+
+  describe('searchMulti', () => {
+    function createSearchMultiResponse(
+      results: Array<{
+        id: number;
+        media_type: 'movie' | 'tv' | 'person';
+        title?: string;
+        name?: string;
+        release_date?: string;
+        first_air_date?: string;
+      }>,
+    ) {
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: results.length,
+        results: results.map((r) => ({
+          id: r.id,
+          media_type: r.media_type,
+          title: r.title,
+          name: r.name,
+          overview: 'Search result overview',
+          poster_path: '/search-poster.jpg',
+          backdrop_path: '/search-backdrop.jpg',
+          release_date: r.release_date,
+          first_air_date: r.first_air_date,
+          vote_average: 7.0,
+          vote_count: 100,
+          genre_ids: [28],
+          popularity: 50,
+        })),
+      };
+    }
+
+    it('searches and returns movies and TV results with credits', async () => {
+      const searchResponse = createSearchMultiResponse([
+        { id: 1, media_type: 'movie', title: 'Batman Begins', release_date: '2005-06-15' },
+        { id: 10, media_type: 'tv', name: 'Batman: TAS', first_air_date: '1992-09-05' },
+      ]);
+
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/search/multi')) {
+          expect(urlStr).toContain('query=batman');
+          return mockFetchResponse(searchResponse);
+        }
+        if (urlStr.includes('/credits')) {
+          return mockFetchResponse(createCreditsResponse(['Actor'], ['Director']));
+        }
+        if (urlStr.match(/\/movie\/\d+\?/)) {
+          return mockFetchResponse(createMovieDetailResponse(140));
+        }
+        if (urlStr.match(/\/tv\/\d+\?/)) {
+          return mockFetchResponse(createTVDetailResponse([22]));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      const result = await service.searchMulti('batman', 1);
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0].title).toBe('Batman Begins');
+      expect(result.items[0].mediaType).toBe('movie');
+      expect(result.items[0].cast).toContain('Actor');
+      expect(result.items[1].title).toBe('Batman: TAS');
+      expect(result.items[1].mediaType).toBe('tv');
+    });
+
+    it('filters out person results', async () => {
+      const searchResponse = createSearchMultiResponse([
+        { id: 1, media_type: 'movie', title: 'Batman Begins', release_date: '2005-06-15' },
+        { id: 999, media_type: 'person', name: 'Christian Bale' },
+        { id: 10, media_type: 'tv', name: 'Batman: TAS', first_air_date: '1992-09-05' },
+      ]);
+
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/search/multi')) {
+          return mockFetchResponse(searchResponse);
+        }
+        if (urlStr.includes('/credits')) {
+          return mockFetchResponse(createCreditsResponse([], []));
+        }
+        if (urlStr.match(/\/(movie|tv)\/\d+\?/)) {
+          return mockFetchResponse(createMovieDetailResponse(120));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      const result = await service.searchMulti('batman', 1);
+
+      // Person filtered out
+      expect(result.items).toHaveLength(2);
+      expect(result.items.every(i => i.mediaType !== 'person' as string)).toBe(true);
+    });
+
+    it('returns cached result when available', async () => {
+      const cachedResult: TMDBListResponse = {
+        items: [
+          {
+            id: 1, title: 'Cached Search', mediaType: 'movie',
+            posterUrl: null, backdropUrl: null, overview: null,
+            releaseDate: '2005-06-15', voteAverage: 8.0, voteCount: 200,
+            genres: [], cast: [], directors: [], runtime: null, popularity: 80,
+          },
+        ],
+        page: 1, totalPages: 1, totalResults: 1,
+      };
+      (mockCache.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(cachedResult);
+
+      const result = await service.searchMulti('batman', 1);
+
+      expect(result).toEqual(cachedResult);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns empty results on API error', async () => {
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        return mockFetchResponse({}, false, 500);
+      });
+
+      const result = await service.searchMulti('batman', 1);
+
+      expect(result.items).toHaveLength(0);
+      expect(result.totalResults).toBe(0);
+    });
+
+    it('preserves original order after enrichment', async () => {
+      const searchResponse = createSearchMultiResponse([
+        { id: 1, media_type: 'movie', title: 'First Movie', release_date: '2020-01-01' },
+        { id: 10, media_type: 'tv', name: 'Second Show', first_air_date: '2019-01-01' },
+        { id: 2, media_type: 'movie', title: 'Third Movie', release_date: '2021-01-01' },
+      ]);
+
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/search/multi')) {
+          return mockFetchResponse(searchResponse);
+        }
+        if (urlStr.includes('/credits')) {
+          return mockFetchResponse(createCreditsResponse(['Actor'], []));
+        }
+        if (urlStr.match(/\/(movie|tv)\/\d+\?/)) {
+          return mockFetchResponse(createMovieDetailResponse(100));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
+
+      const result = await service.searchMulti('test', 1);
+
+      expect(result.items[0].title).toBe('First Movie');
+      expect(result.items[1].title).toBe('Second Show');
+      expect(result.items[2].title).toBe('Third Movie');
     });
   });
 });
