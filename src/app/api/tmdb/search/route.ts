@@ -35,7 +35,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const result = await tmdbService.searchMulti(query, page);
 
     return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'private, max-age=900' },
+      headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
     console.error('[TMDB Search] Error:', error);

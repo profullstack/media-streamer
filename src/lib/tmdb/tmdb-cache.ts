@@ -14,8 +14,7 @@ import crypto from 'crypto';
 export const CACHE_TTL = {
   LIST: 6 * 60 * 60,       // 6 hours
   DETAIL: 24 * 60 * 60,    // 24 hours
-  RESPONSE: 30 * 60,       // 30 minutes
-  SEARCH: 15 * 60,         // 15 minutes
+  RESPONSE: 24 * 60 * 60,  // 24 hours
 } as const;
 
 const KEY_PREFIX = 'tmdb:';

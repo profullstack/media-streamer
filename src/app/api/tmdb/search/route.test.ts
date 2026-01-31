@@ -167,7 +167,7 @@ describe('TMDB Search API - GET /api/tmdb/search', () => {
     expect(mockSearchMulti).toHaveBeenCalledWith('batman', 1);
   });
 
-  it('should set Cache-Control header with 15 min max-age', async () => {
+  it('should set Cache-Control to no-store', async () => {
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 'user-123' });
 
     mockSearchMulti.mockResolvedValueOnce({
@@ -180,7 +180,7 @@ describe('TMDB Search API - GET /api/tmdb/search', () => {
     const request = new NextRequest('http://localhost/api/tmdb/search?q=batman');
     const response = await GET(request);
 
-    expect(response.headers.get('Cache-Control')).toBe('private, max-age=900');
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 
   it('should return 500 on service error', async () => {

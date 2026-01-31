@@ -214,14 +214,7 @@ export class TMDBService {
    * Uses /search/multi, filters out person results, enriches with credits.
    */
   async searchMulti(query: string, page: number = 1): Promise<TMDBListResponse> {
-    const cacheKey = `search:multi:${query}:page:${page}`;
-    const cached = await this.cache.get<TMDBListResponse>('response', cacheKey);
-    if (cached) return cached;
-
-    const result = await this.fetchSearchMulti(query, page);
-
-    await this.cache.set('response', cacheKey, result, CACHE_TTL.RESPONSE);
-    return result;
+    return this.fetchSearchMulti(query, page);
   }
 
   // --------------------------------------------------------------------------
@@ -251,7 +244,7 @@ export class TMDBService {
       + `?api_key=${this.apiKey}&language=en-US&page=${page}&region=US`
       + `&${dateParams}&include_adult=false&with_original_language=en`;
 
-    const data = await this.fetchUrl<TMDBDiscoverResponse>(discoverUrl, `discover:${mediaType}:${page}`);
+    const data = await this.fetchUrl<TMDBDiscoverResponse>(discoverUrl, `discover:v3:${mediaType}:${page}`);
 
     if (!data) {
       return { items: [], page, totalPages: 0, totalResults: 0 };
@@ -404,12 +397,17 @@ export class TMDBService {
       + `?api_key=${this.apiKey}&language=en-US`
       + `&query=${encodeURIComponent(query)}&page=${page}&include_adult=false`;
 
-    const data = await this.fetchUrl<TMDBSearchMultiResponse>(
-      searchUrl,
-      `search:multi:${query}:${page}`,
-    );
-
-    if (!data) {
+    // No caching for search — always fetch fresh results
+    let data: TMDBSearchMultiResponse | null = null;
+    try {
+      const response = await fetch(searchUrl);
+      if (!response.ok) {
+        console.error(`[TMDB] Search failed: ${response.status}`);
+        return { items: [], page, totalPages: 0, totalResults: 0 };
+      }
+      data = await response.json() as TMDBSearchMultiResponse;
+    } catch (error) {
+      console.error('[TMDB] Error fetching search:', error);
       return { items: [], page, totalPages: 0, totalResults: 0 };
     }
 

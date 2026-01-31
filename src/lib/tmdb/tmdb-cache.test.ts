@@ -42,8 +42,8 @@ describe('TMDBCache', () => {
       expect(CACHE_TTL.DETAIL).toBe(24 * 60 * 60);
     });
 
-    it('has correct TTL for response cache (30 minutes)', () => {
-      expect(CACHE_TTL.RESPONSE).toBe(30 * 60);
+    it('has correct TTL for response cache (24 hours)', () => {
+      expect(CACHE_TTL.RESPONSE).toBe(24 * 60 * 60);
     });
   });
 

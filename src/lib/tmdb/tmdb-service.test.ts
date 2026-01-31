@@ -759,24 +759,36 @@ describe('TMDBService', () => {
       expect(result.items.every(i => i.mediaType !== 'person' as string)).toBe(true);
     });
 
-    it('returns cached result when available', async () => {
-      const cachedResult: TMDBListResponse = {
-        items: [
-          {
-            id: 1, title: 'Cached Search', mediaType: 'movie',
-            posterUrl: null, backdropUrl: null, overview: null,
-            releaseDate: '2005-06-15', voteAverage: 8.0, voteCount: 200,
-            genres: [], cast: [], directors: [], runtime: null, popularity: 80,
-          },
-        ],
-        page: 1, totalPages: 1, totalResults: 1,
-      };
-      (mockCache.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(cachedResult);
+    it('does not cache search results', async () => {
+      const searchResponse = createSearchMultiResponse([
+        { id: 1, media_type: 'movie', title: 'Batman Begins', release_date: '2005-06-15' },
+      ]);
 
-      const result = await service.searchMulti('batman', 1);
+      fetchSpy.mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('/genre/')) {
+          return mockFetchResponse(createGenresResponse(urlStr.includes('movie') ? 'movie' : 'tv'));
+        }
+        if (urlStr.includes('/search/multi')) {
+          return mockFetchResponse(searchResponse);
+        }
+        if (urlStr.includes('/credits')) {
+          return mockFetchResponse(createCreditsResponse([], []));
+        }
+        if (urlStr.match(/\/movie\/\d+\?/)) {
+          return mockFetchResponse(createMovieDetailResponse(140));
+        }
+        return mockFetchResponse({}, false, 404);
+      });
 
-      expect(result).toEqual(cachedResult);
-      expect(fetchSpy).not.toHaveBeenCalled();
+      await service.searchMulti('batman', 1);
+
+      // cache.set should not be called with a search response key
+      const setCalls = (mockCache.set as ReturnType<typeof vi.fn>).mock.calls;
+      const searchCacheCall = setCalls.find(
+        (call: unknown[]) => typeof call[1] === 'string' && (call[1] as string).includes('search:multi'),
+      );
+      expect(searchCacheCall).toBeUndefined();
     });
 
     it('returns empty results on API error', async () => {
