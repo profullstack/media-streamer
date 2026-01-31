@@ -438,6 +438,17 @@ export function UpcomingContent(): React.ReactElement {
     router.push(`/search?q=${encodeURIComponent(query)}`);
   };
 
+  const handleSearchSubmit = (): void => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) return;
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+    setIsSearchActive(true);
+    setPage(1);
+    fetchSearchResults(trimmed, 1);
+  };
+
   const handleClearSearch = (): void => {
     setSearchQuery('');
     setIsSearchActive(false);
@@ -463,25 +474,37 @@ export function UpcomingContent(): React.ReactElement {
       </div>
 
       {/* Search Bar */}
-      <div className="relative">
-        <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search movies & TV series..."
-          className="w-full rounded-lg border border-border-primary bg-bg-secondary pl-10 pr-10 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
-        />
-        {searchQuery ? (
-          <button
-            type="button"
-            onClick={handleClearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
-          >
-            <CloseIcon size={16} />
-          </button>
-        ) : null}
-      </div>
+      <form
+        onSubmit={(e) => { e.preventDefault(); handleSearchSubmit(); }}
+        className="flex gap-2"
+      >
+        <div className="relative flex-1">
+          <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search movies & TV series..."
+            className="w-full rounded-lg border border-border-primary bg-bg-secondary pl-10 pr-10 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+          />
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+            >
+              <CloseIcon size={16} />
+            </button>
+          ) : null}
+        </div>
+        <button
+          type="submit"
+          disabled={!searchQuery || searchQuery.trim().length < 2}
+          className="rounded-lg bg-accent-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <SearchIcon size={16} />
+        </button>
+      </form>
 
       {/* Mode Toggle + Media Tabs (hidden during search) */}
       {!isSearchActive ? (
