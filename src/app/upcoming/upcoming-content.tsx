@@ -395,9 +395,7 @@ export function UpcomingContent(): React.ReactElement {
     }
 
     if (!searchQuery || searchQuery.trim().length < 2) {
-      if (isSearchActive) {
-        setIsSearchActive(false);
-      }
+      setIsSearchActive(false);
       return;
     }
 
@@ -412,7 +410,10 @@ export function UpcomingContent(): React.ReactElement {
         clearTimeout(searchTimerRef.current);
       }
     };
-  }, [searchQuery, fetchSearchResults, isSearchActive]);
+    // Only re-run when the query or fetch function changes.
+    // isSearchActive is intentionally excluded to prevent double-fetch.
+     
+  }, [searchQuery, fetchSearchResults]);
 
   const handleModeChange = (mode: ViewMode): void => {
     setViewMode(mode);
