@@ -30,6 +30,8 @@ import {
   SearchPlusIcon,
   NewsIcon,
   RadioIcon,
+  HeartIcon,
+  MovieIcon,
 } from '@/components/ui/icons';
 
 interface NavItem {
@@ -47,6 +49,8 @@ const mainNavItems: NavItem[] = [
   { href: '/find-torrents', label: 'Find Torrents', icon: SearchPlusIcon },
   { href: '/trending', label: 'Trending', icon: TrendingIcon },
   { href: '/library', label: 'My Library', icon: LibraryIcon, requiresAuth: true },
+  { href: '/watchlist', label: 'Watchlist', icon: HeartIcon, requiresAuth: true },
+  { href: '/upcoming', label: 'Upcoming', icon: MovieIcon, requiresPaid: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
   { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },

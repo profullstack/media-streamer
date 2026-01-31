@@ -614,6 +614,89 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_watchlists: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      watchlist_items: {
+        Row: {
+          id: string;
+          watchlist_id: string;
+          tmdb_id: number;
+          media_type: 'movie' | 'tv';
+          title: string;
+          poster_path: string | null;
+          overview: string | null;
+          release_date: string | null;
+          vote_average: number | null;
+          genres: string[] | null;
+          cast_names: string[] | null;
+          directors: string[] | null;
+          position: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          watchlist_id: string;
+          tmdb_id: number;
+          media_type: 'movie' | 'tv';
+          title: string;
+          poster_path?: string | null;
+          overview?: string | null;
+          release_date?: string | null;
+          vote_average?: number | null;
+          genres?: string[] | null;
+          cast_names?: string[] | null;
+          directors?: string[] | null;
+          position?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          watchlist_id?: string;
+          tmdb_id?: number;
+          media_type?: 'movie' | 'tv';
+          title?: string;
+          poster_path?: string | null;
+          overview?: string | null;
+          release_date?: string | null;
+          vote_average?: number | null;
+          genres?: string[] | null;
+          cast_names?: string[] | null;
+          directors?: string[] | null;
+          position?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'watchlist_items_watchlist_id_fkey';
+            columns: ['watchlist_id'];
+            isOneToOne: false;
+            referencedRelation: 'user_watchlists';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       user_subscriptions: {
         Row: {
           id: string;
@@ -1850,6 +1933,15 @@ export type CollectionItem = Tables<'collection_items'>;
 export type ReadingProgress = Tables<'reading_progress'>;
 export type WatchProgress = Tables<'watch_progress'>;
 export type RateLimit = Tables<'rate_limits'>;
+
+// Watchlist types
+export type UserWatchlist = Tables<'user_watchlists'>;
+export type UserWatchlistInsert = InsertTables<'user_watchlists'>;
+export type UserWatchlistUpdate = UpdateTables<'user_watchlists'>;
+
+export type WatchlistItem = Tables<'watchlist_items'>;
+export type WatchlistItemInsert = InsertTables<'watchlist_items'>;
+export type WatchlistItemUpdate = UpdateTables<'watchlist_items'>;
 
 // Subscription and payment types
 export type UserSubscription = Tables<'user_subscriptions'>;
