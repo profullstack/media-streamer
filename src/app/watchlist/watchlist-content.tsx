@@ -73,16 +73,8 @@ function formatRating(rating: number | null): string {
   return Number(rating).toFixed(1);
 }
 
-function getYear(dateStr: string | null): string {
-  if (!dateStr) return '';
-  return dateStr.substring(0, 4);
-}
-
-function buildSearchQuery(title: string, releaseDate: string | null): string {
-  const parts = [title];
-  const year = getYear(releaseDate);
-  if (year) parts.push(year);
-  return parts.join(' ');
+function buildSearchQuery(title: string): string {
+  return title;
 }
 
 /**
@@ -196,7 +188,7 @@ function WatchlistItemCard({
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <button
               type="button"
-              onClick={() => onFindTorrent(buildSearchQuery(item.title, item.release_date))}
+              onClick={() => onFindTorrent(buildSearchQuery(item.title))}
               className="inline-flex items-center gap-1.5 rounded-lg bg-accent-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-primary/90 transition-colors"
             >
               <SearchIcon size={14} />

@@ -67,16 +67,8 @@ function formatDate(dateStr: string | null): string {
   });
 }
 
-function getYear(dateStr: string | null): string {
-  if (!dateStr) return '';
-  return dateStr.substring(0, 4);
-}
-
 function buildSearchQuery(item: UpcomingItem): string {
-  const parts = [item.title];
-  const year = getYear(item.releaseDate);
-  if (year) parts.push(year);
-  return parts.join(' ');
+  return item.title;
 }
 
 function toWatchlistItemData(item: UpcomingItem): WatchlistItemData {
