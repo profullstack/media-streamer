@@ -12,7 +12,8 @@
  * - Push notification subscription for new episodes
  */
 
-import { useState, useCallback, useEffect, useRef, memo } from 'react';
+import { useState, useCallback, useEffect, useRef, memo, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DOMPurify from 'isomorphic-dompurify';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
@@ -349,6 +350,16 @@ const EpisodeItem = memo(function EpisodeItem({
 export function PodcastsContent(): React.ReactElement {
   const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
 
+  // Deep link params from notification clicks
+  const searchParams = useSearchParams();
+  const deepLinkParams = useMemo(() => ({
+    podcastId: searchParams.get('podcastId'),
+    episodeId: searchParams.get('episodeId'),
+    autoplay: searchParams.get('autoplay') === 'true',
+  }), [searchParams]);
+  const deepLinkPodcastHandledRef = useRef(false);
+  const deepLinkEpisodeHandledRef = useRef(false);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PodcastSearchResult[]>([]);
@@ -451,10 +462,18 @@ export function PodcastsContent(): React.ReactElement {
         const data = await response.json() as SubscriptionsResponse;
         setSubscriptions(data.subscriptions);
 
-        // Auto-select first subscription if any (only once)
+        // Auto-select podcast (only once): prefer deep link podcastId, fall back to first
         if (data.subscriptions.length > 0 && !hasAutoSelectedRef.current) {
           hasAutoSelectedRef.current = true;
-          setSelectedPodcast(data.subscriptions[0]);
+          const deepLinkMatch = deepLinkParams.podcastId
+            ? data.subscriptions.find(s => s.id === deepLinkParams.podcastId)
+            : null;
+          if (deepLinkMatch) {
+            deepLinkPodcastHandledRef.current = true;
+            setSelectedPodcast(deepLinkMatch);
+          } else {
+            setSelectedPodcast(data.subscriptions[0]);
+          }
         }
       } catch (err) {
         console.error('[Podcasts] Error loading subscriptions:', err);
@@ -536,6 +555,57 @@ export function PodcastsContent(): React.ReactElement {
 
     void refreshProgress();
   }, [lastCompletedEpisodeId, selectedPodcast]);
+
+  // Handle deep link: auto-play or scroll to episode after episodes load
+  useEffect(() => {
+    if (deepLinkEpisodeHandledRef.current) return;
+    if (!deepLinkParams.episodeId || !deepLinkPodcastHandledRef.current) return;
+    if (!selectedPodcast || episodes.length === 0 || isLoadingEpisodes) return;
+
+    const targetEpisode = episodes.find(ep => ep.id === deepLinkParams.episodeId);
+    if (!targetEpisode) return;
+
+    deepLinkEpisodeHandledRef.current = true;
+
+    if (deepLinkParams.autoplay) {
+      // Get saved progress for resume
+      const progress = episodeProgress.get(targetEpisode.id);
+      const startTime = progress && !progress.completed && progress.currentTimeSeconds > 10
+        ? progress.currentTimeSeconds
+        : undefined;
+
+      playEpisode(
+        {
+          id: targetEpisode.id,
+          guid: targetEpisode.guid,
+          title: targetEpisode.title,
+          description: targetEpisode.description,
+          audioUrl: targetEpisode.audioUrl,
+          duration: targetEpisode.duration,
+          publishedAt: targetEpisode.publishedAt,
+          imageUrl: targetEpisode.imageUrl,
+        },
+        {
+          id: selectedPodcast.id,
+          title: selectedPodcast.title,
+          author: selectedPodcast.author,
+          description: selectedPodcast.description,
+          imageUrl: selectedPodcast.imageUrl,
+          feedUrl: selectedPodcast.feedUrl,
+          website: selectedPodcast.website,
+          subscribedAt: selectedPodcast.subscribedAt,
+          notificationsEnabled: selectedPodcast.notificationsEnabled,
+        },
+        startTime,
+      );
+    }
+
+    // Expand the episode description so it's visible
+    setExpandedEpisodeId(targetEpisode.id);
+
+    // Clean up URL params
+    window.history.replaceState({}, '', '/podcasts');
+  }, [deepLinkParams, selectedPodcast, episodes, isLoadingEpisodes, episodeProgress, playEpisode]);
 
   // Search podcasts with debounce
   const handleSearch = useCallback((query: string): void => {
