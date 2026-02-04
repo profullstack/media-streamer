@@ -38,8 +38,10 @@ export default function LoginPage(): React.ReactElement {
         return;
       }
 
-      // Redirect to home on success
-      window.location.href = '/';
+      // Redirect to the originally requested page, or home
+      const params = new URLSearchParams(window.location.search);
+      const redirectTo = params.get('redirect') || '/';
+      window.location.href = redirectTo;
     } catch {
       setError('Invalid email or password');
     } finally {

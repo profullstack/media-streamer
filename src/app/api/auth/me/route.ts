@@ -81,7 +81,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Verify the session with Supabase
   // Use setSession to set the tokens, then getUser to validate
-  const { error: sessionError } = await supabase.auth.setSession({
+  // setSession will refresh expired tokens using the refresh_token
+  const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
     access_token: sessionToken.access_token,
     refresh_token: sessionToken.refresh_token,
   });
@@ -104,6 +105,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
     return response;
   }
+
+  // Check if tokens were refreshed (access_token changed)
+  const tokensRefreshed = sessionData?.session?.access_token &&
+    sessionData.session.access_token !== sessionToken.access_token;
 
   // Get user from session
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -136,7 +141,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     avatar_url: user.user_metadata?.avatar_url as string | undefined,
   };
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     { user: responseUser },
     {
       status: 200,
@@ -145,4 +150,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       },
     }
   );
+
+  // If tokens were refreshed, update the cookie with new tokens
+  // This ensures the next request uses the fresh tokens
+  if (tokensRefreshed && sessionData.session) {
+    const newCookieValue = JSON.stringify({
+      access_token: sessionData.session.access_token,
+      refresh_token: sessionData.session.refresh_token,
+    });
+    response.headers.set(
+      'Set-Cookie',
+      `${AUTH_COOKIE_NAME}=${encodeURIComponent(newCookieValue)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
+    );
+  }
+
+  return response;
 }
