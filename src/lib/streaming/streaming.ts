@@ -305,6 +305,9 @@ export class StreamingService {
         bootstrap: DHT_BOOTSTRAP_NODES,
         // Moderate concurrency to balance peer discovery vs resource usage
         concurrency: 16,
+        // Cap the routing table to prevent unbounded DHT node growth (memory leak)
+        maxTables: 1000,
+        maxValues: 1000,
       },
       // Configure tracker with WebSocket trackers for browser peer discovery
       // This is CRITICAL for hybrid P2P streaming - the server must announce to
@@ -315,8 +318,8 @@ export class StreamingService {
       },
       lsd: true, // Local Service Discovery
       webSeeds: true,
-      // Moderate max connections to limit memory and CPU overhead
-      maxConns: 55,
+      // Limit max connections per torrent to control memory/CPU
+      maxConns: 30,
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
       // Download queue settings for better performance
