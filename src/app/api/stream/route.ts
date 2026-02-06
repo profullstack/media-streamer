@@ -45,6 +45,7 @@ import { getFFmpegDemuxerForExtension } from '@/lib/codec-detection';
 import {
   getFileTranscodingService,
 } from '@/lib/file-transcoding';
+import { getFFmpegManager } from '@/lib/ffmpeg-manager';
 
 const logger = createLogger('API:stream');
 
@@ -450,9 +451,20 @@ function createTranscodedStream(
     });
 
     let ffmpeg;
+    let ffmpegManagerId: string | null = null;
     try {
       ffmpeg = spawn('ffmpeg', ffmpegArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      
+      // Register with FFmpeg manager for tracking and automatic cleanup
+      const ffmpegManager = getFFmpegManager();
+      ffmpegManagerId = ffmpegManager.register(ffmpeg, {
+        fileName,
+      });
+      reqLogger.debug('FFmpeg process registered with manager', {
+        ffmpegManagerId,
+        pid: ffmpeg.pid,
       });
     } catch (spawnError) {
       reqLogger.error('Failed to spawn FFmpeg process', spawnError);
