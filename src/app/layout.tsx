@@ -34,11 +34,22 @@ export const metadata: Metadata = {
     siteName: 'BitTorrented',
     title: 'BitTorrented',
     description: 'Stream music, movies, books, and live TV from torrents and IPTV',
+    url: 'https://bittorrented.com',
+    images: [
+      {
+        url: 'https://bittorrented.com/banner.png',
+        alt: 'BitTorrented - Stream music, movies, books, and live TV',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'BitTorrented',
     description: 'Stream music, movies, books, and live TV from torrents and IPTV',
+    images: ['https://bittorrented.com/banner.png'],
+  },
+  other: {
+    'fb:app_id': '',
   },
   icons: {
     icon: [
