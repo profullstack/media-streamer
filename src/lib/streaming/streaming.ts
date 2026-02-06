@@ -256,6 +256,14 @@ interface ActiveStream {
 const DEFAULT_CLEANUP_DELAY = 60000;
 
 /**
+ * Memory pressure thresholds (in bytes)
+ * When RSS exceeds these thresholds, take action to prevent OOM
+ */
+const MEMORY_WARNING_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - start aggressive cleanup
+const MEMORY_CRITICAL_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - emergency cleanup
+const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+
+/**
  * Watcher tracking for a torrent
  */
 interface TorrentWatchers {
@@ -280,6 +288,7 @@ export class StreamingService {
   private downloadPath: string;
   private dhtStatusTimeout: ReturnType<typeof setTimeout> | null = null;
   private dhtEventHandlers: { event: string; handler: (...args: unknown[]) => void }[] = [];
+  private memoryCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: StreamingServiceOptions = {}) {
     // Get and ensure WebTorrent download directory exists
@@ -406,6 +415,138 @@ export class StreamingService {
     logger.debug('WebTorrent client created for streaming with DHT bootstrap nodes', {
       bootstrapNodes: DHT_BOOTSTRAP_NODES.length,
     });
+
+    // Start memory pressure monitoring
+    this.startMemoryMonitoring();
+  }
+
+  /**
+   * Start periodic memory monitoring
+   * Automatically cleans up resources when memory pressure is detected
+   */
+  private startMemoryMonitoring(): void {
+    this.memoryCheckInterval = setInterval(() => {
+      this.checkMemoryPressure();
+    }, MEMORY_CHECK_INTERVAL_MS);
+
+    // Don't prevent process from exiting
+    if (this.memoryCheckInterval.unref) {
+      this.memoryCheckInterval.unref();
+    }
+
+    logger.info('Memory pressure monitoring started', {
+      warningThresholdMB: Math.round(MEMORY_WARNING_THRESHOLD / 1024 / 1024),
+      criticalThresholdMB: Math.round(MEMORY_CRITICAL_THRESHOLD / 1024 / 1024),
+      checkIntervalMs: MEMORY_CHECK_INTERVAL_MS,
+    });
+  }
+
+  /**
+   * Check current memory usage and trigger cleanup if needed
+   */
+  private checkMemoryPressure(): void {
+    const memUsage = process.memoryUsage();
+    const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+
+    if (memUsage.rss >= MEMORY_CRITICAL_THRESHOLD) {
+      logger.error('CRITICAL memory pressure - triggering emergency cleanup', {
+        rssMB,
+        heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+        activeTorrents: this.client.torrents.length,
+        activeStreams: this.activeStreams.size,
+      });
+      this.emergencyCleanup();
+    } else if (memUsage.rss >= MEMORY_WARNING_THRESHOLD) {
+      logger.warn('High memory pressure - triggering aggressive cleanup', {
+        rssMB,
+        heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+        activeTorrents: this.client.torrents.length,
+        activeStreams: this.activeStreams.size,
+      });
+      this.aggressiveCleanup();
+    }
+  }
+
+  /**
+   * Aggressive cleanup - remove torrents with no active watchers
+   */
+  private aggressiveCleanup(): void {
+    let cleaned = 0;
+
+    // Remove torrents that have no active watchers (even if cleanup timer hasn't fired)
+    for (const [infohash, watcherInfo] of this.torrentWatchers) {
+      if (watcherInfo.watchers.size === 0) {
+        // Cancel cleanup timer and remove immediately
+        if (watcherInfo.cleanupTimer) {
+          clearTimeout(watcherInfo.cleanupTimer);
+        }
+        this.torrentWatchers.delete(infohash);
+        
+        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        if (torrent) {
+          const torrentName = torrent.name;
+          (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+            { destroyStore: true },
+            () => {
+              this.deleteTorrentFolder(torrentName, infohash).catch(() => {});
+            }
+          );
+          cleaned++;
+        }
+      }
+    }
+
+    if (cleaned > 0) {
+      logger.info('Aggressive cleanup completed', { torrentsRemoved: cleaned });
+    }
+  }
+
+  /**
+   * Emergency cleanup - remove ALL torrents except those with active streams
+   */
+  private emergencyCleanup(): void {
+    let cleaned = 0;
+    const activeInfohashes = new Set<string>();
+
+    // Collect infohashes with active streams
+    for (const stream of this.activeStreams.values()) {
+      activeInfohashes.add(stream.infohash);
+    }
+
+    // Remove all torrents except those with active streams
+    const torrentsToRemove = this.client.torrents.filter(t => !activeInfohashes.has(t.infoHash));
+
+    for (const torrent of torrentsToRemove) {
+      const infohash = torrent.infoHash;
+      const torrentName = torrent.name;
+
+      // Clean up watcher tracking
+      const watcherInfo = this.torrentWatchers.get(infohash);
+      if (watcherInfo?.cleanupTimer) {
+        clearTimeout(watcherInfo.cleanupTimer);
+      }
+      this.torrentWatchers.delete(infohash);
+
+      // Destroy torrent and delete files
+      (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+        { destroyStore: true },
+        () => {
+          this.deleteTorrentFolder(torrentName, infohash).catch(() => {});
+        }
+      );
+      cleaned++;
+    }
+
+    logger.warn('Emergency cleanup completed', {
+      torrentsRemoved: cleaned,
+      torrentsPreserved: activeInfohashes.size,
+    });
+
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+      logger.info('Forced garbage collection after emergency cleanup');
+    }
   }
 
   /**
@@ -1114,6 +1255,13 @@ export class StreamingService {
       activeStreams: this.activeStreams.size,
       activeWatchers: this.torrentWatchers.size,
     });
+
+    // Clear memory check interval
+    if (this.memoryCheckInterval) {
+      clearInterval(this.memoryCheckInterval);
+      this.memoryCheckInterval = null;
+      logger.debug('Cleared memory check interval during destroy');
+    }
 
     // Clear DHT status timeout if pending
     if (this.dhtStatusTimeout) {

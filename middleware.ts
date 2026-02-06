@@ -8,12 +8,58 @@
  * `setSession()` are never written back to the cookie.
  *
  * This is the standard approach for Supabase + Next.js App Router auth.
+ * 
+ * CIRCUIT BREAKER: Under memory pressure or repeated failures,
+ * token refresh is skipped to prevent cascading failures.
+ * The stale token will be handled gracefully by getCurrentUser().
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const AUTH_COOKIE_NAME = 'sb-auth-token';
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
+
+// Token refresh timeout - short to prevent blocking requests
+const REFRESH_TIMEOUT_MS = 3000; // 3 seconds
+
+/**
+ * Circuit breaker state for token refresh
+ * Prevents cascading failures when the system is under pressure
+ */
+let consecutiveFailures = 0;
+let lastFailureTime = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
+const CIRCUIT_RESET_MS = 30000; // 30 seconds
+
+/**
+ * Check if circuit breaker is open (should skip refresh)
+ */
+function isCircuitOpen(): boolean {
+  if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    // Check if enough time has passed to reset
+    if (Date.now() - lastFailureTime > CIRCUIT_RESET_MS) {
+      consecutiveFailures = 0;
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Record a failure for circuit breaker
+ */
+function recordFailure(): void {
+  consecutiveFailures++;
+  lastFailureTime = Date.now();
+}
+
+/**
+ * Record a success - reset circuit breaker
+ */
+function recordSuccess(): void {
+  consecutiveFailures = 0;
+}
 
 /**
  * Decode a JWT payload without verifying signature.
@@ -81,11 +127,24 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('[Middleware] Missing SUPABASE_URL or SUPABASE_ANON_KEY for token refresh');
+    // Only log once per circuit reset to avoid spam
+    if (consecutiveFailures === 0) {
+      console.error('[Middleware] Missing SUPABASE_URL or SUPABASE_ANON_KEY for token refresh');
+    }
+    return response;
+  }
+
+  // Circuit breaker: skip refresh if we've had too many recent failures
+  if (isCircuitOpen()) {
+    // Silently skip - don't spam logs when circuit is open
     return response;
   }
 
   try {
+    // Use AbortController for timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+
     const refreshResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
       method: 'POST',
       headers: {
@@ -93,10 +152,17 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         'apikey': supabaseAnonKey,
       },
       body: JSON.stringify({ refresh_token: session.refresh_token }),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
+
     if (!refreshResponse.ok) {
-      console.error('[Middleware] Token refresh failed:', refreshResponse.status);
+      recordFailure();
+      // Only log if this is the first failure in a series
+      if (consecutiveFailures === 1) {
+        console.error('[Middleware] Token refresh failed:', refreshResponse.status);
+      }
       // Clear the stale cookie so user gets redirected to login cleanly
       response.cookies.set(AUTH_COOKIE_NAME, '', {
         path: '/',
@@ -111,9 +177,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     const data = await refreshResponse.json() as SupabaseRefreshResponse;
 
     if (!data.access_token || !data.refresh_token) {
-      console.error('[Middleware] Token refresh returned incomplete data');
+      recordFailure();
+      if (consecutiveFailures === 1) {
+        console.error('[Middleware] Token refresh returned incomplete data');
+      }
       return response;
     }
+
+    // Success! Reset circuit breaker
+    recordSuccess();
 
     // Write the refreshed tokens back to the cookie
     const newCookieValue = encodeURIComponent(
@@ -131,7 +203,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       maxAge: COOKIE_MAX_AGE,
     });
   } catch (error) {
-    console.error('[Middleware] Token refresh error:', error);
+    recordFailure();
+    // Only log first failure to avoid spam during outages
+    if (consecutiveFailures === 1) {
+      console.error('[Middleware] Token refresh error:', error);
+    }
     // Don't break the request — let getCurrentUser() handle the stale token
   }
 
