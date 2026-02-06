@@ -258,10 +258,12 @@ const DEFAULT_CLEANUP_DELAY = 60000;
 /**
  * Memory pressure thresholds (in bytes)
  * When RSS exceeds these thresholds, take action to prevent OOM
+ * Lowered for VPS environments with limited RAM
  */
-const MEMORY_WARNING_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - emergency cleanup
-const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+const MEMORY_WARNING_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - start aggressive cleanup
+const MEMORY_CRITICAL_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - emergency cleanup
+const MEMORY_SEVERE_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - kill oldest streams
+const MEMORY_CHECK_INTERVAL_MS = 15000; // Check every 15 seconds (more frequent)
 
 /**
  * Watcher tracking for a torrent
@@ -296,7 +298,7 @@ export class StreamingService {
     ensureDir(this.downloadPath);
 
     logger.info('Initializing StreamingService', {
-      maxConcurrentStreams: options.maxConcurrentStreams ?? 20,
+      maxConcurrentStreams: options.maxConcurrentStreams ?? 10,
       streamTimeout: options.streamTimeout ?? 120000,
       torrentCleanupDelay: options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY,
       downloadPath: this.downloadPath,
@@ -328,11 +330,11 @@ export class StreamingService {
       lsd: true, // Local Service Discovery
       webSeeds: true,
       // Limit max connections per torrent to control memory/CPU
-      maxConns: 30,
+      maxConns: 20, // Reduced from 30 to limit memory per torrent
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
       // Download queue settings for better performance
-      downloadLimit: -1, // No download limit
+      downloadLimit: 3 * 1024 * 1024, // 3MB/s limit to prevent memory bloat (was unlimited)
       uploadLimit: 512 * 1024, // 512 KB/s upload limit to reduce CPU/bandwidth
     } as WebTorrent.Options);
     
@@ -341,7 +343,7 @@ export class StreamingService {
       note: 'Server will announce to these trackers so browsers can discover it as a WebRTC peer',
     });
     
-    this.maxConcurrentStreams = options.maxConcurrentStreams ?? 20;
+    this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
     this.streamTimeout = options.streamTimeout ?? 120000;
     this.torrentCleanupDelay = options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY;
     this.activeStreams = new Map();
@@ -448,7 +450,17 @@ export class StreamingService {
     const memUsage = process.memoryUsage();
     const rssMB = Math.round(memUsage.rss / 1024 / 1024);
 
-    if (memUsage.rss >= MEMORY_CRITICAL_THRESHOLD) {
+    if (memUsage.rss >= MEMORY_SEVERE_THRESHOLD) {
+      // SEVERE: Kill oldest streams to free memory immediately
+      logger.error('SEVERE memory pressure - killing oldest streams', {
+        rssMB,
+        heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+        activeTorrents: this.client.torrents.length,
+        activeStreams: this.activeStreams.size,
+      });
+      this.killOldestStreams(Math.max(3, Math.floor(this.activeStreams.size / 2)));
+      this.emergencyCleanup();
+    } else if (memUsage.rss >= MEMORY_CRITICAL_THRESHOLD) {
       logger.error('CRITICAL memory pressure - triggering emergency cleanup', {
         rssMB,
         heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
@@ -465,6 +477,35 @@ export class StreamingService {
       });
       this.aggressiveCleanup();
     }
+  }
+
+  /**
+   * Kill the oldest N streams to free memory during severe pressure
+   */
+  private killOldestStreams(count: number): void {
+    const streams = Array.from(this.activeStreams.entries())
+      .sort((a, b) => a[1].createdAt.getTime() - b[1].createdAt.getTime());
+    
+    const toKill = streams.slice(0, count);
+    
+    for (const [streamId, stream] of toKill) {
+      logger.warn('Killing stream due to memory pressure', {
+        streamId,
+        infohash: stream.infohash,
+        ageSeconds: Math.round((Date.now() - stream.createdAt.getTime()) / 1000),
+      });
+      
+      // Clean up the stream
+      this.activeStreams.delete(streamId);
+      
+      // Notify any listeners that the stream was terminated
+      stream.stream?.destroy(new Error('Stream terminated due to memory pressure'));
+    }
+    
+    logger.warn('Killed streams for memory relief', {
+      killed: toKill.length,
+      remaining: this.activeStreams.size,
+    });
   }
 
   /**
