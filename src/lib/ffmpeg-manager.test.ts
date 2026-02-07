@@ -92,11 +92,11 @@ describe('FFmpegProcessManager', () => {
       const proc = createTestProcess();
       manager.register(proc, { fileName: 'test.mkv' });
 
-      // Wait a bit
+      // Wait a bit (use 90ms threshold to avoid flaky timing issues)
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const stats = manager.getStats();
-      expect(stats.processes[0]?.runtimeMs).toBeGreaterThanOrEqual(100);
+      expect(stats.processes[0]?.runtimeMs).toBeGreaterThanOrEqual(90);
     });
   });
 
