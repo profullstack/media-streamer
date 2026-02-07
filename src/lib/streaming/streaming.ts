@@ -258,12 +258,12 @@ const DEFAULT_CLEANUP_DELAY = 60000;
 /**
  * Memory pressure thresholds (in bytes)
  * When RSS exceeds these thresholds, take action to prevent OOM
- * Lowered for VPS environments with limited RAM
+ * Tuned for VPS environments with limited RAM (6GB total, 5GB limit for service)
  */
-const MEMORY_WARNING_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - emergency cleanup
-const MEMORY_SEVERE_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - kill oldest streams
-const MEMORY_CHECK_INTERVAL_MS = 15000; // Check every 15 seconds (more frequent)
+const MEMORY_WARNING_THRESHOLD = 500 * 1024 * 1024; // 500MB - start aggressive cleanup
+const MEMORY_CRITICAL_THRESHOLD = 1 * 1024 * 1024 * 1024; // 1GB - emergency cleanup
+const MEMORY_SEVERE_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - kill oldest streams
+const MEMORY_CHECK_INTERVAL_MS = 10000; // Check every 10 seconds
 
 /**
  * Watcher tracking for a torrent
@@ -777,10 +777,13 @@ export class StreamingService {
 
     const cleanupStream = (): void => {
       if (this.activeStreams.has(streamId)) {
-        // Remove event listeners to prevent memory leaks
+        // Remove our specific event listeners
         stream.removeListener('end', onEnd);
         stream.removeListener('error', onError);
         stream.removeListener('close', onClose);
+        
+        // Also remove all listeners as safety measure before the stream is GC'd
+        stream.removeAllListeners();
         
         this.activeStreams.delete(streamId);
         logger.debug('Stream cleaned up', { streamId, activeStreams: this.activeStreams.size });
@@ -878,6 +881,8 @@ export class StreamingService {
     logger.debug('Closing stream', { streamId });
     const activeStream = this.activeStreams.get(streamId);
     if (activeStream) {
+      // Remove all listeners before destroying to prevent memory leaks
+      activeStream.stream.removeAllListeners();
       activeStream.stream.destroy();
       this.activeStreams.delete(streamId);
       logger.info('Stream closed', { streamId });
@@ -962,6 +967,14 @@ export class StreamingService {
           });
         };
 
+        // Helper to remove ALL listeners added in this function
+        const removeAllListeners = (): void => {
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('wire', onWire);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('ready', onReady);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('warning', onWarning);
+          (torrent as unknown as NodeJS.EventEmitter).removeListener('error', onError);
+        };
+
         const onReady = (): void => {
           logger.info('Torrent ready (status tracking)', {
             infohash,
@@ -970,9 +983,8 @@ export class StreamingService {
           });
           // Deselect all files initially - status endpoint will select specific files
           torrent.deselect(0, torrent.pieces.length - 1, 0);
-          // Remove one-time listeners after ready
-          (torrent as unknown as NodeJS.EventEmitter).removeListener('wire', onWire);
-          (torrent as unknown as NodeJS.EventEmitter).removeListener('warning', onWarning);
+          // Remove ALL listeners after ready to prevent memory leaks
+          removeAllListeners();
         };
 
         const onWarning = (warn: string | Error): void => {
@@ -984,10 +996,8 @@ export class StreamingService {
 
         const onError = (err: Error): void => {
           logger.error('Torrent error (status tracking)', err, { infohash });
-          // Clean up listeners on error
-          (torrent as unknown as NodeJS.EventEmitter).removeListener('wire', onWire);
-          (torrent as unknown as NodeJS.EventEmitter).removeListener('ready', onReady);
-          (torrent as unknown as NodeJS.EventEmitter).removeListener('warning', onWarning);
+          // Remove ALL listeners on error to prevent memory leaks
+          removeAllListeners();
         };
 
         (torrent as unknown as NodeJS.EventEmitter).on('wire', onWire);
