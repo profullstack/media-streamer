@@ -338,6 +338,10 @@ export class StreamingService {
       uploadLimit: 512 * 1024, // 512 KB/s upload limit to reduce CPU/bandwidth
     } as WebTorrent.Options);
     
+    // Increase max listeners to prevent EventEmitter warnings with many concurrent streams
+    // The default is 10, but with concurrent torrents/streams we can exceed this
+    this.client.setMaxListeners(50);
+    
     logger.info('WebTorrent client configured with WebSocket trackers for hybrid P2P', {
       websocketTrackers: WEBSOCKET_TRACKERS,
       note: 'Server will announce to these trackers so browsers can discover it as a WebRTC peer',
@@ -495,11 +499,14 @@ export class StreamingService {
         ageSeconds: Math.round((Date.now() - stream.createdAt.getTime()) / 1000),
       });
       
-      // Clean up the stream
+      // Clean up the stream - remove all listeners first to prevent memory leaks
       this.activeStreams.delete(streamId);
       
-      // Notify any listeners that the stream was terminated
-      stream.stream?.destroy(new Error('Stream terminated due to memory pressure'));
+      // Remove all event listeners before destroying
+      if (stream.stream) {
+        stream.stream.removeAllListeners();
+        stream.stream.destroy(new Error('Stream terminated due to memory pressure'));
+      }
     }
     
     logger.warn('Killed streams for memory relief', {
@@ -754,25 +761,35 @@ export class StreamingService {
     // 'end' fires when stream is fully consumed
     // 'error' fires on stream errors
     // 'close' fires when the underlying resource is closed (e.g., client disconnects)
+    // Define handlers so we can remove them later to prevent memory leaks
+    const onEnd = (): void => {
+      logger.debug('Stream ended', { streamId });
+      cleanupStream();
+    };
+    const onError = (err: Error): void => {
+      logger.error('Stream error', err, { streamId });
+      cleanupStream();
+    };
+    const onClose = (): void => {
+      logger.debug('Stream closed (client disconnected)', { streamId });
+      cleanupStream();
+    };
+
     const cleanupStream = (): void => {
       if (this.activeStreams.has(streamId)) {
+        // Remove event listeners to prevent memory leaks
+        stream.removeListener('end', onEnd);
+        stream.removeListener('error', onError);
+        stream.removeListener('close', onClose);
+        
         this.activeStreams.delete(streamId);
         logger.debug('Stream cleaned up', { streamId, activeStreams: this.activeStreams.size });
       }
     };
 
-    stream.on('end', () => {
-      logger.debug('Stream ended', { streamId });
-      cleanupStream();
-    });
-    stream.on('error', (err) => {
-      logger.error('Stream error', err, { streamId });
-      cleanupStream();
-    });
-    stream.on('close', () => {
-      logger.debug('Stream closed (client disconnected)', { streamId });
-      cleanupStream();
-    });
+    stream.on('end', onEnd);
+    stream.on('error', onError);
+    stream.on('close', onClose);
 
     const mimeType = getMimeType(file.name);
 
