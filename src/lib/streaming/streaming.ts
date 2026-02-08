@@ -314,11 +314,19 @@ export class StreamingService {
     this.client = new WebTorrent({
       dht: {
         bootstrap: DHT_BOOTSTRAP_NODES,
-        // Moderate concurrency to balance peer discovery vs resource usage
-        concurrency: 16,
-        // Cap the routing table to prevent unbounded DHT node growth (memory leak)
-        maxTables: 1000,
-        maxValues: 1000,
+        // Reduce concurrency to limit parallel DHT queries and memory usage
+        concurrency: 8,
+        // Cap the routing table rotations (LRU of k-bucket snapshots)
+        // Lower = fewer stale routing tables kept in memory
+        maxTables: 100,
+        // Cap stored values (BEP-44 mutable/immutable values)
+        maxValues: 500,
+        // Reduce k (nodes per bucket) from default 20 to 8
+        // Max nodes ≈ 160 buckets * 8 = 1,280 (vs 3,200+ with k=20)
+        // Still plenty for peer discovery, much less memory
+        k: 8,
+        // Limit max peers tracked per infohash
+        maxPeers: 3000,
       },
       // Configure tracker with WebSocket trackers for browser peer discovery
       // This is CRITICAL for hybrid P2P streaming - the server must announce to
@@ -448,11 +456,50 @@ export class StreamingService {
   }
 
   /**
+   * Clean up stale torrent download folders that are no longer associated with active torrents
+   */
+  private cleanupStaleTorrentData(): void {
+    try {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      if (!fs.existsSync(this.downloadPath)) return;
+
+      const entries = fs.readdirSync(this.downloadPath);
+      const activeInfohashes = new Set(this.client.torrents.map((t: { infoHash: string }) => t.infoHash));
+
+      let cleaned = 0;
+      for (const entry of entries) {
+        const fullPath = path.join(this.downloadPath, entry);
+        // If no active torrent matches this folder, remove it
+        const hasActiveTorrent = this.client.torrents.some(
+          (t: { name: string; infoHash: string }) => entry === t.name || entry === t.infoHash
+        );
+        if (!hasActiveTorrent) {
+          try {
+            fs.rmSync(fullPath, { recursive: true, force: true });
+            cleaned++;
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+      }
+      if (cleaned > 0) {
+        logger.info('Cleaned stale torrent data folders', { cleaned, remaining: entries.length - cleaned });
+      }
+    } catch {
+      // Ignore errors in cleanup
+    }
+  }
+
+  /**
    * Check current memory usage and trigger cleanup if needed
    */
   private checkMemoryPressure(): void {
     const memUsage = process.memoryUsage();
     const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+
+    // Periodically clean stale torrent data regardless of memory pressure
+    this.cleanupStaleTorrentData();
 
     if (memUsage.rss >= MEMORY_SEVERE_THRESHOLD) {
       // SEVERE: Kill oldest streams to free memory immediately
