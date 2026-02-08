@@ -1,34 +1,8 @@
-# Docker Compose for local development and production
-# Includes Redis for IPTV playlist caching and Coturn for WebRTC STUN/TURN
+# Docker Compose - Coturn only
+# Redis, IPTV worker, and podcast worker run as systemd services (not Docker)
+# See: /etc/systemd/system/bittorrented*.service
 
 services:
-  # Redis for caching M3U playlists
-  redis:
-    image: redis:7-alpine
-    container_name: bittorrented-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    # maxmemory 512MB with LRU eviction to prevent unbounded growth
-    # RDB snapshots every 300s if 10+ keys changed (lighter than AOF)
-    command: >
-      redis-server
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --save 300 10
-      --appendonly no
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 768M
-    restart: unless-stopped
-
   # Coturn STUN/TURN server for WebRTC NAT traversal
   # Required for WebTorrent P2P connections through firewalls/NAT
   coturn:
@@ -51,70 +25,3 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
-
-  # IPTV Cache Worker - caches channel lists every 15 minutes
-  iptv-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.iptv-worker
-    container_name: bittorrented-iptv-worker
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - NODE_ENV=production
-      - NODE_OPTIONS=--max-old-space-size=384
-    depends_on:
-      redis:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    restart: unless-stopped
-
-  # Podcast Notifier Worker - checks RSS feeds every 60 minutes and sends push notifications
-  podcast-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.podcast-worker
-    container_name: bittorrented-podcast-worker
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
-      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
-      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@bittorrented.com}
-      - NODE_ENV=production
-      - NODE_OPTIONS=--max-old-space-size=256
-    deploy:
-      resources:
-        limits:
-          memory: 384M
-    restart: unless-stopped
-
-  # Application (optional - for full local deployment)
-  # Uncomment to run the app in Docker
-  # app:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: bittorrented-app
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - REDIS_URL=redis://redis:6379
-  #     - NODE_ENV=production
-  #     - NODE_OPTIONS=--max-old-space-size=2048
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 2560M
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
-  #   restart: unless-stopped
-
-volumes:
-  redis-data:
-    driver: local
