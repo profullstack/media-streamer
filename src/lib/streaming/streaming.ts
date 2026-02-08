@@ -18,6 +18,7 @@ import nodeDataChannel from 'node-datachannel/polyfill';
 import type { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { validateMagnetUri, extractInfohash } from '../magnet';
 import { getMediaCategory, getMimeType } from '../utils';
@@ -460,23 +461,20 @@ export class StreamingService {
    */
   private cleanupStaleTorrentData(): void {
     try {
-      const fs = require('node:fs');
-      const path = require('node:path');
-      if (!fs.existsSync(this.downloadPath)) return;
+      if (!existsSync(this.downloadPath)) return;
 
-      const entries = fs.readdirSync(this.downloadPath);
-      const activeInfohashes = new Set(this.client.torrents.map((t: { infoHash: string }) => t.infoHash));
+      const entries = readdirSync(this.downloadPath);
 
       let cleaned = 0;
       for (const entry of entries) {
-        const fullPath = path.join(this.downloadPath, entry);
+        const fullPath = join(this.downloadPath, entry);
         // If no active torrent matches this folder, remove it
         const hasActiveTorrent = this.client.torrents.some(
           (t: { name: string; infoHash: string }) => entry === t.name || entry === t.infoHash
         );
         if (!hasActiveTorrent) {
           try {
-            fs.rmSync(fullPath, { recursive: true, force: true });
+            rmSync(fullPath, { recursive: true, force: true });
             cleaned++;
           } catch {
             // Ignore cleanup errors
