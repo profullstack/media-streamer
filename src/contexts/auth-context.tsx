@@ -72,12 +72,15 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
         const response = await fetch('/api/auth/me');
 
         if (!response.ok) {
+          // Don't cache failed responses — let the next navigation retry
           setUser(null);
           return;
         }
 
         const data = await response.json() as { user: AuthUser | null };
         setUser(data.user);
+        // Only cache successful responses — transient failures shouldn't
+        // lock the user out for the full cache TTL
         lastFetchedAt.current = Date.now();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

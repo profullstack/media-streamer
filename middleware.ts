@@ -163,14 +163,18 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       if (consecutiveFailures === 1) {
         console.error('[Middleware] Token refresh failed:', refreshResponse.status);
       }
-      // Clear the stale cookie so user gets redirected to login cleanly
-      response.cookies.set(AUTH_COOKIE_NAME, '', {
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 0,
-      });
+      // DON'T clear the cookie on refresh failure — the stale token
+      // may still work for API routes that do their own refresh via setSession().
+      // Only clear on 401 (token truly revoked), not on transient errors.
+      if (refreshResponse.status === 401) {
+        response.cookies.set(AUTH_COOKIE_NAME, '', {
+          path: '/',
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 0,
+        });
+      }
       return response;
     }
 

@@ -106,9 +106,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
-  // Check if tokens were refreshed (access_token changed)
+  // Always write back tokens from setSession() — even if the access_token
+  // looks the same, the refresh_token may have rotated. This prevents
+  // stale refresh tokens from causing auth loops.
   const tokensRefreshed = sessionData?.session?.access_token &&
-    sessionData.session.access_token !== sessionToken.access_token;
+    (sessionData.session.access_token !== sessionToken.access_token ||
+     sessionData.session.refresh_token !== sessionToken.refresh_token);
 
   // Get user from session
   const { data: { user }, error: userError } = await supabase.auth.getUser();
