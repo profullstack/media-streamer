@@ -261,9 +261,9 @@ const DEFAULT_CLEANUP_DELAY = 60000;
  * When RSS exceeds these thresholds, take action to prevent OOM
  * Tuned for VPS environments with limited RAM (6GB total, 5GB limit for service)
  */
-const MEMORY_WARNING_THRESHOLD = 500 * 1024 * 1024; // 500MB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 1 * 1024 * 1024 * 1024; // 1GB - emergency cleanup
-const MEMORY_SEVERE_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - kill oldest streams
+const MEMORY_WARNING_THRESHOLD = 1 * 1024 * 1024 * 1024; // 1GB - start aggressive cleanup
+const MEMORY_CRITICAL_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - emergency cleanup
+const MEMORY_SEVERE_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - kill oldest streams
 const MEMORY_CHECK_INTERVAL_MS = 10000; // Check every 10 seconds
 
 /**
