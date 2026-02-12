@@ -348,37 +348,52 @@ export function MediaPlayerModal({
       return;
     }
 
-    // Check CACHED codec info for all video files
-    // Codec detection determines if transcoding is needed based on actual codecs,
+    // Check codec info for all video files — detect if not cached
+    // Codec detection (FFprobe) determines if transcoding is needed based on actual codecs,
     // not just file extension (e.g., MKV with h264+AAC can play natively)
-    // Do NOT trigger detection here - it requires downloading data which can be slow
-    // If not cached, let the player try to play and handle codec errors at runtime
-    const checkCachedCodecInfo = async (): Promise<void> => {
+    const checkCodecInfo = async (): Promise<void> => {
       setIsCheckingCodec(true);
       try {
-        // Only try to get CACHED codec info - do not trigger detection
+        // First try to get cached codec info
         const response = await fetch(`/api/codec-info/${infohash}?fileIndex=${file.fileIndex}`);
         if (response.ok) {
           const data = await response.json() as CodecInfo;
           console.log('[MediaPlayerModal] Codec info retrieved:', data);
-          setCodecInfo(data);
           
-          // If codec info is cached, use it
-          // If not cached, proceed without it - player will handle codec errors at runtime
-          if (!data.cached) {
-            console.log('[MediaPlayerModal] Codec info not cached, will detect at runtime if needed');
+          if (data.cached) {
+            // Cached — use it directly
+            setCodecInfo(data);
+          } else {
+            // Not cached — trigger detection (downloads a few seconds of data for FFprobe)
+            console.log('[MediaPlayerModal] Codec info not cached, triggering detection...');
+            try {
+              const detectResponse = await fetch(`/api/codec-info/${infohash}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileIndex: file.fileIndex }),
+              });
+              if (detectResponse.ok) {
+                const detectData = await detectResponse.json() as CodecInfo;
+                console.log('[MediaPlayerModal] Codec detection complete:', detectData);
+                setCodecInfo(detectData);
+              } else {
+                console.warn('[MediaPlayerModal] Codec detection failed, proceeding without');
+              }
+            } catch (detectErr) {
+              console.error('[MediaPlayerModal] Codec detection error:', detectErr);
+              // Proceed without — runtime error retry will catch codec issues
+            }
           }
         }
       } catch (err) {
         console.error('[MediaPlayerModal] Failed to check codec info:', err);
-        // On error, proceed without codec info - will fall back to runtime detection
       } finally {
         setIsCheckingCodec(false);
         setCodecCheckComplete(true);
       }
     };
 
-    void checkCachedCodecInfo();
+    void checkCodecInfo();
   }, [isOpen, infohash, file]);
 
   // Extract stable references from webTorrent hook to avoid infinite loops
