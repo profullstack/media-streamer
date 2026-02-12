@@ -90,27 +90,9 @@ interface ConnectionStatus {
   timestamp: number;
 }
 
-/**
- * Video formats that require transcoding for browser playback
- */
-const VIDEO_TRANSCODE_FORMATS = new Set(['mkv', 'avi', 'wmv', 'flv', 'mov', 'ts']);
-
-/**
- * Audio formats that require transcoding for browser playback
- *
- * Note: FLAC is NOT supported on iOS Safari, so we transcode it to MP3.
- * Desktop browsers (Chrome 56+, Firefox 51+, Safari 11+) support FLAC natively,
- * but for cross-platform compatibility we transcode all FLAC files.
- */
-const AUDIO_TRANSCODE_FORMATS = new Set(['wma', 'aiff', 'ape', 'flac']);
-
-/**
- * Check if a file needs transcoding based on its extension
- */
-function needsTranscoding(filename: string): boolean {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-  return VIDEO_TRANSCODE_FORMATS.has(ext) || AUDIO_TRANSCODE_FORMATS.has(ext);
-}
+// Transcoding decisions are now made by codec detection (server-side FFprobe),
+// not by file extension. This allows MKV/AVI with browser-compatible codecs
+// (h264+AAC) to play natively without unnecessary transcoding.
 
 /**
  * Error messages that indicate codec issues requiring transcoding
@@ -366,15 +348,9 @@ export function MediaPlayerModal({
       return;
     }
 
-    // Check if format obviously needs transcoding based on extension
-    // If so, skip the codec check and go straight to transcoding
-    if (needsTranscoding(file.name)) {
-      console.log('[MediaPlayerModal] Format requires transcoding based on extension:', file.name);
-      setCodecCheckComplete(true);
-      return;
-    }
-
-    // For formats that might need transcoding (like MP4 with HEVC), check CACHED codec info only
+    // Check CACHED codec info for all video files
+    // Codec detection determines if transcoding is needed based on actual codecs,
+    // not just file extension (e.g., MKV with h264+AAC can play natively)
     // Do NOT trigger detection here - it requires downloading data which can be slow
     // If not cached, let the player try to play and handle codec errors at runtime
     const checkCachedCodecInfo = async (): Promise<void> => {
@@ -415,13 +391,11 @@ export function MediaPlayerModal({
   // retryCount is included to force URL rebuild on manual retry
   useEffect(() => {
     if (file && infohash && codecCheckComplete) {
-      // Determine if transcoding is needed:
-      // 1. If we're retrying after a codec error
-      // 2. If the format requires it based on extension
-      // 3. If codec info indicates transcoding is needed
-      const formatNeedsTranscode = needsTranscoding(file.name);
+      // Determine if transcoding is needed based on codec detection (not file extension):
+      // 1. If codec info says transcoding is needed (HEVC, non-browser codecs, etc.)
+      // 2. If we're retrying after a codec error at runtime
       const codecNeedsTranscode = codecInfo?.needsTranscoding === true;
-      const requiresTranscoding = isRetryingWithTranscode || formatNeedsTranscode || codecNeedsTranscode;
+      const requiresTranscoding = isRetryingWithTranscode || codecNeedsTranscode;
       
       // P2P streaming DISABLED - always use server-side streaming
       //
@@ -443,8 +417,8 @@ export function MediaPlayerModal({
         infohash,
         fileIndex: file.fileIndex,
         fileName: file.name,
-        formatNeedsTranscode,
         codecNeedsTranscode,
+        container: codecInfo?.container,
         isNativeCompatible: isNativeCompatible(file.name),
         requiresTranscoding,
         isRetryingWithTranscode,
@@ -479,9 +453,17 @@ export function MediaPlayerModal({
         webTorrentStopStream();
         
         // Build server-side stream URL
+        // Use demuxer param from codec detection when available (precise),
+        // fall back to transcode=auto for retry path without codec info
         let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
         if (requiresTranscoding) {
-          url += '&transcode=auto';
+          if (codecInfo?.container) {
+            // Use container-derived demuxer for precise transcoding
+            url += `&demuxer=${encodeURIComponent(codecInfo.container.split(',')[0])}`;
+          } else {
+            // Fallback: let server auto-detect from extension
+            url += '&transcode=auto';
+          }
         }
         if (retryCount > 0) {
           url += `&_retry=${retryCount}`;

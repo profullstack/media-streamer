@@ -41,7 +41,7 @@ import {
   getPreBufferSize,
   TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
 } from '@/lib/transcoding';
-import { getFFmpegDemuxerForExtension } from '@/lib/codec-detection';
+import { getFFmpegDemuxerForExtension, getFFmpegDemuxerForContainer } from '@/lib/codec-detection';
 import {
   getFileTranscodingService,
 } from '@/lib/file-transcoding';
@@ -779,8 +779,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     const PIPE_INCOMPATIBLE_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2']);
     
     // Determine the effective demuxer to use
-    // Priority: explicit demuxer > auto-detect from extension (excluding pipe-incompatible formats)
-    let effectiveDemuxer: string | null = demuxer;
+    // Priority: explicit demuxer (may be container name from codec detection) > auto-detect from extension
+    // The client may pass a container name (e.g. "matroska") from codec detection - resolve it to FFmpeg demuxer
+    let effectiveDemuxer: string | null = demuxer
+      ? (getFFmpegDemuxerForContainer(demuxer) ?? demuxer)
+      : null;
     let useFileBasedTranscoding = false;
     
     if (!effectiveDemuxer && transcode === 'auto') {
