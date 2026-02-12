@@ -254,7 +254,7 @@ interface ActiveStream {
  * Default cleanup delay: 60 seconds after last watcher disconnects
  * Increased to prevent premature cleanup during brief disconnects
  */
-const DEFAULT_CLEANUP_DELAY = 60000;
+const DEFAULT_CLEANUP_DELAY = 120000;
 
 /**
  * Memory pressure thresholds (in bytes)
@@ -1314,8 +1314,20 @@ export class StreamingService {
     watcherInfo.cleanupTimer = setTimeout(() => {
       // Double-check no new watchers connected during the delay
       const currentInfo = this.torrentWatchers.get(infohash);
+      // Check for active streams using this torrent's infohash
+      const hasActiveStreams = Array.from(this.activeStreams.values()).some(s => s.infohash === infohash);
+      if (hasActiveStreams) {
+        logger.info('Cleanup deferred - active streams still using torrent', {
+          infohash,
+          activeStreamCount: Array.from(this.activeStreams.values()).filter(s => s.infohash === infohash).length,
+        });
+        // Re-schedule cleanup to check again later
+        this.scheduleCleanup(infohash);
+        return;
+      }
+
       if (currentInfo && currentInfo.watchers.size === 0) {
-        logger.info('Removing torrent after cleanup delay (no active watchers)', { infohash });
+        logger.info('Removing torrent after cleanup delay (no active watchers or streams)', { infohash });
         
         // Remove the torrent from WebTorrent client AND delete downloaded files
         // destroyStore: true ensures the downloaded data is deleted from disk

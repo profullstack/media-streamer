@@ -212,7 +212,7 @@ export class FileTranscodingService {
 
   constructor(options: FileTranscodingServiceOptions = {}) {
     this.maxConcurrentDownloads = options.maxConcurrentDownloads ?? 3;
-    this.downloadTimeout = options.downloadTimeout ?? 300000; // 5 minutes
+    this.downloadTimeout = options.downloadTimeout ?? 900000; // 15 minutes (large x265 files need more time)
     this.minBytesBeforeTranscode = options.minBytesBeforeTranscode ?? 50 * 1024 * 1024; // 50MB
     this.activeDownloads = new Map();
     this.activeTranscodes = new Map();
@@ -482,23 +482,26 @@ export class FileTranscodingService {
 
     // Build FFmpeg args for file input (not pipe)
     // Since we have a file, FFmpeg can seek and read the moov atom
+    // Limit to 2 threads to prevent CPU spikes with concurrent streams
     const ffmpegArgs = [
-      '-threads', '0',
+      '-threads', '2',
       '-i', filePath,
       '-acodec', 'aac',
       '-vcodec', 'libx264',
-      '-vf', "scale=-2:'min(480,ceil(ih/2)*2)':flags=fast_bilinear",
-      '-preset', 'ultrafast',
+      // Scale to 720p max for quality, -2 ensures even dimensions
+      '-vf', "scale=-2:'min(720,ceil(ih/2)*2)':flags=bilinear",
+      '-preset', 'fast',
       '-tune', 'zerolatency',
-      '-profile:v', 'baseline',
-      '-level:v', '3.0',
+      '-profile:v', 'main',
+      '-level:v', '3.1',
       '-pix_fmt', 'yuv420p',
       '-g', '60',
       '-bf', '0',
-      '-crf', '30',
+      '-crf', '26',
       '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-      '-maxrate', '1M',
-      '-bufsize', '2M',
+      '-maxrate', '2.5M',
+      '-bufsize', '5M',
+      '-b:a', '128k',
       '-f', 'mp4',
       'pipe:1',
     ];
