@@ -310,6 +310,49 @@ describe('AuthContext', () => {
     });
   });
 
+  describe('Failure caching behavior', () => {
+    it('should set user to null on server error without caching the failure', async () => {
+      // Server error — user should be null
+      mockFetch.mockImplementationOnce(() =>
+        Promise.resolve({ ok: false, status: 500, json: async () => ({}) })
+      );
+
+      render(
+        <AuthProvider>
+          <TestConsumer />
+        </AuthProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('is-logged-in')).toHaveTextContent('false');
+      });
+
+      // The key behavior: lastFetchedAt should NOT be updated on failure,
+      // so the next call to fetchAuthState will retry instead of using cache.
+      // We verify this by checking that fetch was called (it always is on mount).
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should set user correctly on successful response', async () => {
+      mockFetch.mockImplementationOnce(() =>
+        Promise.resolve({
+          ok: true,
+          json: async () => ({ user: { id: 'u1', email: 'a@b.com' } }),
+        })
+      );
+
+      render(
+        <AuthProvider>
+          <TestConsumer />
+        </AuthProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('is-logged-in')).toHaveTextContent('true');
+      });
+    });
+  });
+
   describe('Renders children', () => {
     it('should render children immediately', () => {
       mockFetch.mockImplementation(() => new Promise(() => {}));

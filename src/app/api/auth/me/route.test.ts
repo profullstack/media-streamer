@@ -181,6 +181,120 @@ describe('GET /api/auth/me', () => {
     });
   });
 
+  describe('token refresh writeback', () => {
+    it('should write back cookie when access_token changes', async () => {
+      mockSetSession.mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: 'new-access-token',
+            refresh_token: 'valid-refresh',
+          },
+        },
+        error: null,
+      });
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: 'u1', email: 'a@b.com', user_metadata: {} } },
+        error: null,
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({
+            single: vi.fn().mockResolvedValueOnce({ data: null, error: null }),
+          }),
+        }),
+      });
+
+      const { GET } = await import('./route');
+      const cookieValue = JSON.stringify({
+        access_token: 'old-access-token',
+        refresh_token: 'valid-refresh',
+      });
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: { cookie: `sb-auth-token=${encodeURIComponent(cookieValue)}` },
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const setCookie = response.headers.get('Set-Cookie');
+      expect(setCookie).not.toBeNull();
+      expect(setCookie).toContain('new-access-token');
+    });
+
+    it('should write back cookie when only refresh_token changes', async () => {
+      mockSetSession.mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: 'same-access-token',
+            refresh_token: 'rotated-refresh-token',
+          },
+        },
+        error: null,
+      });
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: 'u1', email: 'a@b.com', user_metadata: {} } },
+        error: null,
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({
+            single: vi.fn().mockResolvedValueOnce({ data: null, error: null }),
+          }),
+        }),
+      });
+
+      const { GET } = await import('./route');
+      const cookieValue = JSON.stringify({
+        access_token: 'same-access-token',
+        refresh_token: 'old-refresh-token',
+      });
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: { cookie: `sb-auth-token=${encodeURIComponent(cookieValue)}` },
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const setCookie = response.headers.get('Set-Cookie');
+      expect(setCookie).not.toBeNull();
+      expect(setCookie).toContain('rotated-refresh-token');
+    });
+
+    it('should NOT write back cookie when neither token changed', async () => {
+      mockSetSession.mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: 'same-token',
+            refresh_token: 'same-refresh',
+          },
+        },
+        error: null,
+      });
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: 'u1', email: 'a@b.com', user_metadata: {} } },
+        error: null,
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({
+            single: vi.fn().mockResolvedValueOnce({ data: null, error: null }),
+          }),
+        }),
+      });
+
+      const { GET } = await import('./route');
+      const cookieValue = JSON.stringify({
+        access_token: 'same-token',
+        refresh_token: 'same-refresh',
+      });
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: { cookie: `sb-auth-token=${encodeURIComponent(cookieValue)}` },
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Set-Cookie')).toBeNull();
+    });
+  });
+
   describe('caching', () => {
     it('should set cache-control headers', async () => {
       const { GET } = await import('./route');
