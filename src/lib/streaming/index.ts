@@ -34,7 +34,7 @@ let streamingServiceInstance: StreamingService | null = null;
 export function getStreamingService(): StreamingService {
   if (!streamingServiceInstance) {
     streamingServiceInstance = new StreamingService({
-      maxConcurrentStreams: 15, // Reduced from 50 — 15GB server can't handle 50 concurrent torrent streams
+      maxConcurrentStreams: 5, // Reduced from 15 — 8 concurrent ffmpeg transcodes exhausted 15GB server memory + swap
       streamTimeout: 90000, // 90 seconds for audio/video to connect to peers
       torrentCleanupDelay: 120000, // 2 minutes grace period — must outlast active transcoding streams
     });
