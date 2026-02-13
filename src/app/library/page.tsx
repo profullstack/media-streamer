@@ -15,6 +15,7 @@ import { MainLayout } from '@/components/layout';
 import { getCurrentUser } from '@/lib/auth';
 import { getLibraryRepository } from '@/lib/library';
 import { getFavoritesService } from '@/lib/favorites';
+import { getWatchlistRepository } from '@/lib/watchlist';
 import { LibraryContent } from './library-content';
 
 /**
@@ -43,13 +44,15 @@ export default async function LibraryPage(): Promise<React.ReactElement> {
   // Fetch all library data server-side
   const libraryRepo = getLibraryRepository();
   const favoritesService = getFavoritesService();
+  const watchlistRepo = getWatchlistRepository();
 
-  const [favorites, collections, history, torrentFavorites, iptvChannelFavorites] = await Promise.all([
+  const [favorites, collections, history, torrentFavorites, iptvChannelFavorites, watchlistItems] = await Promise.all([
     libraryRepo.getUserFavorites(user.id).catch(() => []),
     libraryRepo.getUserCollections(user.id).catch(() => []),
     libraryRepo.getCombinedHistory(user.id, 50).catch(() => []),
     favoritesService.getTorrentFavorites(user.id).catch(() => []),
     favoritesService.getIptvChannelFavorites(user.id).catch(() => []),
+    watchlistRepo.getAllUserWatchlistItems(user.id).catch(() => []),
   ]);
 
   return (
@@ -60,6 +63,7 @@ export default async function LibraryPage(): Promise<React.ReactElement> {
         initialHistory={history}
         initialTorrentFavorites={torrentFavorites}
         initialIptvChannelFavorites={iptvChannelFavorites}
+        initialWatchlistItems={watchlistItems}
       />
     </MainLayout>
   );

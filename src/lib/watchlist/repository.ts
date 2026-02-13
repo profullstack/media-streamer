@@ -130,6 +130,35 @@ export class WatchlistRepository {
   /**
    * Get items in a watchlist
    */
+  /**
+   * Get all watchlist items across all of a user's watchlists
+   */
+  async getAllUserWatchlistItems(userId: string): Promise<WatchlistItemWithMeta[]> {
+    // First get user's watchlist IDs
+    const { data: watchlists, error: wlError } = await this.supabase
+      .from('user_watchlists')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (wlError || !watchlists || watchlists.length === 0) {
+      return [];
+    }
+
+    const watchlistIds = watchlists.map((w) => w.id);
+
+    const { data, error } = await this.supabase
+      .from('watchlist_items')
+      .select('*')
+      .in('watchlist_id', watchlistIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch user watchlist items: ${error.message}`);
+    }
+
+    return (data ?? []) as WatchlistItemWithMeta[];
+  }
+
   async getWatchlistItems(watchlistId: string): Promise<WatchlistItemWithMeta[]> {
     const { data, error } = await this.supabase
       .from('watchlist_items')

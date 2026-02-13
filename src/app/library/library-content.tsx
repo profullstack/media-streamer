@@ -31,6 +31,7 @@ import type {
   CollectionType,
 } from '@/lib/library';
 import type { TorrentFavoriteWithDetails, IptvChannelFavoriteWithDetails } from '@/lib/favorites';
+import type { WatchlistItemWithMeta } from '@/lib/watchlist';
 
 type TabType = 'favorites' | 'collections' | 'history';
 type MediaType = 'all' | 'music' | 'video' | 'ebook' | 'livetv';
@@ -41,6 +42,7 @@ interface LibraryContentProps {
   initialHistory: HistoryItem[];
   initialTorrentFavorites: TorrentFavoriteWithDetails[];
   initialIptvChannelFavorites: IptvChannelFavoriteWithDetails[];
+  initialWatchlistItems: WatchlistItemWithMeta[];
 }
 
 function getMediaIcon(
@@ -89,6 +91,7 @@ export function LibraryContent({
   initialHistory,
   initialTorrentFavorites,
   initialIptvChannelFavorites,
+  initialWatchlistItems,
 }: LibraryContentProps): React.ReactElement {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('favorites');
@@ -98,6 +101,7 @@ export function LibraryContent({
   const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
   const [torrentFavorites, setTorrentFavorites] = useState<TorrentFavoriteWithDetails[]>(initialTorrentFavorites);
   const [iptvChannelFavorites, setIptvChannelFavorites] = useState<IptvChannelFavoriteWithDetails[]>(initialIptvChannelFavorites);
+  const [watchlistItems, setWatchlistItems] = useState<WatchlistItemWithMeta[]>(initialWatchlistItems);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionType, setNewCollectionType] = useState<CollectionType>('mixed');
@@ -125,6 +129,13 @@ export function LibraryContent({
     if (mediaFilter === 'video') return category === 'video';
     if (mediaFilter === 'ebook') return category === 'ebook';
     return true;
+  });
+
+  const filteredWatchlistItems = watchlistItems.filter((item) => {
+    if (mediaFilter === 'all') return true;
+    if (mediaFilter === 'livetv') return false;
+    if (mediaFilter === 'video') return item.media_type === 'movie' || item.media_type === 'tv';
+    return false; // watchlist items are only movies/TV
   });
 
   const filteredTorrentFavorites = torrentFavorites.filter((item) => {
@@ -168,6 +179,22 @@ export function LibraryContent({
       console.error('Failed to remove torrent favorite:', error);
     }
   }, []);
+
+  const removeWatchlistItem = useCallback(async (itemId: string): Promise<void> => {
+    try {
+      const response = await fetch(`/api/watchlists/${watchlistItems.find(i => i.id === itemId)?.watchlist_id}/items`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tmdbId: watchlistItems.find(i => i.id === itemId)?.tmdb_id }),
+      });
+
+      if (response.ok) {
+        setWatchlistItems((prev) => prev.filter((item) => item.id !== itemId));
+      }
+    } catch (error) {
+      console.error('Failed to remove watchlist item:', error);
+    }
+  }, [watchlistItems]);
 
   const removeIptvChannelFavorite = useCallback(async (playlistId: string, channelId: string): Promise<void> => {
     try {
@@ -274,7 +301,7 @@ export function LibraryContent({
   }, []);
 
   const tabs: { id: TabType; label: string; count: number }[] = [
-    { id: 'favorites', label: 'Favorites', count: favorites.length + torrentFavorites.length + iptvChannelFavorites.length },
+    { id: 'favorites', label: 'Favorites', count: favorites.length + torrentFavorites.length + iptvChannelFavorites.length + watchlistItems.length },
     { id: 'collections', label: 'Collections', count: collections.length },
     { id: 'history', label: 'History', count: history.length },
   ];
@@ -407,6 +434,80 @@ export function LibraryContent({
                       }}
                       className="p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all"
                       title="Remove from favorites"
+                    >
+                      <CloseIcon size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Watchlist Items Section (Movies & TV Shows) */}
+          {filteredWatchlistItems.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
+                <VideoIcon size={14} className="text-accent-primary" />
+                Watchlist ({filteredWatchlistItems.length})
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredWatchlistItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group cursor-pointer"
+                    onClick={() => {
+                      // Search for the title to find a torrent
+                      router.push(`/search?q=${encodeURIComponent(item.title)}`);
+                    }}
+                  >
+                    {/* Poster */}
+                    {item.poster_path ? (
+                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`https://image.tmdb.org/t/p/w154${item.poster_path}`}
+                          alt={item.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                        <VideoIcon size={24} className="text-text-muted" />
+                      </div>
+                    )}
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-text-primary hover:text-accent-primary truncate">
+                        {item.title}
+                      </h3>
+                      <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
+                        <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                          {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
+                        </span>
+                        {item.release_date ? (
+                          <span>{new Date(item.release_date).getFullYear()}</span>
+                        ) : null}
+                        {item.vote_average ? (
+                          <span>⭐ {Number(item.vote_average).toFixed(1)}</span>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-text-muted mt-1">
+                        Added {formatTimeAgo(item.created_at)}
+                      </p>
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeWatchlistItem(item.id);
+                      }}
+                      className="p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Remove from watchlist"
                     >
                       <CloseIcon size={14} />
                     </button>
@@ -560,7 +661,7 @@ export function LibraryContent({
           )}
 
           {/* Empty State */}
-          {torrentFavorites.length === 0 && filteredFavorites.length === 0 && iptvChannelFavorites.length === 0 && (
+          {torrentFavorites.length === 0 && filteredFavorites.length === 0 && iptvChannelFavorites.length === 0 && watchlistItems.length === 0 && (
             <div className="text-center py-12">
               <HeartIcon className="mx-auto text-text-muted mb-4" size={48} />
               <h3 className="text-lg font-medium text-text-primary mb-2">

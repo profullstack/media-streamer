@@ -241,7 +241,7 @@ describe('LibraryContent', () => {
           initialCollections={mockCollections}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -265,7 +265,7 @@ describe('LibraryContent', () => {
           initialCollections={mockCollections}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -290,7 +290,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -305,7 +305,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -320,7 +320,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -353,7 +353,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -385,7 +385,7 @@ describe('LibraryContent', () => {
           initialCollections={mockCollections}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -405,7 +405,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -437,7 +437,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -477,7 +477,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -504,7 +504,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -522,7 +522,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -539,7 +539,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -558,7 +558,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -588,7 +588,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={mockHistory}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -616,7 +616,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -635,7 +635,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={mockIptvChannelFavorites}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={mockIptvChannelFavorites}
         />
       );
 
@@ -653,7 +653,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={mockIptvChannelFavorites}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={mockIptvChannelFavorites}
         />
       );
 
@@ -676,7 +676,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={mockIptvChannelFavorites}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={mockIptvChannelFavorites}
         />
       );
 
@@ -702,7 +702,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={mockIptvChannelFavorites}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={mockIptvChannelFavorites}
         />
       );
 
@@ -731,7 +731,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={mockIptvChannelFavorites}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={mockIptvChannelFavorites}
         />
       );
 
@@ -748,7 +748,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -767,7 +767,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -789,7 +789,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -811,7 +811,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -833,7 +833,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={mockIptvChannelFavorites}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={mockIptvChannelFavorites}
         />
       );
 
@@ -861,7 +861,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -890,7 +890,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -906,7 +906,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={mockTorrentFavorites}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -931,7 +931,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -954,7 +954,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -973,7 +973,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -993,7 +993,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -1012,7 +1012,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -1034,7 +1034,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
@@ -1054,7 +1054,7 @@ describe('LibraryContent', () => {
           initialCollections={[]}
           initialHistory={[]}
           initialTorrentFavorites={[]}
-          initialIptvChannelFavorites={[]}
+          initialWatchlistItems={[]} initialIptvChannelFavorites={[]}
         />
       );
 
