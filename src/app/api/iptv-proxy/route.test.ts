@@ -8,6 +8,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
+// Mock subscription guard - allow all requests through
+vi.mock('@/lib/subscription/guard', () => ({
+  requireActiveSubscription: vi.fn().mockResolvedValue(null),
+}));
+
 // Mock undici module
 const mockFetch = vi.fn();
 const mockAgentConstructor = vi.fn().mockImplementation(() => ({}));

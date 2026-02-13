@@ -133,6 +133,10 @@ describe('GET /api/auth/me', () => {
         email: 'test@example.com',
         subscription_tier: 'premium',
         subscription_status: 'active',
+        subscription_expired: false,
+        trial_expired: false,
+        trial_expires_at: null,
+        subscription_expires_at: null,
         display_name: 'Test User',
         avatar_url: 'https://example.com/avatar.jpg',
       });

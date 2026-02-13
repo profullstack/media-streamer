@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable react-hooks/rules-of-hooks */
-
 /**
  * Media Player Modal Component
  *
@@ -241,11 +239,6 @@ export function MediaPlayerModal({
   const { trackPlayback } = useAnalytics();
   const { isTv } = useTvDetection();
   const { isPremium } = useAuth();
-
-  // Show paywall if subscription expired
-  if (isOpen && !isPremium) {
-    return <PaywallOverlay onClose={onClose} />;
-  }
 
   // Client-side WebTorrent hook for P2P streaming of native formats
   const webTorrent = useWebTorrent();
@@ -909,6 +902,11 @@ export function MediaPlayerModal({
   const showLoadingSpinner = isP2PStreaming
     ? (webTorrent.status === 'loading' || webTorrent.status === 'buffering' || webTorrent.status === 'no-peers') && !error
     : !isServerStreamReady && !error;
+
+  // Show paywall if subscription expired
+  if (isOpen && !isPremium) {
+    return <PaywallOverlay onClose={onClose} />;
+  }
 
   return (
     <Modal

@@ -6,6 +6,11 @@ vi.mock('@/lib/auth', () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({ id: 'user-123', email: 'test@example.com' })),
 }));
 
+// Mock subscription guard - allow all requests through
+vi.mock('@/lib/subscription/guard', () => ({
+  requireActiveSubscription: vi.fn().mockResolvedValue(null),
+}));
+
 // Mock transcoding module
 vi.mock('@/lib/transcoding', () => ({
   needsTranscoding: vi.fn((filename: string) => {

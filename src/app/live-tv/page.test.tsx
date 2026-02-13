@@ -87,6 +87,7 @@ describe('LiveTvContent', () => {
       isLoggedIn: false,
       isLoading: false,
       isPremium: false,
+      isTrialExpired: false,
       user: null,
       error: null,
       refresh: vi.fn(),

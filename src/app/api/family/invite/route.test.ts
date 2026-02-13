@@ -343,6 +343,8 @@ describe('Family Invitation API Routes', () => {
       const mockEmailService = {
         sendFamilyInvitation: vi.fn().mockResolvedValue({ success: true }),
         sendRenewalReminder: vi.fn(),
+        sendTrialExpired: vi.fn(),
+        sendIPTVSubscriptionEmail: vi.fn(),
         isValidEmail: vi.fn().mockReturnValue(true),
         resend: {} as unknown,
       };
