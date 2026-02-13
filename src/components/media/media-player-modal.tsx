@@ -30,8 +30,9 @@ import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
 import { RefreshIcon } from '@/components/ui/icons';
 import { getMediaCategory } from '@/lib/utils';
 import { formatProgressTime } from '@/lib/progress/progress';
-import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection } from '@/hooks';
+import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection, useAuth } from '@/hooks';
 import type { TorrentFile, FileProgress } from '@/types';
+import { PaywallOverlay } from '@/components/subscription/PaywallOverlay';
 
 /**
  * Check if a string is a valid UUID v4
@@ -237,6 +238,12 @@ export function MediaPlayerModal({
 }: MediaPlayerModalProps): React.ReactElement | null {
   const { trackPlayback } = useAnalytics();
   const { isTv } = useTvDetection();
+  const { isPremium } = useAuth();
+
+  // Show paywall if subscription expired
+  if (isOpen && !isPremium) {
+    return <PaywallOverlay onClose={onClose} />;
+  }
 
   // Client-side WebTorrent hook for P2P streaming of native formats
   const webTorrent = useWebTorrent();

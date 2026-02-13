@@ -177,6 +177,11 @@ function jsonError(message: string, status: number): Response {
  * Proxy an HTTP stream through HTTPS using native streaming.
  */
 export async function GET(request: NextRequest): Promise<Response> {
+  // Subscription check
+  const { requireActiveSubscription } = await import('@/lib/subscription/guard');
+  const subscriptionError = await requireActiveSubscription(request);
+  if (subscriptionError) return subscriptionError;
+
   const { searchParams } = new URL(request.url);
   const encodedUrl = searchParams.get('url');
   const encodedHeaders = searchParams.get('headers');

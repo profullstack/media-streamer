@@ -131,15 +131,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Get user subscription info
   const { data: subscription } = await supabase
     .from('user_subscriptions')
-    .select('tier, status')
+    .select('tier, status, trial_expires_at, subscription_expires_at')
     .eq('user_id', user.id)
     .single();
+
+  // Check if subscription is expired
+  const now = new Date();
+  const tier = subscription?.tier ?? 'trial';
+  let subscription_expired = false;
+  let trial_expired = false;
+
+  if (tier === 'trial' && subscription?.trial_expires_at) {
+    trial_expired = new Date(subscription.trial_expires_at) < now;
+    subscription_expired = trial_expired;
+  } else if ((tier === 'premium' || tier === 'family') && subscription?.subscription_expires_at) {
+    subscription_expired = new Date(subscription.subscription_expires_at) < now;
+  }
 
   const responseUser = {
     id: user.id,
     email: user.email ?? '',
     subscription_tier: subscription?.tier ?? 'trial',
     subscription_status: subscription?.status ?? 'active',
+    subscription_expired,
+    trial_expired,
+    trial_expires_at: subscription?.trial_expires_at ?? null,
+    subscription_expires_at: subscription?.subscription_expires_at ?? null,
     display_name: user.user_metadata?.display_name as string | undefined,
     avatar_url: user.user_metadata?.avatar_url as string | undefined,
   };

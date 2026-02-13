@@ -676,6 +676,11 @@ function createTranscodedStream(
  *            This should come from codec detection stored in the database.
  */
 export async function GET(request: NextRequest): Promise<Response> {
+  // Subscription check — block expired users from streaming
+  const { requireActiveSubscription } = await import('@/lib/subscription/guard');
+  const subscriptionError = await requireActiveSubscription(request);
+  if (subscriptionError) return subscriptionError;
+
   const requestId = generateRequestId();
   const reqLogger = logger.child({ requestId });
   

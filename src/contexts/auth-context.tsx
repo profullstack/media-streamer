@@ -14,6 +14,10 @@ export interface AuthUser {
   id: string;
   email: string;
   subscription_tier?: 'free' | 'trial' | 'premium' | 'family';
+  subscription_expired?: boolean;
+  trial_expired?: boolean;
+  trial_expires_at?: string;
+  subscription_expires_at?: string;
   display_name?: string;
   avatar_url?: string;
 }
@@ -22,6 +26,7 @@ export interface AuthContextValue {
   isLoading: boolean;
   isLoggedIn: boolean;
   isPremium: boolean;
+  isTrialExpired: boolean;
   user: AuthUser | null;
   error: string | null;
   refresh: () => void;
@@ -107,13 +112,15 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
 
   const isLoggedIn = user !== null;
   const isPremium =
-    user?.subscription_tier === 'trial' ||
+    (user?.subscription_tier === 'trial' ||
     user?.subscription_tier === 'premium' ||
-    user?.subscription_tier === 'family';
+    user?.subscription_tier === 'family') &&
+    user?.subscription_expired !== true;
+  const isTrialExpired = user?.trial_expired === true;
 
   return (
     <AuthContext.Provider
-      value={{ isLoading, isLoggedIn, isPremium, user, error, refresh }}
+      value={{ isLoading, isLoggedIn, isPremium, isTrialExpired, user, error, refresh }}
     >
       {children}
     </AuthContext.Provider>

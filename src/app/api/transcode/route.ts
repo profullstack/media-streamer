@@ -67,6 +67,11 @@ function extractFormat(filename: string): string {
  * Check if transcoding is available and get transcoding info
  */
 export async function POST(request: NextRequest): Promise<NextResponse<TranscodeResponse>> {
+  // Subscription check
+  const { requireActiveSubscription } = await import('@/lib/subscription/guard');
+  const subscriptionError = await requireActiveSubscription(request);
+  if (subscriptionError) return subscriptionError as NextResponse<TranscodeResponse>;
+
   try {
     const body = await request.json() as TranscodeRequest;
     const { filename, mediaType, fileSize } = body;
