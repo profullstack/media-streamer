@@ -228,6 +228,25 @@ export function createIPTVSubscriptionService(
             
             await repository.linkPaymentToSubscription(payment.id, existingSubscription.id);
             
+            // Send confirmation email for extension
+            try {
+              const supabase = getServerClient();
+              const { data: { user } } = await supabase.auth.admin.getUserById(payment.user_id);
+              if (user?.email) {
+                const emailService = getEmailService();
+                await emailService.sendIPTVSubscriptionEmail({
+                  to: user.email,
+                  username: extendedSubscription.username,
+                  password: extendedSubscription.password,
+                  m3uDownloadLink: extendedSubscription.m3u_download_link,
+                  packageName: packageKey.replace(/_/g, ' '),
+                  expiresAt: new Date(extendedSubscription.expires_at),
+                });
+              }
+            } catch (err) {
+              console.error('[IPTV Service] Failed to send confirmation email:', err);
+            }
+
             return {
               action: 'subscription_extended',
               subscription: extendedSubscription,
@@ -246,6 +265,31 @@ export function createIPTVSubscriptionService(
         // Link payment to subscription
         await repository.linkPaymentToSubscription(payment.id, subscription.id);
 
+        // Auto-save playlist and send confirmation email
+        try {
+          await autoSavePlaylist(payment.user_id, subscription.m3u_download_link);
+        } catch (err) {
+          console.error('[IPTV Service] Failed to auto-save playlist:', err);
+        }
+
+        try {
+          const supabase = getServerClient();
+          const { data: { user } } = await supabase.auth.admin.getUserById(payment.user_id);
+          if (user?.email) {
+            const emailService = getEmailService();
+            await emailService.sendIPTVSubscriptionEmail({
+              to: user.email,
+              username: subscription.username,
+              password: subscription.password,
+              m3uDownloadLink: subscription.m3u_download_link,
+              packageName: packageKey.replace(/_/g, ' '),
+              expiresAt: new Date(subscription.expires_at),
+            });
+          }
+        } catch (err) {
+          console.error('[IPTV Service] Failed to send confirmation email:', err);
+        }
+
         return {
           action: 'subscription_created',
           subscription,
@@ -261,6 +305,25 @@ export function createIPTVSubscriptionService(
           payment.iptv_subscription_id,
           packageKey
         );
+
+        // Send confirmation email for extension
+        try {
+          const supabase = getServerClient();
+          const { data: { user } } = await supabase.auth.admin.getUserById(payment.user_id);
+          if (user?.email) {
+            const emailService = getEmailService();
+            await emailService.sendIPTVSubscriptionEmail({
+              to: user.email,
+              username: extendedSubscription.username,
+              password: extendedSubscription.password,
+              m3uDownloadLink: extendedSubscription.m3u_download_link,
+              packageName: packageKey.replace(/_/g, ' '),
+              expiresAt: new Date(extendedSubscription.expires_at),
+            });
+          }
+        } catch (err) {
+          console.error('[IPTV Service] Failed to send confirmation email:', err);
+        }
 
         return {
           action: 'subscription_extended',
@@ -288,6 +351,9 @@ export function createIPTVSubscriptionService(
 
 import { getArgonTVClient } from './client';
 import { getIPTVSubscriptionRepository } from './repository';
+import { autoSavePlaylist } from './playlist-auto-save';
+import { getEmailService } from '../email/email';
+import { getServerClient } from '../supabase/client';
 
 let serviceInstance: IPTVSubscriptionService | null = null;
 

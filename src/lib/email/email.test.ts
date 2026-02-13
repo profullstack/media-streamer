@@ -167,6 +167,65 @@ describe('Email Service', () => {
     });
   });
 
+  describe('sendIPTVSubscriptionEmail', () => {
+    const validParams = {
+      to: 'user@example.com',
+      username: '125950677866',
+      password: '204437619472',
+      m3uDownloadLink: 'https://line.ottc.xyz/get.php?username=125950677866&password=204437619472',
+      packageName: '1 month',
+      expiresAt: new Date('2026-02-02T10:00:00Z'),
+    };
+
+    it('should send IPTV subscription email', async () => {
+      mockSend.mockResolvedValueOnce({ data: { id: 'email-789' }, error: null });
+
+      const result = await emailService.sendIPTVSubscriptionEmail(validParams);
+
+      expect(result.success).toBe(true);
+      expect(result.messageId).toBe('email-789');
+    });
+
+    it('should include account details in email', async () => {
+      mockSend.mockResolvedValueOnce({ data: { id: 'email-789' }, error: null });
+
+      await emailService.sendIPTVSubscriptionEmail(validParams);
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.html).toContain(validParams.username);
+      expect(callArgs.html).toContain(validParams.password);
+      expect(callArgs.html).toContain(validParams.m3uDownloadLink);
+    });
+
+    it('should include correct subject', async () => {
+      mockSend.mockResolvedValueOnce({ data: { id: 'email-789' }, error: null });
+
+      await emailService.sendIPTVSubscriptionEmail(validParams);
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.subject).toBe('Your IPTV Subscription is Active — Account Details');
+    });
+
+    it('should include live-tv link', async () => {
+      mockSend.mockResolvedValueOnce({ data: { id: 'email-789' }, error: null });
+
+      await emailService.sendIPTVSubscriptionEmail(validParams);
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.html).toContain('/live-tv');
+    });
+
+    it('should reject invalid email', async () => {
+      const result = await emailService.sendIPTVSubscriptionEmail({
+        ...validParams,
+        to: 'invalid',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid email');
+    });
+  });
+
   describe('Email validation', () => {
     it('should accept valid email addresses', () => {
       const validEmails = [

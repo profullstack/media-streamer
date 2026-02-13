@@ -13,6 +13,30 @@ import type { ArgonTVClient } from './client';
 import type { IPTVSubscriptionRepository } from './repository';
 import { ARGONTV_PACKAGES, PACKAGE_DURATION_DAYS, IPTV_PACKAGE_PRICES } from './types';
 
+// Mock autoSavePlaylist
+const mockAutoSavePlaylist = vi.fn();
+vi.mock('./playlist-auto-save', () => ({
+  autoSavePlaylist: (...args: unknown[]) => mockAutoSavePlaylist(...args),
+}));
+
+// Mock email service
+const mockSendIPTVSubscriptionEmail = vi.fn().mockResolvedValue({ success: true });
+vi.mock('../email/email', () => ({
+  getEmailService: () => ({
+    sendIPTVSubscriptionEmail: mockSendIPTVSubscriptionEmail,
+  }),
+}));
+
+// Mock supabase client for admin user lookup
+const mockGetUserById = vi.fn().mockResolvedValue({
+  data: { user: { email: 'test@example.com' } },
+});
+vi.mock('../supabase/client', () => ({
+  getServerClient: () => ({
+    auth: { admin: { getUserById: (...args: unknown[]) => mockGetUserById(...args) } },
+  }),
+}));
+
 // Mock ArgonTV client
 function createMockArgonTVClient(): ArgonTVClient {
   return {
@@ -48,6 +72,9 @@ describe('IPTVSubscriptionService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAutoSavePlaylist.mockResolvedValue(undefined);
+    mockSendIPTVSubscriptionEmail.mockResolvedValue({ success: true });
+    mockGetUserById.mockResolvedValue({ data: { user: { email: 'test@example.com' } } });
     mockClient = createMockArgonTVClient();
     mockRepository = createMockRepository();
     service = createIPTVSubscriptionService(mockClient, mockRepository);
@@ -411,6 +438,118 @@ describe('IPTVSubscriptionService', () => {
       await expect(
         service.processPaymentCompletion('non-existent')
       ).rejects.toThrow('Payment not found');
+    });
+
+    it('should call autoSavePlaylist after creating new subscription', async () => {
+      const mockPayment = {
+        id: 'pay-123',
+        user_id: 'user-456',
+        iptv_subscription_id: null,
+        coinpayportal_payment_id: 'cpp-789',
+        amount_usd: 14.99,
+        amount_crypto: '0.005',
+        crypto_currency: 'ETH',
+        blockchain: 'ETH',
+        tx_hash: '0xabc...',
+        payment_address: '0x123...',
+        status: 'confirmed' as const,
+        payment_type: 'new_subscription' as const,
+        package_key: '1_month' as const,
+        webhook_received_at: '2026-01-02T10:30:00Z',
+        webhook_event_type: 'payment.confirmed',
+        metadata: { templateId: '12345' },
+        created_at: '2026-01-02T10:00:00Z',
+        updated_at: '2026-01-02T10:30:00Z',
+        completed_at: '2026-01-02T10:30:00Z',
+      };
+
+      const mockSubscription = {
+        id: 'sub-123',
+        user_id: 'user-456',
+        argontv_line_id: 3559,
+        username: '125950677866',
+        password: '204437619472',
+        m3u_download_link: 'https://line.ottc.xyz/get.php?username=125950677866&password=204437619472&output=ts&type=m3u_plus',
+        package_key: '1_month' as const,
+        status: 'active' as const,
+        created_at: '2026-01-02T10:00:00Z',
+        expires_at: '2027-02-02T10:00:00Z',
+        updated_at: '2026-01-02T10:00:00Z',
+      };
+
+      vi.mocked(mockRepository.getPaymentByExternalId).mockResolvedValueOnce(mockPayment);
+      vi.mocked(mockRepository.getUserSubscription).mockResolvedValueOnce(null);
+      vi.mocked(mockClient.createLine).mockResolvedValueOnce({
+        error: false, id: 3559, creation_time: 0, expiration_time: 0,
+        username: '125950677866', password: '204437619472',
+        xtream_codes_username: '125950677866', xtream_codes_password: '204437619472',
+        m3u_download_link: mockSubscription.m3u_download_link,
+      });
+      vi.mocked(mockRepository.createSubscription).mockResolvedValueOnce(mockSubscription);
+      vi.mocked(mockRepository.linkPaymentToSubscription).mockResolvedValueOnce({ ...mockPayment, iptv_subscription_id: 'sub-123' });
+
+      await service.processPaymentCompletion('cpp-789', 12345);
+
+      expect(mockAutoSavePlaylist).toHaveBeenCalledWith('user-456', mockSubscription.m3u_download_link);
+    });
+
+    it('should send confirmation email after creating new subscription', async () => {
+      const mockPayment = {
+        id: 'pay-123',
+        user_id: 'user-456',
+        iptv_subscription_id: null,
+        coinpayportal_payment_id: 'cpp-789',
+        amount_usd: 14.99,
+        amount_crypto: '0.005',
+        crypto_currency: 'ETH',
+        blockchain: 'ETH',
+        tx_hash: '0xabc...',
+        payment_address: '0x123...',
+        status: 'confirmed' as const,
+        payment_type: 'new_subscription' as const,
+        package_key: '1_month' as const,
+        webhook_received_at: '2026-01-02T10:30:00Z',
+        webhook_event_type: 'payment.confirmed',
+        metadata: { templateId: '12345' },
+        created_at: '2026-01-02T10:00:00Z',
+        updated_at: '2026-01-02T10:30:00Z',
+        completed_at: '2026-01-02T10:30:00Z',
+      };
+
+      const mockSubscription = {
+        id: 'sub-123',
+        user_id: 'user-456',
+        argontv_line_id: 3559,
+        username: '125950677866',
+        password: '204437619472',
+        m3u_download_link: 'https://line.ottc.xyz/get.php?username=125950677866',
+        package_key: '1_month' as const,
+        status: 'active' as const,
+        created_at: '2026-01-02T10:00:00Z',
+        expires_at: '2027-02-02T10:00:00Z',
+        updated_at: '2026-01-02T10:00:00Z',
+      };
+
+      vi.mocked(mockRepository.getPaymentByExternalId).mockResolvedValueOnce(mockPayment);
+      vi.mocked(mockRepository.getUserSubscription).mockResolvedValueOnce(null);
+      vi.mocked(mockClient.createLine).mockResolvedValueOnce({
+        error: false, id: 3559, creation_time: 0, expiration_time: 0,
+        username: '125950677866', password: '204437619472',
+        xtream_codes_username: '125950677866', xtream_codes_password: '204437619472',
+        m3u_download_link: mockSubscription.m3u_download_link,
+      });
+      vi.mocked(mockRepository.createSubscription).mockResolvedValueOnce(mockSubscription);
+      vi.mocked(mockRepository.linkPaymentToSubscription).mockResolvedValueOnce({ ...mockPayment, iptv_subscription_id: 'sub-123' });
+
+      await service.processPaymentCompletion('cpp-789', 12345);
+
+      expect(mockSendIPTVSubscriptionEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'test@example.com',
+          username: '125950677866',
+          password: '204437619472',
+        })
+      );
     });
   });
 

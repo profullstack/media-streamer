@@ -45,10 +45,20 @@ export interface TrialExpiredEmailParams {
   userName?: string;
 }
 
+export interface IPTVSubscriptionEmailParams {
+  to: string;
+  username: string;
+  password: string;
+  m3uDownloadLink: string;
+  packageName: string;
+  expiresAt: Date;
+}
+
 export interface EmailService {
   sendFamilyInvitation(params: FamilyInvitationEmailParams): Promise<EmailResult>;
   sendRenewalReminder(params: RenewalReminderEmailParams): Promise<EmailResult>;
   sendTrialExpired(params: TrialExpiredEmailParams): Promise<EmailResult>;
+  sendIPTVSubscriptionEmail(params: IPTVSubscriptionEmailParams): Promise<EmailResult>;
   isValidEmail(email: string): boolean;
   resend: Resend;
 }
@@ -366,6 +376,116 @@ function getTrialExpiredHtml(
 `;
 }
 
+function getIPTVSubscriptionHtml(
+  params: IPTVSubscriptionEmailParams,
+  baseUrl: string
+): string {
+  const expiresFormatted = params.expiresAt.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const liveTvUrl = `${baseUrl}/live-tv`;
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your IPTV Subscription is Active</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0a; color: #ffffff;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse;">
+          <!-- Header -->
+          <tr>
+            <td align="center" style="padding-bottom: 30px;">
+              <img src="${baseUrl}/logo.png" alt="BitTorrented" style="height: 40px; width: auto;" />
+            </td>
+          </tr>
+          
+          <!-- Main Content -->
+          <tr>
+            <td style="background-color: #1a1a1a; border-radius: 12px; padding: 40px;">
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #ffffff; text-align: center;">
+                Your IPTV Subscription is Active! 📺
+              </h1>
+              
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                Your <strong style="color: #ffffff;">${params.packageName}</strong> IPTV subscription is now active. Here are your account details:
+              </p>
+              
+              <!-- Account Details Box -->
+              <div style="background-color: #2a2a2a; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #a0a0a0;">Username:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #ffffff; font-family: monospace; text-align: right;">${params.username}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #a0a0a0;">Password:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #ffffff; font-family: monospace; text-align: right;">${params.password}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #a0a0a0;">Expires:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #ffffff; text-align: right;">${expiresFormatted}</td>
+                  </tr>
+                </table>
+              </div>
+              
+              <!-- M3U Link Box -->
+              <div style="background-color: #2a2a2a; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <p style="margin: 0 0 8px; font-size: 14px; color: #a0a0a0;">M3U Playlist URL:</p>
+                <p style="margin: 0; font-size: 12px; color: #10b981; word-break: break-all; font-family: monospace;">
+                  ${params.m3uDownloadLink}
+                </p>
+              </div>
+              
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                You can use these credentials with any IPTV player (VLC, TiviMate, etc.) or stream directly on our site:
+              </p>
+              
+              <!-- CTA Button -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td align="center">
+                    <a href="${liveTvUrl}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 32px; border-radius: 8px;">
+                      Watch Live TV Now
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin: 30px 0 0; font-size: 14px; color: #666666; text-align: center;">
+                Your playlist has been automatically saved to your account.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top: 30px; text-align: center;">
+              <p style="margin: 0 0 10px; font-size: 14px; color: #666666;">
+                Questions? Just reply to this email — we're happy to help.
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #444444;">
+                © ${new Date().getFullYear()} BitTorrented. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+}
+
 // ============================================================================
 // Service Implementation
 // ============================================================================
@@ -469,10 +589,39 @@ export function createEmailService(config: EmailServiceConfig): EmailService {
     }
   }
 
+  async function sendIPTVSubscriptionEmail(
+    params: IPTVSubscriptionEmailParams
+  ): Promise<EmailResult> {
+    if (!isValidEmail(params.to)) {
+      return { success: false, error: 'Invalid email address' };
+    }
+
+    try {
+      const html = getIPTVSubscriptionHtml(params, config.baseUrl);
+
+      const { data, error } = await resend.emails.send({
+        from,
+        to: params.to,
+        subject: 'Your IPTV Subscription is Active — Account Details',
+        html,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, messageId: data?.id };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  }
+
   return {
     sendFamilyInvitation,
     sendRenewalReminder,
     sendTrialExpired,
+    sendIPTVSubscriptionEmail,
     isValidEmail,
     resend,
   };
