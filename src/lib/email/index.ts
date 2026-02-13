@@ -13,4 +13,5 @@ export {
   type EmailResult,
   type FamilyInvitationEmailParams,
   type RenewalReminderEmailParams,
+  type TrialExpiredEmailParams,
 } from './email';

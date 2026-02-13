@@ -40,9 +40,15 @@ export interface RenewalReminderEmailParams {
   renewalUrl: string;
 }
 
+export interface TrialExpiredEmailParams {
+  to: string;
+  userName?: string;
+}
+
 export interface EmailService {
   sendFamilyInvitation(params: FamilyInvitationEmailParams): Promise<EmailResult>;
   sendRenewalReminder(params: RenewalReminderEmailParams): Promise<EmailResult>;
+  sendTrialExpired(params: TrialExpiredEmailParams): Promise<EmailResult>;
   isValidEmail(email: string): boolean;
   resend: Resend;
 }
@@ -248,6 +254,118 @@ function getRenewalReminderHtml(
 `;
 }
 
+function getTrialExpiredHtml(
+  params: TrialExpiredEmailParams,
+  baseUrl: string
+): string {
+  const pricingUrl = `${baseUrl}/pricing`;
+  const greeting = params.userName ? `Hi ${params.userName},` : 'Hi there,';
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Free Trial Has Ended</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0a; color: #ffffff;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse;">
+          <!-- Header -->
+          <tr>
+            <td align="center" style="padding-bottom: 30px;">
+              <img src="${baseUrl}/logo.png" alt="BitTorrented" style="height: 40px; width: auto;" />
+            </td>
+          </tr>
+          
+          <!-- Main Content -->
+          <tr>
+            <td style="background-color: #1a1a1a; border-radius: 12px; padding: 40px;">
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #ffffff; text-align: center;">
+                Your Free Trial Has Ended
+              </h1>
+              
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                ${greeting}
+              </p>
+              
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                Your 3-day free trial on BitTorrented has ended. Without an active subscription, you'll lose access to:
+              </p>
+              
+              <ul style="margin: 0 0 30px; padding-left: 20px; color: #a0a0a0;">
+                <li style="margin-bottom: 10px;">🎬 Streaming movies and TV shows from torrents</li>
+                <li style="margin-bottom: 10px;">📺 Live TV (IPTV) channels</li>
+                <li style="margin-bottom: 10px;">🎵 Music streaming and downloads</li>
+                <li style="margin-bottom: 10px;">🎙️ Podcasts</li>
+                <li style="margin-bottom: 10px;">📖 eBook reader</li>
+                <li style="margin-bottom: 10px;">🎉 Watch parties with friends</li>
+              </ul>
+              
+              <p style="margin: 0 0 30px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                Upgrade now to keep everything — plans start at just <strong style="color: #ffffff;">$4.99/year</strong>.
+              </p>
+              
+              <!-- Pricing Cards -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                <tr>
+                  <td style="width: 50%; padding-right: 8px; vertical-align: top;">
+                    <div style="background-color: #2a2a2a; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #333;">
+                      <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #ffffff;">Premium</p>
+                      <p style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #10b981;">$4.99</p>
+                      <p style="margin: 0; font-size: 13px; color: #666;">per year · 1 device</p>
+                    </div>
+                  </td>
+                  <td style="width: 50%; padding-left: 8px; vertical-align: top;">
+                    <div style="background-color: #2a2a2a; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #10b981;">
+                      <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #ffffff;">Family</p>
+                      <p style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #10b981;">$9.99</p>
+                      <p style="margin: 0; font-size: 13px; color: #666;">per year · 5 devices</p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td align="center">
+                    <a href="${pricingUrl}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 32px; border-radius: 8px;">
+                      Choose a Plan
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin: 30px 0 0; font-size: 14px; color: #666666; text-align: center;">
+                Pay with crypto for complete privacy. No credit card required.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top: 30px; text-align: center;">
+              <p style="margin: 0 0 10px; font-size: 14px; color: #666666;">
+                Questions? Just reply to this email — we're happy to help.
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #444444;">
+                © ${new Date().getFullYear()} BitTorrented. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+}
+
 // ============================================================================
 // Service Implementation
 // ============================================================================
@@ -323,9 +441,38 @@ export function createEmailService(config: EmailServiceConfig): EmailService {
     }
   }
 
+  async function sendTrialExpired(
+    params: TrialExpiredEmailParams
+  ): Promise<EmailResult> {
+    if (!isValidEmail(params.to)) {
+      return { success: false, error: 'Invalid email address' };
+    }
+
+    try {
+      const html = getTrialExpiredHtml(params, config.baseUrl);
+
+      const { data, error } = await resend.emails.send({
+        from,
+        to: params.to,
+        subject: 'Your BitTorrented free trial has ended — upgrade to keep streaming',
+        html,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, messageId: data?.id };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  }
+
   return {
     sendFamilyInvitation,
     sendRenewalReminder,
+    sendTrialExpired,
     isValidEmail,
     resend,
   };
