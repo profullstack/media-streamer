@@ -15,6 +15,7 @@ vi.mock('@/hooks/use-auth', () => ({
     return {
       isLoggedIn: false,
       isLoading: false,
+      isTrialExpired: false,
     };
   }),
 }));
