@@ -339,7 +339,7 @@ export class StreamingService {
       lsd: true, // Local Service Discovery
       webSeeds: true,
       // Limit max connections per torrent to control memory/CPU
-      maxConns: 20, // Reduced from 30 to limit memory per torrent
+      maxConns: 55, // Increased from 20 — more connections = faster streaming start
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
       // Download queue settings for better performance
