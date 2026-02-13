@@ -425,7 +425,7 @@ export async function getCurrentUser(): Promise<{ id: string; email: string } | 
     const supabase = createServerClient();
 
     // Use setSession to set the tokens - this handles token refresh automatically
-    const { error: sessionError } = await supabase.auth.setSession({
+    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
       access_token: session.access_token,
       refresh_token: session.refresh_token,
     });
@@ -433,6 +433,32 @@ export async function getCurrentUser(): Promise<{ id: string; email: string } | 
     if (sessionError) {
       console.error('[Auth] Failed to set session:', sessionError.message);
       return null;
+    }
+
+    // Write refreshed tokens back to cookie so future requests use them
+    // This prevents auth loops when middleware circuit breaker skips refresh
+    if (sessionData?.session &&
+        (sessionData.session.access_token !== session.access_token ||
+         sessionData.session.refresh_token !== session.refresh_token)) {
+      try {
+        const cookieStore = await cookies();
+        const newCookieValue = encodeURIComponent(
+          JSON.stringify({
+            access_token: sessionData.session.access_token,
+            refresh_token: sessionData.session.refresh_token,
+          })
+        );
+        cookieStore.set(AUTH_COOKIE_NAME, newCookieValue, {
+          path: '/',
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60,
+        });
+      } catch {
+        // Server components may not be able to set cookies in all contexts
+        // This is a best-effort write — middleware handles the primary refresh
+      }
     }
 
     // Get user from the session
@@ -492,7 +518,7 @@ export async function getAuthenticatedUser(
     const supabase = createServerClient();
 
     // Use setSession to set the tokens - this handles token refresh automatically
-    const { error: sessionError } = await supabase.auth.setSession({
+    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
       access_token: session.access_token,
       refresh_token: session.refresh_token,
     });
@@ -500,6 +526,14 @@ export async function getAuthenticatedUser(
     if (sessionError) {
       console.error('[Auth] Failed to set session:', sessionError.message);
       return null;
+    }
+
+    // Note: API routes can't easily write cookies back here,
+    // but the /api/auth/me route handles token writeback separately.
+    // Log if tokens were refreshed for debugging auth loops.
+    if (sessionData?.session &&
+        sessionData.session.access_token !== session.access_token) {
+      console.log('[Auth] Token was refreshed during getAuthenticatedUser — middleware should pick this up');
     }
 
     // Get user from the session

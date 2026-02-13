@@ -28,8 +28,8 @@ const REFRESH_TIMEOUT_MS = 3000; // 3 seconds
  */
 let consecutiveFailures = 0;
 let lastFailureTime = 0;
-const MAX_CONSECUTIVE_FAILURES = 3;
-const CIRCUIT_RESET_MS = 30000; // 30 seconds
+const MAX_CONSECUTIVE_FAILURES = 10;
+const CIRCUIT_RESET_MS = 15000; // 15 seconds
 
 /**
  * Check if circuit breaker is open (should skip refresh)
