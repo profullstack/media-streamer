@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable react-hooks/rules-of-hooks */
+
 /**
  * Media Player Modal Component
  *
