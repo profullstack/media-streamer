@@ -1190,7 +1190,7 @@ export function MediaPlayerModal({
         {/* Video Player - render when we have a URL, stream is ready, and it's video - compact for TV */}
         {/* For transcoded streams, wait for SSE to confirm stream readiness before mounting player */}
         {/* This prevents the player from trying to load before the pre-buffer is complete */}
-        {streamUrl && mediaCategory === 'video' && !error && (isStreamReady || isPlayerReady) ? <div
+        {streamUrl && mediaCategory === 'video' && !error ? <div
             ref={videoContainerRef}
             className="relative aspect-video w-full overflow-hidden rounded-md sm:rounded-lg bg-black"
           >
@@ -1199,7 +1199,9 @@ export function MediaPlayerModal({
                 <div className="flex flex-col items-center gap-1.5 sm:gap-2">
                   <div className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 animate-spin rounded-full border-3 sm:border-4 border-accent-primary border-t-transparent" />
                   <span className="text-[10px] sm:text-xs md:text-sm text-white">
-                    {isTranscoding ? 'Transcoding...' : 'Loading...'}
+                    {isAutoRecovering 
+                      ? `Reconnecting (${streamRetryCountRef.current}/${MAX_STREAM_RETRIES})...`
+                      : connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
                   </span>
                 </div>
               </div> : null}
@@ -1259,7 +1261,7 @@ export function MediaPlayerModal({
           </div> : null}
 
         {/* Audio Player - render when we have a URL, stream is ready, and it's audio - compact for TV */}
-        {streamUrl && mediaCategory === 'audio' && !error && (isStreamReady || isPlayerReady) ? <div className="relative w-full">
+        {streamUrl && mediaCategory === 'audio' && !error ? <div className="relative w-full">
             {/* Loading spinner overlay - shown while stream is initializing */}
             {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md sm:rounded-lg bg-bg-tertiary">
                 <div className="flex flex-col items-center gap-1.5 sm:gap-2">
