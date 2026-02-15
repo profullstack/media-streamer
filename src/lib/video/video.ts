@@ -207,6 +207,19 @@ function hasTranscodeParam(url: string): boolean {
  * @returns Video source configuration
  */
 export function createVideoSource(src: string, filename: string): VideoSource {
+  // Check if this is an HLS stream URL (from our HLS transcoding endpoint)
+  const isHls = src.includes('/api/stream/hls');
+  
+  if (isHls) {
+    return {
+      src,
+      type: 'application/x-mpegURL',
+      playbackType: 'application/x-mpegURL',
+      format: 'hls',
+      requiresTranscoding: false, // HLS is natively supported (especially on iOS/Safari)
+    };
+  }
+
   const format = detectVideoFormat(filename);
   const type = getVideoMimeType(format);
   

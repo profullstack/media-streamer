@@ -336,21 +336,35 @@ export function MediaPlayerModal({
         // Stop any active P2P stream (in case it was started before)
         webTorrentStopStream();
         
-        // Build server-side stream URL
-        // Use demuxer param from codec detection when available (precise),
-        // fall back to transcode=auto for retry path without codec info
-        let url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-        if (requiresTranscoding) {
-          if (codecInfo?.container) {
-            // Use container-derived demuxer for precise transcoding
-            url += `&demuxer=${encodeURIComponent(codecInfo.container.split(',')[0])}`;
-          } else {
-            // Fallback: let server auto-detect from extension
-            url += '&transcode=auto';
+        // Detect iOS/Safari which requires HLS for transcoded video streams
+        // iOS Safari cannot play progressive fMP4 via chunked transfer (needs byte-range support)
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome|Chromium/.test(navigator.userAgent);
+        const needsHLS = (isIOS || isSafari) && requiresTranscoding && getMediaCategory(file.name) === 'video';
+
+        let url: string;
+        if (needsHLS) {
+          // Use HLS endpoint for iOS/Safari — outputs m3u8 playlist with .ts segments
+          url = `/api/stream/hls?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+          console.log('[MediaPlayerModal] Using HLS for iOS/Safari:', url);
+        } else {
+          // Build server-side stream URL
+          // Use demuxer param from codec detection when available (precise),
+          // fall back to transcode=auto for retry path without codec info
+          url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+          if (requiresTranscoding) {
+            if (codecInfo?.container) {
+              // Use container-derived demuxer for precise transcoding
+              url += `&demuxer=${encodeURIComponent(codecInfo.container.split(',')[0])}`;
+            } else {
+              // Fallback: let server auto-detect from extension
+              url += '&transcode=auto';
+            }
           }
         }
         if (retryCount > 0) {
-          url += `&_retry=${retryCount}`;
+          url += `${url.includes('?') ? '&' : '?'}_retry=${retryCount}`;
         }
 
         console.log('[MediaPlayerModal] Server stream URL:', url);
