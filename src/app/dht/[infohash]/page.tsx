@@ -4,7 +4,6 @@ import type { Metadata } from 'next';
 import { MainLayout } from '@/components/layout';
 import { getDhtTorrentDetail } from '@/lib/dht/queries';
 import { formatBytes } from '@/lib/utils';
-import { AmazonBuyButton } from '@/components/ui/amazon-buy-button';
 
 /**
  * Clean torrent name for display and SEO.
@@ -94,16 +93,6 @@ export default async function DhtTorrentPage({ params }: PageProps) {
                   {torrent.content_type}
                 </span>
               )}
-
-              {/* Amazon buy button */}
-              <div className="mt-3">
-                <AmazonBuyButton
-                  title={displayName}
-                  contentType={torrent.content_type}
-                  year={null}
-                  hasMetadata={true}
-                />
-              </div>
             </div>
           </div>
 
