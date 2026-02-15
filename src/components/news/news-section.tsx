@@ -283,6 +283,15 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
       }
 
       setAudioUrl(data.audioUrl || null);
+
+      // Auto-play after generation
+      // Use a small timeout to let the audio element render with the new src
+      setTimeout(() => {
+        if (audioRef.current) {
+          void audioRef.current.play();
+          setIsPlaying(true);
+        }
+      }, 100);
     } catch (err) {
       setAudioError(err instanceof Error ? err.message : 'Failed to generate audio');
     } finally {
