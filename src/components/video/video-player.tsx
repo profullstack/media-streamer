@@ -103,8 +103,19 @@ export function VideoPlayer({
     videoRef.current.appendChild(videoElement);
 
     // Merge options - autoplay prop takes precedence over options.autoplay
+    // For transcoded fMP4 streams, disable VHS override so native <video> handles
+    // progressive playback. VHS is designed for HLS/DASH, not raw fMP4 streams,
+    // and will buffer indefinitely trying to parse segment metadata.
+    const html5Override = videoSource.requiresTranscoding ? {
+      vhs: { overrideNative: false },
+      nativeVideoTracks: true,
+      nativeAudioTracks: true,
+      nativeTextTracks: true,
+    } : undefined;
+
     const playerOptions = getDefaultPlayerOptions({
       ...options,
+      ...(html5Override ? { html5: html5Override } : {}),
       poster,
       autoplay: autoplay || options?.autoplay,
     });
