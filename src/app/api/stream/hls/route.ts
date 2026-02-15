@@ -150,18 +150,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       range: undefined,
     }, true); // skipWaitForData
 
-    // Wait for first data chunk
     const sourceStream = result.stream as NodeJS.ReadableStream;
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Timeout waiting for data')), 60000);
-      const onData = (): void => {
-        clearTimeout(timeout);
-        sourceStream.removeListener('data', onData);
-        resolve();
-      };
-      sourceStream.on('data', onData);
-      sourceStream.on('error', (err: Error) => { clearTimeout(timeout); reject(err); });
-    });
 
     // Build FFmpeg HLS args
     const ffmpegArgs: string[] = [
@@ -196,7 +185,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       '-f', 'hls',
       '-hls_time', '4',           // 4-second segments
       '-hls_list_size', '0',      // Keep all segments in playlist
-      '-hls_flags', 'delete_segments+append_list+independent_segments',
+      '-hls_flags', 'append_list+independent_segments',
       '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
       join(hlsDir, 'stream.m3u8'),
     );
@@ -222,8 +211,12 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
     });
 
+    let ffmpegStderr = '';
     ffmpeg.stderr.on('data', (data: Buffer) => {
       const msg = data.toString();
+      ffmpegStderr += msg;
+      // Keep only last 4KB of stderr
+      if (ffmpegStderr.length > 4096) ffmpegStderr = ffmpegStderr.slice(-4096);
       if (msg.includes('time=')) {
         reqLogger.debug('FFmpeg HLS progress', { progress: msg.trim().slice(-80) });
       }
@@ -231,7 +224,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     ffmpeg.on('close', (code: number | null) => {
       if (code !== 0 && code !== null) {
-        reqLogger.warn('FFmpeg HLS exited with non-zero code', { code });
+        reqLogger.warn('FFmpeg HLS exited with non-zero code', { code, stderr: ffmpegStderr.slice(-500) });
       } else {
         reqLogger.info('FFmpeg HLS transcoding completed');
       }
