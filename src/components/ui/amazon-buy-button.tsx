@@ -10,6 +10,30 @@
 
 import { useState, useEffect } from 'react';
 
+/**
+ * Clean a torrent filename into a search-friendly title.
+ * Strips codecs, quality tags, release groups, file extensions, etc.
+ */
+function cleanTorrentTitle(raw: string): string {
+  let t = raw;
+  // Remove file extension
+  t = t.replace(/\.\w{2,4}$/, '');
+  // Replace dots/underscores with spaces
+  t = t.replace(/[._]/g, ' ');
+  // Remove common codec/quality/release tags
+  t = t.replace(/\b(x264|x265|h264|h265|hevc|avc|aac|ac3|dts|flac|mp3|bluray|bdrip|brrip|webrip|web-dl|webdl|hdrip|dvdrip|dvdscr|cam|ts|hdtv|pdtv|uhd|uhdr|hdr|hdr10|dv|dolby|vision|10bit|8bit|remux|repack|proper|extended|unrated|directors|cut|dubbed|subbed|multi|dual|audio|subs|eng|cz|en|de|fr|es|it|pt|nl|pl|ru|ja|ko|zh)\b/gi, ' ');
+  // Remove resolution tags
+  t = t.replace(/\b(480p|720p|1080p|1080i|2160p|4k)\b/gi, ' ');
+  // Remove release group (anything after last dash or in brackets)
+  t = t.replace(/[-–]\s*\w+\s*$/, '');
+  t = t.replace(/\[.*?\]/g, ' ');
+  // Keep year in parens but remove other paren content
+  t = t.replace(/\((?!\d{4}\))[^)]*\)/g, ' ');
+  // Collapse whitespace
+  t = t.replace(/\s+/g, ' ').trim();
+  return t;
+}
+
 interface AmazonResult {
   title: string;
   url: string | null;
@@ -36,7 +60,10 @@ export function AmazonBuyButton({ title, contentType, hasMetadata }: AmazonBuyBu
     let cancelled = false;
     setLoading(true);
 
-    fetch(`/api/amazon/search?title=${encodeURIComponent(title)}&contentType=${encodeURIComponent(contentType || '')}`)
+    const searchTitle = cleanTorrentTitle(title);
+    if (!searchTitle) return;
+
+    fetch(`/api/amazon/search?title=${encodeURIComponent(searchTitle)}&contentType=${encodeURIComponent(contentType || '')}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (!cancelled && data?.result?.url) {
