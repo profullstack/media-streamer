@@ -88,7 +88,21 @@ interface SupabaseRefreshResponse {
   token_type: string;
 }
 
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  // Log real client IP for API requests
+  const path = request.nextUrl.pathname;
+  if (path.startsWith("/api/")) {
+    console.log(`[${request.method}] ${path} — ${getClientIp(request)}`);
+  }
+
   const response = NextResponse.next();
 
   const authCookie = request.cookies.get(AUTH_COOKIE_NAME);
