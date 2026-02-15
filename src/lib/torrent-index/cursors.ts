@@ -61,10 +61,10 @@ export async function fetchTorrentsPage(
     params.before_id = beforeId;
   }
 
-  const { data, error } = await supabase.rpc('list_torrents_page', params);
+  const { data, error } = await supabase.rpc('list_torrents_page' as any, params);
   if (error) throw new Error(`list_torrents_page: ${error.message}`);
 
-  const rows = (data ?? []) as TorrentRow[];
+  const rows = (data ?? []) as unknown as TorrentRow[];
   // Normalize info_hash
   for (const r of rows) {
     r.info_hash = normalizeInfoHash(r.info_hash);
@@ -104,10 +104,10 @@ export async function fetchTorrentsMonthPage(
     params.before_id = beforeId;
   }
 
-  const { data, error } = await supabase.rpc('list_torrents_month_page', params);
+  const { data, error } = await supabase.rpc('list_torrents_month_page' as any, params);
   if (error) throw new Error(`list_torrents_month_page: ${error.message}`);
 
-  const rows = (data ?? []) as TorrentRow[];
+  const rows = (data ?? []) as unknown as TorrentRow[];
   for (const r of rows) {
     r.info_hash = normalizeInfoHash(r.info_hash);
   }

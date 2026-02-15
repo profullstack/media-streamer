@@ -12,7 +12,7 @@ export async function GET(): Promise<NextResponse> {
   const supabase = getServerClient();
 
   // Get distinct year-month combos from torrents
-  const { data, error } = await supabase.rpc('list_torrents_page', { page_size: 1 });
+  const { data, error } = await supabase.rpc('list_torrents_page' as any, { page_size: 1 });
   // We need month list. Use raw SQL via rpc or a simple approach:
   // Query min/max created_at and generate months between them.
   const { data: minMax, error: mmError } = await supabase

@@ -2779,6 +2779,44 @@ export type Database = {
         }[]
       }
       get_family_owner_id: { Args: { p_user_id: string }; Returns: string }
+      list_torrents_month_page: {
+        Args: {
+          page_size: number
+          start_ts: string
+          end_ts: string
+          before_ts?: string
+          before_id?: string
+        }
+        Returns: {
+          info_hash: string
+          name: string
+          size: number
+          created_at: string
+          files_count: number | null
+          files_status: string
+          extension: string | null
+          private: boolean
+          updated_at: string
+        }[]
+      }
+      list_torrents_page: {
+        Args: {
+          page_size: number
+          before_ts?: string
+          before_id?: string
+        }
+        Returns: {
+          info_hash: string
+          name: string
+          size: number
+          created_at: string
+          files_count: number | null
+          files_status: string
+          extension: string | null
+          private: boolean
+          updated_at: string
+        }[]
+      }
       get_subscription_status: {
         Args: { p_user_id: string }
         Returns: {
