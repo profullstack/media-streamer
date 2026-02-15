@@ -483,8 +483,12 @@ export class FileTranscodingService {
     // Build FFmpeg args for file input (not pipe)
     // Since we have a file, FFmpeg can seek and read the moov atom
     // Limit to 2 threads to prevent CPU spikes with concurrent streams
+    // -err_detect ignore_err: tolerate partial/growing files
+    // -fflags +genpts+discardcorrupt: handle incomplete data gracefully
     const ffmpegArgs = [
       '-threads', '2',
+      '-err_detect', 'ignore_err',
+      '-fflags', '+genpts+discardcorrupt',
       '-i', filePath,
       '-acodec', 'aac',
       '-vcodec', 'libx264',
@@ -627,7 +631,11 @@ export class FileTranscodingService {
   }
 
   /**
-   * Download and transcode a file in one operation
+   * Download and transcode a file in one operation (Option C: stream-as-available)
+   *
+   * Instead of waiting for the full download, starts FFmpeg transcoding once
+   * enough data has been written to disk (minBytesBeforeTranscode or 10% of file).
+   * FFmpeg reads from the growing file while the torrent continues downloading.
    *
    * @param sourceStream - The source stream from WebTorrent
    * @param infohash - The torrent infohash
@@ -643,25 +651,165 @@ export class FileTranscodingService {
     fileName: string,
     totalBytes: number
   ): Promise<{ stream: PassThrough; mimeType: string }> {
-    logger.info('Starting download and transcode', {
+    const startThreshold = Math.min(
+      this.minBytesBeforeTranscode,
+      Math.floor(totalBytes * 0.1)
+    );
+
+    logger.info('Starting download and transcode (stream-as-available)', {
       infohash,
       fileIndex,
       fileName,
       totalBytes,
       totalMB: (totalBytes / (1024 * 1024)).toFixed(2),
+      startThresholdMB: (startThreshold / (1024 * 1024)).toFixed(2),
     });
 
-    // Download the file first
-    const filePath = await this.downloadToFile(
-      sourceStream,
+    const key = `${infohash}_${fileIndex}`;
+
+    // Check concurrent download limit
+    if (this.activeDownloads.size >= this.maxConcurrentDownloads) {
+      throw new Error(`Maximum concurrent downloads (${this.maxConcurrentDownloads}) reached`);
+    }
+
+    // Ensure temp directory exists
+    await ensureTempDir();
+
+    const ext = fileName.split('.').pop()?.toLowerCase() ?? 'mp4';
+    const filePath = getTempFilePath(infohash, fileIndex, ext);
+    const abortController = new AbortController();
+    const writeStream = createWriteStream(filePath);
+    const downloadId = randomUUID();
+
+    const download: ActiveDownload = {
+      id: downloadId,
       infohash,
       fileIndex,
-      fileName,
-      totalBytes
-    );
+      filePath,
+      bytesDownloaded: 0,
+      totalBytes,
+      writeStream,
+      startedAt: new Date(),
+      abortController,
+    };
 
-    // Then transcode it
-    return this.transcodeFile(filePath, infohash, fileIndex, true);
+    this.activeDownloads.set(key, download);
+
+    // Return a promise that resolves once we have enough data to start transcoding
+    return new Promise((resolve, reject) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let lastLoggedMB = 0;
+      let transcodeStarted = false;
+      let downloadComplete = false;
+
+      const cleanup = (): void => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        this.activeDownloads.delete(key);
+      };
+
+      // Set download timeout (only for the initial data threshold, not the full file)
+      timeoutId = setTimeout(() => {
+        if (!transcodeStarted) {
+          cleanup();
+          sourceStream.destroy(new Error('Download timeout waiting for initial data'));
+          writeStream.destroy();
+          reject(new Error(`Timed out waiting for ${(startThreshold / (1024 * 1024)).toFixed(0)}MB of data after ${this.downloadTimeout}ms`));
+        }
+      }, this.downloadTimeout);
+
+      const maybeStartTranscode = (): void => {
+        if (transcodeStarted) return;
+        if (download.bytesDownloaded < startThreshold && !downloadComplete) return;
+
+        transcodeStarted = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
+        logger.info('Threshold reached, starting transcode on partial file', {
+          infohash,
+          fileIndex,
+          bytesDownloaded: download.bytesDownloaded,
+          downloadedMB: (download.bytesDownloaded / (1024 * 1024)).toFixed(2),
+          totalMB: (totalBytes / (1024 * 1024)).toFixed(2),
+          downloadComplete,
+        });
+
+        // Start transcoding from the file — FFmpeg will read what's available
+        // and block/retry on EOF until the file grows or download finishes
+        const result = this.transcodeFile(filePath, infohash, fileIndex, true);
+        resolve(result);
+      };
+
+      // Track download progress
+      sourceStream.on('data', (chunk: Buffer) => {
+        download.bytesDownloaded += chunk.length;
+        const downloadedMB = download.bytesDownloaded / (1024 * 1024);
+
+        if (downloadedMB - lastLoggedMB >= 10) {
+          logger.info('Download progress', {
+            infohash,
+            fileIndex,
+            downloadedMB: downloadedMB.toFixed(2),
+            totalMB: (totalBytes / (1024 * 1024)).toFixed(2),
+            progress: ((download.bytesDownloaded / totalBytes) * 100).toFixed(1) + '%',
+          });
+          lastLoggedMB = downloadedMB;
+        }
+      });
+
+      // Pipe source to file
+      sourceStream.pipe(writeStream);
+
+      // Use writeStream 'drain' events to check threshold (data is flushed to disk)
+      writeStream.on('drain', () => {
+        maybeStartTranscode();
+      });
+
+      // Also check on each data event in case writes don't trigger drain
+      sourceStream.on('data', () => {
+        maybeStartTranscode();
+      });
+
+      writeStream.on('finish', () => {
+        downloadComplete = true;
+        cleanup();
+        logger.info('Download complete', {
+          infohash,
+          fileIndex,
+          filePath,
+          bytesDownloaded: download.bytesDownloaded,
+          downloadedMB: (download.bytesDownloaded / (1024 * 1024)).toFixed(2),
+          elapsed: `${Date.now() - download.startedAt.getTime()}ms`,
+        });
+        // If we haven't started transcoding yet (very small file), start now
+        maybeStartTranscode();
+      });
+
+      writeStream.on('error', (err) => {
+        cleanup();
+        logger.error('Download write error', err, { infohash, fileIndex, filePath });
+        if (!transcodeStarted) reject(err);
+      });
+
+      sourceStream.on('error', (err) => {
+        cleanup();
+        writeStream.destroy();
+        logger.error('Download source error', err, { infohash, fileIndex });
+        if (!transcodeStarted) reject(err);
+      });
+
+      abortController.signal.addEventListener('abort', () => {
+        cleanup();
+        sourceStream.destroy();
+        writeStream.destroy();
+        if (!transcodeStarted) reject(new Error('Download aborted'));
+      });
+    });
   }
 
   /**
