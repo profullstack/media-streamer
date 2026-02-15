@@ -212,11 +212,15 @@ export function PlaylistPlayerModal({
     duration: 0,
   });
 
-  // Reset index when files change
+  // Reset index when the actual playlist changes (not just array reference)
+  // Using a stable key based on file indices prevents resetting currentIndex
+  // when the parent re-renders with a new array reference but same content
+  const filesKey = files.map(f => f.fileIndex).join(',');
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset when files change
     setCurrentIndex(startIndex);
-  }, [files, startIndex]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filesKey is a stable derived key for files
+  }, [filesKey, startIndex]);
 
   // Current file
   const currentFile = files[currentIndex] ?? null;
@@ -279,15 +283,19 @@ export function PlaylistPlayerModal({
   // Handle track ended - advance to next
   const handleTrackEnded = useCallback(() => {
     console.log('[PlaylistPlayerModal] Track ended, advancing to next');
-    if (currentIndex < files.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setIsPlayerReady(false);
-      setError(null);
-      setConnectionStatus(null); // Reset to wait for new track to buffer before playing
-      setPlaybackProgress({ currentTime: 0, duration: 0 });
-      retryCountRef.current = 0; // Reset retry count for new track
-    }
-  }, [currentIndex, files.length]);
+    setCurrentIndex((prev) => {
+      if (prev < files.length - 1) {
+        // Reset state for new track (done here to ensure atomic update with index change)
+        setIsPlayerReady(false);
+        setError(null);
+        setConnectionStatus(null); // Reset to wait for new track to buffer before playing
+        setPlaybackProgress({ currentTime: 0, duration: 0 });
+        retryCountRef.current = 0; // Reset retry count for new track
+        return prev + 1;
+      }
+      return prev;
+    });
+  }, [files.length]);
 
   // Handle previous track
   const handlePrevious = useCallback(() => {

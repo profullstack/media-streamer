@@ -362,8 +362,8 @@ export function MediaPlayerModal({
           const data = await response.json() as CodecInfo;
           console.log('[MediaPlayerModal] Codec info retrieved:', data);
           
-          if (data.cached) {
-            // Cached — use it directly
+          if (data.cached && data.needsTranscoding !== null) {
+            // Cached with known transcoding status — use it directly
             setCodecInfo(data);
           } else {
             // Not cached — trigger detection (downloads a few seconds of data for FFprobe)
@@ -792,11 +792,21 @@ export function MediaPlayerModal({
   }, []);
 
   // Handle retry button click - clears error and forces player reload
+  // Resets all stream state to ensure clean reconnection via SSE
   const handleRetry = useCallback(() => {
     console.log('[MediaPlayerModal] User clicked retry button');
     setError(null);
     setIsPlayerReady(false);
     setUserClickedPlay(false);
+    // Reset stream URL and connection status to force full reconnection
+    // This ensures the player won't render until SSE confirms the stream is ready
+    setStreamUrl(null);
+    setConnectionStatus(null);
+    // Close existing SSE connection so it reconnects for the new stream
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
     // Increment retry count to force URL rebuild and player remount
     setRetryCount(prev => prev + 1);
   }, []);
@@ -1236,8 +1246,10 @@ export function MediaPlayerModal({
             </div>
           </div> : null}
 
-        {/* Video Player - always render when we have a URL and it's video - compact for TV */}
-        {streamUrl && mediaCategory === 'video' && !error ? <div
+        {/* Video Player - render when we have a URL, stream is ready, and it's video - compact for TV */}
+        {/* For transcoded streams, wait for SSE to confirm stream readiness before mounting player */}
+        {/* This prevents the player from trying to load before the pre-buffer is complete */}
+        {streamUrl && mediaCategory === 'video' && !error && (isStreamReady || isPlayerReady) ? <div
             ref={videoContainerRef}
             className="relative aspect-video w-full overflow-hidden rounded-md sm:rounded-lg bg-black"
           >
@@ -1305,8 +1317,8 @@ export function MediaPlayerModal({
             />
           </div> : null}
 
-        {/* Audio Player - always render when we have a URL and it's audio - compact for TV */}
-        {streamUrl && mediaCategory === 'audio' && !error ? <div className="relative w-full">
+        {/* Audio Player - render when we have a URL, stream is ready, and it's audio - compact for TV */}
+        {streamUrl && mediaCategory === 'audio' && !error && (isStreamReady || isPlayerReady) ? <div className="relative w-full">
             {/* Loading spinner overlay - shown while stream is initializing */}
             {showLoadingSpinner ? <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md sm:rounded-lg bg-bg-tertiary">
                 <div className="flex flex-col items-center gap-1.5 sm:gap-2">
@@ -1374,6 +1386,16 @@ export function MediaPlayerModal({
               showTranscodingNotice={false}
               autoplay
             />
+          </div> : null}
+
+        {/* Waiting for stream readiness - shown when URL exists but stream not ready yet */}
+        {streamUrl && !error && !isStreamReady && !isPlayerReady && (mediaCategory === 'video' || mediaCategory === 'audio') ? <div className={`flex items-center justify-center ${mediaCategory === 'video' ? 'aspect-video' : ''} w-full rounded-md sm:rounded-lg bg-black/90`}>
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-3 sm:border-4 border-accent-primary border-t-transparent" />
+              <span className="text-xs sm:text-sm text-white/80">
+                {connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
+              </span>
+            </div>
           </div> : null}
 
         {/* Unsupported Media Type - compact for TV */}
