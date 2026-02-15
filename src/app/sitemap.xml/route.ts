@@ -46,6 +46,9 @@ export async function GET(): Promise<NextResponse> {
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://bittorrented.com/sitemaps/indexed.xml</loc>
+  </sitemap>
 ${sitemaps}
 </sitemapindex>`;
 

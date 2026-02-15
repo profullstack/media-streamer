@@ -21,8 +21,40 @@ interface RouteContext {
 export async function GET(_req: NextRequest, ctx: RouteContext): Promise<NextResponse> {
   const { slug } = await ctx.params;
 
-  // Parse slug: torrents-YYYY-MM.xml or torrents-YYYY-MM-N.xml
   const cleaned = slug.replace(/\.xml$/, '');
+
+  // Handle indexed torrents sitemap (bt_torrents — user-submitted, fully enriched)
+  if (cleaned === 'indexed') {
+    const supabase = getServerClient();
+    const { data, error } = await supabase
+      .from('bt_torrents')
+      .select('infohash')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return new NextResponse(`Error: ${error.message}`, { status: 500 });
+    }
+
+    const urls = (data ?? [])
+      .map((r: { infohash: string }) =>
+        `  <url><loc>https://bittorrented.com/torrents/${r.infohash}</loc><priority>0.8</priority></url>`
+      )
+      .join('\n');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>`;
+
+    return new NextResponse(xml, {
+      headers: {
+        'Content-Type': 'application/xml',
+        'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+      },
+    });
+  }
+
+  // Parse slug: torrents-YYYY-MM.xml or torrents-YYYY-MM-N.xml (DHT torrents)
   const match = cleaned.match(/^torrents-(\d{4})-(\d{2})(?:-(\d+))?$/);
   if (!match) {
     return new NextResponse('Not found', { status: 404 });
@@ -61,7 +93,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext): Promise<NextRes
   const urls = rows
     .map((r) => {
       const hex = normalizeInfoHash(r.info_hash);
-      return `  <url><loc>https://bittorrented.com/torrents/${hex}</loc></url>`;
+      return `  <url><loc>https://bittorrented.com/dht/${hex}</loc></url>`;
     })
     .join('\n');
 
