@@ -27,8 +27,8 @@ function cleanTorrentTitle(raw: string): string {
   // Remove release group (anything after last dash or in brackets)
   t = t.replace(/[-–]\s*\w+\s*$/, '');
   t = t.replace(/\[.*?\]/g, ' ');
-  // Keep year in parens but remove other paren content
-  t = t.replace(/\((?!\d{4}\))[^)]*\)/g, ' ');
+  // Remove all parenthetical content (including year — Amazon handles it better without)
+  t = t.replace(/\([^)]*\)/g, ' ');
   // Collapse whitespace
   t = t.replace(/\s+/g, ' ').trim();
   return t;
