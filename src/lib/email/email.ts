@@ -54,11 +54,18 @@ export interface IPTVSubscriptionEmailParams {
   expiresAt: Date;
 }
 
+export interface IPBanEmailParams {
+  to: string;
+  ip: string;
+  accountCount: number;
+}
+
 export interface EmailService {
   sendFamilyInvitation(params: FamilyInvitationEmailParams): Promise<EmailResult>;
   sendRenewalReminder(params: RenewalReminderEmailParams): Promise<EmailResult>;
   sendTrialExpired(params: TrialExpiredEmailParams): Promise<EmailResult>;
   sendIPTVSubscriptionEmail(params: IPTVSubscriptionEmailParams): Promise<EmailResult>;
+  sendIPBanNotice(params: IPBanEmailParams): Promise<EmailResult>;
   isValidEmail(email: string): boolean;
   resend: Resend;
 }
@@ -486,6 +493,74 @@ function getIPTVSubscriptionHtml(
 `;
 }
 
+function getIPBanHtml(
+  params: IPBanEmailParams,
+  baseUrl: string
+): string {
+  const pricingUrl = `${baseUrl}/pricing`;
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Suspended</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0a; color: #ffffff;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse;">
+          <tr>
+            <td align="center" style="padding-bottom: 30px;">
+              <img src="${baseUrl}/logo.png" alt="BitTorrented" style="height: 40px; width: auto;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #1a1a1a; border-radius: 12px; padding: 40px;">
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #ffffff; text-align: center;">
+                Account Suspended ⚠️
+              </h1>
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                Your account has been suspended because we detected <strong style="color: #ffffff;">${params.accountCount} trial accounts</strong> created from your network.
+              </p>
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                Our free trial is limited to one per person. Creating multiple accounts to extend a trial violates our terms of service.
+              </p>
+              <p style="margin: 0 0 30px; font-size: 16px; line-height: 1.6; color: #a0a0a0;">
+                To restore access, purchase a subscription — plans start at just <strong style="color: #ffffff;">$4.99/year</strong>:
+              </p>
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td align="center">
+                    <a href="${pricingUrl}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 32px; border-radius: 8px;">
+                      View Plans & Subscribe
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 30px 0 0; font-size: 14px; color: #666666; text-align: center;">
+                If you believe this is a mistake (e.g., shared office or household), reply to this email and we'll review your account.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 30px; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #444444;">
+                © ${new Date().getFullYear()} BitTorrented. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+}
+
 // ============================================================================
 // Service Implementation
 // ============================================================================
@@ -617,11 +692,40 @@ export function createEmailService(config: EmailServiceConfig): EmailService {
     }
   }
 
+  async function sendIPBanNotice(
+    params: IPBanEmailParams
+  ): Promise<EmailResult> {
+    if (!isValidEmail(params.to)) {
+      return { success: false, error: 'Invalid email address' };
+    }
+
+    try {
+      const html = getIPBanHtml(params, config.baseUrl);
+
+      const { data, error } = await resend.emails.send({
+        from,
+        to: params.to,
+        subject: 'Your BitTorrented account has been suspended',
+        html,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, messageId: data?.id };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  }
+
   return {
     sendFamilyInvitation,
     sendRenewalReminder,
     sendTrialExpired,
     sendIPTVSubscriptionEmail,
+    sendIPBanNotice,
     isValidEmail,
     resend,
   };

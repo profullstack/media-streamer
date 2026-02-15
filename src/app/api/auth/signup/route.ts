@@ -183,13 +183,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       email: email.trim().toLowerCase(),
     });
 
-    // Send ban notification email
+    // Ban the user account
     try {
       await supabase.auth.admin.updateUserById(data.user.id, {
         ban_duration: '876000h', // ~100 years
       });
     } catch (banErr) {
       console.error('[Signup] Failed to ban user', banErr);
+    }
+
+    // Send ban notification email
+    try {
+      const { getEmailService } = await import('@/lib/email/email');
+      const emailService = getEmailService();
+      await emailService.sendIPBanNotice({
+        to: email.trim().toLowerCase(),
+        ip: signupIp,
+        accountCount: existingCount + 1, // include this new one
+      });
+    } catch (emailErr) {
+      console.error('[Signup] Failed to send ban email', emailErr);
     }
 
     return NextResponse.json(
