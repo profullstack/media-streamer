@@ -25,6 +25,7 @@ import {
   ShuffleIcon,
 } from '@/components/ui/icons';
 import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeholder';
+import { AmazonBuyButton } from '@/components/ui/amazon-buy-button';
 import { formatBytes } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
@@ -481,6 +482,12 @@ export default function TorrentDetailPage(): React.ReactElement {
               {torrent.description ? <p className="mt-2 line-clamp-3 text-sm text-text-secondary">
                   {torrent.description}
                 </p> : null}
+              {/* Buy on Amazon affiliate link — only when we have real metadata */}
+              <AmazonBuyButton
+                title={torrent.cleanTitle ?? torrent.name}
+                contentType={torrent.contentType}
+                hasMetadata={!!(torrent.posterUrl || torrent.coverUrl)}
+              />
             </div>
           </div>
 
