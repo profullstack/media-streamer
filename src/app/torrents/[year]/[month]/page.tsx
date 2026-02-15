@@ -1,18 +1,14 @@
 /**
- * Torrents Page — server-side cursor pagination over public.torrents (5.9M rows).
- * URL: /torrents?before_ts=UNIX&before_id=HEX
+ * Month Archive — cursor-paginated torrents for a specific year/month.
+ * URL: /torrents/2026/02?before_ts=UNIX&before_id=HEX
  */
 
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
-import { fetchTorrentsPage, type TorrentRow } from '@/lib/torrent-index/cursors';
+import { fetchTorrentsMonthPage, type TorrentRow } from '@/lib/torrent-index/cursors';
 import { formatBytes } from '@/lib/utils';
-
-export const metadata: Metadata = {
-  title: 'Torrents',
-  description: 'Browse millions of indexed torrents on BitTorrented.',
-};
 
 const PAGE_SIZE = 50;
 
@@ -44,37 +40,59 @@ function TorrentListItem({ t }: { t: TorrentRow }) {
 }
 
 interface PageProps {
+  params: Promise<{ year: string; month: string }>;
   searchParams: Promise<{ before_ts?: string; before_id?: string }>;
 }
 
-export default async function TorrentsPage({ searchParams }: PageProps) {
-  const params = await searchParams;
-  const beforeTs = params.before_ts ? Number(params.before_ts) : undefined;
-  const beforeId = params.before_id ?? undefined;
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { year, month } = await params;
+  const d = new Date(Number(year), Number(month) - 1, 1);
+  const label = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+  return {
+    title: `Torrents — ${label}`,
+    description: `Browse torrents added in ${label}.`,
+  };
+}
 
-  const { torrents, nextCursor } = await fetchTorrentsPage(
+export default async function MonthArchivePage({ params, searchParams }: PageProps) {
+  const { year: yearStr, month: monthStr } = await params;
+  const sp = await searchParams;
+
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+
+  if (isNaN(year) || isNaN(month) || month < 1 || month > 12 || year < 2000 || year > 2100) {
+    notFound();
+  }
+
+  const beforeTs = sp.before_ts ? Number(sp.before_ts) : undefined;
+  const beforeId = sp.before_id ?? undefined;
+
+  const { torrents, nextCursor } = await fetchTorrentsMonthPage(
     PAGE_SIZE,
+    year,
+    month,
     beforeTs,
     beforeId,
   );
 
+  const d = new Date(Date.UTC(year, month - 1, 1));
+  const label = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+  const basePath = `/torrents/${yearStr}/${monthStr}`;
+
   return (
     <MainLayout>
       <div className="space-y-4">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-text-primary">Torrents</h1>
-            <p className="text-sm text-text-secondary">
-              Browse the torrent index
-            </p>
+            <h1 className="text-xl font-bold text-text-primary">{label}</h1>
+            <p className="text-sm text-text-secondary">Monthly torrent archive</p>
           </div>
           <Link href="/archive" className="text-sm text-accent-primary hover:underline">
             Archive
           </Link>
         </div>
 
-        {/* Torrent list */}
         {torrents.length > 0 ? (
           <div className="space-y-1">
             {torrents.map((t) => (
@@ -83,18 +101,14 @@ export default async function TorrentsPage({ searchParams }: PageProps) {
           </div>
         ) : (
           <div className="py-12 text-center">
-            <p className="text-text-muted">No torrents found.</p>
+            <p className="text-text-muted">No torrents for this month.</p>
           </div>
         )}
 
-        {/* Pagination */}
         <div className="flex items-center justify-between pt-4">
           {beforeTs != null ? (
-            <Link
-              href="/torrents"
-              className="text-sm text-accent-primary hover:underline"
-            >
-              ← Newest
+            <Link href={basePath} className="text-sm text-accent-primary hover:underline">
+              ← Newest in {label}
             </Link>
           ) : (
             <span />
@@ -102,7 +116,7 @@ export default async function TorrentsPage({ searchParams }: PageProps) {
 
           {nextCursor ? (
             <Link
-              href={`/torrents?before_ts=${nextCursor.before_ts}&before_id=${nextCursor.before_id}`}
+              href={`${basePath}?before_ts=${nextCursor.before_ts}&before_id=${nextCursor.before_id}`}
               className="text-sm text-accent-primary hover:underline"
             >
               Older →

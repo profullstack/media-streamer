@@ -394,6 +394,13 @@ export default function TorrentDetailPage(): React.ReactElement {
     {} as Record<string, number>
   );
 
+  // Set document title to include infohash for SEO
+  useEffect(() => {
+    if (torrent) {
+      document.title = `${torrent.cleanTitle ?? torrent.name} (${torrent.infohash}) | BitTorrented`;
+    }
+  }, [torrent]);
+
   if (isLoading) {
     return (
       <MainLayout>
