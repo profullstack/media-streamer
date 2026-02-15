@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
       type: 'search',
       amazon_domain: 'amazon.com',
       search_term: searchTerm,
-      sort_by: 'most_reviews',
       associate_id: AMAZON_ASSOCIATE_ID,
     });
 
