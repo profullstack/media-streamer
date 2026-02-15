@@ -1258,6 +1258,18 @@ export function MediaPlayerModal({
               <span className="text-xs sm:text-sm text-white/80">
                 {connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
               </span>
+              {/* Buffering progress: show MB downloaded toward threshold */}
+              {connectionStatus && connectionStatus.stage === 'buffering' && connectionStatus.downloaded > 0 && (
+                <span className="text-xs text-white/60">
+                  Buffering: {formatBytes(connectionStatus.downloaded)} / {isTranscoding ? '20 MB' : '2 MB'}
+                </span>
+              )}
+              {/* Download speed during buffering */}
+              {connectionStatus && connectionStatus.downloadSpeed > 0 && !isStreamReady && (
+                <span className="text-[10px] text-white/40">
+                  ↓ {formatSpeedCompact(connectionStatus.downloadSpeed)}
+                </span>
+              )}
             </div>
           </div> : null}
 
@@ -1322,23 +1334,29 @@ export function MediaPlayerModal({
                   );
                 })()}
                 
-                {/* Download speed - compact for TV */}
-                {connectionStatus.downloadSpeed > 0 && (
-                  <span className="flex items-center gap-0.5 sm:gap-1 text-green-500" title="Download speed">
+                {/* Download: total + speed */}
+                {(connectionStatus.downloaded > 0 || connectionStatus.downloadSpeed > 0) && (
+                  <span className="flex items-center gap-0.5 sm:gap-1 text-green-500" title="Downloaded">
                     <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    <span>{formatSpeedCompact(connectionStatus.downloadSpeed)}</span>
+                    <span>
+                      {formatBytes(connectionStatus.downloaded)}
+                      {connectionStatus.downloadSpeed > 0 ? ` (${formatSpeedCompact(connectionStatus.downloadSpeed)})` : ''}
+                    </span>
                   </span>
                 )}
                 
-                {/* Upload speed - hidden on very small screens */}
-                {connectionStatus.uploadSpeed > 0 && (
-                  <span className="hidden sm:flex items-center gap-0.5 sm:gap-1 text-blue-500" title="Upload speed">
+                {/* Upload: total + speed - hidden on very small screens */}
+                {(connectionStatus.uploaded > 0 || connectionStatus.uploadSpeed > 0) && (
+                  <span className="hidden sm:flex items-center gap-0.5 sm:gap-1 text-blue-500" title="Uploaded">
                     <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
-                    <span>{formatSpeedCompact(connectionStatus.uploadSpeed)}</span>
+                    <span>
+                      {formatBytes(connectionStatus.uploaded)}
+                      {connectionStatus.uploadSpeed > 0 ? ` (${formatSpeedCompact(connectionStatus.uploadSpeed)})` : ''}
+                    </span>
                   </span>
                 )}
               </div>

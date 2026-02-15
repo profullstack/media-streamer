@@ -47,6 +47,10 @@ export interface StreamStatusEvent {
   fileProgress?: number;
   downloadSpeed: number;
   uploadSpeed: number;
+  /** Total bytes downloaded */
+  downloaded: number;
+  /** Total bytes uploaded */
+  uploaded: number;
   /** Whether the torrent metadata is ready */
   ready: boolean;
   /** Whether the file has enough data buffered for streaming (2MB or complete) */
@@ -265,6 +269,8 @@ export async function GET(request: NextRequest): Promise<Response> {
             fileProgress: stats?.fileProgress,
             downloadSpeed: stats?.downloadSpeed ?? 0,
             uploadSpeed: stats?.uploadSpeed ?? 0,
+            downloaded: stats?.downloaded ?? 0,
+            uploaded: stats?.uploaded ?? 0,
             ready: stats?.ready ?? false,
             fileReady: stats?.fileReady,
             fileIndex,
@@ -321,6 +327,8 @@ export async function GET(request: NextRequest): Promise<Response> {
               progress: 0,
               downloadSpeed: 0,
               uploadSpeed: 0,
+              downloaded: 0,
+              uploaded: 0,
               ready: false,
               fileIndex,
               timestamp: Date.now(),

@@ -17,7 +17,7 @@ export type MediaType = 'video' | 'audio';
  * Collects this much data before sending to client to prevent buffering
  * 10MB at 2Mbps = ~40 seconds of video buffer
  */
-export const TRANSCODE_PRE_BUFFER_BYTES_VIDEO = 10 * 1024 * 1024; // 10MB pre-buffer for video
+export const TRANSCODE_PRE_BUFFER_BYTES_VIDEO = 5 * 1024 * 1024; // 5MB pre-buffer for video
 
 /**
  * Pre-buffer configuration for audio transcoding

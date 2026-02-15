@@ -213,7 +213,7 @@ export class FileTranscodingService {
   constructor(options: FileTranscodingServiceOptions = {}) {
     this.maxConcurrentDownloads = options.maxConcurrentDownloads ?? 3;
     this.downloadTimeout = options.downloadTimeout ?? 900000; // 15 minutes (large x265 files need more time)
-    this.minBytesBeforeTranscode = options.minBytesBeforeTranscode ?? 50 * 1024 * 1024; // 50MB
+    this.minBytesBeforeTranscode = options.minBytesBeforeTranscode ?? 15 * 1024 * 1024; // 15MB
     this.activeDownloads = new Map();
     this.activeTranscodes = new Map();
 
@@ -490,6 +490,8 @@ export class FileTranscodingService {
       '-err_detect', 'ignore_err',
       '-fflags', '+genpts+discardcorrupt',
       '-i', filePath,
+      '-map', '0:v:0',
+      '-map', '0:a:0?',
       '-acodec', 'aac',
       '-vcodec', 'libx264',
       // Scale to 720p max for quality, -2 ensures even dimensions

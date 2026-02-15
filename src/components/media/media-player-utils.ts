@@ -49,6 +49,8 @@ export interface ConnectionStatus {
   fileProgress?: number;
   downloadSpeed: number;
   uploadSpeed: number;
+  downloaded: number;
+  uploaded: number;
   ready: boolean;
   fileReady?: boolean;
   fileIndex?: number;

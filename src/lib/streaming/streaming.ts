@@ -237,6 +237,10 @@ export interface TorrentStats {
   ready: boolean;
   /** Whether the file has enough data buffered for streaming (2MB or complete) */
   fileReady?: boolean;
+  /** Total bytes downloaded */
+  downloaded?: number;
+  /** Total bytes uploaded */
+  uploaded?: number;
 }
 
 /**
@@ -1081,6 +1085,8 @@ export class StreamingService {
       downloadSpeed: torrent.downloadSpeed,
       uploadSpeed: torrent.uploadSpeed,
       ready: torrent.ready,
+      downloaded: torrent.downloaded,
+      uploaded: torrent.uploaded,
     };
 
     // Add file-specific progress and ready state if fileIndex is provided
