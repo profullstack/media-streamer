@@ -497,6 +497,35 @@ export function MediaPlayerModal({
     }
   }, [isTv]);
 
+  // Auto-recover from stream errors (502, server restart, etc.)
+  // Exponential backoff, seamless — user sees brief "Reconnecting..." then stream resumes
+  const scheduleStreamRetry = useCallback((): void => {
+    if (streamRetryCountRef.current >= MAX_STREAM_RETRIES) {
+      console.log('[MediaPlayerModal] Max auto-retries reached, showing error');
+      setIsAutoRecovering(false);
+      return; // Leave error visible so user can manually retry
+    }
+
+    const delay = BASE_RETRY_DELAY_MS * Math.pow(2, streamRetryCountRef.current);
+    streamRetryCountRef.current += 1;
+
+    console.log(`[MediaPlayerModal] Auto-retry ${streamRetryCountRef.current}/${MAX_STREAM_RETRIES} in ${delay}ms`);
+    setIsAutoRecovering(true);
+    setError(null); // Hide error during recovery
+
+    retryTimeoutRef.current = setTimeout(() => {
+      console.log('[MediaPlayerModal] Auto-retrying stream...');
+      setIsPlayerReady(false);
+      setStreamUrl(null);
+      setConnectionStatus(null);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setRetryCount(prev => prev + 1);
+    }, delay);
+  }, []);
+
   // Handle player error
   // If it's a codec error and we haven't tried transcoding yet, retry with transcoding
   const handlePlayerError = useCallback((err: Error) => {
@@ -695,35 +724,6 @@ export function MediaPlayerModal({
     setUserClickedPlay(true);
     // The underlying player has autoplay enabled, so it should start playing
     // If autoplay is still blocked, the user can use the player's native controls
-  }, []);
-
-  // Auto-recover from stream errors (502, server restart, etc.)
-  // Exponential backoff, seamless — user sees brief "Reconnecting..." then stream resumes
-  const scheduleStreamRetry = useCallback((): void => {
-    if (streamRetryCountRef.current >= MAX_STREAM_RETRIES) {
-      console.log('[MediaPlayerModal] Max auto-retries reached, showing error');
-      setIsAutoRecovering(false);
-      return; // Leave error visible so user can manually retry
-    }
-
-    const delay = BASE_RETRY_DELAY_MS * Math.pow(2, streamRetryCountRef.current);
-    streamRetryCountRef.current += 1;
-
-    console.log(`[MediaPlayerModal] Auto-retry ${streamRetryCountRef.current}/${MAX_STREAM_RETRIES} in ${delay}ms`);
-    setIsAutoRecovering(true);
-    setError(null); // Hide error during recovery
-
-    retryTimeoutRef.current = setTimeout(() => {
-      console.log('[MediaPlayerModal] Auto-retrying stream...');
-      setIsPlayerReady(false);
-      setStreamUrl(null);
-      setConnectionStatus(null);
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      setRetryCount(prev => prev + 1);
-    }, delay);
   }, []);
 
   // Handle retry button click - clears error and forces player reload
