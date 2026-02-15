@@ -33,160 +33,23 @@ import { formatProgressTime } from '@/lib/progress/progress';
 import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection, useAuth } from '@/hooks';
 import type { TorrentFile, FileProgress } from '@/types';
 import { PaywallOverlay } from '@/components/subscription/PaywallOverlay';
-
-/**
- * Check if a string is a valid UUID v4
- * Used to determine if a file ID is from bt_torrent_files (valid UUID)
- * or a synthetic DHT file ID (infohash-index format)
- */
-function isValidUUID(str: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(str);
-}
-
-/**
- * Codec information from the API
- */
-interface CodecInfo {
-  videoCodec: string | null;
-  audioCodec: string | null;
-  container: string | null;
-  needsTranscoding: boolean | null;
-  cached: boolean;
-  detectedAt?: string;
-  duration?: number;
-  bitRate?: number;
-  resolution?: string;
-}
-
-/**
- * Swarm statistics from the API
- */
-interface SwarmStats {
-  seeders: number | null;
-  leechers: number | null;
-  fetchedAt: string;
-  trackersResponded: number;
-  trackersQueried: number;
-}
-
-/**
- * Connection status event from SSE endpoint
- */
-interface ConnectionStatus {
-  stage: 'initializing' | 'connecting' | 'searching_peers' | 'downloading_metadata' | 'buffering' | 'ready' | 'error';
-  message: string;
-  numPeers: number;
-  /** Overall torrent progress (0-1) */
-  progress: number;
-  /** File-specific progress (0-1) - more accurate for streaming individual files */
-  fileProgress?: number;
-  downloadSpeed: number;
-  uploadSpeed: number;
-  /** Whether the torrent metadata is ready */
-  ready: boolean;
-  /** Whether the file has enough data buffered for streaming (2MB for audio, 10MB for video) */
-  fileReady?: boolean;
-  fileIndex?: number;
-  timestamp: number;
-}
-
-// Transcoding decisions are now made by codec detection (server-side FFprobe),
-// not by file extension. This allows MKV/AVI with browser-compatible codecs
-// (h264+AAC) to play natively without unnecessary transcoding.
-
-/**
- * Error messages that indicate codec issues requiring transcoding
- * These are common error patterns from browsers when they can't decode the video
- */
-const CODEC_ERROR_PATTERNS = [
-  'MEDIA_ERR_SRC_NOT_SUPPORTED',
-  'MEDIA_ERR_DECODE',
-  'NotSupportedError',
-  'The media could not be loaded',
-  'No compatible source was found',
-  'Failed to load because no supported source was found',
-  'codec',
-  'format',
-  'unsupported',
-  'decode',
-];
-
-/**
- * Check if an error message indicates a codec/format issue
- */
-function isCodecError(errorMessage: string): boolean {
-  const lowerMessage = errorMessage.toLowerCase();
-  return CODEC_ERROR_PATTERNS.some(pattern =>
-    lowerMessage.includes(pattern.toLowerCase())
-  );
-}
-
-/**
- * Swarm stats polling interval in milliseconds (60 seconds)
- * Increased from 30s to reduce CPU/network pressure on low-resource devices (Fire Stick)
- */
-const SWARM_STATS_POLL_INTERVAL = 60000;
-
-/**
- * WebSocket trackers for browser WebTorrent
- * These are required for peer discovery in the browser since UDP trackers don't work
- */
-const WEBTORRENT_TRACKERS = [
-  'wss://tracker.webtorrent.dev',
-  'wss://tracker.openwebtorrent.com',
-  'wss://tracker.btorrent.xyz',
-  'wss://tracker.files.fm:7073/announce',
-];
-
-/**
- * Extract track info from filename
- * Attempts to parse common naming patterns like:
- * - "01 - Track Name.mp3"
- * - "Artist - Track Name.mp3"
- * - "01. Track Name.mp3"
- */
-function extractTrackInfo(filename: string): { title: string; trackNumber?: number } {
-  // Remove extension
-  const nameWithoutExt = filename.replace(/\.[^.]+$/, '');
-  
-  // Try to extract track number from start
-  const trackNumMatch = nameWithoutExt.match(/^(\d{1,3})[\s._-]+(.+)$/);
-  if (trackNumMatch) {
-    return {
-      trackNumber: parseInt(trackNumMatch[1], 10),
-      title: trackNumMatch[2].trim(),
-    };
-  }
-  
-  return { title: nameWithoutExt };
-}
-
-/**
- * Extract album name from file path
- * Assumes structure like: "Artist/Album/track.mp3" or "Album/track.mp3"
- */
-function extractAlbumFromPath(path: string): string | undefined {
-  const parts = path.split('/').filter(Boolean);
-  if (parts.length >= 2) {
-    // Return the parent folder name as album
-    return parts[parts.length - 2];
-  }
-  return undefined;
-}
-
-/**
- * Extract artist name from file path
- * Assumes structure like: "Artist/Album/track.mp3"
- */
-function extractArtistFromPath(path: string): string | undefined {
-  const parts = path.split('/').filter(Boolean);
-  if (parts.length >= 3) {
-    // Return the grandparent folder name as artist
-    return parts[parts.length - 3];
-  }
-  return undefined;
-}
+import {
+  isValidUUID,
+  isCodecError,
+  extractTrackInfo,
+  extractAlbumFromPath,
+  extractArtistFromPath,
+  formatBytes,
+  formatSpeed,
+  formatSpeedCompact,
+  formatBitrate,
+  formatDuration,
+  SWARM_STATS_POLL_INTERVAL,
+  WEBTORRENT_TRACKERS,
+  type CodecInfo,
+  type SwarmStats,
+  type ConnectionStatus,
+} from './media-player-utils';
 
 /**
  * Props for the MediaPlayerModal component
@@ -1553,63 +1416,3 @@ export function MediaPlayerModal({
 /**
  * Format bytes to human readable string
  */
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-}
-
-/**
- * Format bytes per second to human readable speed
- */
-function formatSpeed(bytesPerSecond: number): string {
-  if (bytesPerSecond < 1024) {
-    return `${bytesPerSecond.toFixed(0)} B/s`;
-  }
-  if (bytesPerSecond < 1024 * 1024) {
-    return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
-  }
-  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
-}
-
-/**
- * Format bytes per second to compact speed (for mobile)
- */
-function formatSpeedCompact(bytesPerSecond: number): string {
-  if (bytesPerSecond < 1024) {
-    return `${bytesPerSecond.toFixed(0)}B`;
-  }
-  if (bytesPerSecond < 1024 * 1024) {
-    return `${(bytesPerSecond / 1024).toFixed(0)}K`;
-  }
-  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)}M`;
-}
-
-/**
- * Format bitrate to human readable string
- */
-function formatBitrate(bitsPerSecond: number): string {
-  if (bitsPerSecond < 1000) {
-    return `${bitsPerSecond.toFixed(0)} bps`;
-  }
-  if (bitsPerSecond < 1000000) {
-    return `${(bitsPerSecond / 1000).toFixed(0)} Kbps`;
-  }
-  return `${(bitsPerSecond / 1000000).toFixed(1)} Mbps`;
-}
-
-/**
- * Format duration in seconds to human readable string
- */
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
-}

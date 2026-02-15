@@ -24,55 +24,11 @@ import {
   RefreshIcon,
 } from '@/components/ui/icons';
 import type { TorrentFile } from '@/types';
-
-/**
- * Extract track info from filename
- * Attempts to parse common naming patterns like:
- * - "01 - Track Name.mp3"
- * - "Artist - Track Name.mp3"
- * - "01. Track Name.mp3"
- */
-function extractTrackInfo(filename: string): { title: string; trackNumber?: number } {
-  // Remove extension
-  const nameWithoutExt = filename.replace(/\.[^.]+$/, '');
-  
-  // Try to extract track number from start
-  const trackNumMatch = nameWithoutExt.match(/^(\d{1,3})[\s._-]+(.+)$/);
-  if (trackNumMatch) {
-    return {
-      trackNumber: parseInt(trackNumMatch[1], 10),
-      title: trackNumMatch[2].trim(),
-    };
-  }
-  
-  return { title: nameWithoutExt };
-}
-
-/**
- * Extract album name from file path
- * Assumes structure like: "Artist/Album/track.mp3" or "Album/track.mp3"
- */
-function extractAlbumFromPath(path: string): string | undefined {
-  const parts = path.split('/').filter(Boolean);
-  if (parts.length >= 2) {
-    // Return the parent folder name as album
-    return parts[parts.length - 2];
-  }
-  return undefined;
-}
-
-/**
- * Extract artist name from file path
- * Assumes structure like: "Artist/Album/track.mp3"
- */
-function extractArtistFromPath(path: string): string | undefined {
-  const parts = path.split('/').filter(Boolean);
-  if (parts.length >= 3) {
-    // Return the grandparent folder name as artist
-    return parts[parts.length - 3];
-  }
-  return undefined;
-}
+import {
+  extractTrackInfo,
+  extractAlbumFromPath,
+  extractArtistFromPath,
+} from './media-player-utils';
 
 /**
  * Connection status event from SSE endpoint
