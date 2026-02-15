@@ -168,6 +168,28 @@ export default function TorrentDetailPage(): React.ReactElement {
     }
   }, [torrentId]);
 
+  // Set page title and meta description for SEO
+  useEffect(() => {
+    if (!torrent) return;
+    const title = torrent.cleanTitle ?? torrent.name;
+    const parts = [title];
+    if (torrent.year) parts.push(`(${torrent.year})`);
+    if (torrent.contentType) parts.push(`- ${torrent.contentType.charAt(0).toUpperCase() + torrent.contentType.slice(1)}`);
+    document.title = `${parts.join(' ')} | BitTorrented`;
+
+    // Update or create meta description
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement('meta');
+      metaDesc.setAttribute('name', 'description');
+      document.head.appendChild(metaDesc);
+    }
+    const desc = torrent.description
+      ? `${torrent.description.slice(0, 155)}…`
+      : `Stream or download ${title} on BitTorrented. ${torrent.fileCount} file${torrent.fileCount !== 1 ? 's' : ''}, ${formatBytes(torrent.totalSize)}.`;
+    metaDesc.setAttribute('content', desc);
+  }, [torrent]);
+
   // Fetch progress for logged-in users
   useEffect(() => {
     if (!user || !torrentId) {

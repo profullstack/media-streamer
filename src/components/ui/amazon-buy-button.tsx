@@ -24,6 +24,8 @@ function cleanTorrentTitle(raw: string): string {
   t = t.replace(/\b(x264|x265|h264|h265|hevc|avc|aac|ac3|dts|flac|mp3|bluray|bdrip|brrip|webrip|web-dl|webdl|hdrip|dvdrip|dvdscr|cam|ts|hdtv|pdtv|uhd|uhdr|hdr|hdr10|dv|dolby|vision|10bit|8bit|remux|repack|proper|extended|unrated|directors|cut|dubbed|subbed|multi|dual|audio|subs|eng|cz|en|de|fr|es|it|pt|nl|pl|ru|ja|ko|zh)\b/gi, ' ');
   // Remove resolution tags
   t = t.replace(/\b(480p|720p|1080p|1080i|2160p|4k)\b/gi, ' ');
+  // Remove plus signs (e.g. UHDR+DV)
+  t = t.replace(/[+]/g, ' ');
   // Remove release group (anything after last dash or in brackets)
   t = t.replace(/[-–]\s*\w+\s*$/, '');
   t = t.replace(/\[.*?\]/g, ' ');
