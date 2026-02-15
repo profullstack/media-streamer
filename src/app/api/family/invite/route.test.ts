@@ -345,6 +345,7 @@ describe('Family Invitation API Routes', () => {
         sendRenewalReminder: vi.fn(),
         sendTrialExpired: vi.fn(),
         sendIPTVSubscriptionEmail: vi.fn(),
+        sendIPBanNotice: vi.fn(),
         isValidEmail: vi.fn().mockReturnValue(true),
         resend: {} as unknown,
       };
