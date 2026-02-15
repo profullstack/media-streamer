@@ -48,11 +48,12 @@ interface AmazonResult {
 interface AmazonBuyButtonProps {
   title: string;
   contentType: string | null;
+  year: number | null;
   /** Only show when metadata images exist (poster/cover) */
   hasMetadata: boolean;
 }
 
-export function AmazonBuyButton({ title, contentType, hasMetadata }: AmazonBuyButtonProps) {
+export function AmazonBuyButton({ title, contentType, year, hasMetadata }: AmazonBuyButtonProps) {
   const [result, setResult] = useState<AmazonResult | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -65,7 +66,8 @@ export function AmazonBuyButton({ title, contentType, hasMetadata }: AmazonBuyBu
     const searchTitle = cleanTorrentTitle(title);
     if (!searchTitle) return;
 
-    fetch(`/api/amazon/search?title=${encodeURIComponent(searchTitle)}&contentType=${encodeURIComponent(contentType || '')}`)
+    const yearParam = year ? `&year=${year}` : '';
+    fetch(`/api/amazon/search?title=${encodeURIComponent(searchTitle)}&contentType=${encodeURIComponent(contentType || '')}${yearParam}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (!cancelled && data?.result?.url) {

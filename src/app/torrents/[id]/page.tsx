@@ -508,6 +508,7 @@ export default function TorrentDetailPage(): React.ReactElement {
               <AmazonBuyButton
                 title={torrent.cleanTitle ?? torrent.name}
                 contentType={torrent.contentType}
+                year={torrent.year}
                 hasMetadata={true}
               />
             </div>

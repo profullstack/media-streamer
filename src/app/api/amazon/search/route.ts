@@ -27,18 +27,22 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const title = searchParams.get('title')?.trim();
   const contentType = searchParams.get('contentType')?.trim() || '';
+  const year = searchParams.get('year')?.trim() || '';
 
   if (!title) {
     return NextResponse.json({ error: 'title is required' }, { status: 400 });
   }
 
   try {
+    // Append year to search for better results (e.g. "Valkyrie 2008" vs just "Valkyrie")
+    const searchTerm = year ? `${title} ${year}` : title;
+
     const params = new URLSearchParams({
       api_key: RAINFOREST_API_KEY,
       type: 'search',
       amazon_domain: 'amazon.com',
-      search_term: title,
-      sort_by: 'average_review',
+      search_term: searchTerm,
+      sort_by: 'most_reviews',
       associate_id: AMAZON_ASSOCIATE_ID,
     });
 
