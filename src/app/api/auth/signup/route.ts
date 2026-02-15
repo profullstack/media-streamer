@@ -159,10 +159,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Capture signup IP from X-Forwarded-For (nginx proxy) or direct connection
+  const signupIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? request.headers.get('x-real-ip')
+    ?? 'unknown';
+
+  console.log('[Signup] New user:', { email: email.trim().toLowerCase(), userId: data.user.id, signupIp });
+
+  // Check if this IP already has an active or expired trial (anti-abuse)
+  const { data: existingTrials } = await supabase
+    .from('user_subscriptions')
+    .select('id, user_id, status, signup_ip')
+    .eq('signup_ip', signupIp)
+    .neq('user_id', data.user.id);
+
+  if (existingTrials && existingTrials.length > 0) {
+    console.warn('[Signup] Duplicate trial attempt from same IP', {
+      signupIp,
+      existingCount: existingTrials.length,
+      newUserId: data.user.id,
+    });
+    // Still allow signup but give a shorter trial (3 days instead of 14)
+    // This way legitimate users sharing an IP (family, office) aren't blocked
+  }
+
+  const isRepeatIp = existingTrials && existingTrials.length > 0;
+  const trialDays = isRepeatIp ? 3 : 14;
+
   // Create user subscription record (trial tier)
   // Use upsert to handle cases where user re-signs up (e.g., unconfirmed email retry)
   const trialExpiresAt = new Date();
-  trialExpiresAt.setDate(trialExpiresAt.getDate() + 14); // 14-day trial
+  trialExpiresAt.setDate(trialExpiresAt.getDate() + trialDays);
 
   const { error: subscriptionError } = await supabase
     .from('user_subscriptions')
@@ -173,6 +200,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         status: 'active',
         trial_started_at: new Date().toISOString(),
         trial_expires_at: trialExpiresAt.toISOString(),
+        signup_ip: signupIp,
       },
       {
         onConflict: 'user_id',
