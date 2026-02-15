@@ -806,15 +806,13 @@ echo "=== Setting up log rotation ==="
 sudo tee /etc/logrotate.d/${DOMAIN} > /dev/null << EOF
 ${LOG_FILE} ${ERROR_LOG_FILE} {
     daily
-    rotate 14
+    rotate 2
     compress
     delaycompress
     missingok
     notifempty
     create 644 ${VPS_USER} ${VPS_USER}
-    postrotate
-        systemctl reload ${SERVICE_NAME} > /dev/null 2>&1 || true
-    endscript
+    copytruncate
 }
 EOF
 
@@ -860,15 +858,13 @@ echo "=== Setting up IPTV worker log rotation ==="
 sudo tee /etc/logrotate.d/${IPTV_WORKER_SERVICE} > /dev/null << EOF
 ${IPTV_WORKER_LOG} ${IPTV_WORKER_ERROR_LOG} {
     daily
-    rotate 7
+    rotate 2
     compress
     delaycompress
     missingok
     notifempty
     create 644 ${VPS_USER} ${VPS_USER}
-    postrotate
-        systemctl reload ${IPTV_WORKER_SERVICE} > /dev/null 2>&1 || true
-    endscript
+    copytruncate
 }
 EOF
 
@@ -914,17 +910,26 @@ echo "=== Setting up Podcast worker log rotation ==="
 sudo tee /etc/logrotate.d/${PODCAST_WORKER_SERVICE} > /dev/null << EOF
 ${PODCAST_WORKER_LOG} ${PODCAST_WORKER_ERROR_LOG} {
     daily
-    rotate 7
+    rotate 2
     compress
     delaycompress
     missingok
     notifempty
     create 644 ${VPS_USER} ${VPS_USER}
-    postrotate
-        systemctl reload ${PODCAST_WORKER_SERVICE} > /dev/null 2>&1 || true
-    endscript
+    copytruncate
 }
 EOF
+
+# Cap systemd journal size (idempotent - overwrites config)
+echo "=== Configuring systemd journal size limit ==="
+sudo mkdir -p /etc/systemd/journald.conf.d
+sudo tee /etc/systemd/journald.conf.d/size-limit.conf > /dev/null << EOF
+[Journal]
+SystemMaxUse=200M
+MaxRetentionSec=2day
+EOF
+sudo systemctl restart systemd-journald 2>/dev/null || true
+echo "✓ Journal capped at 200M / 2 days"
 
 # ============================================
 # DHT CRAWLER SERVICES (Bitmagnet + DHT API)
