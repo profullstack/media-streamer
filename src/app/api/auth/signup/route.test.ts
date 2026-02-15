@@ -101,7 +101,16 @@ describe('Signup API - POST /api/auth/signup', () => {
         error: null,
       });
 
-      // Mock subscription creation (upsert)
+      // Mock IP-based trial check (called first: select → eq → neq)
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            neq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        }),
+      });
+
+      // Mock subscription upsert (called second)
       mockFrom.mockReturnValueOnce({
         upsert: vi.fn().mockResolvedValueOnce({ error: null }),
       });
@@ -133,7 +142,16 @@ describe('Signup API - POST /api/auth/signup', () => {
         error: null,
       });
 
-      // Mock subscription creation (upsert)
+      // Mock IP-based trial check (called first)
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            neq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        }),
+      });
+
+      // Mock subscription upsert (called second)
       mockFrom.mockReturnValueOnce({
         upsert: vi.fn().mockResolvedValueOnce({ error: null }),
       });
