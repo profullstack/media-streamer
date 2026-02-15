@@ -1,191 +1,94 @@
 /**
- * Middleware Tests
- * 
- * Tests for the auth token refresh middleware including:
- * - Circuit breaker behavior
- * - Timeout handling
- * - Error recovery
+ * Middleware Tests — Bot blocking on API routes
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// We test the middleware by importing and calling it directly
+// Mock NextResponse and NextRequest
+const mockNextUrl = { pathname: '' };
 
-// Import the module after mocking
-// Note: We need to test the circuit breaker logic
+function createMockRequest(pathname: string, userAgent: string | null) {
+  return {
+    nextUrl: { pathname },
+    headers: {
+      get: (name: string) => (name === 'user-agent' ? userAgent : null),
+    },
+  };
+}
 
-describe('Middleware Circuit Breaker', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers();
+// Import the actual middleware
+import { middleware } from './middleware';
+import { NextRequest } from 'next/server';
+
+describe('Bot Blocking Middleware', () => {
+  function callMiddleware(pathname: string, userAgent: string | null) {
+    const url = new URL(`http://localhost${pathname}`);
+    const req = new NextRequest(url, {
+      headers: userAgent ? { 'user-agent': userAgent } : {},
+    });
+    return middleware(req);
+  }
+
+  it('should block Googlebot from API routes', () => {
+    const res = callMiddleware('/api/torrents/123', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(403);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it('should block Bingbot from API routes', () => {
+    const res = callMiddleware('/api/stream', 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)');
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(403);
   });
 
-  describe('Circuit Breaker Logic', () => {
-    it('should track consecutive failures', () => {
-      // Test the circuit breaker opens after MAX_CONSECUTIVE_FAILURES
-      let consecutiveFailures = 0;
-      const MAX_CONSECUTIVE_FAILURES = 3;
-      
-      const recordFailure = () => {
-        consecutiveFailures++;
-      };
-      
-      const isCircuitOpen = () => consecutiveFailures >= MAX_CONSECUTIVE_FAILURES;
-      
-      // First failure
-      recordFailure();
-      expect(isCircuitOpen()).toBe(false);
-      
-      // Second failure
-      recordFailure();
-      expect(isCircuitOpen()).toBe(false);
-      
-      // Third failure - circuit should open
-      recordFailure();
-      expect(isCircuitOpen()).toBe(true);
-    });
-
-    it('should reset after timeout period', () => {
-      let consecutiveFailures = 0;
-      let lastFailureTime = 0;
-      const MAX_CONSECUTIVE_FAILURES = 3;
-      const CIRCUIT_RESET_MS = 30000;
-      
-      const recordFailure = () => {
-        consecutiveFailures++;
-        lastFailureTime = Date.now();
-      };
-      
-      const isCircuitOpen = () => {
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          if (Date.now() - lastFailureTime > CIRCUIT_RESET_MS) {
-            consecutiveFailures = 0;
-            return false;
-          }
-          return true;
-        }
-        return false;
-      };
-      
-      // Trigger 3 failures
-      recordFailure();
-      recordFailure();
-      recordFailure();
-      expect(isCircuitOpen()).toBe(true);
-      
-      // Advance time past reset period
-      vi.advanceTimersByTime(CIRCUIT_RESET_MS + 1000);
-      
-      // Circuit should be closed (reset)
-      expect(isCircuitOpen()).toBe(false);
-    });
-
-    it('should reset on success', () => {
-      let consecutiveFailures = 0;
-      
-      const recordFailure = () => {
-        consecutiveFailures++;
-      };
-      
-      const recordSuccess = () => {
-        consecutiveFailures = 0;
-      };
-      
-      // Build up failures
-      recordFailure();
-      recordFailure();
-      expect(consecutiveFailures).toBe(2);
-      
-      // Success should reset
-      recordSuccess();
-      expect(consecutiveFailures).toBe(0);
-    });
+  it('should block generic bot user agents', () => {
+    const res = callMiddleware('/api/torrents/index', 'SomeBot/1.0');
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(403);
   });
 
-  describe('Fetch Timeout', () => {
-    it('should create AbortController for fetch timeout', () => {
-      const REFRESH_TIMEOUT_MS = 3000;
-      
-      // Test that AbortController pattern works correctly
-      const controller = new AbortController();
-      expect(controller.signal.aborted).toBe(false);
-      
-      // Abort should set the signal
-      controller.abort();
-      expect(controller.signal.aborted).toBe(true);
-    });
-
-    it('should respect timeout configuration', () => {
-      const REFRESH_TIMEOUT_MS = 3000;
-      
-      // Verify timeout constant is reasonable (< 10 seconds)
-      expect(REFRESH_TIMEOUT_MS).toBeLessThan(10000);
-      expect(REFRESH_TIMEOUT_MS).toBeGreaterThan(0);
-    });
+  it('should block GPTBot', () => {
+    const res = callMiddleware('/api/torrents/123', 'GPTBot/1.0');
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(403);
   });
-});
 
-describe('JWT Payload Decoding', () => {
-  it('should decode a valid JWT payload', () => {
-    // Helper function to decode JWT (same as in middleware)
-    function decodeJwtPayload(token: string): { exp?: number } | null {
-      try {
-        const parts = token.split('.');
-        if (parts.length !== 3) return null;
-        const payload = Buffer.from(parts[1], 'base64url').toString('utf-8');
-        return JSON.parse(payload) as { exp?: number };
-      } catch {
-        return null;
-      }
+  it('should allow normal browsers to access API routes', () => {
+    const res = callMiddleware('/api/torrents/123', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    expect(res).toBeUndefined();
+  });
+
+  it('should allow requests with no user-agent', () => {
+    const res = callMiddleware('/api/torrents/123', null);
+    expect(res).toBeUndefined();
+  });
+
+  it('should not block bots from non-API routes', () => {
+    // Middleware matcher only runs on /api/ routes, but test the function directly
+    const res = callMiddleware('/torrents/123', 'Googlebot/2.1');
+    expect(res).toBeUndefined();
+  });
+
+  it('should block AhrefsBot', () => {
+    const res = callMiddleware('/api/torrents/123', 'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)');
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(403);
+  });
+
+  it('should block social media preview bots from API', () => {
+    const agents = [
+      'facebookexternalhit/1.1',
+      'Twitterbot/1.0',
+      'LinkedInBot/1.0',
+      'WhatsApp/2.0',
+      'TelegramBot',
+      'Discordbot/2.0',
+    ];
+    for (const ua of agents) {
+      const res = callMiddleware('/api/torrents/123', ua);
+      expect(res).toBeDefined();
+      expect(res!.status).toBe(403);
     }
-    
-    // Create a test JWT with expiry
-    const expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-    const payload = { exp: expiry, sub: 'test-user' };
-    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const testToken = `header.${encodedPayload}.signature`;
-    
-    const decoded = decodeJwtPayload(testToken);
-    expect(decoded).not.toBeNull();
-    expect(decoded?.exp).toBe(expiry);
-  });
-
-  it('should return null for invalid JWT', () => {
-    function decodeJwtPayload(token: string): { exp?: number } | null {
-      try {
-        const parts = token.split('.');
-        if (parts.length !== 3) return null;
-        const payload = Buffer.from(parts[1], 'base64url').toString('utf-8');
-        return JSON.parse(payload) as { exp?: number };
-      } catch {
-        return null;
-      }
-    }
-    
-    expect(decodeJwtPayload('invalid')).toBeNull();
-    expect(decodeJwtPayload('only.two')).toBeNull();
-    expect(decodeJwtPayload('')).toBeNull();
-  });
-
-  it('should handle tokens with invalid base64', () => {
-    function decodeJwtPayload(token: string): { exp?: number } | null {
-      try {
-        const parts = token.split('.');
-        if (parts.length !== 3) return null;
-        const payload = Buffer.from(parts[1], 'base64url').toString('utf-8');
-        return JSON.parse(payload) as { exp?: number };
-      } catch {
-        return null;
-      }
-    }
-    
-    // Invalid base64 in payload
-    expect(decodeJwtPayload('header.!!!invalid!!!.signature')).toBeNull();
   });
 });
