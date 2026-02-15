@@ -46,11 +46,9 @@ export async function GET(request: NextRequest) {
       associate_id: AMAZON_ASSOCIATE_ID,
     });
 
-    // Add category filter if we know the content type
-    const categoryId = CATEGORY_MAP[contentType];
-    if (categoryId) {
-      params.set('category_id', categoryId);
-    }
+    // Add category filter — default to Movies & TV when unknown
+    const categoryId = CATEGORY_MAP[contentType] || CATEGORY_MAP['movie'];
+    params.set('category_id', categoryId);
 
     const res = await fetch(`${RAINFOREST_BASE}?${params.toString()}`, {
       next: { revalidate: 86400 }, // Cache for 24h
