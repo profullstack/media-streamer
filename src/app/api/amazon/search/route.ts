@@ -34,8 +34,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Append year to search for better results (e.g. "Valkyrie 2008" vs just "Valkyrie")
-    const searchTerm = year ? `${title} ${year}` : title;
+    // Don't append year — it causes Amazon to match random products with that number
+    // The category filter + title is enough for good results
+    const searchTerm = title;
 
     const params = new URLSearchParams({
       api_key: RAINFOREST_API_KEY,
