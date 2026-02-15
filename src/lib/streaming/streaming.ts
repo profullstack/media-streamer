@@ -263,12 +263,13 @@ const DEFAULT_CLEANUP_DELAY = 120000;
 /**
  * Memory pressure thresholds (in bytes)
  * When RSS exceeds these thresholds, take action to prevent OOM
- * Tuned for VPS environments with limited RAM (6GB total, 5GB limit for service)
+ * Tuned for VPS with 16GB RAM
  */
-const MEMORY_WARNING_THRESHOLD = 1 * 1024 * 1024 * 1024; // 1GB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - emergency cleanup
-const MEMORY_SEVERE_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - kill oldest streams
+const MEMORY_WARNING_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - start aggressive cleanup
+const MEMORY_CRITICAL_THRESHOLD = 6 * 1024 * 1024 * 1024; // 6GB - emergency cleanup
+const MEMORY_SEVERE_THRESHOLD = 8 * 1024 * 1024 * 1024; // 8GB - kill oldest streams
 const MEMORY_CHECK_INTERVAL_MS = 10000; // Check every 10 seconds
+const TORRENT_MIN_AGE_MS = 4 * 60 * 60 * 1000; // Don't cleanup torrents younger than 4 hours
 
 /**
  * Watcher tracking for a torrent
@@ -290,6 +291,7 @@ export class StreamingService {
   private torrentCleanupDelay: number;
   private activeStreams: Map<string, ActiveStream>;
   private torrentWatchers: Map<string, TorrentWatchers>;
+  private torrentAddedAt: Map<string, number> = new Map(); // infohash → Date.now() when added
   private dhtReady: boolean = false;
   private dhtNodeCount: number = 0;
   private downloadPath: string;
@@ -569,17 +571,29 @@ export class StreamingService {
    */
   private aggressiveCleanup(): void {
     let cleaned = 0;
+    let skippedYoung = 0;
+    const now = Date.now();
 
     // Remove torrents that have no active watchers (even if cleanup timer hasn't fired)
+    // But skip torrents younger than TORRENT_MIN_AGE_MS to protect active downloads/transcodes
     for (const [infohash, watcherInfo] of this.torrentWatchers) {
       if (watcherInfo.watchers.size === 0) {
+        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        
+        // Skip young torrents — they may be actively downloading or transcoding
+        const addedAt = this.torrentAddedAt.get(infohash) ?? 0;
+        if (addedAt && (now - addedAt) < TORRENT_MIN_AGE_MS) {
+          skippedYoung++;
+          continue;
+        }
+
         // Cancel cleanup timer and remove immediately
         if (watcherInfo.cleanupTimer) {
           clearTimeout(watcherInfo.cleanupTimer);
         }
         this.torrentWatchers.delete(infohash);
+        this.torrentAddedAt.delete(infohash);
         
-        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
         if (torrent) {
           const torrentName = torrent.name;
           (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
@@ -593,8 +607,8 @@ export class StreamingService {
       }
     }
 
-    if (cleaned > 0) {
-      logger.info('Aggressive cleanup completed', { torrentsRemoved: cleaned });
+    if (cleaned > 0 || skippedYoung > 0) {
+      logger.info('Aggressive cleanup completed', { torrentsRemoved: cleaned, skippedYoung });
     }
   }
 
@@ -603,6 +617,8 @@ export class StreamingService {
    */
   private emergencyCleanup(): void {
     let cleaned = 0;
+    let skippedYoung = 0;
+    const now = Date.now();
     const activeInfohashes = new Set<string>();
 
     // Collect infohashes with active streams
@@ -610,8 +626,16 @@ export class StreamingService {
       activeInfohashes.add(stream.infohash);
     }
 
-    // Remove all torrents except those with active streams
-    const torrentsToRemove = this.client.torrents.filter(t => !activeInfohashes.has(t.infoHash));
+    // Remove all torrents except those with active streams or younger than 4 hours
+    const torrentsToRemove = this.client.torrents.filter(t => {
+      if (activeInfohashes.has(t.infoHash)) return false;
+      const addedAt = this.torrentAddedAt.get(t.infoHash) ?? 0;
+      if (addedAt && (now - addedAt) < TORRENT_MIN_AGE_MS) {
+        skippedYoung++;
+        return false;
+      }
+      return true;
+    });
 
     for (const torrent of torrentsToRemove) {
       const infohash = torrent.infoHash;
@@ -623,6 +647,7 @@ export class StreamingService {
         clearTimeout(watcherInfo.cleanupTimer);
       }
       this.torrentWatchers.delete(infohash);
+      this.torrentAddedAt.delete(infohash);
 
       // Destroy torrent and delete files
       (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
@@ -637,6 +662,7 @@ export class StreamingService {
     logger.warn('Emergency cleanup completed', {
       torrentsRemoved: cleaned,
       torrentsPreserved: activeInfohashes.size,
+      skippedYoung,
     });
 
     // Force garbage collection if available
@@ -1006,6 +1032,7 @@ export class StreamingService {
         // Pass path option to ensure downloads go to configured directory
         // Type assertion needed because WebTorrent types are incomplete
         const torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
+        this.torrentAddedAt.set(torrent.infoHash, Date.now());
 
         // Use named handlers so they can be removed when torrent is destroyed
         const onWire = (wire: { remoteAddress: string }): void => {
@@ -1369,6 +1396,7 @@ export class StreamingService {
         
         // Clean up watcher tracking
         this.torrentWatchers.delete(infohash);
+        this.torrentAddedAt.delete(infohash);
       } else {
         logger.debug('Cleanup cancelled - new watchers connected', {
           infohash,
@@ -1710,6 +1738,7 @@ export class StreamingService {
 
       // Pass path option to ensure downloads go to configured directory
       torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions, (t) => {
+        this.torrentAddedAt.set(t.infoHash, Date.now());
         logger.debug('Torrent add callback fired', {
           infohash: t.infoHash,
           ready: t.ready,
