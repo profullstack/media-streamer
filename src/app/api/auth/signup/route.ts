@@ -173,18 +173,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .eq('signup_ip', signupIp)
     .neq('user_id', data.user.id);
 
-  if (existingTrials && existingTrials.length > 0) {
-    console.warn('[Signup] Duplicate trial attempt from same IP', {
+  const existingCount = existingTrials?.length ?? 0;
+
+  if (existingCount >= 5) {
+    console.error('[Signup] IP BANNED — 5+ accounts from same IP', {
       signupIp,
-      existingCount: existingTrials.length,
+      existingCount,
       newUserId: data.user.id,
+      email: email.trim().toLowerCase(),
     });
-    // Still allow signup but give a shorter trial (1 day instead of 3)
-    // This way legitimate users sharing an IP (family, office) aren't blocked
+
+    // Send ban notification email
+    try {
+      await supabase.auth.admin.updateUserById(data.user.id, {
+        ban_duration: '876000h', // ~100 years
+      });
+    } catch (banErr) {
+      console.error('[Signup] Failed to ban user', banErr);
+    }
+
+    return NextResponse.json(
+      { 
+        error: 'Your IP address has been flagged for trial abuse. To continue using the service, please purchase a subscription at https://bittorrented.com/pricing',
+      },
+      { status: 403 }
+    );
   }
 
-  const isRepeatIp = existingTrials && existingTrials.length > 0;
-  const trialDays = isRepeatIp ? 1 : 3;
+  if (existingCount > 0) {
+    console.warn('[Signup] Duplicate trial attempt from same IP', {
+      signupIp,
+      existingCount,
+      newUserId: data.user.id,
+    });
+  }
+
+  const trialDays = existingCount > 0 ? 1 : 3;
 
   // Create user subscription record (trial tier)
   // Use upsert to handle cases where user re-signs up (e.g., unconfirmed email retry)
