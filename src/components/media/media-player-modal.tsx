@@ -144,6 +144,13 @@ export function MediaPlayerModal({
   const [codecCheckComplete, setCodecCheckComplete] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  
+  // Auto-retry on stream errors (502, crash, etc.) — same pattern as live TV player
+  const MAX_STREAM_RETRIES = 5;
+  const BASE_RETRY_DELAY_MS = 2000;
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const streamRetryCountRef = useRef(0);
+  const [isAutoRecovering, setIsAutoRecovering] = useState(false);
 
   // Fetch swarm stats from the API
   const fetchSwarmStats = useCallback(async () => {
@@ -445,6 +452,13 @@ export function MediaPlayerModal({
   const handlePlayerReady = useCallback(() => {
     console.log('[MediaPlayerModal] Player ready');
     setIsPlayerReady(true);
+    // Reset auto-retry on successful playback
+    streamRetryCountRef.current = 0;
+    setIsAutoRecovering(false);
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
 
     // Track playback start
     if (file) {
@@ -513,12 +527,23 @@ export function MediaPlayerModal({
     // If we already tried transcoding or it's not a codec error, show the error
     setError(err.message);
     setIsPlayerReady(true); // Stop showing loading on error
-  }, [hasTriedTranscoding, isTranscoding, file, infohash, trackPlayback]);
+    
+    // Auto-retry on transient errors (502, network, stream interruption)
+    scheduleStreamRetry();
+  }, [hasTriedTranscoding, isTranscoding, file, infohash, trackPlayback, scheduleStreamRetry]);
 
   // Handle close and cleanup
   const handleClose = useCallback(() => {
     // Stop P2P streaming
     webTorrentStopStream();
+    
+    // Cancel any pending auto-retry
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    streamRetryCountRef.current = 0;
+    setIsAutoRecovering(false);
     
     setStreamUrl(null);
     setError(null);
@@ -672,10 +697,45 @@ export function MediaPlayerModal({
     // If autoplay is still blocked, the user can use the player's native controls
   }, []);
 
+  // Auto-recover from stream errors (502, server restart, etc.)
+  // Exponential backoff, seamless — user sees brief "Reconnecting..." then stream resumes
+  const scheduleStreamRetry = useCallback((): void => {
+    if (streamRetryCountRef.current >= MAX_STREAM_RETRIES) {
+      console.log('[MediaPlayerModal] Max auto-retries reached, showing error');
+      setIsAutoRecovering(false);
+      return; // Leave error visible so user can manually retry
+    }
+
+    const delay = BASE_RETRY_DELAY_MS * Math.pow(2, streamRetryCountRef.current);
+    streamRetryCountRef.current += 1;
+
+    console.log(`[MediaPlayerModal] Auto-retry ${streamRetryCountRef.current}/${MAX_STREAM_RETRIES} in ${delay}ms`);
+    setIsAutoRecovering(true);
+    setError(null); // Hide error during recovery
+
+    retryTimeoutRef.current = setTimeout(() => {
+      console.log('[MediaPlayerModal] Auto-retrying stream...');
+      setIsPlayerReady(false);
+      setStreamUrl(null);
+      setConnectionStatus(null);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setRetryCount(prev => prev + 1);
+    }, delay);
+  }, []);
+
   // Handle retry button click - clears error and forces player reload
   // Resets all stream state to ensure clean reconnection via SSE
   const handleRetry = useCallback(() => {
     console.log('[MediaPlayerModal] User clicked retry button');
+    streamRetryCountRef.current = 0; // Reset auto-retry count on manual retry
+    setIsAutoRecovering(false);
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
     setError(null);
     setIsPlayerReady(false);
     setUserClickedPlay(false);
@@ -1274,7 +1334,9 @@ export function MediaPlayerModal({
             <div className="flex flex-col items-center gap-2">
               <div className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-3 sm:border-4 border-accent-primary border-t-transparent" />
               <span className="text-xs sm:text-sm text-white/80">
-                {connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
+                {isAutoRecovering 
+                  ? `Reconnecting (${streamRetryCountRef.current}/${MAX_STREAM_RETRIES})...`
+                  : connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
               </span>
               {/* Buffering progress: show MB downloaded toward threshold */}
               {connectionStatus && connectionStatus.stage === 'buffering' && connectionStatus.downloaded > 0 && (
