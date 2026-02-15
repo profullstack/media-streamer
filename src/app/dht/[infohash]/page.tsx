@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { MainLayout } from '@/components/layout';
 import { getDhtTorrentDetail } from '@/lib/dht/queries';
 import { formatBytes } from '@/lib/utils';
+import { DhtActions } from '@/components/dht/dht-actions';
 
 /**
  * Clean torrent name for display and SEO.
@@ -117,19 +118,8 @@ export default async function DhtTorrentPage({ params }: PageProps) {
           </div>
 
           {/* Action buttons */}
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href={magnetUri}
-              className="btn-primary flex items-center gap-2 px-4 py-2 text-sm"
-            >
-              🧲 Open Magnet Link
-            </a>
-            <Link
-              href={`/torrents/${infohash}`}
-              className="btn-secondary flex items-center gap-2 px-4 py-2 text-sm"
-            >
-              ⚡ Index &amp; Stream This Torrent
-            </Link>
+          <div className="mt-6">
+            <DhtActions magnetUri={magnetUri} infohash={infohash} />
           </div>
         </div>
 

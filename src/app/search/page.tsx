@@ -226,19 +226,20 @@ const SearchResultsList = memo(function SearchResultsList({
           </>
         );
 
-        // For DHT results, use a div with click handler; for library results, use Link
+        // For DHT results, link to /dht/<infohash>; for library results, link to /torrents/<id>
         if (isDht) {
           return (
-            <div
+            <Link
               key={result.torrent_id}
+              href={`/dht/${result.torrent_infohash}`}
               className={cn(
                 'flex items-center gap-3 rounded border border-transparent px-3 py-2',
                 'hover:border-accent-primary/30 hover:bg-bg-hover',
-                'transition-colors cursor-default'
+                'transition-colors'
               )}
             >
               {content}
-            </div>
+            </Link>
           );
         }
 
