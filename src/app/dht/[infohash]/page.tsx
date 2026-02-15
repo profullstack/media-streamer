@@ -5,6 +5,7 @@ import { MainLayout } from '@/components/layout';
 import { getDhtTorrentDetail } from '@/lib/dht/queries';
 import { formatBytes } from '@/lib/utils';
 import { DhtActions } from '@/components/dht/dht-actions';
+import { DhtIndexCta } from '@/components/dht/dht-index-cta';
 
 /**
  * Clean torrent name for display and SEO.
@@ -157,13 +158,7 @@ export default async function DhtTorrentPage({ params }: PageProps) {
             Total size: {formatBytes(torrent.size)} across {torrent.files_count ?? 'unknown'} files.
             {torrent.seeders != null && torrent.seeders > 0 && ` Currently ${torrent.seeders} seeders are sharing this torrent.`}
           </p>
-          <p className="mt-2">
-            Want to stream this directly in your browser?{' '}
-            <Link href={`/torrents/${infohash}`} className="text-accent-primary hover:underline">
-              Index this torrent
-            </Link>{' '}
-            to unlock streaming, metadata enrichment, and more.
-          </p>
+          <DhtIndexCta infohash={infohash} magnetUri={magnetUri} />
         </div>
       </div>
     </MainLayout>
