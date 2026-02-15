@@ -1,6 +1,6 @@
 /**
  * Month Archive — cursor-paginated torrents for a specific year/month.
- * URL: /torrents/2026/02?before_ts=UNIX&before_id=HEX
+ * URL: /torrents/archive/2026/02?before_ts=UNIX&before_id=HEX
  */
 
 import Link from 'next/link';
@@ -78,7 +78,7 @@ export default async function MonthArchivePage({ params, searchParams }: PagePro
 
   const d = new Date(Date.UTC(year, month - 1, 1));
   const label = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-  const basePath = `/torrents/${yearStr}/${monthStr}`;
+  const basePath = `/torrents/archive/${yearStr}/${monthStr}`;
 
   return (
     <MainLayout>

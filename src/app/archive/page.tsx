@@ -40,7 +40,7 @@ export default function ArchivePage() {
           {months.map((m) => (
             <Link
               key={`${m.year}-${m.month}`}
-              href={`/torrents/${m.year}/${String(m.month).padStart(2, '0')}`}
+              href={`/torrents/archive/${m.year}/${String(m.month).padStart(2, '0')}`}
               className="rounded border border-border-subtle px-4 py-3 text-sm text-text-primary hover:border-accent-primary/30 hover:bg-bg-hover transition-colors"
             >
               {m.label}
