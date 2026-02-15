@@ -179,12 +179,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       existingCount: existingTrials.length,
       newUserId: data.user.id,
     });
-    // Still allow signup but give a shorter trial (3 days instead of 14)
+    // Still allow signup but give a shorter trial (1 day instead of 3)
     // This way legitimate users sharing an IP (family, office) aren't blocked
   }
 
   const isRepeatIp = existingTrials && existingTrials.length > 0;
-  const trialDays = isRepeatIp ? 3 : 14;
+  const trialDays = isRepeatIp ? 1 : 3;
 
   // Create user subscription record (trial tier)
   // Use upsert to handle cases where user re-signs up (e.g., unconfirmed email retry)
