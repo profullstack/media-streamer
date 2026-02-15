@@ -271,11 +271,14 @@ export function MediaPlayerModal({
   // retryCount is included to force URL rebuild on manual retry
   useEffect(() => {
     if (file && infohash && codecCheckComplete) {
-      // Determine if transcoding is needed based on codec detection (not file extension):
+      // Determine if transcoding is needed:
       // 1. If codec info says transcoding is needed (HEVC, non-browser codecs, etc.)
       // 2. If we're retrying after a codec error at runtime
+      // 3. If file extension is not browser-native AND codec info is unavailable
+      //    (e.g. MKV, AVI, FLAC — browsers can't play these containers at all)
       const codecNeedsTranscode = codecInfo?.needsTranscoding === true;
-      const requiresTranscoding = isRetryingWithTranscode || codecNeedsTranscode;
+      const extensionNeedsTranscode = !isNativeCompatible(file.name) && !codecInfo;
+      const requiresTranscoding = isRetryingWithTranscode || codecNeedsTranscode || extensionNeedsTranscode;
       
       // P2P streaming DISABLED - always use server-side streaming
       //
@@ -298,6 +301,7 @@ export function MediaPlayerModal({
         fileIndex: file.fileIndex,
         fileName: file.name,
         codecNeedsTranscode,
+        extensionNeedsTranscode,
         container: codecInfo?.container,
         isNativeCompatible: isNativeCompatible(file.name),
         requiresTranscoding,
