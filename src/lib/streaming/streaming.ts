@@ -1155,6 +1155,16 @@ export class StreamingService {
    * @param selectFile - If true and fileIndex is provided, select the file for download priority
    * @returns TorrentStats or null if torrent is not loaded
    */
+  /**
+   * Get the file path for a torrent file (fast, in-memory lookup)
+   * Returns null if torrent not loaded
+   */
+  getTorrentFilePath(infohash: string, fileIndex: number): string | null {
+    const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+    if (!torrent || !torrent.ready || fileIndex >= torrent.files.length) return null;
+    return torrent.files[fileIndex].path;
+  }
+
   getTorrentStats(infohash: string, fileIndex?: number, selectFile = false): TorrentStats | null {
     const torrent = this.client.torrents.find(t => t.infoHash === infohash);
     if (!torrent) {

@@ -82,13 +82,23 @@ export async function GET(
       const service = getStreamingService();
       const targetIdx = fileIndexStr ? parseInt(fileIndexStr, 10) : 0;
       
-      // Use streaming service to get the file path for this specific infohash
-      const magnetUri = `magnet:?xt=urn:btih:${infohash}`;
-      const streamInfo = await service.getStreamInfo({ magnetUri, fileIndex: targetIdx });
+      // Fast path: check in-memory torrent (no network, no waiting)
+      let torrentFilePath = service.getTorrentFilePath(infohash, targetIdx);
       
-      if (streamInfo?.filePath) {
+      // Slow path: add torrent and wait for metadata (only if not already loaded)
+      if (!torrentFilePath) {
+        try {
+          const magnetUri = `magnet:?xt=urn:btih:${infohash}`;
+          const streamInfo = await service.getStreamInfo({ magnetUri, fileIndex: targetIdx });
+          torrentFilePath = streamInfo?.filePath ?? null;
+        } catch {
+          // Torrent not available
+        }
+      }
+      
+      if (torrentFilePath) {
         const downloadDir = getWebTorrentDir();
-        const filePath = join(downloadDir, streamInfo.filePath);
+        const filePath = join(downloadDir, torrentFilePath);
         if (existsSync(filePath)) {
             const codecInfo = await detectCodecFromUrl(filePath, 15);
             const formatted = formatCodecInfoForDb(codecInfo);
