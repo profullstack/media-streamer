@@ -1125,23 +1125,68 @@ export async function GET(request: NextRequest): Promise<Response> {
         audioTranscode,
       });
 
-      // No size limit for audio-only remux — it's very fast (just copies video, transcodes audio)
-      const result = await service.createStream({
-        magnetUri,
-        fileIndex,
-        range: undefined,
-      }, true); // skipWaitForData
-
+      // Try to use local file directly (avoids downloading the entire file via torrent stream)
       const fileTranscodingService = getFileTranscodingService();
-
+      
       try {
-        const transcoded = await fileTranscodingService.downloadAndTranscodeAudioOnly(
-          result.stream as Readable,
-          infohash,
-          fileIndex,
-          info.fileName,
-          info.size
-        );
+        const { getWebTorrentDir } = await import('@/lib/config');
+        const { existsSync: fsExists } = await import('node:fs');
+        const { join: pathJoin } = await import('node:path');
+        const { readdirSync, statSync } = await import('node:fs');
+        
+        let localFilePath: string | null = null;
+        const downloadDir = getWebTorrentDir();
+        if (fsExists(downloadDir)) {
+          // Find the file in WebTorrent download dir
+          const subdirs = readdirSync(downloadDir);
+          for (const subdir of subdirs) {
+            const subdirPath = pathJoin(downloadDir, subdir);
+            if (!statSync(subdirPath).isDirectory()) continue;
+            const files = readdirSync(subdirPath);
+            const mediaExts = new Set(['mp4', 'm4v', 'mov', 'm4a']);
+            const mediaFiles = files.filter(f => {
+              const ext = f.split('.').pop()?.toLowerCase();
+              return ext && mediaExts.has(ext);
+            });
+            if (mediaFiles[fileIndex]) {
+              const candidate = pathJoin(subdirPath, mediaFiles[fileIndex]);
+              if (fsExists(candidate)) {
+                localFilePath = candidate;
+                break;
+              }
+            }
+          }
+        }
+        
+        let transcoded: { stream: import('node:stream').PassThrough; mimeType: string };
+        let streamId = 'audio-remux-' + Date.now();
+        
+        if (localFilePath) {
+          // Direct file-based remux — no download needed, FFmpeg reads from disk
+          reqLogger.info('Using local file for audio remux', { localFilePath });
+          transcoded = fileTranscodingService.transcodeFileAudioOnly(
+            localFilePath,
+            infohash,
+            fileIndex,
+            false // don't cleanup — it's the WebTorrent download
+          );
+        } else {
+          // Fallback: download via torrent stream then remux
+          reqLogger.info('No local file found, downloading via torrent stream');
+          const result = await service.createStream({
+            magnetUri,
+            fileIndex,
+            range: undefined,
+          }, true);
+          streamId = result.streamId;
+          transcoded = await fileTranscodingService.downloadAndTranscodeAudioOnly(
+            result.stream as Readable,
+            infohash,
+            fileIndex,
+            info.fileName,
+            info.size
+          );
+        }
 
         reqLogger.info('Audio-only remux started', {
           infohash,
@@ -1154,7 +1199,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         const headers: HeadersInit = {
           'Content-Type': transcoded.mimeType,
           'Cache-Control': 'no-cache',
-          'X-Stream-Id': result.streamId,
+          'X-Stream-Id': streamId,
           'X-Transcoded': 'true',
           'X-Audio-Remux': 'true',
           'X-Original-Mime-Type': info.mimeType,
