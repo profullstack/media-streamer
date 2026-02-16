@@ -1089,27 +1089,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     // Triggered by audioTranscode=aac query parameter from the client after codec detection.
     const fileExt = info.fileName.split('.').pop()?.toLowerCase();
     const AUDIO_REMUX_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2']);
-    // Auto-detect incompatible audio from filename patterns when client doesn't pass audioTranscode
-    const FILENAME_AUDIO_PATTERNS = [
-      /\bDDP?\d?\.\d\.?Atmos\b/i,   // DDP5.1.Atmos
-      /\bDD[P+]\d?\.\d\b/i,          // DDP5.1, DD+5.1
-      /\bEAC-?3\b/i,                  // EAC3, E-AC3
-      /\bAtmos\b/i,                    // Atmos
-      /\bTrueHD\b/i,                  // TrueHD
-      /\bDTS[-.]?HD\b/i,              // DTS-HD
-      /\bDTS[-.]?MA\b/i,              // DTS-MA
-      /\bDTS[-.]?X\b/i,               // DTS:X
-    ];
-    const filenameNeedsAudioRemux = FILENAME_AUDIO_PATTERNS.some(p => p.test(info.fileName));
-    const effectiveAudioTranscode = audioTranscode || (filenameNeedsAudioRemux ? 'aac' : null);
-
-    if (effectiveAudioTranscode === 'aac' && fileExt && AUDIO_REMUX_FORMATS.has(fileExt)) {
+    if (audioTranscode === 'aac' && fileExt && AUDIO_REMUX_FORMATS.has(fileExt)) {
       reqLogger.info('=== STARTING AUDIO-ONLY REMUX PATH ===', {
         fileName: info.fileName,
         fileSize: info.size,
         fileSizeMB: (info.size / (1024 * 1024)).toFixed(2),
-        audioTranscode: effectiveAudioTranscode,
-        source: audioTranscode ? 'client-param' : 'filename-auto-detect',
+        audioTranscode,
       });
 
       // No size limit for audio-only remux — it's very fast (just copies video, transcodes audio)
