@@ -50,7 +50,6 @@ import {
   type SwarmStats,
   type ConnectionStatus,
   needsAudioTranscode,
-  detectAudioCodecFromFilename,
 } from './media-player-utils';
 
 /**
@@ -372,20 +371,10 @@ export function MediaPlayerModal({
               // Fallback: let server auto-detect from extension
               url += '&transcode=auto';
             }
-          } else {
-            // Check if audio needs transcoding (E-AC3/Atmos, DTS, TrueHD, etc.)
-            // Use codec detection if available, fall back to filename pattern matching
-            const detectedAudioCodec = codecInfo?.audioCodec || detectAudioCodecFromFilename(file.name);
-            if (needsAudioTranscode(detectedAudioCodec)) {
-              // Video is browser-compatible but audio isn't
-              // Request audio-only remux: copies video stream, transcodes audio to AAC
-              url += '&audioTranscode=aac';
-              console.log('[MediaPlayerModal] Audio needs transcoding:', {
-                audioCodec: detectedAudioCodec,
-                source: codecInfo?.audioCodec ? 'codec-detection' : 'filename-pattern',
-                fileName: file.name,
-              });
-            }
+          } else if (needsAudioTranscode(codecInfo?.audioCodec)) {
+            // Video is browser-compatible but audio isn't (E-AC3/Atmos, DTS, TrueHD, etc.)
+            // Request audio-only remux: copies video stream, transcodes audio to AAC
+            url += '&audioTranscode=aac';
           }
         }
         if (retryCount > 0) {
