@@ -839,12 +839,16 @@ export class StreamingService {
     // Wait for at least some data to be available before streaming
     // This prevents MEDIA_ELEMENT_ERROR when the browser receives empty data
     // Skip this for transcoding - FFmpeg handles buffering and can wait for data
-    if (!skipWaitForData) {
+    // Skip for MP4/MOV files — createReadStream handles buffering internally,
+    // and waitForData would timeout on moov atom requests at end of large files
+    const skipForMoov = MOOV_FORMATS.has(ext ?? '');
+    if (!skipWaitForData && !skipForMoov) {
       await this.waitForData(torrent, file, range?.start ?? 0);
     } else {
-      logger.info('Skipping waitForData (transcoding mode)', {
+      logger.info('Skipping waitForData', {
         fileName: file.name,
         fileSize: file.length,
+        reason: skipForMoov ? 'MP4/MOV file (createReadStream handles buffering)' : 'transcoding mode',
       });
     }
 
