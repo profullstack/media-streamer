@@ -50,6 +50,42 @@ export function needsAudioTranscode(audioCodec: string | null | undefined): bool
 }
 
 /**
+ * Patterns in torrent filenames that indicate incompatible audio codecs.
+ * Used as fallback when FFprobe-based codec detection is unavailable.
+ */
+const FILENAME_AUDIO_PATTERNS: Array<{ pattern: RegExp; codec: string }> = [
+  { pattern: /\bDDP?\d?\.\d\.?Atmos\b/i, codec: 'eac3' },
+  { pattern: /\bDD[P+]\d?\.\d\b/i, codec: 'eac3' },        // DDP5.1, DD+5.1
+  { pattern: /\bEAC-?3\b/i, codec: 'eac3' },                // EAC3, E-AC3
+  { pattern: /\bE-AC-3\b/i, codec: 'eac3' },
+  { pattern: /\bAtmos\b/i, codec: 'eac3' },                  // Atmos (always E-AC3+)
+  { pattern: /\bTrueHD\b/i, codec: 'truehd' },
+  { pattern: /\bDTS[-.]?HD\b/i, codec: 'dts' },              // DTS-HD, DTS.HD
+  { pattern: /\bDTS[-.]?MA\b/i, codec: 'dts' },              // DTS-MA (Master Audio)
+  { pattern: /\bDTS[-.]?X\b/i, codec: 'dts' },               // DTS:X
+  { pattern: /\bDTS\b/i, codec: 'dts' },
+  { pattern: /\bAC-?3\b/i, codec: 'ac3' },                   // AC3, AC-3 (Dolby Digital)
+  { pattern: /\bDD\d\.\d\b/i, codec: 'ac3' },                // DD5.1 (non-plus = AC3)
+  { pattern: /\bFLAC\b/i, codec: 'flac' },                   // FLAC is fine in MKV but not MP4
+  { pattern: /\bPCM\b/i, codec: 'pcm_s24le' },
+  { pattern: /\bWMA\b/i, codec: 'wmav2' },
+];
+
+/**
+ * Detect audio codec from filename patterns (release naming conventions).
+ * Returns the detected codec string or null if no match.
+ * Used as fallback when FFprobe codec detection is unavailable.
+ */
+export function detectAudioCodecFromFilename(filename: string): string | null {
+  for (const { pattern, codec } of FILENAME_AUDIO_PATTERNS) {
+    if (pattern.test(filename)) {
+      return codec;
+    }
+  }
+  return null;
+}
+
+/**
  * Swarm statistics from the API
  */
 export interface SwarmStats {
