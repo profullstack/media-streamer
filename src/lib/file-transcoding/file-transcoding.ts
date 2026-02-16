@@ -282,6 +282,16 @@ export class FileTranscodingService {
   }
 
   /**
+   * Check if a specific infohash has an active transcode/remux
+   */
+  hasActiveTranscode(infohash: string): boolean {
+    for (const [key] of this.activeTranscodes) {
+      if (key.startsWith(infohash)) return true;
+    }
+    return false;
+  }
+
+  /**
    * Check if a file is currently being downloaded
    */
   isDownloading(infohash: string, fileIndex: number): boolean {

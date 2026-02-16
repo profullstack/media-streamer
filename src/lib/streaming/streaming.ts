@@ -1415,10 +1415,23 @@ export class StreamingService {
       const currentInfo = this.torrentWatchers.get(infohash);
       // Check for active streams using this torrent's infohash
       const hasActiveStreams = Array.from(this.activeStreams.values()).some(s => s.infohash === infohash);
-      if (hasActiveStreams) {
-        logger.info('Cleanup deferred - active streams still using torrent', {
+      
+      // Check for active file transcodes/remuxes (these read from disk, not via streams)
+      let hasActiveTranscode = false;
+      try {
+        // Dynamic require to avoid circular dependency
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getFileTranscodingService } = require('../file-transcoding');
+        hasActiveTranscode = getFileTranscodingService().hasActiveTranscode(infohash);
+      } catch {
+        // File transcoding service may not be initialized
+      }
+      
+      if (hasActiveStreams || hasActiveTranscode) {
+        logger.info('Cleanup deferred - active streams/transcodes still using torrent', {
           infohash,
           activeStreamCount: Array.from(this.activeStreams.values()).filter(s => s.infohash === infohash).length,
+          hasActiveTranscode,
         });
         // Re-schedule cleanup to check again later
         this.scheduleCleanup(infohash);
