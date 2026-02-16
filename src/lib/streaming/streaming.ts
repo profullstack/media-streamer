@@ -803,14 +803,22 @@ export class StreamingService {
         pieceLength: torrent.pieceLength,
       });
       
-      // Use torrent.select(start, end, priority) with high priority
-      // Higher priority number = downloaded first
+      // Force WebTorrent to download moov pieces by creating a throwaway read stream
+      // on the last 10MB. This triggers piece selection for that range.
       try {
-        torrent.select(headerStartPiece, headerEndPiece, 10);
-        torrent.select(moovStartPiece, moovEndPiece, 10);
-        logger.info('Set high priority for header + moov pieces');
+        const moovStartByte = Math.max(0, file.length - moovBytes);
+        const moovStream = file.createReadStream({ start: moovStartByte, end: file.length - 1 });
+        // Consume and discard — we just need to trigger the piece downloads
+        moovStream.on('data', () => { /* discard */ });
+        moovStream.on('end', () => {
+          logger.info('Moov atom range fully downloaded', { fileName: file.name });
+        });
+        moovStream.on('error', (err: Error) => {
+          logger.warn('Moov prefetch stream error', { error: err.message });
+        });
+        logger.info('Started moov atom prefetch stream (last 10MB)');
       } catch (err) {
-        logger.warn('Could not set piece priority', { error: String(err) });
+        logger.warn('Could not start moov prefetch', { error: String(err) });
       }
     }
 
