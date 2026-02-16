@@ -1461,21 +1461,17 @@ export class StreamingService {
         const torrentName = torrent?.name;
         
         if (torrent) {
-          // Use destroy() with destroyStore option to delete files
+          // Destroy torrent from WebTorrent (frees memory) but KEEP files on disk
+          // Files are needed for audio remux / reconnecting players
+          // Disk cleanup handled by midnight cron (setup-server.sh)
           (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
-            { destroyStore: true },
+            { destroyStore: false },
             (err: Error | null) => {
               if (err) {
                 logger.warn('Error destroying torrent during cleanup', { infohash, error: String(err) });
               } else {
-                logger.info('Torrent destroyed and files deleted (DMCA protection)', { infohash });
+                logger.info('Torrent removed from WebTorrent (files preserved on disk)', { infohash });
               }
-              
-              // Also delete the torrent folder itself (destroyStore only deletes files inside)
-              // This ensures complete cleanup of disk space
-              this.deleteTorrentFolder(torrentName, infohash).catch((folderErr) => {
-                logger.warn('Error deleting torrent folder', { infohash, error: String(folderErr) });
-              });
             }
           );
         } else {
