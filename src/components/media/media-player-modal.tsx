@@ -358,15 +358,10 @@ export function MediaPlayerModal({
           ['hevc', 'h265', 'h264', 'avc1', 'vp9', 'av1'].includes(codecInfo.videoCodec.toLowerCase());
         const audioOnlyRemuxNeeded = videoCodecIsNative && needsAudioTranscode(codecInfo?.audioCodec);
         
-        // For non-native containers (MKV, AVI) without codec info on iOS/Safari:
-        // Use direct stream with server-side auto-detection instead of HLS full re-encode.
-        // Server will FFprobe the file and auto-remux if needed (much faster than HLS H.264 re-encode).
-        const nonNativeContainerNoCodecInfo = extensionNeedsTranscode && (isIOS || isSafari);
-        
-        // Skip HLS when:
-        // 1. Video codec is natively playable and only audio needs remux
-        // 2. No codec info available — let server auto-detect instead of slow HLS re-encode
-        const needsHLS = (isIOS || isSafari) && requiresTranscoding && !audioOnlyRemuxNeeded && !nonNativeContainerNoCodecInfo && getMediaCategory(file.name) === 'video';
+        // On iOS/Safari, use HLS for transcoded video — HLS route now auto-detects
+        // HEVC+bad audio and does audio-only remux with fMP4 segments (no re-encode).
+        // iOS requires HLS for reliable playback (can't do chunked transfer).
+        const needsHLS = (isIOS || isSafari) && requiresTranscoding && getMediaCategory(file.name) === 'video';
 
         let url: string;
         if (needsHLS) {
@@ -378,15 +373,10 @@ export function MediaPlayerModal({
           // Use demuxer param from codec detection when available (precise),
           // fall back to transcode=auto for retry path without codec info
           url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-          if (audioOnlyRemuxNeeded || nonNativeContainerNoCodecInfo) {
-            // Video is natively playable but audio needs remux, OR
-            // No codec info — let server FFprobe and auto-remux (better than HLS re-encode)
+          if (audioOnlyRemuxNeeded) {
+            // Video is natively playable but audio needs remux — skip full transcode
             url += '&audioTranscode=aac';
-            console.log('[MediaPlayerModal] Audio-only remux:', { 
-              videoCodec: codecInfo?.videoCodec, 
-              audioCodec: codecInfo?.audioCodec,
-              noCodecInfo: nonNativeContainerNoCodecInfo 
-            });
+            console.log('[MediaPlayerModal] Audio-only remux (video native):', codecInfo?.videoCodec, codecInfo?.audioCodec);
           } else if (requiresTranscoding) {
             if (codecInfo?.container) {
               // Use container-derived demuxer for precise transcoding

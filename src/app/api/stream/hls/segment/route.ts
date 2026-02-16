@@ -49,7 +49,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   return new Response(data, {
     headers: {
-      'Content-Type': 'video/MP2T',
+      'Content-Type': segmentPath.endsWith('.m4s') || segmentPath.endsWith('.mp4') ? 'video/mp4' : 'video/MP2T',
       'Content-Length': stat.size.toString(),
       'Cache-Control': 'max-age=3600',
       'Access-Control-Allow-Origin': '*',

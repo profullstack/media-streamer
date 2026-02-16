@@ -63,7 +63,7 @@ async function waitForPlaylist(dir: string, minSegments: number, timeoutMs: numb
   while (Date.now() - start < timeoutMs) {
     if (existsSync(playlistPath)) {
       const content = readFileSync(playlistPath, 'utf-8');
-      const segmentCount = (content.match(/\.ts\n/g) || []).length;
+      const segmentCount = (content.match(/\.(ts|m4s)\n/g) || []).length;
       if (segmentCount >= minSegments) {
         return content;
       }
@@ -114,8 +114,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     const content = readFileSync(playlistPath, 'utf-8');
     
     // Rewrite segment URLs to be absolute
-    const rewritten = content.replace(/^(segment\d+\.ts)$/gm, 
-      `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`);
+    const rewritten = content
+      .replace(/^(segment\d+\.ts)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
+      .replace(/^(segment\d+\.m4s)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
+      .replace(/^(init\.mp4)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`);
     
     return new Response(rewritten, {
       headers: {
@@ -152,6 +154,36 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     const sourceStream = result.stream as NodeJS.ReadableStream;
 
+    // Detect if we can do audio-only remux (copy video, transcode audio)
+    // This is MUCH faster than full re-encode and preserves HEVC/DV quality
+    const INCOMPATIBLE_AUDIO_CODECS = new Set(['eac3', 'ac3', 'truehd', 'dts', 'dca', 'mlp']);
+    const NATIVE_VIDEO_CODECS = new Set(['hevc', 'h265', 'h264', 'avc', 'avc1', 'vp9', 'av1']);
+    let audioOnlyRemux = false;
+    
+    // Try to detect codecs via FFprobe on local file
+    try {
+      const { getWebTorrentDir } = await import('@/lib/config');
+      const { existsSync } = await import('node:fs');
+      const { join: pathJoin } = await import('node:path');
+      const { detectCodecFromUrl } = await import('@/lib/codec-detection');
+      
+      const downloadDir = getWebTorrentDir();
+      const filePath = pathJoin(downloadDir, info.filePath);
+      if (existsSync(filePath)) {
+        const codecInfo = await detectCodecFromUrl(filePath, 10);
+        if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase()) &&
+            codecInfo.audioCodec && INCOMPATIBLE_AUDIO_CODECS.has(codecInfo.audioCodec.toLowerCase())) {
+          audioOnlyRemux = true;
+          reqLogger.info('HLS: using audio-only remux (video copy)', {
+            videoCodec: codecInfo.videoCodec,
+            audioCodec: codecInfo.audioCodec,
+          });
+        }
+      }
+    } catch {
+      // Fall through to full transcode
+    }
+
     // Build FFmpeg HLS args
     const ffmpegArgs: string[] = [
       '-threads', '2',
@@ -163,56 +195,94 @@ export async function GET(request: NextRequest): Promise<Response> {
       ffmpegArgs.push('-f', demuxer);
     }
     
-    ffmpegArgs.push(
-      '-i', 'pipe:0',
-      '-map', '0:v:0',
-      '-map', '0:a:0?',
-      '-acodec', 'aac',
-      '-vcodec', 'libx264',
-      '-vf', "scale=-2:'min(720,ceil(ih/2)*2)':flags=bilinear",
-      '-preset', 'fast',
-      '-tune', 'zerolatency',
-      '-profile:v', 'main',
-      '-level:v', '3.1',
-      '-pix_fmt', 'yuv420p',
-      '-g', '60',
-      '-bf', '0',
-      '-crf', '26',
-      '-maxrate', '2.5M',
-      '-bufsize', '5M',
-      '-b:a', '128k',
-      // HLS specific
-      '-f', 'hls',
-      '-hls_time', '4',           // 4-second segments
-      '-hls_list_size', '0',      // Keep all segments in playlist
-      '-hls_flags', 'append_list+independent_segments',
-      '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
-      join(hlsDir, 'stream.m3u8'),
-    );
+    // For audio-only remux, determine local file path to use as FFmpeg input
+    // (pipe doesn't work well for sparse/large files)
+    let localInputPath: string | null = null;
+    if (audioOnlyRemux) {
+      try {
+        const { getWebTorrentDir } = await import('@/lib/config');
+        const { existsSync } = await import('node:fs');
+        const { join: pathJoin } = await import('node:path');
+        const downloadDir = getWebTorrentDir();
+        const candidate = pathJoin(downloadDir, info.filePath);
+        if (existsSync(candidate)) localInputPath = candidate;
+      } catch { /* */ }
+    }
+
+    if (audioOnlyRemux) {
+      // Audio-only remux: copy video stream, transcode only audio
+      // Use fMP4 segments for HEVC compatibility (MPEG-TS doesn't support HEVC well)
+      ffmpegArgs.push(
+        '-i', localInputPath || 'pipe:0',
+        '-map', '0:v:0',
+        '-map', '0:a:0?',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-f', 'hls',
+        '-hls_time', '4',
+        '-hls_list_size', '0',
+        '-hls_flags', 'append_list+independent_segments',
+        '-hls_segment_type', 'fmp4',
+        '-hls_fmp4_init_filename', 'init.mp4',
+        '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        join(hlsDir, 'stream.m3u8'),
+      );
+    } else {
+      // Full transcode: re-encode video to H.264
+      ffmpegArgs.push(
+        '-i', 'pipe:0',
+        '-map', '0:v:0',
+        '-map', '0:a:0?',
+        '-acodec', 'aac',
+        '-vcodec', 'libx264',
+        '-vf', "scale=-2:'min(720,ceil(ih/2)*2)':flags=bilinear",
+        '-preset', 'fast',
+        '-tune', 'zerolatency',
+        '-profile:v', 'main',
+        '-level:v', '3.1',
+        '-pix_fmt', 'yuv420p',
+        '-g', '60',
+        '-bf', '0',
+        '-crf', '26',
+        '-maxrate', '2.5M',
+        '-bufsize', '5M',
+        '-b:a', '128k',
+        '-f', 'hls',
+        '-hls_time', '4',
+        '-hls_list_size', '0',
+        '-hls_flags', 'append_list+independent_segments',
+        '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
+        join(hlsDir, 'stream.m3u8'),
+      );
+    }
 
     reqLogger.info('Starting FFmpeg HLS transcoding', {
       args: ffmpegArgs.join(' '),
     });
 
+    const useLocalInput = audioOnlyRemux && localInputPath;
     const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: [useLocalInput ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
 
     // Register with FFmpeg manager
     const ffmpegManager = getFFmpegManager();
     ffmpegManager.register(ffmpeg, { fileName: info.fileName });
 
-    // Pipe source to FFmpeg
-    sourceStream.pipe(ffmpeg.stdin);
+    // Pipe source to FFmpeg (only needed when reading from pipe, not local file)
+    if (!useLocalInput && ffmpeg.stdin) {
+      sourceStream.pipe(ffmpeg.stdin as unknown as NodeJS.WritableStream);
+    }
 
-    ffmpeg.stdin.on('error', (err: Error) => {
+    ffmpeg.stdin?.on('error', (err: Error) => {
       if ((err as NodeJS.ErrnoException).code !== 'EPIPE') {
         reqLogger.warn('FFmpeg stdin error', { error: err.message });
       }
     });
 
     let ffmpegStderr = '';
-    ffmpeg.stderr.on('data', (data: Buffer) => {
+    ffmpeg.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString();
       ffmpegStderr += msg;
       // Keep only last 4KB of stderr
@@ -246,8 +316,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     reqLogger.info('HLS playlist ready, serving');
 
     // Rewrite segment URLs to be absolute
-    const rewritten = playlist.replace(/^(segment\d+\.ts)$/gm,
-      `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`);
+    const rewritten = playlist
+      .replace(/^(segment\d+\.ts)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
+      .replace(/^(segment\d+\.m4s)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
+      .replace(/^(init\.mp4)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`);
 
     return new Response(rewritten, {
       headers: {
