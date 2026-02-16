@@ -13,11 +13,11 @@ export default defineConfig({
     watch: false,
     testTimeout: 5000, // 5 second timeout per test
     hookTimeout: 5000, // 5 second timeout for hooks
-    pool: 'threads', // Use threads for better performance
+    pool: 'forks', // Use forks to avoid SIGABRT crash during cleanup
     poolOptions: {
-      threads: {
-        singleThread: false,
-        isolate: true, // Enable isolation to prevent shared state issues
+      forks: {
+        singleFork: false,
+        isolate: true,
       },
     },
     teardownTimeout: 5000,
