@@ -776,6 +776,50 @@ export class StreamingService {
     file.select();
     logger.debug('File selected for download priority');
 
+    // For MP4/MOV files, prioritize downloading the last ~10MB where the moov atom lives
+    // Without the moov atom, browsers cannot begin playback (even for raw streaming)
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const MOOV_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2']);
+    if (MOOV_FORMATS.has(ext ?? '') && file.length > 10 * 1024 * 1024) {
+      const fileOffset = (file as unknown as { offset: number }).offset ?? 0;
+      const moovBytes = 10 * 1024 * 1024; // 10MB should cover any moov atom
+      const moovStart = fileOffset + file.length - moovBytes;
+      const moovStartPiece = Math.floor(moovStart / torrent.pieceLength);
+      const moovEndPiece = Math.ceil((fileOffset + file.length) / torrent.pieceLength) - 1;
+      
+      // Also prioritize the first few pieces for the ftyp header
+      const headerEndPiece = Math.min(
+        Math.ceil((fileOffset + 1 * 1024 * 1024) / torrent.pieceLength),
+        torrent.pieces.length - 1
+      );
+      const headerStartPiece = Math.floor(fileOffset / torrent.pieceLength);
+      
+      logger.info('Prioritizing moov atom + header for MP4/MOV', {
+        fileName: file.name,
+        fileSizeMB: (file.length / (1024 * 1024)).toFixed(0),
+        headerPieces: `${headerStartPiece}-${headerEndPiece}`,
+        moovPieces: `${moovStartPiece}-${moovEndPiece}`,
+        totalPieces: torrent.pieces.length,
+        pieceLength: torrent.pieceLength,
+      });
+      
+      // Use select with high priority for these critical ranges
+      // WebTorrent select(start, end, priority) — higher priority = downloaded first
+      file.select();
+      try {
+        // Critical pieces for the header (beginning of file)
+        for (let i = headerStartPiece; i <= headerEndPiece; i++) {
+          (torrent as unknown as { critical: (start: number, end: number) => void }).critical(i, i);
+        }
+        // Critical pieces for moov atom (end of file)
+        for (let i = moovStartPiece; i <= moovEndPiece; i++) {
+          (torrent as unknown as { critical: (start: number, end: number) => void }).critical(i, i);
+        }
+      } catch (err) {
+        logger.warn('Could not set critical pieces', { error: String(err) });
+      }
+    }
+
     // Log current download state
     const fileProgress = (file as unknown as { progress: number }).progress ?? 0;
     const downloadedBytes = fileProgress * file.length;
