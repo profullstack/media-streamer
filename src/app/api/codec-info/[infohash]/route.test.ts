@@ -19,6 +19,19 @@ vi.mock('@/lib/codec-detection', () => ({
   formatCodecInfoForDb: vi.fn(),
 }));
 
+// Mock the streaming service (used in fallback codec detection)
+vi.mock('@/lib/streaming', () => ({
+  getStreamingService: vi.fn().mockReturnValue({
+    getTorrentFilePath: vi.fn().mockReturnValue(null),
+    getStreamInfo: vi.fn().mockRejectedValue(new Error('not available')),
+  }),
+}));
+
+// Mock config
+vi.mock('@/lib/config', () => ({
+  getWebTorrentDir: vi.fn().mockReturnValue('/tmp/webtorrent-test'),
+}));
+
 import { createServerClient } from '@/lib/supabase';
 import { detectCodecFromUrl, formatCodecInfoForDb } from '@/lib/codec-detection';
 
