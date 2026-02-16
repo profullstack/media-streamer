@@ -357,6 +357,8 @@ export function MediaPlayerModal({
         const videoCodecIsNative = codecInfo?.videoCodec && 
           ['hevc', 'h265', 'h264', 'avc1', 'vp9', 'av1'].includes(codecInfo.videoCodec.toLowerCase());
         const audioOnlyRemuxNeeded = videoCodecIsNative && needsAudioTranscode(codecInfo?.audioCodec);
+        // Skip HLS when video codec is natively playable and only audio needs remux
+        // This handles MKV/HEVC+EAC3 — remux to fMP4+AAC is way faster than full H.264 re-encode
         const needsHLS = (isIOS || isSafari) && requiresTranscoding && !audioOnlyRemuxNeeded && getMediaCategory(file.name) === 'video';
 
         let url: string;

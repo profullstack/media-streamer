@@ -1088,7 +1088,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     // but compatible video. Uses file-based transcoding with -c:v copy -c:a aac (very fast, no video re-encode).
     // Triggered by audioTranscode=aac query parameter OR auto-detected via FFprobe on local file.
     const fileExt = info.fileName.split('.').pop()?.toLowerCase();
-    const AUDIO_REMUX_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2']);
+    const AUDIO_REMUX_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2', 'mkv', 'webm']);
     
     // Auto-detect incompatible audio via FFprobe when client doesn't pass audioTranscode
     let effectiveAudioTranscode = audioTranscode;
@@ -1143,7 +1143,7 @@ export async function GET(request: NextRequest): Promise<Response> {
             const subdirPath = pathJoin(downloadDir, subdir);
             if (!statSync(subdirPath).isDirectory()) continue;
             const files = readdirSync(subdirPath);
-            const mediaExts = new Set(['mp4', 'm4v', 'mov', 'm4a']);
+            const mediaExts = new Set(['mp4', 'm4v', 'mov', 'm4a', 'mkv', 'webm', 'avi']);
             const mediaFiles = files.filter(f => {
               const ext = f.split('.').pop()?.toLowerCase();
               return ext && mediaExts.has(ext);
