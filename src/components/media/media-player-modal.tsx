@@ -49,6 +49,7 @@ import {
   type CodecInfo,
   type SwarmStats,
   type ConnectionStatus,
+  needsAudioTranscode,
 } from './media-player-utils';
 
 /**
@@ -309,6 +310,8 @@ export function MediaPlayerModal({
         fileName: file.name,
         codecNeedsTranscode,
         extensionNeedsTranscode,
+        audioCodec: codecInfo?.audioCodec,
+        audioNeedsTranscode: needsAudioTranscode(codecInfo?.audioCodec),
         container: codecInfo?.container,
         isNativeCompatible: isNativeCompatible(file.name),
         requiresTranscoding,
@@ -368,6 +371,10 @@ export function MediaPlayerModal({
               // Fallback: let server auto-detect from extension
               url += '&transcode=auto';
             }
+          } else if (needsAudioTranscode(codecInfo?.audioCodec)) {
+            // Video is browser-compatible but audio isn't (E-AC3/Atmos, DTS, TrueHD, etc.)
+            // Request audio-only remux: copies video stream, transcodes audio to AAC
+            url += '&audioTranscode=aac';
           }
         }
         if (retryCount > 0) {
@@ -1341,17 +1348,13 @@ export function MediaPlayerModal({
                   : connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
               </span>
               {/* Buffering progress: show MB downloaded toward threshold */}
-              {connectionStatus && connectionStatus.stage === 'buffering' && connectionStatus.downloaded > 0 && (
-                <span className="text-xs text-white/60">
+              {connectionStatus && connectionStatus.stage === 'buffering' && connectionStatus.downloaded > 0 ? <span className="text-xs text-white/60">
                   Buffering: {formatBytes(connectionStatus.downloaded)} / {isTranscoding ? '20 MB' : '2 MB'}
-                </span>
-              )}
+                </span> : null}
               {/* Download speed during buffering */}
-              {connectionStatus && connectionStatus.downloadSpeed > 0 && !isStreamReady && (
-                <span className="text-[10px] text-white/40">
+              {connectionStatus && connectionStatus.downloadSpeed > 0 && !isStreamReady ? <span className="text-[10px] text-white/40">
                   ↓ {formatSpeedCompact(connectionStatus.downloadSpeed)}
-                </span>
-              )}
+                </span> : null}
             </div>
           </div> : null}
 

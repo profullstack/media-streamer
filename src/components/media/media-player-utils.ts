@@ -28,6 +28,28 @@ export interface CodecInfo {
 }
 
 /**
+ * Audio codecs that browsers cannot natively decode.
+ * When detected, we need audio-only remux (video copy + audio transcode to AAC).
+ */
+const INCOMPATIBLE_AUDIO_CODECS = new Set([
+  'eac3', 'ec-3', 'ac3', 'ac-3',       // Dolby Digital / Dolby Digital Plus / Atmos
+  'truehd', 'mlp',                       // Dolby TrueHD
+  'dts', 'dca', 'dts-hd', 'dtshd',      // DTS / DTS-HD
+  'pcm_s24le', 'pcm_s32le', 'pcm_f64le', // High-bitdepth PCM (24/32-bit)
+  'cook', 'sipr', 'atrac3', 'atrac3p',  // RealAudio / ATRAC
+  'wmav1', 'wmav2', 'wmavoice', 'wmapro', // WMA
+]);
+
+/**
+ * Check if an audio codec requires transcoding for browser playback.
+ * Returns true if the codec is not natively supported by browsers.
+ */
+export function needsAudioTranscode(audioCodec: string | null | undefined): boolean {
+  if (!audioCodec) return false;
+  return INCOMPATIBLE_AUDIO_CODECS.has(audioCodec.toLowerCase());
+}
+
+/**
  * Swarm statistics from the API
  */
 export interface SwarmStats {
