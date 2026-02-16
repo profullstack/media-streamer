@@ -803,20 +803,14 @@ export class StreamingService {
         pieceLength: torrent.pieceLength,
       });
       
-      // Use select with high priority for these critical ranges
-      // WebTorrent select(start, end, priority) — higher priority = downloaded first
-      file.select();
+      // Use torrent.select(start, end, priority) with high priority
+      // Higher priority number = downloaded first
       try {
-        // Critical pieces for the header (beginning of file)
-        for (let i = headerStartPiece; i <= headerEndPiece; i++) {
-          (torrent as unknown as { critical: (start: number, end: number) => void }).critical(i, i);
-        }
-        // Critical pieces for moov atom (end of file)
-        for (let i = moovStartPiece; i <= moovEndPiece; i++) {
-          (torrent as unknown as { critical: (start: number, end: number) => void }).critical(i, i);
-        }
+        torrent.select(headerStartPiece, headerEndPiece, 10);
+        torrent.select(moovStartPiece, moovEndPiece, 10);
+        logger.info('Set high priority for header + moov pieces');
       } catch (err) {
-        logger.warn('Could not set critical pieces', { error: String(err) });
+        logger.warn('Could not set piece priority', { error: String(err) });
       }
     }
 
