@@ -824,6 +824,18 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
     }
     
+    // Skip file-based transcoding for files >2GB — downloading entire file is impractical
+    const MAX_FILE_TRANSCODE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+    if (useFileBasedTranscoding && info.size > MAX_FILE_TRANSCODE_SIZE) {
+      reqLogger.info("Skipping file-based transcoding — file too large, serving raw", {
+        fileName: info.fileName,
+        fileSizeMB: (info.size / (1024 * 1024)).toFixed(2),
+        maxTranscodeSizeMB: (MAX_FILE_TRANSCODE_SIZE / (1024 * 1024)).toFixed(0),
+      });
+      effectiveDemuxer = null;
+      useFileBasedTranscoding = false;
+    }
+
     const shouldTranscode = effectiveDemuxer !== null;
     
     reqLogger.info('Transcoding decision', {
