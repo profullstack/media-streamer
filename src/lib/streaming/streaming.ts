@@ -1274,6 +1274,15 @@ export class StreamingService {
    * @param infohash - The torrent infohash
    * @param watcherId - The watcher ID returned from registerWatcher
    */
+  /**
+   * Explicitly release a torrent — called when user closes the player.
+   * Schedules cleanup with file deletion after the cleanup delay.
+   */
+  releaseTorrent(infohash: string): void {
+    logger.info('Torrent release requested (user closed player)', { infohash });
+    this.scheduleRelease(infohash);
+  }
+
   unregisterWatcher(infohash: string, watcherId: string): void {
     const watcherInfo = this.torrentWatchers.get(infohash);
     if (!watcherInfo) {
@@ -1294,10 +1303,9 @@ export class StreamingService {
       remainingWatchers: watcherInfo.watchers.size,
     });
     
-    // If no more watchers, schedule cleanup
-    if (watcherInfo.watchers.size === 0) {
-      this.scheduleCleanup(infohash);
-    }
+    // SSE disconnect does NOT trigger cleanup anymore.
+    // Cleanup is triggered only by explicit releaseTorrent() call
+    // (when user closes the player modal).
   }
 
   /**
@@ -1394,6 +1402,59 @@ export class StreamingService {
    * Schedule torrent removal after the cleanup delay
    * This is called when the last watcher disconnects.
    */
+  /**
+   * Schedule release with file deletion — only called from releaseTorrent()
+   */
+  private scheduleRelease(infohash: string): void {
+    const watcherInfo = this.torrentWatchers.get(infohash);
+    
+    // Cancel any existing cleanup timer
+    if (watcherInfo?.cleanupTimer) {
+      clearTimeout(watcherInfo.cleanupTimer);
+    }
+    
+    const timer = setTimeout(() => {
+      // Check for active streams/transcodes before deleting
+      const hasActiveStreams = Array.from(this.activeStreams.values()).some(s => s.infohash === infohash);
+      let hasActiveTranscode = false;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getFileTranscodingService } = require('../file-transcoding');
+        hasActiveTranscode = getFileTranscodingService().hasActiveTranscode(infohash);
+      } catch { /* */ }
+      
+      if (hasActiveStreams || hasActiveTranscode) {
+        logger.info('Release deferred - active streams/transcodes', { infohash, hasActiveStreams, hasActiveTranscode });
+        this.scheduleRelease(infohash); // retry later
+        return;
+      }
+      
+      const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+      const torrentName = torrent?.name;
+      
+      if (torrent) {
+        (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+          { destroyStore: true },
+          (err: Error | null) => {
+            if (err) {
+              logger.warn('Error destroying torrent during release', { infohash, error: String(err) });
+            } else {
+              logger.info('Torrent destroyed and files deleted (user release)', { infohash });
+            }
+            this.deleteTorrentFolder(torrentName, infohash).catch(() => {});
+          }
+        );
+      }
+      
+      this.torrentWatchers.delete(infohash);
+      this.torrentAddedAt.delete(infohash);
+    }, this.torrentCleanupDelay);
+    
+    if (watcherInfo) {
+      watcherInfo.cleanupTimer = timer;
+    }
+  }
+
   private scheduleCleanup(infohash: string): void {
     const watcherInfo = this.torrentWatchers.get(infohash);
     if (!watcherInfo) {

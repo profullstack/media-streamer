@@ -605,6 +605,11 @@ export function MediaPlayerModal({
     streamRetryCountRef.current = 0;
     setIsAutoRecovering(false);
     
+    // Signal server that user closed the player — triggers cleanup timer
+    if (infohash) {
+      fetch(`/api/stream/release?infohash=${infohash}`, { method: 'POST' }).catch(() => {});
+    }
+    
     setStreamUrl(null);
     setError(null);
     setIsPlayerReady(false);
@@ -625,7 +630,7 @@ export function MediaPlayerModal({
       eventSourceRef.current = null;
     }
     onClose();
-  }, [onClose, webTorrentStopStream]);
+  }, [onClose, webTorrentStopStream, infohash]);
 
   // Reset transcoding retry state when file changes
   useEffect(() => {
