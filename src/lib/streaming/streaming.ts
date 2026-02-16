@@ -1438,6 +1438,19 @@ export class StreamingService {
         return;
       }
 
+      // Don't cleanup torrents younger than TORRENT_MIN_AGE_MS
+      {
+        const addedAt = this.torrentAddedAt.get(infohash) ?? 0;
+        if (addedAt && (Date.now() - addedAt) < TORRENT_MIN_AGE_MS) {
+          logger.info('Cleanup skipped - torrent too young', {
+            infohash,
+            ageMinutes: Math.round((Date.now() - addedAt) / 60000),
+            minAgeMinutes: Math.round(TORRENT_MIN_AGE_MS / 60000),
+          });
+          return;
+        }
+      }
+
       if (currentInfo && currentInfo.watchers.size === 0) {
         logger.info('Removing torrent after cleanup delay (no active watchers or streams)', { infohash });
         
