@@ -351,7 +351,13 @@ export function MediaPlayerModal({
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome|Chromium/.test(navigator.userAgent);
-        const needsHLS = (isIOS || isSafari) && requiresTranscoding && getMediaCategory(file.name) === 'video';
+        // Check if only audio needs transcoding (video is natively playable)
+        const onlyAudioNeedsTranscode = !requiresTranscoding && needsAudioTranscode(codecInfo?.audioCodec);
+        // HEVC/H.265 plays natively on iOS Safari — don't use HLS for audio-only remux
+        const videoCodecIsNative = codecInfo?.videoCodec && 
+          ['hevc', 'h265', 'h264', 'avc1', 'vp9', 'av1'].includes(codecInfo.videoCodec.toLowerCase());
+        const audioOnlyRemuxNeeded = videoCodecIsNative && needsAudioTranscode(codecInfo?.audioCodec);
+        const needsHLS = (isIOS || isSafari) && requiresTranscoding && !audioOnlyRemuxNeeded && getMediaCategory(file.name) === 'video';
 
         let url: string;
         if (needsHLS) {
@@ -363,7 +369,11 @@ export function MediaPlayerModal({
           // Use demuxer param from codec detection when available (precise),
           // fall back to transcode=auto for retry path without codec info
           url = `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-          if (requiresTranscoding) {
+          if (audioOnlyRemuxNeeded) {
+            // Video is natively playable but audio needs remux — skip full transcode
+            url += '&audioTranscode=aac';
+            console.log('[MediaPlayerModal] Audio-only remux (video native):', codecInfo?.videoCodec, codecInfo?.audioCodec);
+          } else if (requiresTranscoding) {
             if (codecInfo?.container) {
               // Use container-derived demuxer for precise transcoding
               url += `&demuxer=${encodeURIComponent(codecInfo.container.split(',')[0])}`;

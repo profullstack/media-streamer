@@ -959,6 +959,25 @@ sudo systemctl enable ${SERVICE_NAME} 2>/dev/null || true
 sudo systemctl enable ${IPTV_WORKER_SERVICE} 2>/dev/null || true
 sudo systemctl enable ${PODCAST_WORKER_SERVICE} 2>/dev/null || true
 
+# Set up IMDB dataset daily update cron job (runs at midnight UTC)
+echo "=== Setting up IMDB dataset daily update cron job ==="
+IMDB_UPDATE_SCRIPT="${PROJECT_ROOT}/scripts/update-imdb-daily.sh"
+IMDB_CRON_JOB="0 0 * * * ${IMDB_UPDATE_SCRIPT} >> /var/log/imdb-update.log 2>&1"
+if [ -f "${IMDB_UPDATE_SCRIPT}" ]; then
+    chmod +x "${IMDB_UPDATE_SCRIPT}"
+    chmod +x "${PROJECT_ROOT}/scripts/import-imdb.sh" 2>/dev/null || true
+    sudo touch /var/log/imdb-update.log
+    sudo chown ${VPS_USER}:${VPS_USER} /var/log/imdb-update.log
+    if crontab -l 2>/dev/null | grep -q "update-imdb-daily"; then
+        echo "  IMDB update cron job already exists"
+    else
+        (crontab -l 2>/dev/null || true; echo "${IMDB_CRON_JOB}") | crontab -
+        echo "✓ Added cron job: IMDB dataset update at midnight daily"
+    fi
+else
+    echo "  WARNING: ${IMDB_UPDATE_SCRIPT} not found, skipping IMDB cron setup"
+fi
+
 # Set up cron job to clean webtorrent temp directory at midnight
 WEBTORRENT_TMP_DIR="/home/${VPS_USER}/tmp/webtorrent"
 CRON_JOB="0 0 * * * rm -rf ${WEBTORRENT_TMP_DIR}/* >/dev/null 2>&1"
@@ -1029,8 +1048,14 @@ echo "  Errors:  tail -f ${PODCAST_WORKER_ERROR_LOG}"
 echo ""
 echo "Scheduled Tasks:"
 echo "  WebTorrent temp cleanup: Daily at midnight"
+echo "  IMDB dataset update: Daily at midnight (incremental)"
 echo "  Directory: ${WEBTORRENT_TMP_DIR}"
 echo "  View cron jobs: crontab -l"
+echo ""
+echo "IMDB Datasets:"
+echo "  First import: ./scripts/import-imdb.sh ~/tmp/data"
+echo "  Daily update: ./scripts/update-imdb-daily.sh (automatic via cron)"
+echo "  Logs: /var/log/imdb-update.log"
 
 # DHT Services output (only if enabled)
 if [ "${DHT_ENABLED:-true}" != "false" ]; then
