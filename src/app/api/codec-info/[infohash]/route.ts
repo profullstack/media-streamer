@@ -98,6 +98,25 @@ export async function GET(
             const filePath = join(subdirPath, targetFile);
             const codecInfo = await detectCodecFromUrl(filePath, 15);
             const formatted = formatCodecInfoForDb(codecInfo);
+
+            // Write codec info back to bt_torrents so it's cached for next time
+            // Use update (not upsert) — row may not exist yet, that's OK
+            await supabase
+              .from('bt_torrents')
+              .update({
+                video_codec: formatted.video_codec,
+                audio_codec: formatted.audio_codec,
+                container: formatted.container,
+                needs_transcoding: formatted.needs_transcoding,
+                codec_detected_at: new Date().toISOString(),
+              })
+              .eq('infohash', infohash)
+              .then(({ error: updateError }) => {
+                if (updateError) {
+                  console.error('[codec-info] Failed to cache codec info:', updateError.message);
+                }
+              });
+
             return NextResponse.json({
               infohash,
               fileIndex: targetIdx,
