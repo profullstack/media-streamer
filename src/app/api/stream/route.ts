@@ -1086,10 +1086,38 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     // Audio-only remux path: for MP4/MOV files with incompatible audio (E-AC3, DTS, TrueHD, etc.)
     // but compatible video. Uses file-based transcoding with -c:v copy -c:a aac (very fast, no video re-encode).
-    // Triggered by audioTranscode=aac query parameter from the client after codec detection.
+    // Triggered by audioTranscode=aac query parameter OR auto-detected via FFprobe on local file.
     const fileExt = info.fileName.split('.').pop()?.toLowerCase();
     const AUDIO_REMUX_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2']);
-    if (audioTranscode === 'aac' && fileExt && AUDIO_REMUX_FORMATS.has(fileExt)) {
+    
+    // Auto-detect incompatible audio via FFprobe when client doesn't pass audioTranscode
+    let effectiveAudioTranscode = audioTranscode;
+    if (!effectiveAudioTranscode && fileExt && AUDIO_REMUX_FORMATS.has(fileExt)) {
+      try {
+        const { getWebTorrentDir } = await import('@/lib/config');
+        const { existsSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const { detectCodecFromUrl } = await import('@/lib/codec-detection');
+        
+        const downloadDir = getWebTorrentDir();
+        const filePath = join(downloadDir, info.filePath);
+        if (existsSync(filePath)) {
+          const INCOMPATIBLE_AUDIO = new Set(['eac3', 'ac3', 'truehd', 'dts', 'dca', 'mlp', 'wmav2', 'wmapro']);
+          const codecInfo = await detectCodecFromUrl(filePath, 10);
+          if (codecInfo.audioCodec && INCOMPATIBLE_AUDIO.has(codecInfo.audioCodec.toLowerCase())) {
+            effectiveAudioTranscode = 'aac';
+            reqLogger.info('Auto-detected incompatible audio via FFprobe', {
+              audioCodec: codecInfo.audioCodec,
+              filePath,
+            });
+          }
+        }
+      } catch (err) {
+        reqLogger.debug('Could not auto-detect audio codec', { error: String(err) });
+      }
+    }
+
+    if (effectiveAudioTranscode === 'aac' && fileExt && AUDIO_REMUX_FORMATS.has(fileExt)) {
       reqLogger.info('=== STARTING AUDIO-ONLY REMUX PATH ===', {
         fileName: info.fileName,
         fileSize: info.size,

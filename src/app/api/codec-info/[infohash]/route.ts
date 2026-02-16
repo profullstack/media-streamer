@@ -19,6 +19,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectCodecFromUrl, formatCodecInfoForDb } from '@/lib/codec-detection';
 import { createServerClient } from '@/lib/supabase';
+import { getWebTorrentDir } from '@/lib/config';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Route params
@@ -73,6 +76,48 @@ export async function GET(
     .single();
 
   if (torrentError || !torrent) {
+    // Torrent not in DB — try to detect from local WebTorrent download via FFprobe
+    try {
+      const downloadDir = getWebTorrentDir();
+      if (existsSync(downloadDir)) {
+        const { readdirSync, statSync } = await import('node:fs');
+        const subdirs = readdirSync(downloadDir);
+        // Find media files in subdirectories — WebTorrent stores as downloadDir/torrentName/file
+        for (const subdir of subdirs) {
+          const subdirPath = join(downloadDir, subdir);
+          if (!statSync(subdirPath).isDirectory()) continue;
+          const files = readdirSync(subdirPath);
+          const mediaExts = new Set(['mp4', 'm4v', 'mov', 'mkv', 'avi', 'webm', 'mp3', 'flac', 'ogg', 'wav']);
+          const mediaFiles = files.filter(f => {
+            const ext = f.split('.').pop()?.toLowerCase();
+            return ext && mediaExts.has(ext);
+          });
+          const targetIdx = fileIndexStr ? parseInt(fileIndexStr, 10) : 0;
+          const targetFile = mediaFiles[targetIdx];
+          if (targetFile) {
+            const filePath = join(subdirPath, targetFile);
+            const codecInfo = await detectCodecFromUrl(filePath, 15);
+            const formatted = formatCodecInfoForDb(codecInfo);
+            return NextResponse.json({
+              infohash,
+              fileIndex: targetIdx,
+              videoCodec: formatted.video_codec,
+              audioCodec: formatted.audio_codec,
+              container: formatted.container,
+              needsTranscoding: formatted.needs_transcoding,
+              duration: formatted.duration_seconds,
+              bitRate: formatted.bit_rate,
+              resolution: formatted.resolution,
+              cached: false,
+              source: 'ffprobe-local',
+            });
+          }
+        }
+      }
+    } catch {
+      // Fall through to 404
+    }
+
     return NextResponse.json(
       { error: 'Torrent not found' },
       { status: 404 }
