@@ -76,26 +76,20 @@ export async function GET(
     .single();
 
   if (torrentError || !torrent) {
-    // Torrent not in DB — try to detect from local WebTorrent download via FFprobe
+    // Torrent not in DB — try to detect from active WebTorrent download via FFprobe
     try {
-      const downloadDir = getWebTorrentDir();
-      if (existsSync(downloadDir)) {
-        const { readdirSync, statSync } = await import('node:fs');
-        const subdirs = readdirSync(downloadDir);
-        // Find media files in subdirectories — WebTorrent stores as downloadDir/torrentName/file
-        for (const subdir of subdirs) {
-          const subdirPath = join(downloadDir, subdir);
-          if (!statSync(subdirPath).isDirectory()) continue;
-          const files = readdirSync(subdirPath);
-          const mediaExts = new Set(['mp4', 'm4v', 'mov', 'mkv', 'avi', 'webm', 'mp3', 'flac', 'ogg', 'wav']);
-          const mediaFiles = files.filter(f => {
-            const ext = f.split('.').pop()?.toLowerCase();
-            return ext && mediaExts.has(ext);
-          });
-          const targetIdx = fileIndexStr ? parseInt(fileIndexStr, 10) : 0;
-          const targetFile = mediaFiles[targetIdx];
-          if (targetFile) {
-            const filePath = join(subdirPath, targetFile);
+      const { getStreamingService } = await import('@/lib/streaming');
+      const service = getStreamingService();
+      const targetIdx = fileIndexStr ? parseInt(fileIndexStr, 10) : 0;
+      
+      // Use streaming service to get the file path for this specific infohash
+      const magnetUri = `magnet:?xt=urn:btih:${infohash}`;
+      const streamInfo = await service.getStreamInfo({ magnetUri, fileIndex: targetIdx });
+      
+      if (streamInfo?.filePath) {
+        const downloadDir = getWebTorrentDir();
+        const filePath = join(downloadDir, streamInfo.filePath);
+        if (existsSync(filePath)) {
             const codecInfo = await detectCodecFromUrl(filePath, 15);
             const formatted = formatCodecInfoForDb(codecInfo);
 
@@ -130,7 +124,6 @@ export async function GET(
               cached: false,
               source: 'ffprobe-local',
             });
-          }
         }
       }
     } catch {

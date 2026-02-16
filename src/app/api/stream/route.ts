@@ -1132,29 +1132,14 @@ export async function GET(request: NextRequest): Promise<Response> {
         const { getWebTorrentDir } = await import('@/lib/config');
         const { existsSync: fsExists } = await import('node:fs');
         const { join: pathJoin } = await import('node:path');
-        const { readdirSync, statSync } = await import('node:fs');
         
         let localFilePath: string | null = null;
-        const downloadDir = getWebTorrentDir();
-        if (fsExists(downloadDir)) {
-          // Find the file in WebTorrent download dir
-          const subdirs = readdirSync(downloadDir);
-          for (const subdir of subdirs) {
-            const subdirPath = pathJoin(downloadDir, subdir);
-            if (!statSync(subdirPath).isDirectory()) continue;
-            const files = readdirSync(subdirPath);
-            const mediaExts = new Set(['mp4', 'm4v', 'mov', 'm4a', 'mkv', 'webm', 'avi']);
-            const mediaFiles = files.filter(f => {
-              const ext = f.split('.').pop()?.toLowerCase();
-              return ext && mediaExts.has(ext);
-            });
-            if (mediaFiles[fileIndex]) {
-              const candidate = pathJoin(subdirPath, mediaFiles[fileIndex]);
-              if (fsExists(candidate)) {
-                localFilePath = candidate;
-                break;
-              }
-            }
+        // Use info.filePath from streaming service — maps to the correct torrent's file
+        if (info.filePath) {
+          const downloadDir = getWebTorrentDir();
+          const candidate = pathJoin(downloadDir, info.filePath);
+          if (fsExists(candidate)) {
+            localFilePath = candidate;
           }
         }
         
