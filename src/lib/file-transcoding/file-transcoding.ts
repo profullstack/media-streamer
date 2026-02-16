@@ -815,6 +815,258 @@ export class FileTranscodingService {
   }
 
   /**
+   * Transcode only audio in a file (copy video stream, re-encode audio to AAC).
+   * This is very fast since no video re-encoding is done — essentially a remux with audio transcode.
+   * Used for MP4/MOV files with incompatible audio codecs (E-AC3, DTS, TrueHD, etc.)
+   */
+  transcodeFileAudioOnly(
+    filePath: string,
+    infohash: string,
+    fileIndex: number,
+    cleanupOnComplete = true
+  ): { stream: PassThrough; mimeType: string } {
+    const key = `${infohash}_${fileIndex}_audioremux`;
+    const transcodeId = randomUUID();
+
+    logger.info('Starting audio-only remux', {
+      infohash,
+      fileIndex,
+      filePath,
+    });
+
+    // Audio-only remux: copy video, transcode audio to AAC
+    const ffmpegArgs = [
+      '-threads', '2',
+      '-err_detect', 'ignore_err',
+      '-fflags', '+genpts+discardcorrupt',
+      '-i', filePath,
+      '-map', '0:v:0',
+      '-map', '0:a:0?',
+      '-c:v', 'copy',           // Copy video stream as-is (no re-encoding)
+      '-c:a', 'aac',            // Transcode audio to AAC
+      '-b:a', '192k',           // Audio bitrate
+      '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+      '-f', 'mp4',
+      'pipe:1',
+    ];
+
+    logger.debug('FFmpeg args for audio-only remux', {
+      args: ffmpegArgs.join(' '),
+    });
+
+    const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const outputStream = new PassThrough();
+
+    const transcode: ActiveTranscode = {
+      id: transcodeId,
+      infohash,
+      fileIndex,
+      filePath,
+      ffmpegProcess: ffmpeg,
+      outputStream,
+      startedAt: new Date(),
+    };
+
+    this.activeTranscodes.set(key, transcode);
+
+    let bytesOutput = 0;
+    let lastLoggedOutputMB = 0;
+
+    ffmpeg.stdout.on('data', (chunk: Buffer) => {
+      bytesOutput += chunk.length;
+      const outputMB = bytesOutput / (1024 * 1024);
+      if (outputMB - lastLoggedOutputMB >= 5) {
+        logger.info('Audio remux output progress', {
+          infohash, fileIndex, outputMB: outputMB.toFixed(2),
+        });
+        lastLoggedOutputMB = outputMB;
+      }
+    });
+
+    ffmpeg.stdout.pipe(outputStream);
+
+    const MAX_STDERR_BUFFER = 10000;
+    let stderrBuffer = '';
+    ffmpeg.stderr.on('data', (data: Buffer) => {
+      stderrBuffer += data.toString();
+      if (stderrBuffer.length > MAX_STDERR_BUFFER) {
+        stderrBuffer = stderrBuffer.slice(-MAX_STDERR_BUFFER);
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      logger.error('Audio remux FFmpeg error', err, { infohash, fileIndex });
+      this.activeTranscodes.delete(key);
+      outputStream.destroy(err);
+    });
+
+    ffmpeg.on('close', (code) => {
+      this.activeTranscodes.delete(key);
+      if (code !== 0 && code !== null) {
+        logger.warn('Audio remux FFmpeg exited with non-zero code', { code, stderr: stderrBuffer.slice(-500) });
+      } else {
+        logger.info('Audio remux completed', { infohash, fileIndex, bytesOutput });
+      }
+      if (cleanupOnComplete) {
+        cleanupTempFile(filePath).catch((err) => {
+          logger.warn('Failed to cleanup temp file after audio remux', { error: String(err), filePath });
+        });
+      }
+    });
+
+    outputStream.on('close', () => {
+      if (!ffmpeg.killed) {
+        ffmpeg.kill('SIGTERM');
+      }
+    });
+
+    return { stream: outputStream, mimeType: 'video/mp4' };
+  }
+
+  /**
+   * Download a file and then remux with audio-only transcoding (copy video, transcode audio to AAC).
+   * Similar to downloadAndTranscode but uses audio-only remux which is much faster.
+   * No size limit since video is just copied.
+   */
+  async downloadAndTranscodeAudioOnly(
+    sourceStream: Readable,
+    infohash: string,
+    fileIndex: number,
+    fileName: string,
+    totalBytes: number
+  ): Promise<{ stream: PassThrough; mimeType: string }> {
+    const startThreshold = Math.min(
+      this.minBytesBeforeTranscode,
+      Math.floor(totalBytes * 0.1)
+    );
+
+    logger.info('Starting download for audio-only remux', {
+      infohash, fileIndex, fileName,
+      totalMB: (totalBytes / (1024 * 1024)).toFixed(2),
+      startThresholdMB: (startThreshold / (1024 * 1024)).toFixed(2),
+    });
+
+    const key = `${infohash}_${fileIndex}`;
+
+    if (this.activeDownloads.size >= this.maxConcurrentDownloads) {
+      throw new Error(`Maximum concurrent downloads (${this.maxConcurrentDownloads}) reached`);
+    }
+
+    await ensureTempDir();
+
+    const ext = fileName.split('.').pop()?.toLowerCase() ?? 'mp4';
+    const filePath = getTempFilePath(infohash, fileIndex, ext);
+    const abortController = new AbortController();
+    const writeStream = createWriteStream(filePath);
+    const downloadId = randomUUID();
+
+    const download: ActiveDownload = {
+      id: downloadId,
+      infohash,
+      fileIndex,
+      filePath,
+      bytesDownloaded: 0,
+      totalBytes,
+      writeStream,
+      startedAt: new Date(),
+      abortController,
+    };
+
+    this.activeDownloads.set(key, download);
+
+    return new Promise((resolve, reject) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let lastLoggedMB = 0;
+      let transcodeStarted = false;
+      let downloadComplete = false;
+
+      const cleanup = (): void => {
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+        this.activeDownloads.delete(key);
+      };
+
+      timeoutId = setTimeout(() => {
+        if (!transcodeStarted) {
+          cleanup();
+          sourceStream.destroy(new Error('Download timeout waiting for initial data'));
+          writeStream.destroy();
+          reject(new Error(`Timed out waiting for data after ${this.downloadTimeout}ms`));
+        }
+      }, this.downloadTimeout);
+
+      const maybeStartTranscode = (): void => {
+        if (transcodeStarted) return;
+        if (download.bytesDownloaded < startThreshold && !downloadComplete) return;
+
+        transcodeStarted = true;
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+
+        logger.info('Threshold reached, starting audio-only remux', {
+          infohash, fileIndex,
+          downloadedMB: (download.bytesDownloaded / (1024 * 1024)).toFixed(2),
+          downloadComplete,
+        });
+
+        const result = this.transcodeFileAudioOnly(filePath, infohash, fileIndex, true);
+        resolve(result);
+      };
+
+      sourceStream.on('data', (chunk: Buffer) => {
+        download.bytesDownloaded += chunk.length;
+        const downloadedMB = download.bytesDownloaded / (1024 * 1024);
+        if (downloadedMB - lastLoggedMB >= 10) {
+          logger.info('Audio remux download progress', {
+            infohash, fileIndex,
+            downloadedMB: downloadedMB.toFixed(2),
+            totalMB: (totalBytes / (1024 * 1024)).toFixed(2),
+            progress: ((download.bytesDownloaded / totalBytes) * 100).toFixed(1) + '%',
+          });
+          lastLoggedMB = downloadedMB;
+        }
+      });
+
+      sourceStream.pipe(writeStream);
+
+      writeStream.on('drain', () => { maybeStartTranscode(); });
+      sourceStream.on('data', () => { maybeStartTranscode(); });
+
+      writeStream.on('finish', () => {
+        downloadComplete = true;
+        cleanup();
+        logger.info('Audio remux download complete', {
+          infohash, fileIndex, filePath,
+          downloadedMB: (download.bytesDownloaded / (1024 * 1024)).toFixed(2),
+          elapsed: `${Date.now() - download.startedAt.getTime()}ms`,
+        });
+        maybeStartTranscode();
+      });
+
+      writeStream.on('error', (err) => {
+        cleanup();
+        logger.error('Audio remux download write error', err, { infohash, fileIndex });
+        if (!transcodeStarted) reject(err);
+      });
+
+      sourceStream.on('error', (err) => {
+        cleanup();
+        writeStream.destroy();
+        logger.error('Audio remux download source error', err, { infohash, fileIndex });
+        if (!transcodeStarted) reject(err);
+      });
+
+      abortController.signal.addEventListener('abort', () => {
+        cleanup();
+        sourceStream.destroy();
+        writeStream.destroy();
+        if (!transcodeStarted) reject(new Error('Download aborted'));
+      });
+    });
+  }
+
+  /**
    * Abort a download in progress
    */
   abortDownload(infohash: string, fileIndex: number): boolean {

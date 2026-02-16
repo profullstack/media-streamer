@@ -822,6 +822,12 @@ export class StreamingService {
       }
     }
 
+    // Prioritize sequential pieces from the playback start position
+    // This ensures pieces are downloaded in order for smooth playback,
+    // since WebTorrent's default piece selection doesn't guarantee sequential order
+    const playbackStartByte = range?.start ?? 0;
+    this.prioritizeSequentialPieces(torrent, file, playbackStartByte);
+
     // Log current download state
     const fileProgress = (file as unknown as { progress: number }).progress ?? 0;
     const downloadedBytes = fileProgress * file.length;
@@ -1911,6 +1917,67 @@ export class StreamingService {
    * @param file - The file to wait for
    * @param startByte - The byte position to wait for (default: 0)
    */
+
+  /**
+   * Prioritize sequential piece download from a given byte position.
+   * Uses torrent.select() to mark a range of pieces as high priority,
+   * ensuring WebTorrent downloads them in order for smooth playback.
+   *
+   * @param torrent - The active torrent
+   * @param file - The file being streamed
+   * @param startByte - Byte position to start prioritizing from
+   * @param bytesToPrioritize - Number of bytes to prioritize (default: 50MB)
+   */
+  private prioritizeSequentialPieces(
+    torrent: WebTorrent.Torrent,
+    file: WebTorrent.TorrentFile,
+    startByte: number,
+    bytesToPrioritize = 50 * 1024 * 1024
+  ): void {
+    try {
+      const fileOffset = (file as unknown as { offset: number }).offset ?? 0;
+      const absoluteStart = fileOffset + startByte;
+      const absoluteEnd = Math.min(
+        fileOffset + file.length - 1,
+        absoluteStart + bytesToPrioritize - 1
+      );
+
+      const startPiece = Math.floor(absoluteStart / torrent.pieceLength);
+      const endPiece = Math.min(
+        Math.ceil(absoluteEnd / torrent.pieceLength),
+        torrent.pieces.length - 1
+      );
+
+      // Use torrent.select() with high priority (priority 1) for sequential range
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const t = torrent as any;
+      if (typeof t.select === 'function') {
+        t.select(startPiece, endPiece, 1);
+        logger.info('Prioritized sequential pieces', {
+          fileName: file.name,
+          startByte,
+          startPiece,
+          endPiece,
+          pieceCount: endPiece - startPiece + 1,
+          bytesToPrioritize: (bytesToPrioritize / (1024 * 1024)).toFixed(0) + 'MB',
+          pieceLength: torrent.pieceLength,
+        });
+      } else if (typeof t.critical === 'function') {
+        // Fallback: some WebTorrent versions have critical() instead
+        t.critical(startPiece, endPiece);
+        logger.info('Prioritized sequential pieces via critical()', {
+          fileName: file.name,
+          startPiece,
+          endPiece,
+        });
+      } else {
+        logger.warn('No piece prioritization API available (select/critical not found)');
+      }
+    } catch (err) {
+      logger.warn('Failed to prioritize sequential pieces', { error: String(err) });
+    }
+  }
+
   private async waitForData(
     torrent: WebTorrent.Torrent,
     file: WebTorrent.TorrentFile,

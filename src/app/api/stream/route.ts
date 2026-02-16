@@ -97,11 +97,12 @@ function parseRangeHeader(
  */
 function validateParams(
   searchParams: URLSearchParams
-): { infohash: string; fileIndex: number; demuxer: string | null; transcode: string | null } | { error: string; status: number } {
+): { infohash: string; fileIndex: number; demuxer: string | null; transcode: string | null; audioTranscode: string | null } | { error: string; status: number } {
   const infohash = searchParams.get('infohash');
   const fileIndexStr = searchParams.get('fileIndex');
   const demuxer = searchParams.get('demuxer');
   const transcode = searchParams.get('transcode');
+  const audioTranscode = searchParams.get('audioTranscode');
 
   if (!infohash) {
     return { error: 'Missing required parameter: infohash', status: 400 };
@@ -116,7 +117,7 @@ function validateParams(
     return { error: 'fileIndex must be a non-negative integer', status: 400 };
   }
 
-  return { infohash, fileIndex, demuxer, transcode };
+  return { infohash, fileIndex, demuxer, transcode, audioTranscode };
 }
 
 /**
@@ -713,7 +714,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
-  const { infohash, fileIndex, demuxer, transcode } = validation;
+  const { infohash, fileIndex, demuxer, transcode, audioTranscode } = validation;
   
   reqLogger.info('Stream request validated', {
     infohash,
@@ -1081,6 +1082,81 @@ export async function GET(request: NextRequest): Promise<Response> {
           headers,
         }
       );
+    }
+
+    // Audio-only remux path: for MP4/MOV files with incompatible audio (E-AC3, DTS, TrueHD, etc.)
+    // but compatible video. Uses file-based transcoding with -c:v copy -c:a aac (very fast, no video re-encode).
+    // Triggered by audioTranscode=aac query parameter from the client after codec detection.
+    const fileExt = info.fileName.split('.').pop()?.toLowerCase();
+    const AUDIO_REMUX_FORMATS = new Set(['mp4', 'm4v', 'mov', 'm4a', '3gp', '3g2']);
+    if (audioTranscode === 'aac' && fileExt && AUDIO_REMUX_FORMATS.has(fileExt)) {
+      reqLogger.info('=== STARTING AUDIO-ONLY REMUX PATH ===', {
+        fileName: info.fileName,
+        fileSize: info.size,
+        fileSizeMB: (info.size / (1024 * 1024)).toFixed(2),
+        audioTranscode,
+      });
+
+      // No size limit for audio-only remux — it's very fast (just copies video, transcodes audio)
+      const result = await service.createStream({
+        magnetUri,
+        fileIndex,
+        range: undefined,
+      }, true); // skipWaitForData
+
+      const fileTranscodingService = getFileTranscodingService();
+
+      try {
+        const transcoded = await fileTranscodingService.downloadAndTranscodeAudioOnly(
+          result.stream as Readable,
+          infohash,
+          fileIndex,
+          info.fileName,
+          info.size
+        );
+
+        reqLogger.info('Audio-only remux started', {
+          infohash,
+          fileIndex,
+          mimeType: transcoded.mimeType,
+        });
+
+        const preBufferBytes = getPreBufferSize(info.fileName);
+
+        const headers: HeadersInit = {
+          'Content-Type': transcoded.mimeType,
+          'Cache-Control': 'no-cache',
+          'X-Stream-Id': result.streamId,
+          'X-Transcoded': 'true',
+          'X-Audio-Remux': 'true',
+          'X-Original-Mime-Type': info.mimeType,
+          'X-Pre-Buffer-Bytes': preBufferBytes.toString(),
+          'Transfer-Encoding': 'chunked',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': 'Range, Content-Type',
+          'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, X-Transcoded, X-Audio-Remux, X-Pre-Buffer-Bytes',
+        };
+
+        return new Response(
+          nodeStreamToWebStreamWithPreBuffer(
+            transcoded.stream,
+            preBufferBytes,
+            TRANSCODE_PRE_BUFFER_TIMEOUT_MS,
+            reqLogger
+          ),
+          {
+            status: 200,
+            headers,
+          }
+        );
+      } catch (downloadError) {
+        reqLogger.error('Audio-only remux failed', downloadError);
+        return NextResponse.json(
+          { error: 'Failed to download and remux audio. The torrent may not have enough seeders.' },
+          { status: 503 }
+        );
+      }
     }
 
     // Non-transcoded path: support range requests
