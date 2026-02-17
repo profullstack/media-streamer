@@ -626,14 +626,17 @@ export class StreamingService {
       activeInfohashes.add(stream.infohash);
     }
 
-    // Remove all torrents except those with active streams or younger than 4 hours
+    // In emergency, remove ALL torrents without active streams (ignore min age)
     const torrentsToRemove = this.client.torrents.filter(t => {
       if (activeInfohashes.has(t.infoHash)) return false;
-      const addedAt = this.torrentAddedAt.get(t.infoHash) ?? 0;
-      if (addedAt && (now - addedAt) < TORRENT_MIN_AGE_MS) {
-        skippedYoung++;
-        return false;
-      }
+      // Also check for active transcodes
+      let hasTranscode = false;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getFileTranscodingService } = require('../file-transcoding');
+        hasTranscode = getFileTranscodingService().hasActiveTranscode(t.infoHash);
+      } catch { /* */ }
+      if (hasTranscode) return false;
       return true;
     });
 
