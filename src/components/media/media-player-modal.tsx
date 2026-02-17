@@ -152,6 +152,8 @@ export function MediaPlayerModal({
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const streamRetryCountRef = useRef(0);
   const [isAutoRecovering, setIsAutoRecovering] = useState(false);
+  /** Human-readable streaming phase for UI feedback */
+  const [streamingPhase, setStreamingPhase] = useState<string | null>(null);
 
   // Fetch swarm stats from the API
   const fetchSwarmStats = useCallback(async () => {
@@ -226,6 +228,7 @@ export function MediaPlayerModal({
     // not just file extension (e.g., MKV with h264+AAC can play natively)
     const checkCodecInfo = async (): Promise<void> => {
       setIsCheckingCodec(true);
+      setStreamingPhase('Detecting codecs...');
       try {
         // First try to get cached codec info
         const response = await fetch(`/api/codec-info/${infohash}?fileIndex=${file.fileIndex}`);
@@ -239,6 +242,7 @@ export function MediaPlayerModal({
           } else {
             // Not cached — trigger detection (downloads a few seconds of data for FFprobe)
             console.log('[MediaPlayerModal] Codec info not cached, triggering detection...');
+            setStreamingPhase('Analyzing file codecs (downloading sample)...');
             try {
               const detectResponse = await fetch(`/api/codec-info/${infohash}`, {
                 method: 'POST',
@@ -367,6 +371,9 @@ export function MediaPlayerModal({
         if (needsHLS) {
           // Use HLS endpoint for iOS/Safari — outputs m3u8 playlist with .ts segments
           url = `/api/stream/hls?infohash=${infohash}&fileIndex=${file.fileIndex}`;
+          setStreamingPhase(audioOnlyRemuxNeeded 
+            ? 'Starting HLS stream (remuxing audio)...' 
+            : 'Starting HLS stream (transcoding)...');
           console.log('[MediaPlayerModal] Using HLS for iOS/Safari:', url);
         } else {
           // Build server-side stream URL
@@ -376,6 +383,7 @@ export function MediaPlayerModal({
           if (audioOnlyRemuxNeeded) {
             // Video is natively playable but audio needs remux — skip full transcode
             url += '&audioTranscode=aac';
+            setStreamingPhase('Starting stream (remuxing audio only)...');
             console.log('[MediaPlayerModal] Audio-only remux (video native):', codecInfo?.videoCodec, codecInfo?.audioCodec);
           } else if (requiresTranscoding) {
             if (codecInfo?.container) {
@@ -396,6 +404,9 @@ export function MediaPlayerModal({
         }
 
         console.log('[MediaPlayerModal] Server stream URL:', url);
+        if (!streamingPhase?.includes('HLS') && !streamingPhase?.includes('remux')) {
+          setStreamingPhase(requiresTranscoding ? 'Starting transcoded stream...' : 'Connecting to stream...');
+        }
         setStreamUrl(url);
       }
       
@@ -473,6 +484,7 @@ export function MediaPlayerModal({
   const handlePlayerReady = useCallback(() => {
     console.log('[MediaPlayerModal] Player ready');
     setIsPlayerReady(true);
+    setStreamingPhase(null);
     // Reset auto-retry on successful playback
     streamRetryCountRef.current = 0;
     setIsAutoRecovering(false);
@@ -622,6 +634,7 @@ export function MediaPlayerModal({
     setCodecInfo(null);
     setIsCheckingCodec(false);
     setCodecCheckComplete(false);
+    setStreamingPhase(null);
     // Close SSE connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -1235,7 +1248,7 @@ export function MediaPlayerModal({
                   <span className="text-[10px] sm:text-xs md:text-sm text-white">
                     {isAutoRecovering 
                       ? `Reconnecting (${streamRetryCountRef.current}/${MAX_STREAM_RETRIES})...`
-                      : connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
+                      : streamingPhase ?? connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
                   </span>
                 </div>
               </div> : null}
@@ -1372,7 +1385,7 @@ export function MediaPlayerModal({
               <span className="text-xs sm:text-sm text-white/80">
                 {isAutoRecovering 
                   ? `Reconnecting (${streamRetryCountRef.current}/${MAX_STREAM_RETRIES})...`
-                  : connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
+                  : streamingPhase ?? connectionStatus?.message ?? (isTranscoding ? 'Preparing transcoded stream...' : 'Connecting to stream...')}
               </span>
               {/* Buffering progress: show MB downloaded toward threshold */}
               {connectionStatus && connectionStatus.stage === 'buffering' && connectionStatus.downloaded > 0 ? <span className="text-xs text-white/60">
