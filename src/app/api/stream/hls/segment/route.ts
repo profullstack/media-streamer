@@ -13,10 +13,9 @@ import { join } from 'node:path';
 const HLS_BASE_DIR = join(process.env.HOME ?? '/tmp', 'tmp', 'hls-transcode');
 
 export async function GET(request: NextRequest): Promise<Response> {
-  // Subscription check
-  const { requireActiveSubscription } = await import('@/lib/subscription/guard');
-  const subscriptionError = await requireActiveSubscription(request);
-  if (subscriptionError) return subscriptionError;
+  // NOTE: No subscription check here — Safari's native HLS player fetches segments
+  // without cookies/auth from the page context. The HLS playlist endpoint is already
+  // auth-gated, and segment URLs contain unpredictable infohash values.
 
   const { searchParams } = new URL(request.url);
   const infohash = searchParams.get('infohash');
