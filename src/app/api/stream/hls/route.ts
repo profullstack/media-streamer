@@ -161,30 +161,59 @@ export async function GET(request: NextRequest): Promise<Response> {
     const INCOMPATIBLE_AUDIO_CODECS = new Set(['eac3', 'ac3', 'truehd', 'dts', 'dca', 'mlp']);
     const NATIVE_VIDEO_CODECS = new Set(['hevc', 'h265', 'h264', 'avc', 'avc1', 'vp9', 'av1']);
     let audioOnlyRemux = false;
+    let localInputPath: string | null = null;
     
-    // Try to detect codecs via FFprobe on local file
+    // Try to find local file and detect codecs via FFprobe
     try {
       const { getWebTorrentDir } = await import('@/lib/config');
-      const { existsSync } = await import('node:fs');
+      const { existsSync, statSync } = await import('node:fs');
       const { join: pathJoin } = await import('node:path');
       const { detectCodecFromUrl } = await import('@/lib/codec-detection');
       
       const downloadDir = getWebTorrentDir();
       const filePath = pathJoin(downloadDir, info.filePath);
-      reqLogger.info('HLS: checking local file for codec detection', { downloadDir, infoFilePath: info.filePath, fullPath: filePath, exists: existsSync(filePath) });
-      if (existsSync(filePath)) {
-        const codecInfo = await detectCodecFromUrl(filePath, 10);
-        if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase()) &&
-            codecInfo.audioCodec && INCOMPATIBLE_AUDIO_CODECS.has(codecInfo.audioCodec.toLowerCase())) {
-          audioOnlyRemux = true;
-          reqLogger.info('HLS: using audio-only remux (video copy)', {
+      const fileExists = existsSync(filePath);
+      let fileSize = 0;
+      if (fileExists) {
+        try { fileSize = statSync(filePath).size; } catch { /* */ }
+      }
+      
+      reqLogger.info('HLS: checking local file for codec detection', {
+        downloadDir,
+        infoFilePath: info.filePath,
+        fullPath: filePath,
+        exists: fileExists,
+        fileSize,
+      });
+      
+      if (fileExists && fileSize > 0) {
+        // Always prefer local file as FFmpeg input (more reliable than pipe)
+        localInputPath = filePath;
+        
+        try {
+          const codecInfo = await detectCodecFromUrl(filePath, 15);
+          reqLogger.info('HLS: codec detection result', {
             videoCodec: codecInfo.videoCodec,
             audioCodec: codecInfo.audioCodec,
           });
+          if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase()) &&
+              codecInfo.audioCodec && INCOMPATIBLE_AUDIO_CODECS.has(codecInfo.audioCodec.toLowerCase())) {
+            audioOnlyRemux = true;
+            reqLogger.info('HLS: using audio-only remux (video copy)', {
+              videoCodec: codecInfo.videoCodec,
+              audioCodec: codecInfo.audioCodec,
+            });
+          }
+        } catch (codecErr) {
+          reqLogger.warn('HLS: codec detection failed, will use full transcode from local file', {
+            error: codecErr instanceof Error ? codecErr.message : String(codecErr),
+          });
         }
       }
-    } catch {
-      // Fall through to full transcode
+    } catch (err) {
+      reqLogger.warn('HLS: local file check failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     // Build FFmpeg HLS args
@@ -194,22 +223,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       '-analyzeduration', '10000000',
     ];
     
-    if (demuxer) {
+    // Only set demuxer when reading from pipe (local file auto-detects)
+    if (!localInputPath && demuxer) {
       ffmpegArgs.push('-f', demuxer);
-    }
-    
-    // For audio-only remux, determine local file path to use as FFmpeg input
-    // (pipe doesn't work well for sparse/large files)
-    let localInputPath: string | null = null;
-    if (audioOnlyRemux) {
-      try {
-        const { getWebTorrentDir } = await import('@/lib/config');
-        const { existsSync } = await import('node:fs');
-        const { join: pathJoin } = await import('node:path');
-        const downloadDir = getWebTorrentDir();
-        const candidate = pathJoin(downloadDir, info.filePath);
-        if (existsSync(candidate)) localInputPath = candidate;
-      } catch { /* */ }
     }
 
     if (audioOnlyRemux) {
@@ -235,7 +251,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     } else {
       // Full transcode: re-encode video to H.264
       ffmpegArgs.push(
-        '-i', 'pipe:0',
+        '-i', localInputPath || 'pipe:0',
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-acodec', 'aac',
@@ -265,7 +281,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       args: ffmpegArgs.join(' '),
     });
 
-    const useLocalInput = audioOnlyRemux && localInputPath;
+    const useLocalInput = !!localInputPath;
     const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
       stdio: [useLocalInput ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
