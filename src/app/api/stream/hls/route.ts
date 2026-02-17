@@ -234,33 +234,6 @@ export async function GET(request: NextRequest): Promise<Response> {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    
-    // Fallback: if codec detection didn't work (no local file), check cached codec info
-    if (!audioOnlyRemux && !copyRemux) {
-      try {
-        const { getTorrentByInfohash } = await import('@/lib/torrent');
-        const torrent = await getTorrentByInfohash(infohash);
-        if (torrent?.video_codec && torrent?.audio_codec) {
-          const cachedVideo = torrent.video_codec.toLowerCase();
-          const cachedAudio = torrent.audio_codec.toLowerCase();
-          reqLogger.info('HLS: using cached codec info from DB', {
-            videoCodec: cachedVideo,
-            audioCodec: cachedAudio,
-          });
-          if (NATIVE_VIDEO_CODECS.has(cachedVideo)) {
-            if (INCOMPATIBLE_AUDIO_CODECS.has(cachedAudio)) {
-              audioOnlyRemux = true;
-              reqLogger.info('HLS: audio-only remux from cached codec info');
-            } else {
-              copyRemux = true;
-              reqLogger.info('HLS: copy remux from cached codec info');
-            }
-          }
-        }
-      } catch {
-        reqLogger.warn('HLS: cached codec lookup failed');
-      }
-    }
 
     // Build FFmpeg HLS args
     const ffmpegArgs: string[] = [
