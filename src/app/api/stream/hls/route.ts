@@ -173,8 +173,19 @@ export async function GET(request: NextRequest): Promise<Response> {
       
       const downloadDir = getWebTorrentDir();
       const filePath = pathJoin(downloadDir, info.filePath);
-      const fileExists = existsSync(filePath);
+      
+      // Wait for file to appear on disk (WebTorrent may not have created it yet)
+      let fileExists = existsSync(filePath);
       let fileSize = 0;
+      if (!fileExists) {
+        reqLogger.info('HLS: local file not found yet, waiting up to 10s for WebTorrent to create it', {
+          fullPath: filePath,
+        });
+        for (let i = 0; i < 10 && !fileExists; i++) {
+          await new Promise(r => setTimeout(r, 1000));
+          fileExists = existsSync(filePath);
+        }
+      }
       if (fileExists) {
         try { fileSize = statSync(filePath).size; } catch { /* */ }
       }
