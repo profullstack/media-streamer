@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Clean up HLS temp directories for this infohash
     const hlsBaseDir = join(process.env.HOME ?? '/tmp', 'tmp', 'hls-transcode');
     try {
-      const { readdirSync } = require('node:fs');
+      const { readdirSync } = await import('node:fs');
       if (existsSync(hlsBaseDir)) {
         for (const entry of readdirSync(hlsBaseDir) as string[]) {
           if (entry.startsWith(`${infohash}_`)) {

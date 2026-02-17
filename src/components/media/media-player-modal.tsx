@@ -352,7 +352,7 @@ export function MediaPlayerModal({
           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome|Chromium/.test(navigator.userAgent);
         // Check if only audio needs transcoding (video is natively playable)
-        const onlyAudioNeedsTranscode = !requiresTranscoding && needsAudioTranscode(codecInfo?.audioCodec);
+        const _onlyAudioNeedsTranscode = !requiresTranscoding && needsAudioTranscode(codecInfo?.audioCodec);
         // HEVC/H.265 plays natively on iOS Safari — don't use HLS for audio-only remux
         const videoCodecIsNative = codecInfo?.videoCodec && 
           ['hevc', 'h265', 'h264', 'avc1', 'vp9', 'av1'].includes(codecInfo.videoCodec.toLowerCase());
