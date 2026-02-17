@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import { getStreamingService } from '@/lib/streaming';
@@ -314,6 +314,15 @@ export async function GET(request: NextRequest): Promise<Response> {
         join(hlsDir, 'stream.m3u8'),
       );
     }
+
+    // Clear any stale files from previous sessions (prevents codec mismatch
+    // when old .ts segments mix with new .m4s segments in the playlist)
+    try {
+      const entries = readdirSync(hlsDir);
+      for (const entry of entries) {
+        rmSync(join(hlsDir, entry), { force: true });
+      }
+    } catch { /* best effort */ }
 
     reqLogger.info('Starting FFmpeg HLS transcoding', {
       args: ffmpegArgs.join(' '),
