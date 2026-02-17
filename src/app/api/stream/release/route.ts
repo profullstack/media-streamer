@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { getStreamingService } from '@/lib/streaming';
 import { getFFmpegManager } from '@/lib/ffmpeg-manager';
@@ -41,9 +41,8 @@ export async function POST(request: NextRequest) {
     // Clean up HLS temp directories for this infohash
     const hlsBaseDir = join(process.env.HOME ?? '/tmp', 'tmp', 'hls-transcode');
     try {
-      const { readdirSync } = await import('node:fs');
       if (existsSync(hlsBaseDir)) {
-        for (const entry of readdirSync(hlsBaseDir) as string[]) {
+        for (const entry of readdirSync(hlsBaseDir)) {
           if (entry.startsWith(`${infohash}_`)) {
             rmSync(join(hlsBaseDir, entry), { recursive: true, force: true });
           }
