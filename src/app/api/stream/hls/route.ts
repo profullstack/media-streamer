@@ -160,7 +160,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     // This is MUCH faster than full re-encode and preserves HEVC/DV quality
     const INCOMPATIBLE_AUDIO_CODECS = new Set(['eac3', 'ac3', 'truehd', 'dts', 'dca', 'mlp']);
     const NATIVE_VIDEO_CODECS = new Set(['hevc', 'h265', 'h264', 'avc', 'avc1', 'vp9', 'av1']);
-    let audioOnlyRemux = false;
+    let audioOnlyRemux = false;  // copy video, transcode audio
+    let copyRemux = false;       // copy both video and audio (no transcode)
     let localInputPath: string | null = null;
     
     // Try to find local file and detect codecs via FFprobe
@@ -196,13 +197,20 @@ export async function GET(request: NextRequest): Promise<Response> {
             videoCodec: codecInfo.videoCodec,
             audioCodec: codecInfo.audioCodec,
           });
-          if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase()) &&
-              codecInfo.audioCodec && INCOMPATIBLE_AUDIO_CODECS.has(codecInfo.audioCodec.toLowerCase())) {
-            audioOnlyRemux = true;
-            reqLogger.info('HLS: using audio-only remux (video copy)', {
-              videoCodec: codecInfo.videoCodec,
-              audioCodec: codecInfo.audioCodec,
-            });
+          if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase())) {
+            if (codecInfo.audioCodec && INCOMPATIBLE_AUDIO_CODECS.has(codecInfo.audioCodec.toLowerCase())) {
+              audioOnlyRemux = true;
+              reqLogger.info('HLS: using audio-only remux (copy video, transcode audio)', {
+                videoCodec: codecInfo.videoCodec,
+                audioCodec: codecInfo.audioCodec,
+              });
+            } else {
+              copyRemux = true;
+              reqLogger.info('HLS: using full copy remux (copy both video and audio)', {
+                videoCodec: codecInfo.videoCodec,
+                audioCodec: codecInfo.audioCodec,
+              });
+            }
           }
         } catch (codecErr) {
           reqLogger.warn('HLS: codec detection failed, will use full transcode from local file', {
@@ -228,7 +236,26 @@ export async function GET(request: NextRequest): Promise<Response> {
       ffmpegArgs.push('-f', demuxer);
     }
 
-    if (audioOnlyRemux) {
+    if (copyRemux) {
+      // Full copy remux: copy both video and audio streams (no transcoding)
+      // Use fMP4 segments for HEVC compatibility (MPEG-TS doesn't support HEVC well)
+      ffmpegArgs.push(
+        '-i', localInputPath || 'pipe:0',
+        '-map', '0:v:0',
+        '-map', '0:a:0?',
+        '-c:v', 'copy',
+        '-tag:v', 'hvc1',
+        '-c:a', 'copy',
+        '-f', 'hls',
+        '-hls_time', '4',
+        '-hls_list_size', '0',
+        '-hls_flags', 'append_list+independent_segments',
+        '-hls_segment_type', 'fmp4',
+        '-hls_fmp4_init_filename', 'init.mp4',
+        '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        join(hlsDir, 'stream.m3u8'),
+      );
+    } else if (audioOnlyRemux) {
       // Audio-only remux: copy video stream, transcode only audio
       // Use fMP4 segments for HEVC compatibility (MPEG-TS doesn't support HEVC well)
       ffmpegArgs.push(
