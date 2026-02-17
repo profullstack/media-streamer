@@ -370,6 +370,13 @@ export function MediaPlayerModal({
         const codecDetectionFailed = !codecInfo && getMediaCategory(file.name) === 'video';
         const needsHLS = (isIOS || isSafari) && (requiresTranscoding || audioOnlyRemuxNeeded || codecDetectionFailed) && getMediaCategory(file.name) === 'video';
 
+        console.log('[MediaPlayerModal] HLS decision:', {
+          isIOS, isSafari, requiresTranscoding, audioOnlyRemuxNeeded,
+          codecDetectionFailed, needsHLS, codecInfo: !!codecInfo,
+          mediaCategory: getMediaCategory(file.name), fileName: file.name,
+          userAgent: navigator.userAgent.substring(0, 80),
+        });
+
         let url: string;
         if (needsHLS) {
           // Use HLS endpoint for iOS/Safari — outputs m3u8 playlist with .ts segments
