@@ -365,7 +365,10 @@ export function MediaPlayerModal({
         // On iOS/Safari, use HLS for transcoded video — HLS route now auto-detects
         // HEVC+bad audio and does audio-only remux with fMP4 segments (no re-encode).
         // iOS requires HLS for reliable playback (can't do chunked transfer).
-        const needsHLS = (isIOS || isSafari) && (requiresTranscoding || audioOnlyRemuxNeeded) && getMediaCategory(file.name) === 'video';
+        // Also use HLS when codec detection failed — let server-side FFprobe handle it
+        // (prevents .mp4 HEVC files from being sent via direct stream on iOS).
+        const codecDetectionFailed = !codecInfo && getMediaCategory(file.name) === 'video';
+        const needsHLS = (isIOS || isSafari) && (requiresTranscoding || audioOnlyRemuxNeeded || codecDetectionFailed) && getMediaCategory(file.name) === 'video';
 
         let url: string;
         if (needsHLS) {
@@ -373,6 +376,8 @@ export function MediaPlayerModal({
           url = `/api/stream/hls?infohash=${infohash}&fileIndex=${file.fileIndex}`;
           setStreamingPhase(audioOnlyRemuxNeeded 
             ? 'Starting HLS stream (remuxing audio)...' 
+            : codecDetectionFailed
+            ? 'Starting HLS stream (detecting codecs)...'
             : 'Starting HLS stream (transcoding)...');
           console.log('[MediaPlayerModal] Using HLS for iOS/Safari:', url);
         } else {
