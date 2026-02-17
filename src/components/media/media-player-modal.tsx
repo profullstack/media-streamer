@@ -552,8 +552,13 @@ export function MediaPlayerModal({
   const handlePlayerError = useCallback((err: Error) => {
     console.error('[MediaPlayerModal] Player error:', err);
     
+    // Detect if we're using HLS (iOS/Safari) — don't switch stream modes for HLS
+    // The HLS endpoint handles codec detection server-side
+    const isUsingHLS = streamUrl?.includes('/api/stream/hls');
+    
     // Check if this is a codec/format error and we haven't tried transcoding yet
-    if (!hasTriedTranscoding && !isTranscoding && isCodecError(err.message)) {
+    // Skip mode switching for HLS — it already auto-detects and handles codecs
+    if (!isUsingHLS && !hasTriedTranscoding && !isTranscoding && isCodecError(err.message)) {
       console.log('[MediaPlayerModal] Detected codec error, retrying with transcoding...');
       setHasTriedTranscoding(true);
       setIsRetryingWithTranscode(true);
@@ -579,8 +584,11 @@ export function MediaPlayerModal({
     setIsPlayerReady(true); // Stop showing loading on error
     
     // Auto-retry on transient errors (502, network, stream interruption)
-    scheduleStreamRetry();
-  }, [hasTriedTranscoding, isTranscoding, file, infohash, trackPlayback, scheduleStreamRetry]);
+    // But not for HLS — iOS native player handles buffering/retry internally
+    if (!isUsingHLS) {
+      scheduleStreamRetry();
+    }
+  }, [streamUrl, hasTriedTranscoding, isTranscoding, file, infohash, trackPlayback, scheduleStreamRetry]);
 
   // Handle close and cleanup
   const handleClose = useCallback(() => {
