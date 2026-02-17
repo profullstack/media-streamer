@@ -114,10 +114,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     const content = readFileSync(playlistPath, 'utf-8');
     
     // Rewrite segment URLs to be absolute
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=`;
     const rewritten = content
-      .replace(/^(segment\d+\.ts)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
-      .replace(/^(segment\d+\.m4s)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
-      .replace(/^(init\.mp4)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`);
+      .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
+      .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
+      .replace(/^(init\.mp4)$/gm, `${segBase}$1`)
+      .replace(/#EXT-X-MAP:URI="init\.mp4"/g, `#EXT-X-MAP:URI="${segBase}init.mp4"`);
     
     return new Response(rewritten, {
       headers: {
@@ -316,10 +318,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     reqLogger.info('HLS playlist ready, serving');
 
     // Rewrite segment URLs to be absolute
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=`;
     const rewritten = playlist
-      .replace(/^(segment\d+\.ts)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
-      .replace(/^(segment\d+\.m4s)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`)
-      .replace(/^(init\.mp4)$/gm, `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=$1`);
+      .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
+      .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
+      .replace(/^(init\.mp4)$/gm, `${segBase}$1`)
+      .replace(/#EXT-X-MAP:URI="init\.mp4"/g, `#EXT-X-MAP:URI="${segBase}init.mp4"`);
 
     return new Response(rewritten, {
       headers: {
