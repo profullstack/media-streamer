@@ -171,6 +171,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       
       const downloadDir = getWebTorrentDir();
       const filePath = pathJoin(downloadDir, info.filePath);
+      reqLogger.info('HLS: checking local file for codec detection', { downloadDir, infoFilePath: info.filePath, fullPath: filePath, exists: existsSync(filePath) });
       if (existsSync(filePath)) {
         const codecInfo = await detectCodecFromUrl(filePath, 10);
         if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase()) &&
@@ -219,6 +220,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-c:v', 'copy',
+        '-tag:v', 'hvc1',
         '-c:a', 'aac',
         '-b:a', '192k',
         '-f', 'hls',
