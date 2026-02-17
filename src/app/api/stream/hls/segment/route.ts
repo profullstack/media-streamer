@@ -29,7 +29,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Sanitize filename to prevent path traversal
   const safeFile = file.replace(/[^a-zA-Z0-9._-]/g, '');
-  if (!safeFile.endsWith('.ts') || safeFile.includes('..')) {
+  const validExtension = safeFile.endsWith('.ts') || safeFile.endsWith('.m4s') || safeFile === 'init.mp4';
+  if (!validExtension || safeFile.includes('..')) {
     return NextResponse.json({ error: 'Invalid file' }, { status: 400 });
   }
 
