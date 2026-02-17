@@ -238,6 +238,23 @@ class FFmpegProcessManager {
   }
 
   /**
+   * Kill all FFmpeg processes associated with a specific infohash
+   */
+  killByInfohash(infohash: string): number {
+    let killed = 0;
+    for (const [id, tracked] of this.processes.entries()) {
+      if (tracked.context.infohash === infohash || tracked.context.fileName?.includes(infohash)) {
+        this.killProcess(id, `release:${infohash}`);
+        killed++;
+      }
+    }
+    if (killed > 0) {
+      logger.info('Killed FFmpeg processes by infohash', { infohash, killed });
+    }
+    return killed;
+  }
+
+  /**
    * Kill all tracked processes (for graceful shutdown)
    */
   killAll(reason: string = 'shutdown'): void {

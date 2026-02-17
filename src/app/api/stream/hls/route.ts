@@ -272,7 +272,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     // Register with FFmpeg manager
     const ffmpegManager = getFFmpegManager();
-    ffmpegManager.register(ffmpeg, { fileName: info.fileName });
+    ffmpegManager.register(ffmpeg, { fileName: info.fileName, infohash });
 
     // Pipe source to FFmpeg (only needed when reading from pipe, not local file)
     if (!useLocalInput && ffmpeg.stdin) {
