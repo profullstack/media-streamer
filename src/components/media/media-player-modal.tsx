@@ -361,7 +361,7 @@ export function MediaPlayerModal({
         // On iOS/Safari, use HLS for transcoded video — HLS route now auto-detects
         // HEVC+bad audio and does audio-only remux with fMP4 segments (no re-encode).
         // iOS requires HLS for reliable playback (can't do chunked transfer).
-        const needsHLS = (isIOS || isSafari) && requiresTranscoding && getMediaCategory(file.name) === 'video';
+        const needsHLS = (isIOS || isSafari) && (requiresTranscoding || audioOnlyRemuxNeeded) && getMediaCategory(file.name) === 'video';
 
         let url: string;
         if (needsHLS) {
