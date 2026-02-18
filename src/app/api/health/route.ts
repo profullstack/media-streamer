@@ -29,6 +29,7 @@ export interface HealthCheckResponse {
     activeStreams: number;
     totalWatchers?: number;
     clientActive?: boolean;
+    streaming?: { name: string; infohash: string; numPeers: number; progress: number; downloadSpeed: number }[];
   };
   transcoding?: {
     activeDownloads: number;
@@ -99,6 +100,13 @@ export async function GET(request: NextRequest): Promise<NextResponse<HealthChec
       activeStreams: debugInfo.activeStreams,
       totalWatchers: debugInfo.totalWatchers,
       clientActive: service.isClientActive,
+      streaming: debugInfo.torrents.map(t => ({
+        name: t.name,
+        infohash: t.infohash,
+        numPeers: t.numPeers,
+        progress: Math.round(t.progress * 100 * 100) / 100,
+        downloadSpeed: t.downloadSpeed,
+      })),
     },
     transcoding: {
       activeDownloads: fileTranscodingService.getActiveDownloadCount(),
