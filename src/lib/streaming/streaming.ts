@@ -1451,7 +1451,7 @@ export class StreamingService {
     totalWatchers: number;
     watchersPerTorrent: { infohash: string; watchers: number; hasCleanupTimer: boolean }[];
     dht: { ready: boolean; nodeCount: number };
-    torrents: { infohash: string; name: string; numPeers: number; progress: number; downloadSpeed: number }[];
+    torrents: { infohash: string; name: string; numPeers: number; progress: number; downloadSpeed: number; downloaded: number; length: number }[];
   } {
     const watchersPerTorrent: { infohash: string; watchers: number; hasCleanupTimer: boolean }[] = [];
     let totalWatchers = 0;
@@ -1472,6 +1472,8 @@ export class StreamingService {
       numPeers: t.numPeers,
       progress: t.progress,
       downloadSpeed: t.downloadSpeed,
+      downloaded: t.downloaded,
+      length: t.length,
     }));
 
     return {
