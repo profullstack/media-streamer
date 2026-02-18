@@ -28,6 +28,7 @@ export interface HealthCheckResponse {
     activeCount: number;
     activeStreams: number;
     totalWatchers?: number;
+    clientActive?: boolean;
   };
   transcoding?: {
     activeDownloads: number;
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<HealthChec
       activeCount: debugInfo.activeTorrents,
       activeStreams: debugInfo.activeStreams,
       totalWatchers: debugInfo.totalWatchers,
+      clientActive: service.isClientActive,
     },
     transcoding: {
       activeDownloads: fileTranscodingService.getActiveDownloadCount(),
