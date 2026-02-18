@@ -123,7 +123,7 @@ const DhtResultsList = memo(function DhtResultsList({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" style={{ textSizeAdjust: '100%', WebkitTextSizeAdjust: '100%' }}>
       {results.map((result) => (
         <Link
           key={result.infohash}
