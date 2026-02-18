@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import { getStreamingService } from '@/lib/streaming';
 import { getTorrentByInfohash } from '@/lib/supabase';
@@ -26,10 +27,13 @@ const logger = createLogger('API:stream:hls');
 const HLS_BASE_DIR = join(process.env.HOME ?? '/tmp', 'tmp', 'hls-transcode');
 
 /**
- * Get or create HLS output directory for a specific stream
+ * Get or create HLS output directory for a specific stream session.
+ * Each user/session gets its own directory to avoid sharing live playlists
+ * (which causes new users to start from the live edge instead of the beginning).
  */
-function getHlsDir(infohash: string, fileIndex: number): string {
-  const dir = join(HLS_BASE_DIR, `${infohash}_${fileIndex}`);
+function getHlsDir(infohash: string, fileIndex: number, sessionId?: string): string {
+  const suffix = sessionId ? `_${sessionId}` : '';
+  const dir = join(HLS_BASE_DIR, `${infohash}_${fileIndex}${suffix}`);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
@@ -37,17 +41,16 @@ function getHlsDir(infohash: string, fileIndex: number): string {
 }
 
 /**
- * Check if an HLS session is already running for this torrent/file
+ * Check if an HLS session is already running for a specific session directory
  */
-function isHlsSessionActive(infohash: string, fileIndex: number): boolean {
-  const dir = getHlsDir(infohash, fileIndex);
-  const playlistPath = join(dir, 'stream.m3u8');
+function isHlsSessionActive(hlsDir: string): boolean {
+  const playlistPath = join(hlsDir, 'stream.m3u8');
   if (!existsSync(playlistPath)) return false;
   
   // Check if playlist was updated recently (within last 30 seconds)
   try {
-    const stat = statSync(playlistPath);
-    return Date.now() - stat.mtimeMs < 30000;
+    const s = statSync(playlistPath);
+    return Date.now() - s.mtimeMs < 30000;
   } catch {
     return false;
   }
@@ -103,18 +106,24 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid fileIndex' }, { status: 400 });
   }
 
-  const hlsDir = getHlsDir(infohash, fileIndex);
+  // Each user gets their own HLS session to avoid the "live edge" problem:
+  // Without #EXT-X-ENDLIST, HLS players treat the playlist as live and jump to
+  // the latest segment. A second user joining an existing session would start
+  // near the end instead of the beginning.
+  const clientSessionId = searchParams.get('sessionId');
+  const sessionId = clientSessionId ?? randomUUID().slice(0, 8);
+  const hlsDir = getHlsDir(infohash, fileIndex, sessionId);
   
-  reqLogger.info('HLS stream request', { infohash, fileIndex, hlsDir });
+  reqLogger.info('HLS stream request', { infohash, fileIndex, sessionId, hlsDir });
 
-  // If HLS session already active, just return the playlist
-  if (isHlsSessionActive(infohash, fileIndex)) {
-    reqLogger.info('Reusing existing HLS session');
+  // Only reuse if the client explicitly passed their own sessionId back
+  if (clientSessionId && isHlsSessionActive(hlsDir)) {
+    reqLogger.info('Reusing existing HLS session for same client', { sessionId });
     const playlistPath = join(hlsDir, 'stream.m3u8');
     const content = readFileSync(playlistPath, 'utf-8');
     
-    // Rewrite segment URLs to be absolute
-    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=`;
+    // Rewrite segment URLs to include sessionId so segment route finds the right dir
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${sessionId}&file=`;
     const rewritten = content
       .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
       .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
@@ -382,8 +391,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     reqLogger.info('HLS playlist ready, serving');
 
-    // Rewrite segment URLs to be absolute
-    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=`;
+    // Rewrite segment URLs to be absolute (include sessionId for per-user dirs)
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${sessionId}&file=`;
     const rewritten = playlist
       .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
       .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)

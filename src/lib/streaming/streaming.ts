@@ -617,7 +617,7 @@ export class StreamingService {
    */
   private emergencyCleanup(): void {
     let cleaned = 0;
-    let skippedYoung = 0;
+    const skippedYoung = 0;
     const now = Date.now();
     const activeInfohashes = new Set<string>();
 
@@ -1417,6 +1417,16 @@ export class StreamingService {
     }
     
     const timer = setTimeout(() => {
+      // Check if other watchers (other users) are still connected
+      const currentWatcherInfo = this.torrentWatchers.get(infohash);
+      if (currentWatcherInfo && currentWatcherInfo.watchers.size > 0) {
+        logger.info('Release deferred - other watchers still connected', {
+          infohash,
+          activeWatchers: currentWatcherInfo.watchers.size,
+        });
+        return; // Don't destroy — other users are still watching
+      }
+
       // Check for active streams/transcodes before deleting
       const hasActiveStreams = Array.from(this.activeStreams.values()).some(s => s.infohash === infohash);
       let hasActiveTranscode = false;

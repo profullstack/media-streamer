@@ -481,6 +481,20 @@ export class FileTranscodingService {
     cleanupOnComplete = true
   ): { stream: PassThrough; mimeType: string } {
     const key = `${infohash}_${fileIndex}`;
+    return this.transcodeFileWithKey(filePath, infohash, fileIndex, cleanupOnComplete, key);
+  }
+
+  /**
+   * Internal transcodeFile with explicit key for tracking
+   * Allows unique keys when multiple users transcode the same file concurrently
+   */
+  private transcodeFileWithKey(
+    filePath: string,
+    infohash: string,
+    fileIndex: number,
+    cleanupOnComplete: boolean,
+    key: string
+  ): { stream: PassThrough; mimeType: string } {
     const transcodeId = randomUUID();
 
     logger.info('Starting file transcoding', {
@@ -668,6 +682,10 @@ export class FileTranscodingService {
       Math.floor(totalBytes * 0.1)
     );
 
+    // Use unique key per request to avoid collisions when multiple users
+    // stream the same file simultaneously
+    const uniqueSuffix = randomUUID().slice(0, 8);
+
     logger.info('Starting download and transcode (stream-as-available)', {
       infohash,
       fileIndex,
@@ -675,9 +693,10 @@ export class FileTranscodingService {
       totalBytes,
       totalMB: (totalBytes / (1024 * 1024)).toFixed(2),
       startThresholdMB: (startThreshold / (1024 * 1024)).toFixed(2),
+      uniqueSuffix,
     });
 
-    const key = `${infohash}_${fileIndex}`;
+    const key = `${infohash}_${fileIndex}_${uniqueSuffix}`;
 
     // Check concurrent download limit
     if (this.activeDownloads.size >= this.maxConcurrentDownloads) {
@@ -688,7 +707,9 @@ export class FileTranscodingService {
     await ensureTempDir();
 
     const ext = fileName.split('.').pop()?.toLowerCase() ?? 'mp4';
-    const filePath = getTempFilePath(infohash, fileIndex, ext);
+    // Use unique temp file path to avoid collisions between concurrent users
+    const sanitizedInfohash = infohash.toLowerCase().replace(/[^a-f0-9]/g, '');
+    const filePath = join(TEMP_DIR, `${sanitizedInfohash}_${fileIndex}_${uniqueSuffix}.${ext}`);
     const abortController = new AbortController();
     const writeStream = createWriteStream(filePath);
     const downloadId = randomUUID();
@@ -753,7 +774,9 @@ export class FileTranscodingService {
 
         // Start transcoding from the file — FFmpeg will read what's available
         // and block/retry on EOF until the file grows or download finishes
-        const result = this.transcodeFile(filePath, infohash, fileIndex, true);
+        // Use unique key for transcode tracking too
+        const transcodeKey = `${infohash}_${fileIndex}_${uniqueSuffix}`;
+        const result = this.transcodeFileWithKey(filePath, infohash, fileIndex, true, transcodeKey);
         resolve(result);
       };
 
@@ -833,9 +856,10 @@ export class FileTranscodingService {
     filePath: string,
     infohash: string,
     fileIndex: number,
-    cleanupOnComplete = true
+    cleanupOnComplete = true,
+    uniqueKey?: string
   ): { stream: PassThrough; mimeType: string } {
-    const key = `${infohash}_${fileIndex}_audioremux`;
+    const key = uniqueKey ? `${uniqueKey}_audioremux` : `${infohash}_${fileIndex}_audioremux`;
     const transcodeId = randomUUID();
 
     logger.info('Starting audio-only remux', {
@@ -953,13 +977,16 @@ export class FileTranscodingService {
       Math.floor(totalBytes * 0.1)
     );
 
+    const uniqueSuffix = randomUUID().slice(0, 8);
+
     logger.info('Starting download for audio-only remux', {
       infohash, fileIndex, fileName,
       totalMB: (totalBytes / (1024 * 1024)).toFixed(2),
       startThresholdMB: (startThreshold / (1024 * 1024)).toFixed(2),
+      uniqueSuffix,
     });
 
-    const key = `${infohash}_${fileIndex}`;
+    const key = `${infohash}_${fileIndex}_${uniqueSuffix}`;
 
     if (this.activeDownloads.size >= this.maxConcurrentDownloads) {
       throw new Error(`Maximum concurrent downloads (${this.maxConcurrentDownloads}) reached`);
@@ -968,7 +995,8 @@ export class FileTranscodingService {
     await ensureTempDir();
 
     const ext = fileName.split('.').pop()?.toLowerCase() ?? 'mp4';
-    const filePath = getTempFilePath(infohash, fileIndex, ext);
+    const sanitizedInfohash = infohash.toLowerCase().replace(/[^a-f0-9]/g, '');
+    const filePath = join(TEMP_DIR, `${sanitizedInfohash}_${fileIndex}_${uniqueSuffix}.${ext}`);
     const abortController = new AbortController();
     const writeStream = createWriteStream(filePath);
     const downloadId = randomUUID();
@@ -1020,7 +1048,7 @@ export class FileTranscodingService {
           downloadComplete,
         });
 
-        const result = this.transcodeFileAudioOnly(filePath, infohash, fileIndex, true);
+        const result = this.transcodeFileAudioOnly(filePath, infohash, fileIndex, true, key);
         resolve(result);
       };
 

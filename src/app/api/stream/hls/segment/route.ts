@@ -34,7 +34,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const fileIndex = parseInt(fileIndexStr, 10);
-  const segmentPath = join(HLS_BASE_DIR, `${infohash}_${fileIndex}`, safeFile);
+  const sessionId = searchParams.get('sessionId');
+  const suffix = sessionId ? `_${sessionId}` : '';
+  const segmentPath = join(HLS_BASE_DIR, `${infohash}_${fileIndex}${suffix}`, safeFile);
 
   if (!existsSync(segmentPath)) {
     // Segment may not be ready yet — wait briefly
