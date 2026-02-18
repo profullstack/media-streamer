@@ -23,6 +23,38 @@ export async function GET(_req: NextRequest, ctx: RouteContext): Promise<NextRes
 
   const cleaned = slug.replace(/\.xml$/, '');
 
+  // Static pages sitemap
+  if (cleaned === 'static') {
+    const staticPages = [
+      { loc: 'https://bittorrented.com/', priority: '1.0', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/dht', priority: '0.9', changefreq: 'hourly' },
+      { loc: 'https://bittorrented.com/search', priority: '0.8', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/browse/movie', priority: '0.8', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/browse/tvshow', priority: '0.8', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/browse/music', priority: '0.8', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/browse/book', priority: '0.7', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/live-tv', priority: '0.7', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/radio', priority: '0.7', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/news', priority: '0.7', changefreq: 'daily' },
+    ];
+
+    const urls = staticPages
+      .map(p => `  <url><loc>${p.loc}</loc><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`)
+      .join('\n');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>`;
+
+    return new NextResponse(xml, {
+      headers: {
+        'Content-Type': 'application/xml',
+        'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+      },
+    });
+  }
+
   // Handle indexed torrents sitemap (bt_torrents — user-submitted, fully enriched)
   if (cleaned === 'indexed') {
     const supabase = getServerClient();
