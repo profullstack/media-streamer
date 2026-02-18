@@ -379,7 +379,10 @@ export function LibraryContent({
             <input
               type="text"
               value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
+              onChange={(e) => {
+                setFilterText(e.target.value);
+                setAppliedFilter(e.target.value);
+              }}
               placeholder="Filter by name (e.g. CNN, MSN)..."
               className="flex-1 px-3 py-2 rounded-lg bg-bg-secondary border border-border-default text-text-primary placeholder:text-text-muted text-sm"
             />
