@@ -655,6 +655,25 @@ export function MediaPlayerModal({
     onClose();
   }, [onClose, webTorrentStopStream, infohash]);
 
+  // Release torrent on tab close / navigate away (beforeunload won't fire handleClose reliably)
+  useEffect(() => {
+    if (!isOpen || !infohash) return;
+
+    const releaseOnUnload = () => {
+      // navigator.sendBeacon is the only reliable way to fire a request during unload
+      navigator.sendBeacon(`/api/stream/release?infohash=${infohash}`, '');
+    };
+
+    // pagehide is more reliable than beforeunload on mobile browsers
+    window.addEventListener('pagehide', releaseOnUnload);
+    window.addEventListener('beforeunload', releaseOnUnload);
+
+    return () => {
+      window.removeEventListener('pagehide', releaseOnUnload);
+      window.removeEventListener('beforeunload', releaseOnUnload);
+    };
+  }, [isOpen, infohash]);
+
   // Reset transcoding retry state when file changes
   useEffect(() => {
     setHasTriedTranscoding(false);

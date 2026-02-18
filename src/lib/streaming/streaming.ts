@@ -265,11 +265,12 @@ const DEFAULT_CLEANUP_DELAY = 120000;
  * When RSS exceeds these thresholds, take action to prevent OOM
  * Tuned for VPS with 16GB RAM
  */
-const MEMORY_WARNING_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 6 * 1024 * 1024 * 1024; // 6GB - emergency cleanup
-const MEMORY_SEVERE_THRESHOLD = 8 * 1024 * 1024 * 1024; // 8GB - kill oldest streams
-const MEMORY_CHECK_INTERVAL_MS = 10000; // Check every 10 seconds
-const TORRENT_MIN_AGE_MS = 4 * 60 * 60 * 1000; // Don't cleanup torrents younger than 4 hours
+const MEMORY_WARNING_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - start aggressive cleanup
+const MEMORY_CRITICAL_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - emergency cleanup
+const MEMORY_SEVERE_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - kill oldest streams
+const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+const TORRENT_MIN_AGE_MS = 30 * 60 * 1000; // Don't cleanup torrents younger than 30 minutes
+const ORPHAN_TORRENT_MAX_AGE_MS = 2 * 60 * 60 * 1000; // Auto-cleanup torrents with 0 watchers after 2 hours
 
 /**
  * Watcher tracking for a torrent
@@ -496,6 +497,56 @@ export class StreamingService {
   }
 
   /**
+   * Auto-cleanup torrents that have 0 watchers and have been loaded for too long.
+   * This catches leaked torrents where neither releaseTorrent nor SSE disconnect cleaned up.
+   */
+  private cleanupOrphanTorrents(): void {
+    const now = Date.now();
+    for (const torrent of this.client.torrents) {
+      const infohash = torrent.infoHash;
+      const addedAt = this.torrentAddedAt.get(infohash);
+      if (!addedAt) continue;
+      
+      const age = now - addedAt;
+      if (age < ORPHAN_TORRENT_MAX_AGE_MS) continue;
+      
+      const watcherInfo = this.torrentWatchers.get(infohash);
+      const watcherCount = watcherInfo?.watchers.size ?? 0;
+      if (watcherCount > 0) continue;
+      
+      // Check for active streams/transcodes
+      const hasActiveStreams = Array.from(this.activeStreams.values()).some(s => s.infohash === infohash);
+      if (hasActiveStreams) continue;
+      
+      let hasActiveTranscode = false;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getFileTranscodingService } = require('../file-transcoding');
+        hasActiveTranscode = getFileTranscodingService().hasActiveTranscode(infohash);
+      } catch { /* */ }
+      if (hasActiveTranscode) continue;
+      
+      logger.warn('Cleaning up orphan torrent (no watchers, exceeded max age)', {
+        infohash,
+        ageMinutes: Math.round(age / 60000),
+        torrentName: torrent.name,
+      });
+      
+      const torrentName = torrent.name;
+      if (watcherInfo?.cleanupTimer) clearTimeout(watcherInfo.cleanupTimer);
+      this.torrentWatchers.delete(infohash);
+      this.torrentAddedAt.delete(infohash);
+      
+      (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+        { destroyStore: true },
+        () => {
+          this.deleteTorrentFolder(torrentName, infohash).catch(() => {});
+        }
+      );
+    }
+  }
+
+  /**
    * Check current memory usage and trigger cleanup if needed
    */
   private checkMemoryPressure(): void {
@@ -504,6 +555,9 @@ export class StreamingService {
 
     // Periodically clean stale torrent data regardless of memory pressure
     this.cleanupStaleTorrentData();
+    
+    // Auto-cleanup orphan torrents (loaded but 0 watchers for too long)
+    this.cleanupOrphanTorrents();
 
     if (memUsage.rss >= MEMORY_SEVERE_THRESHOLD) {
       // SEVERE: Kill oldest streams to free memory immediately
@@ -1306,9 +1360,13 @@ export class StreamingService {
       remainingWatchers: watcherInfo.watchers.size,
     });
     
-    // SSE disconnect does NOT trigger cleanup anymore.
-    // Cleanup is triggered only by explicit releaseTorrent() call
-    // (when user closes the player modal).
+    // If this was the last watcher, schedule cleanup as a fallback.
+    // The explicit releaseTorrent() call (user closes player) fires faster,
+    // but this catches cases where the tab closes without firing release
+    // (e.g., browser crash, mobile tab killed, navigate away without beacon).
+    if (watcherInfo.watchers.size === 0) {
+      this.scheduleCleanup(infohash);
+    }
   }
 
   /**
