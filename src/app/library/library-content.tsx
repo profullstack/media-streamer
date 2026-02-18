@@ -105,47 +105,51 @@ export function LibraryContent({
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionType, setNewCollectionType] = useState<CollectionType>('mixed');
+  const [filterText, setFilterText] = useState('');
+  const [appliedFilter, setAppliedFilter] = useState('');
 
   // IPTV Player state
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [selectedChannelPlaylistId, setSelectedChannelPlaylistId] = useState<string | undefined>(undefined);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
+  const lowerFilter = appliedFilter.toLowerCase();
+
+  const matchesFilter = (text: string | null | undefined): boolean => {
+    if (!appliedFilter) return true;
+    return (text ?? '').toLowerCase().includes(lowerFilter);
+  };
+
   const filteredFavorites = favorites.filter((item) => {
-    if (mediaFilter === 'all') return true;
     if (mediaFilter === 'livetv') return false;
-    const category = item.bt_torrent_files?.media_category;
-    if (mediaFilter === 'music') return category === 'audio';
-    if (mediaFilter === 'video') return category === 'video';
-    if (mediaFilter === 'ebook') return category === 'ebook';
-    return true;
+    if (mediaFilter === 'music' && item.bt_torrent_files?.media_category !== 'audio') return false;
+    if (mediaFilter === 'video' && item.bt_torrent_files?.media_category !== 'video') return false;
+    if (mediaFilter === 'ebook' && item.bt_torrent_files?.media_category !== 'ebook') return false;
+    return matchesFilter(item.bt_torrent_files?.name) || matchesFilter(item.bt_torrent_files?.bt_torrents?.name);
   });
 
   const filteredHistory = history.filter((item) => {
-    if (mediaFilter === 'all') return true;
     if (mediaFilter === 'livetv') return false;
-    const category = item.file?.media_category;
-    if (mediaFilter === 'music') return category === 'audio';
-    if (mediaFilter === 'video') return category === 'video';
-    if (mediaFilter === 'ebook') return category === 'ebook';
-    return true;
+    if (mediaFilter === 'music' && item.file?.media_category !== 'audio') return false;
+    if (mediaFilter === 'video' && item.file?.media_category !== 'video') return false;
+    if (mediaFilter === 'ebook' && item.file?.media_category !== 'ebook') return false;
+    return matchesFilter(item.file?.name);
   });
 
   const filteredWatchlistItems = watchlistItems.filter((item) => {
-    if (mediaFilter === 'all') return true;
     if (mediaFilter === 'livetv') return false;
-    if (mediaFilter === 'video') return item.media_type === 'movie' || item.media_type === 'tv';
-    return false; // watchlist items are only movies/TV
+    if (mediaFilter !== 'all' && mediaFilter !== 'video') return false;
+    if (mediaFilter === 'video' && item.media_type !== 'movie' && item.media_type !== 'tv') return false;
+    return matchesFilter(item.title);
   });
 
   const filteredTorrentFavorites = torrentFavorites.filter((item) => {
-    if (mediaFilter === 'all') return true;
     if (mediaFilter === 'livetv') return false;
     const contentType = item.bt_torrents?.content_type;
-    if (mediaFilter === 'music') return contentType === 'music';
-    if (mediaFilter === 'video') return contentType === 'movie' || contentType === 'tvshow';
-    if (mediaFilter === 'ebook') return contentType === 'book';
-    return true;
+    if (mediaFilter === 'music' && contentType !== 'music') return false;
+    if (mediaFilter === 'video' && contentType !== 'movie' && contentType !== 'tvshow') return false;
+    if (mediaFilter === 'ebook' && contentType !== 'book') return false;
+    return matchesFilter(item.bt_torrents?.name);
   });
 
   const removeFavorite = useCallback(async (fileId: string): Promise<void> => {
@@ -348,21 +352,54 @@ export function LibraryContent({
 
       {/* Media Type Filter */}
       {(activeTab === 'favorites' || activeTab === 'history') && (
-        <div className="flex gap-2">
-          {mediaFilters.map((filter) => (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            {mediaFilters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setMediaFilter(filter.id)}
+                className={cn(
+                  'px-3 py-1.5 text-sm rounded-full transition-colors',
+                  mediaFilter === filter.id
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+                )}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setAppliedFilter(filterText);
+            }}
+            className="flex gap-2"
+          >
+            <input
+              type="text"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              placeholder="Filter by name (e.g. CNN, MSN)..."
+              className="flex-1 px-3 py-2 rounded-lg bg-bg-secondary border border-border-default text-text-primary placeholder:text-text-muted text-sm"
+            />
             <button
-              key={filter.id}
-              onClick={() => setMediaFilter(filter.id)}
-              className={cn(
-                'px-3 py-1.5 text-sm rounded-full transition-colors',
-                mediaFilter === filter.id
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
-              )}
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-accent-primary text-white text-sm font-medium hover:bg-accent-primary/90"
             >
-              {filter.label}
+              Filter
             </button>
-          ))}
+            {appliedFilter ? <button
+                type="button"
+                onClick={() => {
+                  setFilterText('');
+                  setAppliedFilter('');
+                }}
+                className="px-3 py-2 rounded-lg bg-bg-tertiary text-text-secondary text-sm hover:bg-bg-hover"
+              >
+                Clear
+              </button> : null}
+          </form>
         </div>
       )}
 
@@ -594,14 +631,19 @@ export function LibraryContent({
           )}
 
           {/* IPTV Channel Favorites Section */}
-          {iptvChannelFavorites.length > 0 && (mediaFilter === 'all' || mediaFilter === 'livetv') && (
+          {iptvChannelFavorites.length > 0 && (mediaFilter === 'all' || mediaFilter === 'livetv') && (() => {
+            const filteredChannels = iptvChannelFavorites.filter((item) =>
+              matchesFilter(item.channel_name) || matchesFilter(item.channel_group)
+            );
+            if (filteredChannels.length === 0 && appliedFilter) return null;
+            return (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
                 <TvIcon size={14} className="text-accent-primary" />
-                Live TV Channels ({iptvChannelFavorites.length})
+                Live TV Channels ({filteredChannels.length})
               </h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {iptvChannelFavorites.map((item) => (
+                {filteredChannels.map((item) => (
                   <div
                     key={`${item.playlist_id}-${item.channel_id}`}
                     className="flex items-center gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
@@ -658,7 +700,8 @@ export function LibraryContent({
                 ))}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Empty State */}
           {torrentFavorites.length === 0 && filteredFavorites.length === 0 && iptvChannelFavorites.length === 0 && watchlistItems.length === 0 && (
