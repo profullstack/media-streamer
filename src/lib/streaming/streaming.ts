@@ -265,9 +265,12 @@ const DEFAULT_CLEANUP_DELAY = 120000;
  * When RSS exceeds these thresholds, take action to prevent OOM
  * Tuned for VPS with 16GB RAM
  */
-const MEMORY_WARNING_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 3 * 1024 * 1024 * 1024; // 3GB - emergency cleanup
-const MEMORY_SEVERE_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - kill oldest streams
+// NOTE: RSS includes memory from FFmpeg child processes (each ~500MB-1GB).
+// Don't panic at 2-3GB — that's normal with 2-3 active transcodes.
+// Systemd limits are MemoryHigh=8G, MemoryMax=10G.
+const MEMORY_WARNING_THRESHOLD = 5 * 1024 * 1024 * 1024; // 5GB - start aggressive cleanup
+const MEMORY_CRITICAL_THRESHOLD = 6.5 * 1024 * 1024 * 1024; // 6.5GB - emergency cleanup
+const MEMORY_SEVERE_THRESHOLD = 7.5 * 1024 * 1024 * 1024; // 7.5GB - kill oldest streams
 const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
 const TORRENT_MIN_AGE_MS = 30 * 60 * 1000; // Don't cleanup torrents younger than 30 minutes
 const ORPHAN_TORRENT_MAX_AGE_MS = 2 * 60 * 60 * 1000; // Auto-cleanup torrents with 0 watchers after 2 hours
