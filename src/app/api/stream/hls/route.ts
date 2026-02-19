@@ -249,6 +249,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     // Build FFmpeg HLS args
     const ffmpegArgs: string[] = [
       '-threads', '2',
+      '-fflags', '+genpts+discardcorrupt',
       '-probesize', '20000000',
       '-analyzeduration', '10000000',
     ];

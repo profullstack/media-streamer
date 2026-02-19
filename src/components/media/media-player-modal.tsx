@@ -1244,7 +1244,7 @@ export function MediaPlayerModal({
               </svg>
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm sm:text-base font-medium text-error">Playback Error</h4>
-                <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-text-muted truncate">{error}</p>
+                <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-text-muted break-words">{error}</p>
                 <button
                   type="button"
                   onClick={handleRetry}
