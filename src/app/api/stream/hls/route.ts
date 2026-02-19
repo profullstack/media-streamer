@@ -218,8 +218,24 @@ export async function GET(request: NextRequest): Promise<Response> {
           reqLogger.info('HLS: codec detection result', {
             videoCodec: codecInfo.videoCodec,
             audioCodec: codecInfo.audioCodec,
+            videoProfile: codecInfo.videoProfile,
+            pixFmt: codecInfo.pixFmt,
           });
-          if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase())) {
+          
+          // Detect 10-bit / HDR content — iOS Safari crashes on HEVC Main 10
+          // even on devices with hardware decode, especially in HLS fMP4 segments.
+          // Force full transcode to 8-bit H.264 for maximum compatibility.
+          const is10Bit = codecInfo.pixFmt?.includes('10') || 
+            codecInfo.videoProfile?.toLowerCase().includes('main 10') ||
+            codecInfo.videoProfile?.toLowerCase().includes('high 10');
+          
+          if (is10Bit) {
+            reqLogger.info('HLS: detected 10-bit video, forcing full H.264 transcode for iOS compatibility', {
+              pixFmt: codecInfo.pixFmt,
+              profile: codecInfo.videoProfile,
+            });
+            // Don't set copyRemux or audioOnlyRemux — fall through to full transcode
+          } else if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase())) {
             if (codecInfo.audioCodec && INCOMPATIBLE_AUDIO_CODECS.has(codecInfo.audioCodec.toLowerCase())) {
               audioOnlyRemux = true;
               reqLogger.info('HLS: using audio-only remux (copy video, transcode audio)', {
@@ -274,7 +290,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
-        '-hls_flags', 'append_list+independent_segments',
+        '-hls_flags', 'independent_segments',
         // Use fMP4 for HEVC (MPEG-TS doesn't support HEVC well), TS for H.264
         ...(isHEVC ? [
           '-hls_segment_type', 'fmp4',
@@ -299,7 +315,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
-        '-hls_flags', 'append_list+independent_segments',
+        '-hls_flags', 'independent_segments',
         ...(isHEVCAudio ? [
           '-hls_segment_type', 'fmp4',
           '-hls_fmp4_init_filename', 'init.mp4',
@@ -332,7 +348,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
-        '-hls_flags', 'append_list+independent_segments',
+        '-hls_flags', 'independent_segments',
         '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
         join(hlsDir, 'stream.m3u8'),
       );

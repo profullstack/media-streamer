@@ -49,6 +49,7 @@ export interface StreamInfo {
   bitRate?: number;
   profile?: string;
   level?: number;
+  pixFmt?: string;
 }
 
 /**
@@ -57,6 +58,8 @@ export interface StreamInfo {
 export interface CodecInfo {
   videoCodec?: string;
   audioCodec?: string;
+  videoProfile?: string;
+  pixFmt?: string;
   container: string;
   duration?: number;
   bitRate?: number;
@@ -83,6 +86,7 @@ interface FFprobeOutput {
     bit_rate?: string;
     profile?: string;
     level?: number;
+    pix_fmt?: string;
   }>;
 }
 
@@ -144,6 +148,7 @@ function parseFFprobeOutput(output: FFprobeOutput): CodecInfo {
     bitRate: stream.bit_rate ? parseInt(stream.bit_rate, 10) : undefined,
     profile: stream.profile,
     level: stream.level,
+    pixFmt: stream.pix_fmt,
   }));
 
   const videoStream = streams.find((s) => s.codecType === 'video');
@@ -152,6 +157,8 @@ function parseFFprobeOutput(output: FFprobeOutput): CodecInfo {
   const codecInfo: CodecInfo = {
     videoCodec: videoStream?.codecName,
     audioCodec: audioStream?.codecName,
+    videoProfile: videoStream?.profile,
+    pixFmt: videoStream?.pixFmt,
     container: output.format.format_name,
     duration: output.format.duration ? parseFloat(output.format.duration) : undefined,
     bitRate: output.format.bit_rate ? parseInt(output.format.bit_rate, 10) : undefined,
