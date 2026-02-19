@@ -172,6 +172,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     let audioOnlyRemux = false;  // copy video, transcode audio
     let copyRemux = false;       // copy both video and audio (no transcode)
     let localInputPath: string | null = null;
+    let detectedVideoCodec: string | null = null;
     
     // Try to find local file and detect codecs via FFprobe
     try {
@@ -213,6 +214,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         
         try {
           const codecInfo = await detectCodecFromUrl(filePath, 15);
+          detectedVideoCodec = codecInfo.videoCodec ?? null;
           reqLogger.info('HLS: codec detection result', {
             videoCodec: codecInfo.videoCodec,
             audioCodec: codecInfo.audioCodec,
@@ -258,41 +260,52 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     if (copyRemux) {
       // Full copy remux: copy both video and audio streams (no transcoding)
-      // Use fMP4 segments for HEVC compatibility (MPEG-TS doesn't support HEVC well)
+      // Use fMP4 segments for broad compatibility
+      const isHEVC = detectedVideoCodec && ['hevc', 'h265'].includes(detectedVideoCodec.toLowerCase());
       ffmpegArgs.push(
         '-i', localInputPath || 'pipe:0',
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-c:v', 'copy',
-        '-tag:v', 'hvc1',
+        // Only tag as hvc1 for actual HEVC streams — wrong tag on H.264 causes iOS crashes
+        ...(isHEVC ? ['-tag:v', 'hvc1'] : []),
         '-c:a', 'copy',
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
         '-hls_flags', 'append_list+independent_segments',
-        '-hls_segment_type', 'fmp4',
-        '-hls_fmp4_init_filename', 'init.mp4',
-        '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        // Use fMP4 for HEVC (MPEG-TS doesn't support HEVC well), TS for H.264
+        ...(isHEVC ? [
+          '-hls_segment_type', 'fmp4',
+          '-hls_fmp4_init_filename', 'init.mp4',
+          '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        ] : [
+          '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
+        ]),
         join(hlsDir, 'stream.m3u8'),
       );
     } else if (audioOnlyRemux) {
       // Audio-only remux: copy video stream, transcode only audio
-      // Use fMP4 segments for HEVC compatibility (MPEG-TS doesn't support HEVC well)
+      const isHEVCAudio = detectedVideoCodec && ['hevc', 'h265'].includes(detectedVideoCodec.toLowerCase());
       ffmpegArgs.push(
         '-i', localInputPath || 'pipe:0',
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-c:v', 'copy',
-        '-tag:v', 'hvc1',
+        ...(isHEVCAudio ? ['-tag:v', 'hvc1'] : []),
         '-c:a', 'aac',
         '-b:a', '192k',
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
         '-hls_flags', 'append_list+independent_segments',
-        '-hls_segment_type', 'fmp4',
-        '-hls_fmp4_init_filename', 'init.mp4',
-        '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        ...(isHEVCAudio ? [
+          '-hls_segment_type', 'fmp4',
+          '-hls_fmp4_init_filename', 'init.mp4',
+          '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        ] : [
+          '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
+        ]),
         join(hlsDir, 'stream.m3u8'),
       );
     } else {

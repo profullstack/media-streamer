@@ -368,7 +368,11 @@ export function MediaPlayerModal({
         // Also use HLS when codec detection failed — let server-side FFprobe handle it
         // (prevents .mp4 HEVC files from being sent via direct stream on iOS).
         const codecDetectionFailed = !codecInfo && getMediaCategory(file.name) === 'video';
-        const needsHLS = (isIOS || isSafari) && (requiresTranscoding || audioOnlyRemuxNeeded || codecDetectionFailed) && getMediaCategory(file.name) === 'video';
+        // iOS/Safari: ALWAYS use HLS for video files, even "native" formats like .mp4
+        // iOS Safari can't reliably handle byte-range streaming from partially-downloaded
+        // torrents (moov atom may not be available yet, chunked transfer doesn't work).
+        // HLS handles buffering gracefully and is what iOS was designed for.
+        const needsHLS = (isIOS || isSafari) && getMediaCategory(file.name) === 'video';
 
         console.log('[MediaPlayerModal] HLS decision:', {
           isIOS, isSafari, requiresTranscoding, audioOnlyRemuxNeeded,
