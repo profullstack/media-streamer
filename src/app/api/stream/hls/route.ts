@@ -47,8 +47,11 @@ function isHlsSessionActive(hlsDir: string): boolean {
   const playlistPath = join(hlsDir, 'stream.m3u8');
   if (!existsSync(playlistPath)) return false;
   
-  // Check if playlist was updated recently (within last 30 seconds)
   try {
+    const content = readFileSync(playlistPath, 'utf-8');
+    // If playlist has ENDLIST, transcode is complete — always reuse
+    if (content.includes('#EXT-X-ENDLIST')) return true;
+    // Otherwise check if playlist was updated recently (FFmpeg still running)
     const s = statSync(playlistPath);
     return Date.now() - s.mtimeMs < 30000;
   } catch {
@@ -421,23 +424,15 @@ export async function GET(request: NextRequest): Promise<Response> {
       );
     }
 
-    reqLogger.info('HLS playlist ready, serving');
+    reqLogger.info('HLS playlist ready, redirecting to session URL for proper playlist polling');
 
-    // Rewrite segment URLs to be absolute (include sessionId for per-user dirs)
-    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${sessionId}&file=`;
-    const rewritten = playlist
-      .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
-      .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
-      .replace(/^(init\.mp4)$/gm, `${segBase}$1`)
-      .replace(/#EXT-X-MAP:URI="init\.mp4"/g, `#EXT-X-MAP:URI="${segBase}init.mp4"`);
-
-    return new Response(rewritten, {
-      headers: {
-        'Content-Type': 'application/vnd.apple.mpegurl',
-        'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    // Redirect to the same URL with sessionId so that Safari's native HLS player
+    // polls the sessionId URL on subsequent requests (hitting the reuse path above).
+    // Without this, Safari re-fetches the original URL (no sessionId), which spawns
+    // a new FFmpeg process each time instead of returning the updated playlist.
+    const redirectUrl = new URL(request.url);
+    redirectUrl.searchParams.set('sessionId', sessionId);
+    return NextResponse.redirect(redirectUrl.toString(), 302);
   } catch (error) {
     reqLogger.error('HLS stream error', error);
     return NextResponse.json(
