@@ -655,31 +655,12 @@ export class StreamingService {
    * Kill the oldest N streams to free memory during severe pressure
    */
   private killOldestStreams(count: number): void {
-    const streams = Array.from(this.activeStreams.entries())
-      .sort((a, b) => a[1].createdAt.getTime() - b[1].createdAt.getTime());
-    
-    const toKill = streams.slice(0, count);
-    
-    for (const [streamId, stream] of toKill) {
-      logger.warn('Killing stream due to memory pressure', {
-        streamId,
-        infohash: stream.infohash,
-        ageSeconds: Math.round((Date.now() - stream.createdAt.getTime()) / 1000),
-      });
-      
-      // Clean up the stream - remove all listeners first to prevent memory leaks
-      this.activeStreams.delete(streamId);
-      
-      // Remove all event listeners before destroying
-      if (stream.stream) {
-        stream.stream.removeAllListeners();
-        stream.stream.destroy(new Error('Stream terminated due to memory pressure'));
-      }
-    }
-    
-    logger.warn('Killed streams for memory relief', {
-      killed: toKill.length,
-      remaining: this.activeStreams.size,
+    // NEVER kill active streams. Users are watching these — killing them mid-playback
+    // is a terrible UX. If memory is truly critical, systemd's MemoryMax will handle it.
+    // Emergency/aggressive cleanup already removes idle torrents without active watchers.
+    logger.warn('killOldestStreams called but SKIPPING — active streams are protected', {
+      requestedKill: count,
+      activeStreams: this.activeStreams.size,
     });
   }
 
