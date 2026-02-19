@@ -60,6 +60,27 @@ function isHlsSessionActive(hlsDir: string): boolean {
 }
 
 /**
+ * Find an existing active HLS session for a given infohash+fileIndex.
+ * Returns the session directory and sessionId if found, null otherwise.
+ */
+function findActiveSession(infohash: string, fileIndex: number): { hlsDir: string; sessionId: string } | null {
+  if (!existsSync(HLS_BASE_DIR)) return null;
+  const prefix = `${infohash}_${fileIndex}_`;
+  try {
+    const entries = readdirSync(HLS_BASE_DIR);
+    for (const entry of entries) {
+      if (!entry.startsWith(prefix)) continue;
+      const dir = join(HLS_BASE_DIR, entry);
+      if (isHlsSessionActive(dir)) {
+        const sid = entry.slice(prefix.length);
+        return { hlsDir: dir, sessionId: sid };
+      }
+    }
+  } catch { /* */ }
+  return null;
+}
+
+/**
  * Wait for HLS playlist to have at least N segments
  */
 async function waitForPlaylist(dir: string, minSegments: number, timeoutMs: number): Promise<string | null> {
@@ -109,24 +130,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid fileIndex' }, { status: 400 });
   }
 
-  // Each user gets their own HLS session to avoid the "live edge" problem:
-  // Without #EXT-X-ENDLIST, HLS players treat the playlist as live and jump to
-  // the latest segment. A second user joining an existing session would start
-  // near the end instead of the beginning.
-  const clientSessionId = searchParams.get('sessionId');
-  const sessionId = clientSessionId ?? randomUUID().slice(0, 8);
-  const hlsDir = getHlsDir(infohash, fileIndex, sessionId);
-  
-  reqLogger.info('HLS stream request', { infohash, fileIndex, sessionId, hlsDir });
-
-  // Only reuse if the client explicitly passed their own sessionId back
-  if (clientSessionId && isHlsSessionActive(hlsDir)) {
-    reqLogger.info('Reusing existing HLS session for same client', { sessionId });
-    const playlistPath = join(hlsDir, 'stream.m3u8');
+  // Check for an existing active HLS session for this infohash+fileIndex.
+  // Safari's native HLS player re-fetches the playlist URL to discover new segments.
+  // We must return the updated playlist from the same FFmpeg session, not start a new one.
+  const existing = findActiveSession(infohash, fileIndex);
+  if (existing) {
+    reqLogger.info('Reusing existing HLS session', { sessionId: existing.sessionId });
+    const playlistPath = join(existing.hlsDir, 'stream.m3u8');
     const content = readFileSync(playlistPath, 'utf-8');
     
-    // Rewrite segment URLs to include sessionId so segment route finds the right dir
-    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${sessionId}&file=`;
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${existing.sessionId}&file=`;
     const rewritten = content
       .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
       .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
@@ -136,11 +149,17 @@ export async function GET(request: NextRequest): Promise<Response> {
     return new Response(rewritten, {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store',
         'Access-Control-Allow-Origin': '*',
       },
     });
   }
+
+  // No existing session — start a new one
+  const sessionId = randomUUID().slice(0, 8);
+  const hlsDir = getHlsDir(infohash, fileIndex, sessionId);
+  
+  reqLogger.info('HLS stream request - starting new session', { infohash, fileIndex, sessionId, hlsDir });
 
   // Start new HLS transcoding session
   try {
@@ -424,15 +443,25 @@ export async function GET(request: NextRequest): Promise<Response> {
       );
     }
 
-    reqLogger.info('HLS playlist ready, redirecting to session URL for proper playlist polling');
+    reqLogger.info('HLS playlist ready, serving initial playlist');
 
-    // Redirect to the same URL with sessionId so that Safari's native HLS player
-    // polls the sessionId URL on subsequent requests (hitting the reuse path above).
-    // Without this, Safari re-fetches the original URL (no sessionId), which spawns
-    // a new FFmpeg process each time instead of returning the updated playlist.
-    const redirectUrl = new URL(request.url);
-    redirectUrl.searchParams.set('sessionId', sessionId);
-    return NextResponse.redirect(redirectUrl.toString(), 302);
+    // Serve the current playlist. Subsequent requests to the same URL will hit
+    // findActiveSession() above and return the updated playlist as FFmpeg produces
+    // more segments. This is how Safari's native HLS player discovers new segments.
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${sessionId}&file=`;
+    const rewritten = playlist
+      .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
+      .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
+      .replace(/^(init\.mp4)$/gm, `${segBase}$1`)
+      .replace(/#EXT-X-MAP:URI="init\.mp4"/g, `#EXT-X-MAP:URI="${segBase}init.mp4"`);
+
+    return new Response(rewritten, {
+      headers: {
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-cache, no-store',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
   } catch (error) {
     reqLogger.error('HLS stream error', error);
     return NextResponse.json(
