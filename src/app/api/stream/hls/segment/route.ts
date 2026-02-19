@@ -39,11 +39,26 @@ export async function GET(request: NextRequest): Promise<Response> {
   const segmentPath = join(HLS_BASE_DIR, `${infohash}_${fileIndex}${suffix}`, safeFile);
 
   if (!existsSync(segmentPath)) {
-    // Segment may not be ready yet — wait briefly
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Segment may not be ready yet — wait with retries
+    // iOS Safari aborts playback on 404, so we need to wait long enough
+    // for FFmpeg to produce the segment (especially for full transcode)
+    for (let i = 0; i < 15; i++) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (existsSync(segmentPath)) break;
+    }
     if (!existsSync(segmentPath)) {
       return NextResponse.json({ error: 'Segment not found' }, { status: 404 });
     }
+  }
+  
+  // Ensure segment is fully written (not mid-write by FFmpeg)
+  // Wait until file size stabilizes
+  let lastSize = 0;
+  for (let i = 0; i < 5; i++) {
+    const currentSize = statSync(segmentPath).size;
+    if (currentSize > 0 && currentSize === lastSize) break;
+    lastSize = currentSize;
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
 
   const data = readFileSync(segmentPath);

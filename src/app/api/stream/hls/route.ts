@@ -391,8 +391,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
 
     // Wait for first few segments to be ready
+    // Use 3 segments (12s at 4s/segment) for iOS — gives Safari enough runway
+    // to start native HLS playback without hitting "corruption" errors
     reqLogger.info('Waiting for initial HLS segments...');
-    const playlist = await waitForPlaylist(hlsDir, 2, 60000);
+    const playlist = await waitForPlaylist(hlsDir, 3, 90000);
     
     if (!playlist) {
       reqLogger.error('Timed out waiting for HLS segments');
