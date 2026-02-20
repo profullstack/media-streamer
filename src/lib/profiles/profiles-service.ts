@@ -158,12 +158,12 @@ export class ProfilesService {
   /**
    * Delete a profile
    *
-   * Note: Cannot delete if it's the default profile or the last profile.
-   * These constraints are enforced by RLS policies and triggers.
+   * Cannot delete the last profile. If deleting the default profile,
+   * another profile is promoted to default automatically.
    *
    * @param accountId - Account ID (for security)
    * @param profileId - Profile ID
-   * @throws Error if profile not found, is default, or is last profile
+   * @throws Error if profile not found or is last profile
    */
   async deleteProfile(accountId: string, profileId: string): Promise<void> {
     const supabase = this.getSupabase();
@@ -172,11 +172,6 @@ export class ProfilesService {
     const profile = await this.getProfileById(accountId, profileId);
     if (!profile) {
       throw new Error('Profile not found');
-    }
-
-    // Check if it's the default profile
-    if (profile.is_default) {
-      throw new Error('Cannot delete default profile');
     }
 
     // Check if it's the last profile
@@ -193,6 +188,14 @@ export class ProfilesService {
 
     if (error) {
       throw new Error(error.message);
+    }
+
+    // If we deleted the default profile, promote the oldest remaining one
+    if (profile.is_default) {
+      const remaining = profiles.filter(p => p.id !== profileId);
+      if (remaining.length > 0) {
+        await this.setDefaultProfile(accountId, remaining[0].id);
+      }
     }
   }
 

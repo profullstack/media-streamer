@@ -140,7 +140,7 @@ export async function PATCH(
 /**
  * DELETE /api/profiles/[id]
  *
- * Delete a profile (can't delete if it's the last one or default)
+ * Delete a profile (can't delete the last one; default auto-promotes)
  */
 export async function DELETE(
   request: NextRequest,
@@ -179,12 +179,6 @@ export async function DELETE(
         return NextResponse.json(
           { error: 'Profile not found' },
           { status: 404 }
-        );
-      }
-      if (error.message.includes('Cannot delete default profile')) {
-        return NextResponse.json(
-          { error: 'Cannot delete the default profile' },
-          { status: 400 }
         );
       }
       if (error.message.includes('Cannot delete last profile')) {

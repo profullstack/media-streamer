@@ -325,26 +325,6 @@ describe('Individual Profile API Routes', () => {
       expect(data.error).toBe('Profile not found');
     });
 
-    it('should return 400 when trying to delete default profile', async () => {
-      const { getCurrentUserWithSubscription } = await import('@/lib/auth');
-      vi.mocked(getCurrentUserWithSubscription).mockResolvedValue(mockUserWithSubscription);
-      
-      mockProfilesService.deleteProfile.mockRejectedValue(new Error('Cannot delete default profile'));
-
-      const { DELETE } = await import('./route');
-      const request = new NextRequest('http://localhost/api/profiles/profile-123', {
-        method: 'DELETE',
-      });
-      
-      const response = await DELETE(request, {
-        params: Promise.resolve({ id: 'profile-123' }),
-      });
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toBe('Cannot delete the default profile');
-    });
-
     it('should return 400 when trying to delete last profile', async () => {
       const { getCurrentUserWithSubscription } = await import('@/lib/auth');
       vi.mocked(getCurrentUserWithSubscription).mockResolvedValue(mockUserWithSubscription);

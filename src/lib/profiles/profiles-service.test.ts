@@ -306,11 +306,21 @@ describe('ProfilesService', () => {
         .rejects.toThrow('Profile not found');
     });
 
-    it('should throw error when trying to delete default profile', async () => {
-      vi.spyOn(service, 'getProfileById').mockResolvedValueOnce(mockDefaultProfile);
+    it('should allow deleting default profile when other profiles exist', async () => {
+      const defaultProfile = { ...mockDefaultProfile, id: 'default-profile-id' };
+      const otherProfile = { ...mockProfile, id: 'other-profile-id' };
+      vi.spyOn(service, 'getProfileById').mockResolvedValueOnce(defaultProfile);
+      vi.spyOn(service, 'getAccountProfiles').mockResolvedValueOnce([defaultProfile, otherProfile]);
+      const setDefaultSpy = vi.spyOn(service, 'setDefaultProfile').mockResolvedValueOnce(otherProfile as any);
+      
+      // The delete chain: from().delete().eq().eq() -> { error: null }
+      mockQueryBuilder.eq
+        .mockReturnValueOnce(mockQueryBuilder)
+        .mockResolvedValueOnce({ error: null });
 
-      await expect(service.deleteProfile('user-123', 'profile-123'))
-        .rejects.toThrow('Cannot delete default profile');
+      await service.deleteProfile('user-123', 'default-profile-id');
+
+      expect(setDefaultSpy).toHaveBeenCalledWith('user-123', 'other-profile-id');
     });
 
     it('should throw error when trying to delete last profile', async () => {
