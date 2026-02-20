@@ -229,6 +229,24 @@ export class ProfilesService {
   }
 
   /**
+   * Clear the default flag on a profile.
+   * This means the profile selector will always be shown on login.
+   */
+  async clearDefaultProfile(accountId: string, profileId: string): Promise<void> {
+    const supabase = this.getSupabase();
+
+    const { error } = await (supabase as any)
+      .from('profiles')
+      .update({ is_default: false })
+      .eq('account_id', accountId)
+      .eq('id', profileId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  /**
    * Ensure an account has at least one profile
    * Creates a default profile if none exists
    *

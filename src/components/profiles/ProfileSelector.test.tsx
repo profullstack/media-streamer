@@ -249,30 +249,20 @@ describe('ProfileSelector', () => {
   it('should show appropriate footer message for family plan users', () => {
     render(<ProfileSelector {...defaultProps} />);
     
-    expect(screen.getByText(/Select a profile above or create a new one/)).toBeInTheDocument();
+    expect(screen.getByText(/Select a profile above to start watching/)).toBeInTheDocument();
   });
 
   it('should show upgrade message for non-family plan users', () => {
     render(<ProfileSelector {...defaultProps} hasFamilyPlan={false} />);
     
-    expect(screen.getByText(/upgrade to Family plan for multiple profiles/)).toBeInTheDocument();
+    expect(screen.getByText(/Upgrade to Family plan to add more profiles/)).toBeInTheDocument();
   });
 
-  it('should show max profiles message when limit reached', () => {
-    const maxProfiles = Array.from({ length: 10 }, (_, i) => ({
-      id: `profile-${i + 1}`,
-      account_id: 'user-123',
-      name: `Profile ${i + 1}`,
-      avatar_url: null,
-      avatar_emoji: null,
-      is_default: i === 0,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    }));
-
-    render(<ProfileSelector {...defaultProps} profiles={maxProfiles} />);
+  it('should show default bypass hint when no default is set', () => {
+    const profilesNoDefault = defaultProps.profiles.map(p => ({ ...p, is_default: false }));
+    render(<ProfileSelector {...defaultProps} profiles={profilesNoDefault} />);
     
-    expect(screen.getByText(/maximum 10 profiles/)).toBeInTheDocument();
+    expect(screen.getByText(/Set a default profile to skip this screen/)).toBeInTheDocument();
   });
 
   it('should apply custom className', () => {

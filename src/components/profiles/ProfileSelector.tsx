@@ -1,7 +1,8 @@
 /**
  * Profile Selector Component
  *
- * Netflix-style grid of profile avatars shown after login
+ * Netflix-style grid of profile avatars shown after login.
+ * Always shown unless user has set a default profile to bypass.
  */
 
 'use client';
@@ -32,6 +33,7 @@ export function ProfileSelector({
   const router = useRouter();
   const [isSelectingProfile, setIsSelectingProfile] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [settingDefault, setSettingDefault] = useState<string | null>(null);
 
   const handleProfileSelect = useCallback(
     async (profileId: string) => {
@@ -45,7 +47,6 @@ export function ProfileSelector({
         router.push('/');
       } catch (error) {
         console.error('Failed to select profile:', error);
-        // TODO: Show error toast
       } finally {
         setIsSelectingProfile(false);
       }
@@ -53,15 +54,55 @@ export function ProfileSelector({
     [onProfileSelect, router, isSelectingProfile]
   );
 
+  const handleSetDefault = useCallback(async (profileId: string) => {
+    try {
+      setSettingDefault(profileId);
+      const response = await fetch(`/api/profiles/${profileId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_default: true }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to set default profile');
+      }
+      if (onProfilesChange) {
+        onProfilesChange();
+      }
+    } catch (error) {
+      console.error('Failed to set default:', error);
+    } finally {
+      setSettingDefault(null);
+    }
+  }, [onProfilesChange]);
+
+  const handleClearDefault = useCallback(async (profileId: string) => {
+    try {
+      setSettingDefault(profileId);
+      const response = await fetch(`/api/profiles/${profileId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_default: false }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to clear default profile');
+      }
+      if (onProfilesChange) {
+        onProfilesChange();
+      }
+    } catch (error) {
+      console.error('Failed to clear default:', error);
+    } finally {
+      setSettingDefault(null);
+    }
+  }, [onProfilesChange]);
+
   const handleCreateProfile = useCallback(() => {
     if (!hasFamilyPlan) {
-      // TODO: Show error toast
       console.error('Multiple profiles require Family plan');
       return;
     }
     if (profiles.length >= 10) {
-      // TODO: Show error toast
-      console.error('Maximum 5 profiles allowed');
+      console.error('Maximum 10 profiles allowed');
       return;
     }
     setShowCreateDialog(true);
@@ -89,18 +130,39 @@ export function ProfileSelector({
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-8 max-w-6xl">
           {/* Existing Profiles */}
           {profiles.map((profile) => (
-            <ProfileAvatar
-              key={profile.id}
-              id={profile.id}
-              name={profile.name}
-              avatarUrl={profile.avatar_url}
-              avatarEmoji={profile.avatar_emoji}
-              isDefault={profile.is_default}
-              onClick={handleProfileSelect}
-              className={cn(
-                isSelectingProfile && 'pointer-events-none opacity-50'
-              )}
-            />
+            <div key={profile.id} className="flex flex-col items-center gap-2">
+              <ProfileAvatar
+                id={profile.id}
+                name={profile.name}
+                avatarUrl={profile.avatar_url}
+                avatarEmoji={profile.avatar_emoji}
+                isDefault={profile.is_default}
+                onClick={handleProfileSelect}
+                className={cn(
+                  isSelectingProfile && 'pointer-events-none opacity-50'
+                )}
+              />
+              {/* Set/clear default toggle */}
+              <button
+                onClick={() => profile.is_default 
+                  ? handleClearDefault(profile.id) 
+                  : handleSetDefault(profile.id)
+                }
+                disabled={settingDefault === profile.id}
+                className={cn(
+                  'text-xs px-2 py-1 rounded transition-colors',
+                  profile.is_default
+                    ? 'text-blue-400 hover:text-blue-300'
+                    : 'text-gray-500 hover:text-gray-300'
+                )}
+              >
+                {settingDefault === profile.id
+                  ? '...'
+                  : profile.is_default
+                    ? '★ Default (auto-selects)'
+                    : 'Set as default'}
+              </button>
+            </div>
           ))}
 
           {/* Add Profile Button */}
@@ -113,13 +175,20 @@ export function ProfileSelector({
         </div>
 
         {/* Footer */}
-        <div className="mt-16 text-center">
+        <div className="mt-16 text-center space-y-2">
           <p className="text-gray-500 text-sm">
-            Select a profile above
-            {hasFamilyPlan && canAddProfile && ' or create a new one'}
-            {hasFamilyPlan && !canAddProfile && ' (maximum 10 profiles)'}
-            {!hasFamilyPlan && ' (upgrade to Family plan for multiple profiles)'}
+            Select a profile above to start watching
           </p>
+          <p className="text-gray-600 text-xs">
+            {profiles.some(p => p.is_default)
+              ? 'The default profile will be auto-selected on future logins'
+              : 'Set a default profile to skip this screen next time'}
+          </p>
+          {!hasFamilyPlan && profiles.length >= 1 && (
+            <p className="text-gray-600 text-xs">
+              Upgrade to Family plan to add more profiles
+            </p>
+          )}
         </div>
       </div>
 

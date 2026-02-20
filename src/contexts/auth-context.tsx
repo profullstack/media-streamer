@@ -160,14 +160,15 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
       setProfiles(userProfiles);
       profilesLastFetchedAt.current = Date.now();
 
-      // Restore active profile from server cookie, or auto-select if only one
+      // Restore active profile from server cookie if previously selected
       const serverActiveId = data.activeProfileId;
-      if (!activeProfileId) {
-        if (serverActiveId && userProfiles.some((p: Profile) => p.id === serverActiveId)) {
+      if (!activeProfileId && serverActiveId && userProfiles.some((p: Profile) => p.id === serverActiveId)) {
+        // Check if the restored profile is the default — if so, auto-select (bypass selector)
+        const restoredProfile = userProfiles.find((p: Profile) => p.id === serverActiveId);
+        if (restoredProfile?.is_default) {
           setActiveProfileId(serverActiveId);
-        } else if (userProfiles.length === 1) {
-          setActiveProfileId(userProfiles[0].id);
         }
+        // Otherwise, user must pick from selector (cookie just remembers last choice)
       }
     } catch (error) {
       console.error('Failed to load profiles:', error);
@@ -214,10 +215,11 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
   // Get active profile object
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
 
-  // Show profile selection when user has multiple profiles and hasn't picked one yet
-  const needsProfileSelection = profiles.length > 1 && !activeProfileId;
-
   const isLoggedIn = user !== null;
+
+  // Show profile selection when logged in with profiles but none actively selected
+  // Users bypass this by setting a default profile
+  const needsProfileSelection = isLoggedIn && profiles.length > 0 && !activeProfileId;
   const isPremium =
     (user?.subscription_tier === 'trial' ||
     user?.subscription_tier === 'premium' ||

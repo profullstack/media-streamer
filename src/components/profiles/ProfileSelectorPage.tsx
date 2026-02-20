@@ -15,17 +15,19 @@ import type { Profile } from '@/lib/profiles/types';
 
 export function ProfileSelectorPage(): React.ReactElement {
   const router = useRouter();
-  const { hasFamilyPlan, needsProfileSelection } = useAuth();
+  const { hasFamilyPlan, needsProfileSelection, isLoading: isAuthLoading, isLoggedIn } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect to main app if profile selection is not needed
+  // Redirect to login if not authenticated, or to main app if profile already selected
   useEffect(() => {
-    if (!isLoading && !needsProfileSelection) {
+    if (!isAuthLoading && !isLoggedIn) {
+      router.push('/login');
+    } else if (!isLoading && !needsProfileSelection && !isAuthLoading) {
       router.push('/');
     }
-  }, [isLoading, needsProfileSelection, router]);
+  }, [isLoading, isAuthLoading, isLoggedIn, needsProfileSelection, router]);
 
   // Load profiles
   const loadProfiles = useCallback(async () => {
@@ -111,8 +113,8 @@ export function ProfileSelectorPage(): React.ReactElement {
     );
   }
 
-  // Don't render if profile selection is not needed
-  if (!needsProfileSelection && !isLoading) {
+  // Don't render if redirecting
+  if ((!needsProfileSelection && !isLoading) || (!isLoggedIn && !isAuthLoading)) {
     return <div>Redirecting...</div>;
   }
 

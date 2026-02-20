@@ -44,6 +44,7 @@ interface UpdateProfileBody {
   name?: string;
   avatar_url?: string;
   avatar_emoji?: string;
+  is_default?: boolean;
 }
 
 /**
@@ -69,7 +70,7 @@ export async function PATCH(
 
     // Parse request body
     const body = (await request.json()) as UpdateProfileBody;
-    const { name, avatar_url, avatar_emoji } = body;
+    const { name, avatar_url, avatar_emoji, is_default } = body;
 
     // Validate name if provided
     if (name !== undefined) {
@@ -93,6 +94,20 @@ export async function PATCH(
     if (avatar_url !== undefined) input.avatar_url = avatar_url;
     if (avatar_emoji !== undefined) input.avatar_emoji = avatar_emoji;
 
+    const profilesService = getProfilesService();
+
+    // Handle is_default toggle
+    if (is_default === true) {
+      const profile = await profilesService.setDefaultProfile(user.id, profileId);
+      return NextResponse.json({ profile }, { status: 200 });
+    }
+    if (is_default === false) {
+      // Clear default flag — no profile will be default (selector always shown)
+      await profilesService.clearDefaultProfile(user.id, profileId);
+      const profile = await profilesService.getProfileById(user.id, profileId);
+      return NextResponse.json({ profile }, { status: 200 });
+    }
+
     // Nothing to update
     if (Object.keys(input).length === 0) {
       return NextResponse.json(
@@ -102,7 +117,6 @@ export async function PATCH(
     }
 
     // Update profile
-    const profilesService = getProfilesService();
     const profile = await profilesService.updateProfile(user.id, profileId, input);
 
     return NextResponse.json({ profile }, { status: 200 });
