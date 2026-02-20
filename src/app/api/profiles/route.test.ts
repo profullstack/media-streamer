@@ -204,7 +204,7 @@ describe('Profiles API Routes', () => {
       vi.mocked(getCurrentUserWithSubscription).mockResolvedValue(mockUserWithSubscription);
       
       // Mock 5 existing profiles (passes family tier check but should trigger max limit in service)
-      const maxProfiles = Array.from({ length: 5 }, (_, i) => ({
+      const maxProfiles = Array.from({ length: 10 }, (_, i) => ({
         id: `profile-${i + 1}`,
         account_id: 'user-123',
         name: `Profile ${i + 1}`,
@@ -216,7 +216,7 @@ describe('Profiles API Routes', () => {
       }));
       mockProfilesService.getAccountProfiles.mockResolvedValue(maxProfiles);
       // Mock createProfile to throw max profiles error
-      mockProfilesService.createProfile.mockRejectedValue(new Error('Maximum 5 profiles per account'));
+      mockProfilesService.createProfile.mockRejectedValue(new Error('Maximum 10 profiles per account'));
 
       const { POST } = await import('./route');
       const request = new NextRequest('http://localhost/api/profiles', {
@@ -227,7 +227,7 @@ describe('Profiles API Routes', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
-      expect(data.error).toBe('Maximum 5 profiles per account allowed');
+      expect(data.error).toBe('Maximum 10 profiles per account allowed');
     });
 
     it('should return 409 when profile name already exists', async () => {

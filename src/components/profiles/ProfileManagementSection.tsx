@@ -58,7 +58,7 @@ export function ProfileManagementSection(): React.ReactElement {
       return;
     }
     if (profiles.length >= 5) {
-      alert('Maximum 5 profiles allowed');
+      alert('Maximum 10 profiles allowed');
       return;
     }
     setShowCreateDialog(true);
@@ -151,7 +151,7 @@ export function ProfileManagementSection(): React.ReactElement {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text-primary">Profile Management</h2>
           <p className="text-sm text-text-muted">
-            {profiles.length}/5 profiles
+            {profiles.length}/10 profiles
           </p>
         </div>
 
@@ -253,7 +253,7 @@ export function ProfileManagementSection(): React.ReactElement {
 
         {hasFamilyPlan && profiles.length >= 5 && (
           <p className="text-sm text-text-muted text-center py-4">
-            You have reached the maximum of 5 profiles per account.
+            You have reached the maximum of 10 profiles per account.
           </p>
         )}
 
@@ -263,7 +263,7 @@ export function ProfileManagementSection(): React.ReactElement {
               Want multiple profiles for your family?
             </p>
             <p className="text-sm text-yellow-600">
-              Upgrade to the Family plan to create up to 5 profiles with separate favorites, watch history, and settings.
+              Upgrade to the Family plan to create up to 10 profiles with separate favorites, watch history, and settings.
             </p>
           </div>
         )}

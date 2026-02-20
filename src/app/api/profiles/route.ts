@@ -2,7 +2,7 @@
  * Profiles API Route
  *
  * GET - List profiles for current user
- * POST - Create a new profile (max 5 per account)
+ * POST - Create a new profile (max 10 per account)
  *
  * Server-side only - maintains Supabase security rules.
  */
@@ -85,7 +85,7 @@ export async function GET(): Promise<
 /**
  * POST /api/profiles
  *
- * Create a new profile (max 5 per account)
+ * Create a new profile (max 10 per account)
  */
 export async function POST(
   request: Request
@@ -146,9 +146,9 @@ export async function POST(
     console.error('Create profile error:', error);
 
     if (error instanceof Error) {
-      if (error.message.includes('Maximum 5 profiles')) {
+      if (error.message.includes('Maximum 10 profiles')) {
         return NextResponse.json(
-          { error: 'Maximum 5 profiles per account allowed' },
+          { error: 'Maximum 10 profiles per account allowed' },
           { status: 400 }
         );
       }

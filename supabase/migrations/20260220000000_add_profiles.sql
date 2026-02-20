@@ -36,7 +36,7 @@ CREATE TRIGGER update_profiles_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- CONSTRAINT: MAX 5 PROFILES PER ACCOUNT AND FAMILY TIER CHECK
+-- CONSTRAINT: MAX 10 PROFILES PER ACCOUNT AND FAMILY TIER CHECK
 -- ============================================
 CREATE OR REPLACE FUNCTION check_profile_constraints()
 RETURNS TRIGGER
@@ -53,8 +53,8 @@ BEGIN
     WHERE account_id = NEW.account_id;
     
     -- Check max profiles limit
-    IF profile_count >= 5 THEN
-        RAISE EXCEPTION 'Maximum 5 profiles per account allowed';
+    IF profile_count >= 10 THEN
+        RAISE EXCEPTION 'Maximum 10 profiles per account allowed';
     END IF;
     
     -- If creating a second or more profile, check subscription tier
