@@ -125,6 +125,7 @@ describe('Torrent Comments API', () => {
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const request = new NextRequest(`http://localhost/api/torrents/${TEST_TORRENT_ID}/comments?limit=10&offset=20`);
       const response = await GET(request, { params: Promise.resolve({ id: TEST_TORRENT_ID }) });
