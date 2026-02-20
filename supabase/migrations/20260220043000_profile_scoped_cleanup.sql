@@ -23,7 +23,11 @@ WHERE profile_id IS NULL AND user_id IS NOT NULL;
 
 -- Update unique constraint from user-based to profile-based
 ALTER TABLE podcast_subscriptions DROP CONSTRAINT IF EXISTS podcast_subscriptions_user_id_podcast_id_key;
-ALTER TABLE podcast_subscriptions ADD CONSTRAINT unique_profile_podcast_subscription UNIQUE(profile_id, podcast_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_podcast_subscription') THEN
+    ALTER TABLE podcast_subscriptions ADD CONSTRAINT unique_profile_podcast_subscription UNIQUE(profile_id, podcast_id);
+  END IF;
+END $$;
 
 -- ============================================
 -- DROP user_id NOT NULL ON PROFILE-SCOPED TABLES
