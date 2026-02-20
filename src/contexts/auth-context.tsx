@@ -38,6 +38,8 @@ export interface AuthContextValue {
   activeProfileId: string | null;
   activeProfile: Profile | null;
   isLoadingProfiles: boolean;
+  hasFamilyPlan: boolean;
+  needsProfileSelection: boolean;
   selectProfile: (profileId: string) => Promise<void>;
   refreshProfiles: () => Promise<void>;
 }
@@ -179,17 +181,26 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
   }, []);
 
   // Load profiles when user changes
+  const profilesFetched = useRef(false);
   useEffect(() => {
-    if (user && profiles.length === 0 && !isLoadingProfiles) {
+    if (user && !profilesFetched.current && !isLoadingProfiles) {
+      profilesFetched.current = true;
       void refreshProfiles();
     } else if (!user) {
+      profilesFetched.current = false;
       setProfiles([]);
       setActiveProfileId(null);
     }
-  }, [user, profiles.length, isLoadingProfiles, refreshProfiles]);
+  }, [user, isLoadingProfiles, refreshProfiles]);
+
+  // Check if user has family plan for multiple profiles
+  const hasFamilyPlan = user?.subscription_tier === 'family';
 
   // Get active profile object
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
+
+  // Only show profile selection for family plan users with multiple profiles
+  const needsProfileSelection = hasFamilyPlan && profiles.length > 1 && !activeProfileId;
 
   const isLoggedIn = user !== null;
   const isPremium =
@@ -214,6 +225,8 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
         activeProfileId,
         activeProfile,
         isLoadingProfiles,
+        hasFamilyPlan,
+        needsProfileSelection,
         selectProfile,
         refreshProfiles,
       }}

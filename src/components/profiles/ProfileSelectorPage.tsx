@@ -7,14 +7,25 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { ProfileSelector } from './ProfileSelector';
 import { LoadingSpinner } from '@/components/ui/icons';
+import { useAuth } from '@/hooks/use-auth';
 import type { Profile } from '@/lib/profiles/types';
 
 export function ProfileSelectorPage(): React.ReactElement {
+  const router = useRouter();
+  const { hasFamilyPlan, needsProfileSelection } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect to main app if profile selection is not needed
+  useEffect(() => {
+    if (!isLoading && !needsProfileSelection) {
+      router.push('/');
+    }
+  }, [isLoading, needsProfileSelection, router]);
 
   // Load profiles
   const loadProfiles = useCallback(async () => {
@@ -100,9 +111,15 @@ export function ProfileSelectorPage(): React.ReactElement {
     );
   }
 
+  // Don't render if profile selection is not needed
+  if (!needsProfileSelection && !isLoading) {
+    return <div>Redirecting...</div>;
+  }
+
   return (
     <ProfileSelector
       profiles={profiles}
+      hasFamilyPlan={hasFamilyPlan}
       onProfileSelect={handleProfileSelect}
       onProfilesChange={loadProfiles}
     />

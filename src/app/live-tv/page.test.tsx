@@ -24,6 +24,8 @@ vi.mock('@/hooks/use-auth', () => ({
       activeProfileId: null,
       activeProfile: null,
       isLoadingProfiles: false,
+      hasFamilyPlan: false,
+      needsProfileSelection: false,
       selectProfile: vi.fn(),
       refreshProfiles: vi.fn(),
     };
@@ -106,6 +108,8 @@ describe('LiveTvContent', () => {
       activeProfileId: null,
       activeProfile: null,
       isLoadingProfiles: false,
+      hasFamilyPlan: false,
+      needsProfileSelection: false,
       selectProfile: vi.fn(),
       refreshProfiles: vi.fn(),
     });

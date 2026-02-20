@@ -8,7 +8,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, getCurrentUserWithSubscription } from '@/lib/auth';
 import { getProfilesService } from '@/lib/profiles';
 import type { Profile, CreateProfileInput } from '@/lib/profiles/types';
 
@@ -91,12 +91,23 @@ export async function POST(
   request: Request
 ): Promise<NextResponse<ProfileResponse | ErrorResponse>> {
   try {
-    // Check authentication
-    const user = await getCurrentUser();
+    // Check authentication and get subscription info
+    const user = await getCurrentUserWithSubscription();
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
+      );
+    }
+
+    // Check if user already has profiles - only family tier can create additional profiles
+    const profilesService = getProfilesService();
+    const existingProfiles = await profilesService.getAccountProfiles(user.id);
+    
+    if (existingProfiles.length >= 1 && user.subscription_tier !== 'family') {
+      return NextResponse.json(
+        { error: 'Multiple profiles are only available on the Family plan' },
+        { status: 403 }
       );
     }
 
@@ -128,7 +139,6 @@ export async function POST(
     };
 
     // Create profile
-    const profilesService = getProfilesService();
     const profile = await profilesService.createProfile(input);
 
     return NextResponse.json({ profile }, { status: 201 });

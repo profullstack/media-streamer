@@ -12,10 +12,12 @@ import { AddProfileButton } from './AddProfileButton';
 import { CreateProfileDialog } from './CreateProfileDialog';
 import { EditProfileDialog } from './EditProfileDialog';
 import { LoadingSpinner, EditIcon, TrashIcon } from '@/components/ui/icons';
+import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import type { Profile } from '@/lib/profiles/types';
 
 export function ProfileManagementSection(): React.ReactElement {
+  const { hasFamilyPlan } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,13 +53,16 @@ export function ProfileManagementSection(): React.ReactElement {
 
   // Handle creating a new profile
   const handleCreateProfile = useCallback(() => {
+    if (!hasFamilyPlan) {
+      alert('Multiple profiles are only available on the Family plan. Please upgrade to create additional profiles.');
+      return;
+    }
     if (profiles.length >= 5) {
-      // TODO: Show error toast
       alert('Maximum 5 profiles allowed');
       return;
     }
     setShowCreateDialog(true);
-  }, [profiles.length]);
+  }, [hasFamilyPlan, profiles.length]);
 
   const handleProfileCreated = useCallback(() => {
     setShowCreateDialog(false);
@@ -152,6 +157,11 @@ export function ProfileManagementSection(): React.ReactElement {
 
         <p className="text-sm text-text-muted">
           Manage your Netflix-style profiles. Each profile has its own favorites, watch history, and settings.
+          {!hasFamilyPlan && (
+            <span className="block mt-1 text-yellow-600">
+              Multiple profiles are only available on the Family plan.
+            </span>
+          )}
         </p>
 
         {/* Profiles Grid */}
@@ -229,8 +239,8 @@ export function ProfileManagementSection(): React.ReactElement {
             </div>
           ))}
 
-          {/* Add Profile Button */}
-          {profiles.length < 5 && (
+          {/* Add Profile Button - only for family plan users */}
+          {hasFamilyPlan && profiles.length < 5 && (
             <div className="flex items-center justify-center p-8 border-2 border-dashed border-border-subtle rounded-lg">
               <AddProfileButton
                 size="sm"
@@ -241,10 +251,21 @@ export function ProfileManagementSection(): React.ReactElement {
           )}
         </div>
 
-        {profiles.length >= 5 && (
+        {hasFamilyPlan && profiles.length >= 5 && (
           <p className="text-sm text-text-muted text-center py-4">
             You have reached the maximum of 5 profiles per account.
           </p>
+        )}
+
+        {!hasFamilyPlan && (
+          <div className="text-center py-8">
+            <p className="text-sm text-text-muted mb-2">
+              Want multiple profiles for your family?
+            </p>
+            <p className="text-sm text-yellow-600">
+              Upgrade to the Family plan to create up to 5 profiles with separate favorites, watch history, and settings.
+            </p>
+          </div>
         )}
       </div>
 

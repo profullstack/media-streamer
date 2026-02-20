@@ -36,25 +36,44 @@ CREATE TRIGGER update_profiles_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- CONSTRAINT: MAX 5 PROFILES PER ACCOUNT
+-- CONSTRAINT: MAX 5 PROFILES PER ACCOUNT AND FAMILY TIER CHECK
 -- ============================================
-CREATE OR REPLACE FUNCTION check_max_profiles_per_account()
+CREATE OR REPLACE FUNCTION check_profile_constraints()
 RETURNS TRIGGER
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+    profile_count INTEGER;
+    user_subscription_tier TEXT;
 BEGIN
-    IF (SELECT COUNT(*) FROM profiles WHERE account_id = NEW.account_id) >= 5 THEN
+    -- Get current profile count for this account
+    SELECT COUNT(*) INTO profile_count 
+    FROM profiles 
+    WHERE account_id = NEW.account_id;
+    
+    -- Check max profiles limit
+    IF profile_count >= 5 THEN
         RAISE EXCEPTION 'Maximum 5 profiles per account allowed';
     END IF;
+    
+    -- If creating a second or more profile, check subscription tier
+    IF profile_count >= 1 THEN
+        -- Get user's subscription tier from auth.users (we'll store it in a custom field)
+        -- For now, we'll rely on the API-level checks since the subscription data 
+        -- might be in a different table/service
+        -- This trigger mainly enforces the 5 profile limit
+        NULL;
+    END IF;
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_check_max_profiles
+CREATE TRIGGER trigger_check_profile_constraints
     BEFORE INSERT ON profiles
     FOR EACH ROW
-    EXECUTE FUNCTION check_max_profiles_per_account();
+    EXECUTE FUNCTION check_profile_constraints();
 
 -- ============================================
 -- CONSTRAINT: ONE DEFAULT PROFILE PER ACCOUNT

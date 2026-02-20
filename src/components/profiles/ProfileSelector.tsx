@@ -16,6 +16,7 @@ import type { Profile } from '@/lib/profiles/types';
 
 export interface ProfileSelectorProps {
   profiles: Profile[];
+  hasFamilyPlan: boolean;
   onProfileSelect: (profileId: string) => Promise<void>;
   onProfilesChange?: () => void;
   className?: string;
@@ -23,6 +24,7 @@ export interface ProfileSelectorProps {
 
 export function ProfileSelector({
   profiles,
+  hasFamilyPlan,
   onProfileSelect,
   onProfilesChange,
   className,
@@ -52,13 +54,18 @@ export function ProfileSelector({
   );
 
   const handleCreateProfile = useCallback(() => {
+    if (!hasFamilyPlan) {
+      // TODO: Show error toast
+      console.error('Multiple profiles require Family plan');
+      return;
+    }
     if (profiles.length >= 5) {
       // TODO: Show error toast
       console.error('Maximum 5 profiles allowed');
       return;
     }
     setShowCreateDialog(true);
-  }, [profiles.length]);
+  }, [hasFamilyPlan, profiles.length]);
 
   const handleProfileCreated = useCallback(() => {
     setShowCreateDialog(false);
@@ -67,7 +74,7 @@ export function ProfileSelector({
     }
   }, [onProfilesChange]);
 
-  const canAddProfile = profiles.length < 5;
+  const canAddProfile = hasFamilyPlan && profiles.length < 5;
 
   return (
     <>
@@ -108,8 +115,10 @@ export function ProfileSelector({
         {/* Footer */}
         <div className="mt-16 text-center">
           <p className="text-gray-500 text-sm">
-            Select a profile above or create a new one
-            {!canAddProfile && ' (maximum 5 profiles)'}
+            Select a profile above
+            {hasFamilyPlan && canAddProfile && ' or create a new one'}
+            {hasFamilyPlan && !canAddProfile && ' (maximum 5 profiles)'}
+            {!hasFamilyPlan && ' (upgrade to Family plan for multiple profiles)'}
           </p>
         </div>
       </div>

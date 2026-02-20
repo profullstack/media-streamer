@@ -12,6 +12,11 @@ vi.mock('@/lib/auth', () => ({
   getCurrentUser: () => mockGetCurrentUser(),
 }));
 
+// Mock the profiles module
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: () => Promise.resolve('profile-default-123'),
+}));
+
 // Mock the favorites service
 const mockGetTorrentFavorites = vi.fn();
 const mockAddTorrentFavorite = vi.fn();

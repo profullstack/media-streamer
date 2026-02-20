@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, getCurrentUserWithSubscription } from '@/lib/auth';
 import { getProfilesService } from '@/lib/profiles';
 import type { Profile, UpdateProfileInput } from '@/lib/profiles/types';
 
@@ -149,12 +149,20 @@ export async function DELETE(
   try {
     const { id: profileId } = await params;
 
-    // Check authentication
-    const user = await getCurrentUser();
+    // Check authentication and get subscription info
+    const user = await getCurrentUserWithSubscription();
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
+      );
+    }
+
+    // Check subscription tier - only family tier can delete additional profiles
+    if (user.subscription_tier !== 'family') {
+      return NextResponse.json(
+        { error: 'Profile management is only available on the Family plan' },
+        { status: 403 }
       );
     }
 
