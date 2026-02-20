@@ -57,7 +57,7 @@ export function ProfileManagementSection(): React.ReactElement {
       alert('Multiple profiles are only available on the Family plan. Please upgrade to create additional profiles.');
       return;
     }
-    if (profiles.length >= 5) {
+    if (profiles.length >= 10) {
       alert('Maximum 10 profiles allowed');
       return;
     }
@@ -240,7 +240,7 @@ export function ProfileManagementSection(): React.ReactElement {
           ))}
 
           {/* Add Profile Button - only for family plan users */}
-          {hasFamilyPlan && profiles.length < 5 && (
+          {hasFamilyPlan && profiles.length < 10 && (
             <div className="flex items-center justify-center p-8 border-2 border-dashed border-border-subtle rounded-lg">
               <AddProfileButton
                 size="sm"
@@ -251,7 +251,7 @@ export function ProfileManagementSection(): React.ReactElement {
           )}
         </div>
 
-        {hasFamilyPlan && profiles.length >= 5 && (
+        {hasFamilyPlan && profiles.length >= 10 && (
           <p className="text-sm text-text-muted text-center py-4">
             You have reached the maximum of 10 profiles per account.
           </p>

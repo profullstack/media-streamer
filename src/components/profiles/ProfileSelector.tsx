@@ -59,7 +59,7 @@ export function ProfileSelector({
       console.error('Multiple profiles require Family plan');
       return;
     }
-    if (profiles.length >= 5) {
+    if (profiles.length >= 10) {
       // TODO: Show error toast
       console.error('Maximum 5 profiles allowed');
       return;
@@ -74,7 +74,7 @@ export function ProfileSelector({
     }
   }, [onProfilesChange]);
 
-  const canAddProfile = hasFamilyPlan && profiles.length < 5;
+  const canAddProfile = hasFamilyPlan && profiles.length < 10;
 
   return (
     <>
@@ -117,7 +117,7 @@ export function ProfileSelector({
           <p className="text-gray-500 text-sm">
             Select a profile above
             {hasFamilyPlan && canAddProfile && ' or create a new one'}
-            {hasFamilyPlan && !canAddProfile && ' (maximum 5 profiles)'}
+            {hasFamilyPlan && !canAddProfile && ' (maximum 10 profiles)'}
             {!hasFamilyPlan && ' (upgrade to Family plan for multiple profiles)'}
           </p>
         </div>
