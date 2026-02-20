@@ -134,45 +134,38 @@ describe('Profile Utils', () => {
       expect(mockProfilesService.getProfileById).toHaveBeenCalledWith('user-123', 'profile-123');
     });
 
-    it('should return default profile when no profile cookie is set', async () => {
+    it('should return null when no profile cookie is set (no fallback)', async () => {
       const { getCurrentUser } = await import('@/lib/auth');
       vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
       
       mockCookieStore.get.mockReturnValue(undefined);
-      mockProfilesService.getDefaultProfile.mockResolvedValue(mockDefaultProfile);
 
       const result = await getCurrentProfile();
 
-      expect(result).toEqual(mockDefaultProfile);
-      expect(mockProfilesService.getDefaultProfile).toHaveBeenCalledWith('user-123');
+      expect(result).toBeNull();
     });
 
-    it('should return default profile when profile cookie is empty', async () => {
+    it('should return null when profile cookie is empty (no fallback)', async () => {
       const { getCurrentUser } = await import('@/lib/auth');
       vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
       
       mockCookieStore.get.mockReturnValue({ value: '' });
-      mockProfilesService.getDefaultProfile.mockResolvedValue(mockDefaultProfile);
 
       const result = await getCurrentProfile();
 
-      expect(result).toEqual(mockDefaultProfile);
-      expect(mockProfilesService.getDefaultProfile).toHaveBeenCalledWith('user-123');
+      expect(result).toBeNull();
     });
 
-    it('should return default profile when getCurrentProfileId throws error', async () => {
+    it('should return null when getCurrentProfileId throws error (no fallback)', async () => {
       const { getCurrentUser } = await import('@/lib/auth');
       vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
       
       const { cookies } = vi.mocked(await import('next/headers'));
       cookies.mockRejectedValue(new Error('Cookie error'));
-      
-      // When getCurrentProfileId fails, it should fallback to default profile
-      mockProfilesService.getDefaultProfile.mockResolvedValue(mockDefaultProfile);
 
       const result = await getCurrentProfile();
 
-      expect(result).toEqual(mockDefaultProfile);
+      expect(result).toBeNull();
     });
 
     it('should return null when profile service throws error', async () => {

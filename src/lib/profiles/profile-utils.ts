@@ -37,9 +37,8 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
     const profileId = await getCurrentProfileId();
     if (!profileId) {
-      // No profile selected, get default profile
-      const profilesService = getProfilesService();
-      return await profilesService.getDefaultProfile(user.id);
+      // No fallback — user must select a profile
+      return null;
     }
 
     // Verify the profile exists and belongs to this user
@@ -52,9 +51,9 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 }
 
 /**
- * Get the current profile ID or fallback to default profile ID
+ * Get the current profile ID from cookie. No fallback — returns null if no profile selected.
  * 
- * @returns Profile ID string or null if no profiles exist
+ * @returns Profile ID string or null if no profile selected
  */
 export async function getCurrentProfileIdWithFallback(): Promise<string | null> {
   try {
