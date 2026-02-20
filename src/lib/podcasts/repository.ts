@@ -206,11 +206,11 @@ export function createPodcastRepository(
     ): Promise<PodcastSubscription> {
       const { data, error } = await client
         .from('podcast_subscriptions')
-        .insert({
+        .upsert({
           user_id: userId,
           podcast_id: podcastId,
           notify_new_episodes: notifyNewEpisodes,
-        })
+        }, { onConflict: 'user_id,podcast_id' })
         .select()
         .single();
 
