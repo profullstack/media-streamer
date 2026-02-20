@@ -9,7 +9,7 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js
 
 if [ -n "$STAGED_FILES" ]; then
     # Run ESLint with --fix on staged files
-    echo "$STAGED_FILES" | xargs pnpm eslint --fix 2>/dev/null
+    echo "$STAGED_FILES" | xargs nice pnpm eslint --fix 2>/dev/null
 
     # Re-add the formatted files to staging
     echo "$STAGED_FILES" | xargs git add
@@ -21,7 +21,7 @@ fi
 
 echo ""
 echo "🔐 Running security audit..."
-pnpm audit --audit-level=critical
+nice pnpm audit --audit-level=critical
 AUDIT_EXIT_CODE=$?
 
 if [ $AUDIT_EXIT_CODE -ne 0 ]; then
@@ -33,7 +33,7 @@ fi
 echo "✅ No critical security vulnerabilities found"
 echo ""
 echo "🔍 Running TypeScript type check..."
-pnpm typecheck
+nice pnpm typecheck
 TYPECHECK_EXIT_CODE=$?
 
 if [ $TYPECHECK_EXIT_CODE -ne 0 ]; then
@@ -45,7 +45,7 @@ fi
 echo "✅ TypeScript type check passed"
 echo ""
 echo "🧪 Running tests..."
-pnpm test
+nice pnpm test
 TEST_EXIT_CODE=$?
 
 if [ $TEST_EXIT_CODE -ne 0 ]; then
