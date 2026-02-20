@@ -16,6 +16,16 @@ vi.mock('@/hooks/use-auth', () => ({
       isLoggedIn: false,
       isLoading: false,
       isTrialExpired: false,
+      isPremium: false,
+      user: null,
+      error: null,
+      refresh: vi.fn(),
+      profiles: [],
+      activeProfileId: null,
+      activeProfile: null,
+      isLoadingProfiles: false,
+      selectProfile: vi.fn(),
+      refreshProfiles: vi.fn(),
     };
   }),
 }));
@@ -92,6 +102,12 @@ describe('LiveTvContent', () => {
       user: null,
       error: null,
       refresh: vi.fn(),
+      profiles: [],
+      activeProfileId: null,
+      activeProfile: null,
+      isLoadingProfiles: false,
+      selectProfile: vi.fn(),
+      refreshProfiles: vi.fn(),
     });
     
     // Mock localStorage

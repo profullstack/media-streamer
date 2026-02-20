@@ -13,6 +13,7 @@
 
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
 import { getFavoritesService } from '@/lib/favorites';
 import { getTorrentById, getTorrentByInfohash } from '@/lib/supabase/queries';
 import type { TorrentFavoriteWithDetails } from '@/lib/favorites';
@@ -99,8 +100,19 @@ export async function GET(): Promise<
       );
     }
 
-    // Get favorites
+    // Get current profile
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No profile selected' },
+        { status: 400 }
+      );
+    }
+
+    // Get favorites for the profile
     const favoritesService = getFavoritesService();
+    // TODO: Update favorites service to use profile_id
+    // For now, fall back to user_id - this will be updated when we migrate the favorites service
     const favorites = await favoritesService.getTorrentFavorites(user.id);
 
     return NextResponse.json(

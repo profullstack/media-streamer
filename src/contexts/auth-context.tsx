@@ -6,9 +6,12 @@
  * Provides cached authentication state across the entire app.
  * Fetches auth status once on mount and caches it across route changes,
  * eliminating the per-navigation fetch that blocks rendering on slow devices.
+ * 
+ * Now includes Netflix-style profiles management.
  */
 
 import { createContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import type { Profile } from '@/lib/profiles/types';
 
 export interface AuthUser {
   id: string;
@@ -30,6 +33,13 @@ export interface AuthContextValue {
   user: AuthUser | null;
   error: string | null;
   refresh: () => void;
+  // Profile management
+  profiles: Profile[];
+  activeProfileId: string | null;
+  activeProfile: Profile | null;
+  isLoadingProfiles: boolean;
+  selectProfile: (profileId: string) => Promise<void>;
+  refreshProfiles: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -50,6 +60,12 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
   const [error, setError] = useState<string | null>(null);
   const lastFetchedAt = useRef<number>(0);
   const fetchInFlight = useRef<Promise<void> | null>(null);
+  
+  // Profiles state
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+  const profilesLastFetchedAt = useRef<number>(0);
 
   const fetchAuthState = useCallback(async (force = false): Promise<void> => {
     const now = Date.now();
@@ -110,6 +126,71 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
     void fetchAuthState(true);
   }, [fetchAuthState]);
 
+  // Profile management functions
+  const refreshProfiles = useCallback(async (): Promise<void> => {
+    if (!user) {
+      setProfiles([]);
+      setActiveProfileId(null);
+      return;
+    }
+
+    try {
+      setIsLoadingProfiles(true);
+      const response = await fetch('/api/profiles');
+
+      if (!response.ok) {
+        throw new Error('Failed to load profiles');
+      }
+
+      const data = await response.json();
+      const userProfiles = data.profiles || [];
+      setProfiles(userProfiles);
+      profilesLastFetchedAt.current = Date.now();
+
+      // If no active profile selected, use default or first profile
+      if (!activeProfileId && userProfiles.length > 0) {
+        const defaultProfile = userProfiles.find((p: Profile) => p.is_default) || userProfiles[0];
+        setActiveProfileId(defaultProfile.id);
+      }
+    } catch (error) {
+      console.error('Failed to load profiles:', error);
+      setProfiles([]);
+    } finally {
+      setIsLoadingProfiles(false);
+    }
+  }, [user, activeProfileId]);
+
+  const selectProfile = useCallback(async (profileId: string): Promise<void> => {
+    try {
+      const response = await fetch(`/api/profiles/${profileId}/select`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to select profile');
+      }
+
+      setActiveProfileId(profileId);
+    } catch (error) {
+      console.error('Failed to select profile:', error);
+      throw error;
+    }
+  }, []);
+
+  // Load profiles when user changes
+  useEffect(() => {
+    if (user && profiles.length === 0 && !isLoadingProfiles) {
+      void refreshProfiles();
+    } else if (!user) {
+      setProfiles([]);
+      setActiveProfileId(null);
+    }
+  }, [user, profiles.length, isLoadingProfiles, refreshProfiles]);
+
+  // Get active profile object
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
+
   const isLoggedIn = user !== null;
   const isPremium =
     (user?.subscription_tier === 'trial' ||
@@ -120,7 +201,22 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
 
   return (
     <AuthContext.Provider
-      value={{ isLoading, isLoggedIn, isPremium, isTrialExpired, user, error, refresh }}
+      value={{ 
+        isLoading, 
+        isLoggedIn, 
+        isPremium, 
+        isTrialExpired, 
+        user, 
+        error, 
+        refresh,
+        // Profile management
+        profiles,
+        activeProfileId,
+        activeProfile,
+        isLoadingProfiles,
+        selectProfile,
+        refreshProfiles,
+      }}
     >
       {children}
     </AuthContext.Provider>

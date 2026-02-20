@@ -13,10 +13,11 @@ import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
-import { UserIcon, CreditCardIcon, KeyIcon, SettingsIcon, TvIcon } from '@/components/ui/icons';
+import { UserIcon, CreditCardIcon, KeyIcon, SettingsIcon, TvIcon, UsersIcon } from '@/components/ui/icons';
 import { IPTVSubscriptionSection } from '@/components/account';
+import { ProfileManagementSection } from '@/components/profiles/ProfileManagementSection';
 
-type AccountTab = 'account' | 'subscription' | 'iptv' | 'security';
+type AccountTab = 'account' | 'subscription' | 'iptv' | 'profiles' | 'security';
 
 /**
  * Payment history item from API
@@ -213,6 +214,7 @@ function AccountPageContent(): React.ReactElement {
     { id: 'account' as const, label: 'Account', icon: UserIcon },
     { id: 'subscription' as const, label: 'Subscription', icon: CreditCardIcon },
     { id: 'iptv' as const, label: 'IPTV', icon: TvIcon },
+    { id: 'profiles' as const, label: 'Profiles', icon: UsersIcon },
     { id: 'security' as const, label: 'Security', icon: KeyIcon },
   ];
 
@@ -753,6 +755,10 @@ function AccountPageContent(): React.ReactElement {
 
             {activeTab === 'iptv' && (
               <IPTVSubscriptionSection />
+            )}
+
+            {activeTab === 'profiles' && (
+              <ProfileManagementSection />
             )}
 
             {activeTab === 'security' && (
