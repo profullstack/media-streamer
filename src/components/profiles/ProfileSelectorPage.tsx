@@ -15,7 +15,7 @@ import type { Profile } from '@/lib/profiles/types';
 
 export function ProfileSelectorPage(): React.ReactElement {
   const router = useRouter();
-  const { hasFamilyPlan, needsProfileSelection, isLoading: isAuthLoading, isLoggedIn } = useAuth();
+  const { hasFamilyPlan, needsProfileSelection, isLoading: isAuthLoading, isLoggedIn, selectProfile } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,17 +54,10 @@ export function ProfileSelectorPage(): React.ReactElement {
     loadProfiles();
   }, [loadProfiles]);
 
-  // Handle profile selection
+  // Handle profile selection — updates both server cookie and client state
   const handleProfileSelect = useCallback(async (profileId: string) => {
-    const response = await fetch(`/api/profiles/${profileId}/select`, {
-      method: 'POST',
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to select profile');
-    }
-  }, []);
+    await selectProfile(profileId);
+  }, [selectProfile]);
 
   if (isLoading) {
     return (
