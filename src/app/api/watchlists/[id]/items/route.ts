@@ -123,9 +123,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
       );
     }
 
-    // Verify watchlist belongs to user
+    // Verify watchlist belongs to profile
     const repo = getWatchlistRepository();
-    const watchlists = await repo.getUserWatchlists(user.id);
+    const watchlists = await repo.getUserWatchlists(profileId);
     const watchlist = watchlists.find(w => w.id === watchlistId);
 
     if (!watchlist) {

@@ -113,7 +113,7 @@ export async function GET(
       if (profileId) {
         const vote = await commentsService.getUserTorrentVote(torrentId, profileId);
         userVote = vote?.voteValue ?? null;
-        isFavorited = await favoritesService.isTorrentFavorite(user.id, torrentId);
+        isFavorited = await favoritesService.isTorrentFavorite(profileId, torrentId);
       }
     }
 
