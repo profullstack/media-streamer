@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getFavoritesService } from '@/lib/favorites';
-import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
+import { getActiveProfileId } from '@/lib/profiles';
 import type { IptvChannelFavoriteWithDetails, AddIptvChannelFavoriteInput } from '@/lib/favorites';
 import type { IptvChannelFavorite } from '@/lib/supabase/types';
 
@@ -91,7 +91,7 @@ export async function GET(
 
     // Get favorites
     const favoritesService = getFavoritesService();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: "No active profile" }, { status: 400 });
     }
@@ -177,7 +177,7 @@ export async function POST(
 
     // Add to favorites
     const favoritesService = getFavoritesService();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
@@ -232,7 +232,7 @@ export async function DELETE(
 
     // Remove from favorites
     const favoritesService = getFavoritesService();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }

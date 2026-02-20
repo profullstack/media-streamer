@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getLibraryRepository } from '@/lib/library';
-import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
+import { getActiveProfileId } from '@/lib/profiles';
 import type { Collection, CollectionType } from '@/lib/library';
 
 /**
@@ -64,7 +64,7 @@ export async function GET(): Promise<
 
     // Get collections
     const libraryRepo = getLibraryRepository();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
@@ -127,7 +127,7 @@ export async function POST(
 
     // Create collection
     const libraryRepo = getLibraryRepository();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }

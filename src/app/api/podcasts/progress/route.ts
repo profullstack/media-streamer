@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getPodcastService } from '@/lib/podcasts';
-import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
+import { getActiveProfileId } from '@/lib/profiles';
 
 /**
  * Cookie name for auth token
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }

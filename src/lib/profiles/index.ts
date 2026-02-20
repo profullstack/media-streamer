@@ -5,7 +5,7 @@
  */
 
 export { ProfilesService, getProfilesService } from './profiles-service';
-export { getCurrentProfileId, getCurrentProfile, getCurrentProfileIdWithFallback } from './profile-utils';
+export { getCurrentProfileId, getCurrentProfile, getActiveProfileId } from './profile-utils';
 export type {
   Profile,
   CreateProfileInput,

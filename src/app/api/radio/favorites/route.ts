@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getRadioService } from '@/lib/radio';
-import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
+import { getActiveProfileId } from '@/lib/profiles';
 import type { RadioStation } from '@/lib/radio';
 
 /**
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
-  const profileId = await getCurrentProfileIdWithFallback();
+  const profileId = await getActiveProfileId();
 
   if (!profileId) {
 
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  const profileId = await getCurrentProfileIdWithFallback();
+  const profileId = await getActiveProfileId();
 
   if (!profileId) {
 
@@ -284,7 +284,7 @@ export async function DELETE(request: NextRequest): Promise<Response> {
     );
   }
 
-  const profileId = await getCurrentProfileIdWithFallback();
+  const profileId = await getActiveProfileId();
 
   if (!profileId) {
 

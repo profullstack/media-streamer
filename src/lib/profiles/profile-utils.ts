@@ -55,7 +55,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
  * 
  * @returns Profile ID string or null if no profile selected
  */
-export async function getCurrentProfileIdWithFallback(): Promise<string | null> {
+export async function getActiveProfileId(): Promise<string | null> {
   try {
     const user = await getCurrentUser();
     if (!user) return null;

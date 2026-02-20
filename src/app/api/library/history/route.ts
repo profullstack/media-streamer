@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getLibraryRepository } from '@/lib/library';
-import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
+import { getActiveProfileId } from '@/lib/profiles';
 import type { HistoryItem } from '@/lib/library';
 
 /**
@@ -59,7 +59,7 @@ export async function GET(
 
     // Get combined history
     const libraryRepo = getLibraryRepository();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
@@ -103,7 +103,7 @@ export async function DELETE(): Promise<
 
     // Clear all history
     const libraryRepo = getLibraryRepository();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }

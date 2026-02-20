@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getLibraryRepository } from '@/lib/library';
-import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
+import { getActiveProfileId } from '@/lib/profiles';
 import type { Favorite } from '@/lib/library';
 
 /**
@@ -77,7 +77,7 @@ export async function GET(
 
     // If fileId is provided, check if that specific file is favorited
     if (fileId) {
-      const profileId = await getCurrentProfileIdWithFallback();
+      const profileId = await getActiveProfileId();
       if (!profileId) {
         return NextResponse.json({ error: 'No active profile' }, { status: 400 });
       }
@@ -94,7 +94,7 @@ export async function GET(
     }
 
     // Otherwise, get all favorites
-    const profileId2 = await getCurrentProfileIdWithFallback();
+    const profileId2 = await getActiveProfileId();
     if (!profileId2) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
@@ -149,7 +149,7 @@ export async function POST(
 
     // Add to favorites
     const libraryRepo = getLibraryRepository();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
@@ -204,7 +204,7 @@ export async function DELETE(
 
     // Remove from favorites
     const libraryRepo = getLibraryRepository();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }

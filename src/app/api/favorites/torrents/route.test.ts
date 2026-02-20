@@ -14,7 +14,7 @@ vi.mock('@/lib/auth', () => ({
 
 // Mock the profiles module
 vi.mock('@/lib/profiles', () => ({
-  getCurrentProfileIdWithFallback: () => Promise.resolve('profile-123'),
+  getActiveProfileId: () => Promise.resolve('profile-123'),
 }));
 
 // Mock the favorites service

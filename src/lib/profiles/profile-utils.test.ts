@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { 
   getCurrentProfileId, 
   getCurrentProfile, 
-  getCurrentProfileIdWithFallback 
+  getActiveProfileId 
 } from './profile-utils';
 
 // Mock Next.js cookies
@@ -181,12 +181,12 @@ describe('Profile Utils', () => {
     });
   });
 
-  describe('getCurrentProfileIdWithFallback', () => {
+  describe('getActiveProfileId', () => {
     it('should return null when user is not authenticated', async () => {
       const { getCurrentUser } = await import('@/lib/auth');
       vi.mocked(getCurrentUser).mockResolvedValue(null);
 
-      const result = await getCurrentProfileIdWithFallback();
+      const result = await getActiveProfileId();
 
       expect(result).toBeNull();
     });
@@ -198,7 +198,7 @@ describe('Profile Utils', () => {
       mockCookieStore.get.mockReturnValue({ value: 'profile-123' });
       mockProfilesService.getProfileById.mockResolvedValue(mockProfile);
 
-      const result = await getCurrentProfileIdWithFallback();
+      const result = await getActiveProfileId();
 
       expect(result).toBe('profile-123');
       expect(mockProfilesService.getProfileById).toHaveBeenCalledWith('user-123', 'profile-123');
@@ -211,7 +211,7 @@ describe('Profile Utils', () => {
       mockCookieStore.get.mockReturnValue({ value: 'nonexistent-profile' });
       mockProfilesService.getProfileById.mockResolvedValue(null);
 
-      const result = await getCurrentProfileIdWithFallback();
+      const result = await getActiveProfileId();
 
       expect(result).toBeNull();
     });
@@ -222,7 +222,7 @@ describe('Profile Utils', () => {
       
       mockCookieStore.get.mockReturnValue(undefined);
 
-      const result = await getCurrentProfileIdWithFallback();
+      const result = await getActiveProfileId();
 
       expect(result).toBeNull();
     });
@@ -234,7 +234,7 @@ describe('Profile Utils', () => {
       mockCookieStore.get.mockReturnValue(undefined);
       mockProfilesService.getDefaultProfile.mockResolvedValue(null);
 
-      const result = await getCurrentProfileIdWithFallback();
+      const result = await getActiveProfileId();
 
       expect(result).toBeNull();
     });
@@ -246,7 +246,7 @@ describe('Profile Utils', () => {
       const { cookies } = vi.mocked(await import('next/headers'));
       cookies.mockRejectedValue(new Error('Cookie error'));
 
-      const result = await getCurrentProfileIdWithFallback();
+      const result = await getActiveProfileId();
 
       expect(result).toBeNull();
     });
@@ -258,7 +258,7 @@ describe('Profile Utils', () => {
       mockCookieStore.get.mockReturnValue({ value: 'profile-123' });
       mockProfilesService.getProfileById.mockRejectedValue(new Error('Database error'));
 
-      const result = await getCurrentProfileIdWithFallback();
+      const result = await getActiveProfileId();
 
       expect(result).toBeNull();
     });

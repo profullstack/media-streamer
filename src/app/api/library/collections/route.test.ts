@@ -27,7 +27,7 @@ vi.mock('@/lib/library', () => ({
 
 // Mock profiles
 vi.mock('@/lib/profiles', () => ({
-  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
 }));
 
 

@@ -13,7 +13,7 @@
 
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
+import { getActiveProfileId } from '@/lib/profiles';
 import { getFavoritesService } from '@/lib/favorites';
 import { getTorrentById, getTorrentByInfohash } from '@/lib/supabase/queries';
 import type { TorrentFavoriteWithDetails } from '@/lib/favorites';
@@ -101,7 +101,7 @@ export async function GET(): Promise<
     }
 
     // Get current profile
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json(
         { error: 'No profile selected' },
@@ -175,7 +175,7 @@ export async function POST(
 
     // Add to favorites
     const favoritesService = getFavoritesService();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
@@ -238,7 +238,7 @@ export async function DELETE(
 
     // Remove from favorites
     const favoritesService = getFavoritesService();
-    const profileId = await getCurrentProfileIdWithFallback();
+    const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json({ error: 'No active profile' }, { status: 400 });
     }
