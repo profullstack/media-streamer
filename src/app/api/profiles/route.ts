@@ -100,18 +100,7 @@ export async function POST(
       );
     }
 
-    // Check if user already has profiles - only family tier can create additional profiles
-    const profilesService = getProfilesService();
-    const existingProfiles = await profilesService.getAccountProfiles(user.id);
-    
-    if (existingProfiles.length >= 1 && user.subscription_tier !== 'family') {
-      return NextResponse.json(
-        { error: 'Multiple profiles are only available on the Family plan' },
-        { status: 403 }
-      );
-    }
-
-    // Parse request body
+    // Parse request body first to validate input
     const body = (await request.json()) as CreateProfileBody;
     const { name, avatar_url, avatar_emoji } = body;
 
@@ -127,6 +116,17 @@ export async function POST(
       return NextResponse.json(
         { error: 'Profile name must be 50 characters or less' },
         { status: 400 }
+      );
+    }
+
+    // Check if user already has profiles - only family tier can create additional profiles
+    const profilesService = getProfilesService();
+    const existingProfiles = await profilesService.getAccountProfiles(user.id);
+    
+    if (existingProfiles.length >= 1 && user.subscription_tier !== 'family') {
+      return NextResponse.json(
+        { error: 'Multiple profiles are only available on the Family plan' },
+        { status: 403 }
       );
     }
 

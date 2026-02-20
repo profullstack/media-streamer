@@ -171,7 +171,7 @@ describe('WatchlistRepository', () => {
 
       expect(mockClient.mocks.from).toHaveBeenCalledWith('user_watchlists');
       expect(mockClient.mocks.insert).toHaveBeenCalledWith({
-        user_id: userId,
+        profile_id: userId,
         name: 'Action Movies',
       });
       expect(result.name).toBe('Action Movies');

@@ -194,7 +194,7 @@ describe('LibraryRepository', () => {
 
         expect(mockClient.mocks.from).toHaveBeenCalledWith('user_favorites');
         expect(mockClient.mocks.insert).toHaveBeenCalledWith({
-          user_id: userId,
+          profile_id: userId,
           file_id: fileId,
         });
         expect(result.id).toBe('fav-new');
@@ -328,7 +328,7 @@ describe('LibraryRepository', () => {
 
         expect(mockClient.mocks.from).toHaveBeenCalledWith('collections');
         expect(mockClient.mocks.insert).toHaveBeenCalledWith({
-          user_id: userId,
+          profile_id: userId,
           name: 'New Playlist',
           collection_type: 'playlist',
         });

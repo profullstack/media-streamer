@@ -81,7 +81,7 @@ export function ProfileSelector({
       <div className={cn('min-h-screen bg-black flex flex-col items-center justify-center', className)}>
         {/* Header */}
         <div className="mb-12 text-center">
-          <h1 className="text-4xl font-bold text-white mb-4">Who's watching?</h1>
+          <h1 className="text-4xl font-bold text-white mb-4">Who&apos;s watching?</h1>
           <p className="text-gray-400 text-lg">Choose a profile to continue</p>
         </div>
 

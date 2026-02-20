@@ -35,16 +35,16 @@ export class WatchlistRepository {
   constructor(private readonly supabase: SupabaseClient<Database>) {}
 
   /**
-   * Get all watchlists for a user with item counts
+   * Get all watchlists for a profile with item counts
    */
-  async getUserWatchlists(userId: string): Promise<Watchlist[]> {
+  async getUserWatchlists(profileId: string): Promise<Watchlist[]> {
     const { data, error } = await this.supabase
       .from('user_watchlists')
       .select(`
         *,
         watchlist_items (count)
       `)
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -60,29 +60,30 @@ export class WatchlistRepository {
   }
 
   /**
-   * Get or create default watchlist for a user
+   * Get or create default watchlist for a profile
    */
-  async getOrCreateDefaultWatchlist(userId: string): Promise<Watchlist> {
+  async getOrCreateDefaultWatchlist(profileId: string): Promise<Watchlist> {
     // Check for existing watchlists
-    const existing = await this.getUserWatchlists(userId);
+    const existing = await this.getUserWatchlists(profileId);
     if (existing.length > 0) {
       return existing[0];
     }
 
     // Create default
-    return this.createWatchlist(userId, 'My Watchlist');
+    return this.createWatchlist(profileId, 'My Watchlist');
   }
 
   /**
    * Create a new watchlist
    */
-  async createWatchlist(userId: string, name: string): Promise<Watchlist> {
+  async createWatchlist(profileId: string, name: string): Promise<Watchlist> {
     const { data, error } = await this.supabase
       .from('user_watchlists')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .insert({
-        user_id: userId,
+        profile_id: profileId,
         name,
-      })
+      } as any)
       .select()
       .single();
 
@@ -96,12 +97,12 @@ export class WatchlistRepository {
   /**
    * Rename a watchlist
    */
-  async renameWatchlist(userId: string, watchlistId: string, name: string): Promise<Watchlist> {
+  async renameWatchlist(profileId: string, watchlistId: string, name: string): Promise<Watchlist> {
     const { data, error } = await this.supabase
       .from('user_watchlists')
       .update({ name, updated_at: new Date().toISOString() })
       .eq('id', watchlistId)
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .select()
       .single();
 
@@ -115,12 +116,12 @@ export class WatchlistRepository {
   /**
    * Delete a watchlist
    */
-  async deleteWatchlist(userId: string, watchlistId: string): Promise<void> {
+  async deleteWatchlist(profileId: string, watchlistId: string): Promise<void> {
     const { error } = await this.supabase
       .from('user_watchlists')
       .delete()
       .eq('id', watchlistId)
-      .eq('user_id', userId);
+      .eq('profile_id', profileId);
 
     if (error) {
       throw new Error(`Failed to delete watchlist: ${error.message}`);
