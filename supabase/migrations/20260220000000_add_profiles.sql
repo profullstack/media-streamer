@@ -18,7 +18,7 @@ CREATE TABLE profiles (
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    -- Max 5 profiles per account constraint will be enforced via trigger
+    -- Max 10 profiles per account constraint will be enforced via trigger
     -- Unique profile names per account
     UNIQUE(account_id, name)
 );
@@ -62,7 +62,7 @@ BEGIN
         -- Get user's subscription tier from auth.users (we'll store it in a custom field)
         -- For now, we'll rely on the API-level checks since the subscription data 
         -- might be in a different table/service
-        -- This trigger mainly enforces the 5 profile limit
+        -- This trigger mainly enforces the 10 profile limit
         NULL;
     END IF;
     
@@ -367,7 +367,7 @@ CREATE POLICY "Users can view their own profiles"
     ON profiles FOR SELECT
     USING (auth.uid() = account_id);
 
--- Users can insert their own profiles (max 5 enforced by trigger)
+-- Users can insert their own profiles (max 10 enforced by trigger)
 CREATE POLICY "Users can insert their own profiles"
     ON profiles FOR INSERT
     WITH CHECK (auth.uid() = account_id);
