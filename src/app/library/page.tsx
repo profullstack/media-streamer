@@ -44,7 +44,7 @@ export default async function LibraryPage(): Promise<React.ReactElement> {
 
   const profileId = await getActiveProfileId();
   if (!profileId) {
-    redirect('/profiles?redirect=/library');
+    redirect('/select-profile?redirect=/library');
   }
 
   // Fetch all library data server-side

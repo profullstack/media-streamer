@@ -29,7 +29,7 @@ export default async function WatchlistPage(): Promise<React.ReactElement> {
 
   const profileId = await getActiveProfileId();
   if (!profileId) {
-    redirect('/profiles?redirect=/watchlist');
+    redirect('/select-profile?redirect=/watchlist');
   }
 
   const repo = getWatchlistRepository();
