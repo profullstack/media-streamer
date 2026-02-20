@@ -98,7 +98,8 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
 
       const response = await fetch(`/api/torrents/${torrentId}/comments`);
       if (!response.ok) {
-        throw new Error('Failed to load comments');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error ?? 'Failed to load comments');
       }
 
       const data = await response.json() as { comments: Comment[]; total: number; isDhtTorrent?: boolean };

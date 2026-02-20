@@ -65,9 +65,13 @@ export async function GET(
       });
     }
 
-    // Get authenticated user (optional for viewing comments)
-    const user = await getAuthenticatedUser(request);
-    const profileId = user ? await getActiveProfileId() : null;
+    // Get active profile (optional - for showing user's vote status)
+    let profileId: string | null = null;
+    try {
+      profileId = await getActiveProfileId();
+    } catch {
+      // Profile lookup failed — show comments without vote status
+    }
 
     // Get comments with user vote status
     const service = getCommentsService();
