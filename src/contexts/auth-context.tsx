@@ -164,16 +164,21 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
       setProfiles(userProfiles);
       profilesLastFetchedAt.current = Date.now();
 
-      // Check device-local default profile (localStorage)
+      // Restore active profile on reload
       if (!activeProfileId) {
-        const deviceDefault = typeof window !== 'undefined' 
-          ? localStorage.getItem('default-profile-id') 
-          : null;
-        if (deviceDefault && userProfiles.some((p: Profile) => p.id === deviceDefault)) {
-          // Auto-select the device default — bypass profile selector
-          setActiveProfileId(deviceDefault);
-          // Also set the server cookie
-          fetch(`/api/profiles/${deviceDefault}/select`, { method: 'POST' }).catch(() => {});
+        // 1. Check server cookie (set when user selected a profile this session)
+        const serverActiveId = data.activeProfileId;
+        if (serverActiveId && userProfiles.some((p: Profile) => p.id === serverActiveId)) {
+          setActiveProfileId(serverActiveId);
+        } else {
+          // 2. Check device-local default (localStorage bypass)
+          const deviceDefault = typeof window !== 'undefined' 
+            ? localStorage.getItem('default-profile-id') 
+            : null;
+          if (deviceDefault && userProfiles.some((p: Profile) => p.id === deviceDefault)) {
+            setActiveProfileId(deviceDefault);
+            fetch(`/api/profiles/${deviceDefault}/select`, { method: 'POST' }).catch(() => {});
+          }
         }
       }
     } catch (error) {
