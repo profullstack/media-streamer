@@ -33,7 +33,13 @@ export function ProfileSelector({
   const router = useRouter();
   const [isSelectingProfile, setIsSelectingProfile] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [settingDefault, setSettingDefault] = useState<string | null>(null);
+  // Device-local default profile (stored in localStorage)
+  const [deviceDefault, setDeviceDefault] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('default-profile-id');
+    }
+    return null;
+  });
 
   const handleProfileSelect = useCallback(
     async (profileId: string) => {
@@ -54,47 +60,15 @@ export function ProfileSelector({
     [onProfileSelect, router, isSelectingProfile]
   );
 
-  const handleSetDefault = useCallback(async (profileId: string) => {
-    try {
-      setSettingDefault(profileId);
-      const response = await fetch(`/api/profiles/${profileId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_default: true }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to set default profile');
-      }
-      if (onProfilesChange) {
-        onProfilesChange();
-      }
-    } catch (error) {
-      console.error('Failed to set default:', error);
-    } finally {
-      setSettingDefault(null);
-    }
-  }, [onProfilesChange]);
+  const handleSetDefault = useCallback((profileId: string) => {
+    localStorage.setItem('default-profile-id', profileId);
+    setDeviceDefault(profileId);
+  }, []);
 
-  const handleClearDefault = useCallback(async (profileId: string) => {
-    try {
-      setSettingDefault(profileId);
-      const response = await fetch(`/api/profiles/${profileId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_default: false }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to clear default profile');
-      }
-      if (onProfilesChange) {
-        onProfilesChange();
-      }
-    } catch (error) {
-      console.error('Failed to clear default:', error);
-    } finally {
-      setSettingDefault(null);
-    }
-  }, [onProfilesChange]);
+  const handleClearDefault = useCallback(() => {
+    localStorage.removeItem('default-profile-id');
+    setDeviceDefault(null);
+  }, []);
 
   const handleCreateProfile = useCallback(() => {
     if (!hasFamilyPlan) {
@@ -142,25 +116,22 @@ export function ProfileSelector({
                   isSelectingProfile && 'pointer-events-none opacity-50'
                 )}
               />
-              {/* Set/clear default toggle */}
+              {/* Set/clear device default toggle */}
               <button
-                onClick={() => profile.is_default 
-                  ? handleClearDefault(profile.id) 
+                onClick={() => deviceDefault === profile.id 
+                  ? handleClearDefault() 
                   : handleSetDefault(profile.id)
                 }
-                disabled={settingDefault === profile.id}
                 className={cn(
                   'text-xs px-2 py-1 rounded transition-colors',
-                  profile.is_default
+                  deviceDefault === profile.id
                     ? 'text-blue-400 hover:text-blue-300'
                     : 'text-gray-500 hover:text-gray-300'
                 )}
               >
-                {settingDefault === profile.id
-                  ? '...'
-                  : profile.is_default
-                    ? '★ Default (auto-selects)'
-                    : 'Set as default'}
+                {deviceDefault === profile.id
+                  ? '★ Default on this device'
+                  : 'Set as default'}
               </button>
             </div>
           ))}
@@ -180,9 +151,9 @@ export function ProfileSelector({
             Select a profile above to start watching
           </p>
           <p className="text-gray-600 text-xs">
-            {profiles.some(p => p.is_default)
-              ? 'The default profile will be auto-selected on future logins'
-              : 'Set a default profile to skip this screen next time'}
+            {deviceDefault
+              ? 'The default profile will auto-select on this device'
+              : 'Set a default to skip this screen on this device'}
           </p>
           {!hasFamilyPlan && profiles.length >= 1 && (
             <p className="text-gray-600 text-xs">

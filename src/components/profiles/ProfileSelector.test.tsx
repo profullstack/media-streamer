@@ -258,11 +258,11 @@ describe('ProfileSelector', () => {
     expect(screen.getByText(/Upgrade to Family plan to add more profiles/)).toBeInTheDocument();
   });
 
-  it('should show default bypass hint when no default is set', () => {
-    const profilesNoDefault = defaultProps.profiles.map(p => ({ ...p, is_default: false }));
-    render(<ProfileSelector {...defaultProps} profiles={profilesNoDefault} />);
+  it('should show default bypass hint when no device default is set', () => {
+    localStorage.removeItem('default-profile-id');
+    render(<ProfileSelector {...defaultProps} />);
     
-    expect(screen.getByText(/Set a default profile to skip this screen/)).toBeInTheDocument();
+    expect(screen.getByText(/Set a default to skip this screen on this device/)).toBeInTheDocument();
   });
 
   it('should apply custom className', () => {
