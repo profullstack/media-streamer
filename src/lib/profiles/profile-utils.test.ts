@@ -211,31 +211,27 @@ describe('Profile Utils', () => {
       expect(mockProfilesService.getProfileById).toHaveBeenCalledWith('user-123', 'profile-123');
     });
 
-    it('should fallback to default profile ID when cookie profile not found', async () => {
+    it('should return null when cookie profile not found (no fallback)', async () => {
       const { getCurrentUser } = await import('@/lib/auth');
       vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
       
       mockCookieStore.get.mockReturnValue({ value: 'nonexistent-profile' });
       mockProfilesService.getProfileById.mockResolvedValue(null);
-      mockProfilesService.getDefaultProfile.mockResolvedValue(mockDefaultProfile);
 
       const result = await getCurrentProfileIdWithFallback();
 
-      expect(result).toBe('default-profile');
-      expect(mockProfilesService.getDefaultProfile).toHaveBeenCalledWith('user-123');
+      expect(result).toBeNull();
     });
 
-    it('should fallback to default profile ID when no cookie is set', async () => {
+    it('should return null when no cookie is set (no fallback)', async () => {
       const { getCurrentUser } = await import('@/lib/auth');
       vi.mocked(getCurrentUser).mockResolvedValue(mockUser);
       
       mockCookieStore.get.mockReturnValue(undefined);
-      mockProfilesService.getDefaultProfile.mockResolvedValue(mockDefaultProfile);
 
       const result = await getCurrentProfileIdWithFallback();
 
-      expect(result).toBe('default-profile');
-      expect(mockProfilesService.getDefaultProfile).toHaveBeenCalledWith('user-123');
+      expect(result).toBeNull();
     });
 
     it('should return null when no default profile exists', async () => {

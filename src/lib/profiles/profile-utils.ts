@@ -69,10 +69,9 @@ export async function getCurrentProfileIdWithFallback(): Promise<string | null> 
       if (profile) return profileId;
     }
 
-    // Fallback to default profile
-    const profilesService = getProfilesService();
-    const defaultProfile = await profilesService.getDefaultProfile(user.id);
-    return defaultProfile?.id || null;
+    // No fallback — user must select a profile via the selector
+    // This ensures each profile sees only its own data
+    return null;
   } catch (error) {
     console.error('Failed to get current profile ID:', error);
     return null;
