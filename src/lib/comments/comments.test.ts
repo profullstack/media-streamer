@@ -96,7 +96,7 @@ describe('CommentsService', () => {
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe('comment-1');
       expect(result[0].torrentId).toBe(torrentId);
-      expect(result[0].userId).toBe('user-1');
+      expect(result[0].profileId).toBe('user-1');
       expect(result[0].content).toBe('Great torrent!');
       expect(result[0].userEmail).toBe('user1@example.com');
       expect(mockRepository.getCommentsByTorrentId).toHaveBeenCalledWith(torrentId, 50, 0);
@@ -124,13 +124,13 @@ describe('CommentsService', () => {
   describe('createComment', () => {
     it('should create a new comment', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const content = 'This is a great torrent!';
 
       const mockCommentRow: CommentRow = {
         id: 'comment-new',
         torrent_id: torrentId,
-        user_id: userId,
+        user_id: profileId,
         content,
         parent_id: null,
         upvotes: 0,
@@ -142,16 +142,16 @@ describe('CommentsService', () => {
 
       (mockRepository.createComment as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRow);
 
-      const result = await service.createComment(torrentId, userId, content);
+      const result = await service.createComment(torrentId, profileId, content);
 
       expect(result.id).toBe('comment-new');
       expect(result.torrentId).toBe(torrentId);
-      expect(result.userId).toBe(userId);
+      expect(result.profileId).toBe(profileId);
       expect(result.content).toBe(content);
       expect(result.parentId).toBeNull();
       expect(mockRepository.createComment).toHaveBeenCalledWith({
         torrent_id: torrentId,
-        user_id: userId,
+        profile_id: profileId,
         content,
         parent_id: null,
       });
@@ -159,14 +159,14 @@ describe('CommentsService', () => {
 
     it('should create a reply to an existing comment', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const content = 'I agree with you!';
       const parentId = 'comment-parent';
 
       const mockCommentRow: CommentRow = {
         id: 'comment-reply',
         torrent_id: torrentId,
-        user_id: userId,
+        user_id: profileId,
         content,
         parent_id: parentId,
         upvotes: 0,
@@ -178,13 +178,13 @@ describe('CommentsService', () => {
 
       (mockRepository.createComment as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRow);
 
-      const result = await service.createComment(torrentId, userId, content, parentId);
+      const result = await service.createComment(torrentId, profileId, content, parentId);
 
       expect(result.id).toBe('comment-reply');
       expect(result.parentId).toBe(parentId);
       expect(mockRepository.createComment).toHaveBeenCalledWith({
         torrent_id: torrentId,
-        user_id: userId,
+        profile_id: profileId,
         content,
         parent_id: parentId,
       });
@@ -214,13 +214,13 @@ describe('CommentsService', () => {
   describe('updateComment', () => {
     it('should update comment content', async () => {
       const commentId = 'comment-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const newContent = 'Updated comment content';
 
       const existingCommentRow: CommentRow = {
         id: commentId,
         torrent_id: 'torrent-123',
-        user_id: userId,
+        user_id: profileId,
         content: 'Original content',
         parent_id: null,
         upvotes: 5,
@@ -239,7 +239,7 @@ describe('CommentsService', () => {
       (mockRepository.getCommentById as ReturnType<typeof vi.fn>).mockResolvedValue(existingCommentRow);
       (mockRepository.updateComment as ReturnType<typeof vi.fn>).mockResolvedValue(updatedCommentRow);
 
-      const result = await service.updateComment(commentId, userId, newContent);
+      const result = await service.updateComment(commentId, profileId, newContent);
 
       expect(result.content).toBe(newContent);
       expect(mockRepository.updateComment).toHaveBeenCalledWith(commentId, newContent);
@@ -299,12 +299,12 @@ describe('CommentsService', () => {
   describe('deleteComment', () => {
     it('should soft delete a comment', async () => {
       const commentId = 'comment-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
 
       const existingCommentRow: CommentRow = {
         id: commentId,
         torrent_id: 'torrent-123',
-        user_id: userId,
+        user_id: profileId,
         content: 'Original content',
         parent_id: null,
         upvotes: 0,
@@ -317,7 +317,7 @@ describe('CommentsService', () => {
       (mockRepository.getCommentById as ReturnType<typeof vi.fn>).mockResolvedValue(existingCommentRow);
       (mockRepository.deleteComment as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
-      await service.deleteComment(commentId, userId);
+      await service.deleteComment(commentId, profileId);
 
       expect(mockRepository.deleteComment).toHaveBeenCalledWith(commentId);
     });
@@ -372,13 +372,13 @@ describe('CommentsService', () => {
   describe('voteOnComment', () => {
     it('should create an upvote on a comment', async () => {
       const commentId = 'comment-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const voteValue: VoteValue = 1;
 
       const mockVoteRow: CommentVoteRow = {
         id: 'vote-new',
         comment_id: commentId,
-        user_id: userId,
+        user_id: profileId,
         vote_value: voteValue,
         created_at: '2026-01-02T00:00:00Z',
         updated_at: '2026-01-02T00:00:00Z',
@@ -386,24 +386,24 @@ describe('CommentsService', () => {
 
       (mockRepository.upsertCommentVote as ReturnType<typeof vi.fn>).mockResolvedValue(mockVoteRow);
 
-      const result = await service.voteOnComment(commentId, userId, voteValue);
+      const result = await service.voteOnComment(commentId, profileId, voteValue);
 
       expect(result.id).toBe('vote-new');
       expect(result.commentId).toBe(commentId);
-      expect(result.userId).toBe(userId);
+      expect(result.profileId).toBe(profileId);
       expect(result.voteValue).toBe(1);
-      expect(mockRepository.upsertCommentVote).toHaveBeenCalledWith(commentId, userId, voteValue);
+      expect(mockRepository.upsertCommentVote).toHaveBeenCalledWith(commentId, profileId, voteValue);
     });
 
     it('should create a downvote on a comment', async () => {
       const commentId = 'comment-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const voteValue: VoteValue = -1;
 
       const mockVoteRow: CommentVoteRow = {
         id: 'vote-new',
         comment_id: commentId,
-        user_id: userId,
+        user_id: profileId,
         vote_value: voteValue,
         created_at: '2026-01-02T00:00:00Z',
         updated_at: '2026-01-02T00:00:00Z',
@@ -411,20 +411,20 @@ describe('CommentsService', () => {
 
       (mockRepository.upsertCommentVote as ReturnType<typeof vi.fn>).mockResolvedValue(mockVoteRow);
 
-      const result = await service.voteOnComment(commentId, userId, voteValue);
+      const result = await service.voteOnComment(commentId, profileId, voteValue);
 
       expect(result.voteValue).toBe(-1);
     });
 
     it('should update existing vote when changing vote', async () => {
       const commentId = 'comment-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const newVoteValue: VoteValue = -1;
 
       const updatedVoteRow: CommentVoteRow = {
         id: 'vote-existing',
         comment_id: commentId,
-        user_id: userId,
+        user_id: profileId,
         vote_value: newVoteValue,
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-02T00:00:00Z',
@@ -432,7 +432,7 @@ describe('CommentsService', () => {
 
       (mockRepository.upsertCommentVote as ReturnType<typeof vi.fn>).mockResolvedValue(updatedVoteRow);
 
-      const result = await service.voteOnComment(commentId, userId, newVoteValue);
+      const result = await service.voteOnComment(commentId, profileId, newVoteValue);
 
       expect(result.voteValue).toBe(-1);
     });
@@ -451,26 +451,26 @@ describe('CommentsService', () => {
   describe('removeCommentVote', () => {
     it('should remove a vote from a comment', async () => {
       const commentId = 'comment-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
 
       (mockRepository.deleteCommentVote as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
-      await service.removeCommentVote(commentId, userId);
+      await service.removeCommentVote(commentId, profileId);
 
-      expect(mockRepository.deleteCommentVote).toHaveBeenCalledWith(commentId, userId);
+      expect(mockRepository.deleteCommentVote).toHaveBeenCalledWith(commentId, profileId);
     });
   });
 
   describe('getUserCommentVotes', () => {
     it('should return user votes for comments on a torrent', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
 
       const mockVoteRows: CommentVoteRow[] = [
         {
           id: 'vote-1',
           comment_id: 'comment-1',
-          user_id: userId,
+          user_id: profileId,
           vote_value: 1,
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
@@ -478,7 +478,7 @@ describe('CommentsService', () => {
         {
           id: 'vote-2',
           comment_id: 'comment-2',
-          user_id: userId,
+          user_id: profileId,
           vote_value: -1,
           created_at: '2026-01-01T01:00:00Z',
           updated_at: '2026-01-01T01:00:00Z',
@@ -487,14 +487,14 @@ describe('CommentsService', () => {
 
       (mockRepository.getUserCommentVotes as ReturnType<typeof vi.fn>).mockResolvedValue(mockVoteRows);
 
-      const result = await service.getUserCommentVotes(torrentId, userId);
+      const result = await service.getUserCommentVotes(torrentId, profileId);
 
       expect(result).toHaveLength(2);
       expect(result[0].commentId).toBe('comment-1');
       expect(result[0].voteValue).toBe(1);
       expect(result[1].commentId).toBe('comment-2');
       expect(result[1].voteValue).toBe(-1);
-      expect(mockRepository.getUserCommentVotes).toHaveBeenCalledWith(torrentId, userId);
+      expect(mockRepository.getUserCommentVotes).toHaveBeenCalledWith(torrentId, profileId);
     });
   });
 
@@ -505,13 +505,13 @@ describe('CommentsService', () => {
   describe('voteOnTorrent', () => {
     it('should create an upvote on a torrent', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const voteValue: VoteValue = 1;
 
       const mockVoteRow: TorrentVoteRow = {
         id: 'vote-new',
         torrent_id: torrentId,
-        user_id: userId,
+        user_id: profileId,
         vote_value: voteValue,
         created_at: '2026-01-02T00:00:00Z',
         updated_at: '2026-01-02T00:00:00Z',
@@ -519,24 +519,24 @@ describe('CommentsService', () => {
 
       (mockRepository.upsertTorrentVote as ReturnType<typeof vi.fn>).mockResolvedValue(mockVoteRow);
 
-      const result = await service.voteOnTorrent(torrentId, userId, voteValue);
+      const result = await service.voteOnTorrent(torrentId, profileId, voteValue);
 
       expect(result.id).toBe('vote-new');
       expect(result.torrentId).toBe(torrentId);
-      expect(result.userId).toBe(userId);
+      expect(result.profileId).toBe(profileId);
       expect(result.voteValue).toBe(1);
-      expect(mockRepository.upsertTorrentVote).toHaveBeenCalledWith(torrentId, userId, voteValue);
+      expect(mockRepository.upsertTorrentVote).toHaveBeenCalledWith(torrentId, profileId, voteValue);
     });
 
     it('should create a downvote on a torrent', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
       const voteValue: VoteValue = -1;
 
       const mockVoteRow: TorrentVoteRow = {
         id: 'vote-new',
         torrent_id: torrentId,
-        user_id: userId,
+        user_id: profileId,
         vote_value: voteValue,
         created_at: '2026-01-02T00:00:00Z',
         updated_at: '2026-01-02T00:00:00Z',
@@ -544,7 +544,7 @@ describe('CommentsService', () => {
 
       (mockRepository.upsertTorrentVote as ReturnType<typeof vi.fn>).mockResolvedValue(mockVoteRow);
 
-      const result = await service.voteOnTorrent(torrentId, userId, voteValue);
+      const result = await service.voteOnTorrent(torrentId, profileId, voteValue);
 
       expect(result.voteValue).toBe(-1);
     });
@@ -559,13 +559,13 @@ describe('CommentsService', () => {
   describe('removeTorrentVote', () => {
     it('should remove a vote from a torrent', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
 
       (mockRepository.deleteTorrentVote as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
-      await service.removeTorrentVote(torrentId, userId);
+      await service.removeTorrentVote(torrentId, profileId);
 
-      expect(mockRepository.deleteTorrentVote).toHaveBeenCalledWith(torrentId, userId);
+      expect(mockRepository.deleteTorrentVote).toHaveBeenCalledWith(torrentId, profileId);
     });
   });
 
@@ -586,12 +586,12 @@ describe('CommentsService', () => {
   describe('getUserTorrentVote', () => {
     it('should return user vote for a torrent', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
 
       const mockVoteRow: TorrentVoteRow = {
         id: 'vote-123',
         torrent_id: torrentId,
-        user_id: userId,
+        user_id: profileId,
         vote_value: 1,
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
@@ -599,7 +599,7 @@ describe('CommentsService', () => {
 
       (mockRepository.getUserTorrentVote as ReturnType<typeof vi.fn>).mockResolvedValue(mockVoteRow);
 
-      const result = await service.getUserTorrentVote(torrentId, userId);
+      const result = await service.getUserTorrentVote(torrentId, profileId);
 
       expect(result).not.toBeNull();
       expect(result!.id).toBe('vote-123');
@@ -623,7 +623,7 @@ describe('CommentsService', () => {
   describe('getCommentsWithUserVotes', () => {
     it('should return comments with user vote status', async () => {
       const torrentId = 'torrent-123';
-      const userId = 'user-456';
+      const profileId = 'user-456';
 
       const mockCommentRows: CommentWithUserRow[] = [
         {
@@ -658,7 +658,7 @@ describe('CommentsService', () => {
         {
           id: 'vote-1',
           comment_id: 'comment-1',
-          user_id: userId,
+          user_id: profileId,
           vote_value: 1,
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
@@ -668,14 +668,14 @@ describe('CommentsService', () => {
       (mockRepository.getCommentsByTorrentId as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRows);
       (mockRepository.getUserCommentVotes as ReturnType<typeof vi.fn>).mockResolvedValue(mockUserVoteRows);
 
-      const result = await service.getCommentsWithUserVotes(torrentId, userId);
+      const result = await service.getCommentsWithUserVotes(torrentId, profileId);
 
       expect(result).toHaveLength(2);
       expect(result[0].userVote).toBe(1);
       expect(result[1].userVote).toBeNull();
     });
 
-    it('should return comments without user votes when userId is null', async () => {
+    it('should return comments without user votes when profileId is null', async () => {
       const torrentId = 'torrent-123';
 
       const mockCommentRows: CommentWithUserRow[] = [

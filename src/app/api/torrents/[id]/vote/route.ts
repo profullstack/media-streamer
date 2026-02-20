@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsService, type VoteValue } from '@/lib/comments';
 import { getFavoritesService } from '@/lib/favorites';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { getTorrentById, getTorrentByInfohash } from '@/lib/supabase/queries';
 
 /**
@@ -108,9 +109,12 @@ export async function GET(
     let userVote: VoteValue | null = null;
     let isFavorited = false;
     if (user) {
-      const vote = await commentsService.getUserTorrentVote(torrentId, user.id);
-      userVote = vote?.voteValue ?? null;
-      isFavorited = await favoritesService.isTorrentFavorite(user.id, torrentId);
+      const profileId = await getActiveProfileId();
+      if (profileId) {
+        const vote = await commentsService.getUserTorrentVote(torrentId, profileId);
+        userVote = vote?.voteValue ?? null;
+        isFavorited = await favoritesService.isTorrentFavorite(user.id, torrentId);
+      }
     }
 
     return NextResponse.json({
@@ -169,6 +173,15 @@ export async function POST(
       );
     }
 
+    // Get active profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No active profile' },
+        { status: 400 }
+      );
+    }
+
     // Get the user torrent ID (null if DHT torrent)
     const torrentId = await getUserTorrentId(torrentIdParam);
 
@@ -192,7 +205,7 @@ export async function POST(
 
     // Create/update vote
     const service = getCommentsService();
-    const vote = await service.voteOnTorrent(torrentId, user.id, value as VoteValue);
+    const vote = await service.voteOnTorrent(torrentId, profileId, value as VoteValue);
 
     // Fetch updated counts after vote
     const counts = await service.getTorrentVoteCounts(torrentId);
@@ -256,6 +269,15 @@ export async function DELETE(
       );
     }
 
+    // Get active profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No active profile' },
+        { status: 400 }
+      );
+    }
+
     // Get the user torrent ID (null if DHT torrent)
     const torrentId = await getUserTorrentId(torrentIdParam);
 
@@ -271,7 +293,7 @@ export async function DELETE(
 
     // Remove vote
     const service = getCommentsService();
-    await service.removeTorrentVote(torrentId, user.id);
+    await service.removeTorrentVote(torrentId, profileId);
 
     // Fetch updated counts after vote removal
     const counts = await service.getTorrentVoteCounts(torrentId);

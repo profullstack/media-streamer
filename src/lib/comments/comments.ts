@@ -27,7 +27,7 @@ export type { VoteValue };
 export interface Comment {
   id: string;
   torrentId: string;
-  userId: string;
+  profileId: string;
   content: string;
   parentId: string | null;
   upvotes: number;
@@ -57,7 +57,7 @@ export interface CommentWithUserVote extends CommentWithUser {
 export interface CommentVote {
   id: string;
   commentId: string;
-  userId: string;
+  profileId: string;
   voteValue: VoteValue;
   createdAt: Date;
   updatedAt: Date;
@@ -69,7 +69,7 @@ export interface CommentVote {
 export interface TorrentVote {
   id: string;
   torrentId: string;
-  userId: string;
+  profileId: string;
   voteValue: VoteValue;
   createdAt: Date;
   updatedAt: Date;
@@ -90,7 +90,7 @@ function mapCommentRowToComment(row: CommentRow): Comment {
   return {
     id: row.id,
     torrentId: row.torrent_id,
-    userId: row.user_id,
+    profileId: (row as any).profile_id || row.user_id, // Fallback during migration
     content: row.content,
     parentId: row.parent_id,
     upvotes: row.upvotes,
@@ -112,7 +112,7 @@ function mapCommentVoteRowToCommentVote(row: CommentVoteRow): CommentVote {
   return {
     id: row.id,
     commentId: row.comment_id,
-    userId: row.user_id,
+    profileId: (row as any).profile_id || row.user_id, // Fallback during migration
     voteValue: row.vote_value as VoteValue,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
@@ -123,7 +123,7 @@ function mapTorrentVoteRowToTorrentVote(row: TorrentVoteRow): TorrentVote {
   return {
     id: row.id,
     torrentId: row.torrent_id,
-    userId: row.user_id,
+    profileId: (row as any).profile_id || row.user_id, // Fallback during migration
     voteValue: row.vote_value as VoteValue,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
@@ -140,24 +140,24 @@ function mapTorrentVoteRowToTorrentVote(row: TorrentVoteRow): TorrentVote {
 export interface CommentsService {
   // Comment operations
   getCommentsByTorrentId(torrentId: string, limit?: number, offset?: number): Promise<CommentWithUser[]>;
-  createComment(torrentId: string, userId: string, content: string, parentId?: string): Promise<Comment>;
-  updateComment(commentId: string, userId: string, content: string): Promise<Comment>;
-  deleteComment(commentId: string, userId: string): Promise<void>;
+  createComment(torrentId: string, profileId: string, content: string, parentId?: string): Promise<Comment>;
+  updateComment(commentId: string, profileId: string, content: string): Promise<Comment>;
+  deleteComment(commentId: string, profileId: string): Promise<void>;
   getCommentCount(torrentId: string): Promise<number>;
 
   // Comment vote operations
-  voteOnComment(commentId: string, userId: string, voteValue: VoteValue): Promise<CommentVote>;
-  removeCommentVote(commentId: string, userId: string): Promise<void>;
-  getUserCommentVotes(torrentId: string, userId: string): Promise<CommentVote[]>;
+  voteOnComment(commentId: string, profileId: string, voteValue: VoteValue): Promise<CommentVote>;
+  removeCommentVote(commentId: string, profileId: string): Promise<void>;
+  getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVote[]>;
 
   // Torrent vote operations
-  voteOnTorrent(torrentId: string, userId: string, voteValue: VoteValue): Promise<TorrentVote>;
-  removeTorrentVote(torrentId: string, userId: string): Promise<void>;
+  voteOnTorrent(torrentId: string, profileId: string, voteValue: VoteValue): Promise<TorrentVote>;
+  removeTorrentVote(torrentId: string, profileId: string): Promise<void>;
   getTorrentVoteCounts(torrentId: string): Promise<VoteCounts>;
-  getUserTorrentVote(torrentId: string, userId: string): Promise<TorrentVote | null>;
+  getUserTorrentVote(torrentId: string, profileId: string): Promise<TorrentVote | null>;
 
   // Combined operations
-  getCommentsWithUserVotes(torrentId: string, userId: string | null, limit?: number, offset?: number): Promise<CommentWithUserVote[]>;
+  getCommentsWithUserVotes(torrentId: string, profileId: string | null, limit?: number, offset?: number): Promise<CommentWithUserVote[]>;
 }
 
 // ============================================================================
@@ -186,7 +186,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
      */
     async createComment(
       torrentId: string,
-      userId: string,
+      profileId: string,
       content: string,
       parentId?: string
     ): Promise<Comment> {
@@ -201,7 +201,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
 
       const row = await repository.createComment({
         torrent_id: torrentId,
-        user_id: userId,
+        profile_id: profileId,
         content: trimmedContent,
         parent_id: parentId ?? null,
       });
@@ -214,7 +214,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
      */
     async updateComment(
       commentId: string,
-      userId: string,
+      profileId: string,
       content: string
     ): Promise<Comment> {
       // Get existing comment
@@ -224,7 +224,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
       }
 
       // Check ownership
-      if (existingRow.user_id !== userId) {
+      if (((existingRow as any).profile_id || existingRow.user_id) !== profileId) {
         throw new Error('Not authorized to update this comment');
       }
 
@@ -249,7 +249,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
     /**
      * Delete a comment (soft delete)
      */
-    async deleteComment(commentId: string, userId: string): Promise<void> {
+    async deleteComment(commentId: string, profileId: string): Promise<void> {
       // Get existing comment
       const existingRow = await repository.getCommentById(commentId);
       if (!existingRow) {
@@ -257,7 +257,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
       }
 
       // Check ownership
-      if (existingRow.user_id !== userId) {
+      if (((existingRow as any).profile_id || existingRow.user_id) !== profileId) {
         throw new Error('Not authorized to delete this comment');
       }
 
@@ -276,7 +276,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
      */
     async voteOnComment(
       commentId: string,
-      userId: string,
+      profileId: string,
       voteValue: VoteValue
     ): Promise<CommentVote> {
       // Validate vote value
@@ -284,22 +284,22 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
         throw new Error('Invalid vote value');
       }
 
-      const row = await repository.upsertCommentVote(commentId, userId, voteValue);
+      const row = await repository.upsertCommentVote(commentId, profileId, voteValue);
       return mapCommentVoteRowToCommentVote(row);
     },
 
     /**
      * Remove a vote from a comment
      */
-    async removeCommentVote(commentId: string, userId: string): Promise<void> {
-      await repository.deleteCommentVote(commentId, userId);
+    async removeCommentVote(commentId: string, profileId: string): Promise<void> {
+      await repository.deleteCommentVote(commentId, profileId);
     },
 
     /**
      * Get user's votes on comments for a torrent
      */
-    async getUserCommentVotes(torrentId: string, userId: string): Promise<CommentVote[]> {
-      const rows = await repository.getUserCommentVotes(torrentId, userId);
+    async getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVote[]> {
+      const rows = await repository.getUserCommentVotes(torrentId, profileId);
       return rows.map(mapCommentVoteRowToCommentVote);
     },
 
@@ -308,7 +308,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
      */
     async voteOnTorrent(
       torrentId: string,
-      userId: string,
+      profileId: string,
       voteValue: VoteValue
     ): Promise<TorrentVote> {
       // Validate vote value
@@ -316,15 +316,15 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
         throw new Error('Invalid vote value');
       }
 
-      const row = await repository.upsertTorrentVote(torrentId, userId, voteValue);
+      const row = await repository.upsertTorrentVote(torrentId, profileId, voteValue);
       return mapTorrentVoteRowToTorrentVote(row);
     },
 
     /**
      * Remove a vote from a torrent
      */
-    async removeTorrentVote(torrentId: string, userId: string): Promise<void> {
-      await repository.deleteTorrentVote(torrentId, userId);
+    async removeTorrentVote(torrentId: string, profileId: string): Promise<void> {
+      await repository.deleteTorrentVote(torrentId, profileId);
     },
 
     /**
@@ -337,8 +337,8 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
     /**
      * Get user's vote on a torrent
      */
-    async getUserTorrentVote(torrentId: string, userId: string): Promise<TorrentVote | null> {
-      const row = await repository.getUserTorrentVote(torrentId, userId);
+    async getUserTorrentVote(torrentId: string, profileId: string): Promise<TorrentVote | null> {
+      const row = await repository.getUserTorrentVote(torrentId, profileId);
       return row ? mapTorrentVoteRowToTorrentVote(row) : null;
     },
 
@@ -347,14 +347,14 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
      */
     async getCommentsWithUserVotes(
       torrentId: string,
-      userId: string | null,
+      profileId: string | null,
       limit: number = DEFAULT_COMMENTS_LIMIT,
       offset: number = 0
     ): Promise<CommentWithUserVote[]> {
       const comments = await this.getCommentsByTorrentId(torrentId, limit, offset);
 
-      if (!userId) {
-        // No user logged in, return comments without vote status
+      if (!profileId) {
+        // No profile selected, return comments without vote status
         return comments.map(comment => ({
           ...comment,
           userVote: null,
@@ -362,7 +362,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
       }
 
       // Get user's votes for these comments
-      const userVotes = await this.getUserCommentVotes(torrentId, userId);
+      const userVotes = await this.getUserCommentVotes(torrentId, profileId);
       const voteMap = new Map(userVotes.map(v => [v.commentId, v.voteValue]));
 
       return comments.map(comment => ({

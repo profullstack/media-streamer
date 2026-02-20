@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { getWatchlistRepository } from '@/lib/watchlist';
 import type { AddWatchlistItemInput } from '@/lib/watchlist';
 
@@ -18,6 +19,11 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
   }
 
   const { id: watchlistId } = await params;
@@ -52,7 +58,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
 
     // Verify watchlist belongs to user
     const repo = getWatchlistRepository();
-    const watchlists = await repo.getUserWatchlists(user.id);
+    const watchlists = await repo.getUserWatchlists(profileId);
     const watchlist = watchlists.find(w => w.id === watchlistId);
 
     if (!watchlist) {
@@ -91,6 +97,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
   }
 
   const { id: watchlistId } = await params;

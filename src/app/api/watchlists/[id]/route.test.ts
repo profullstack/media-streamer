@@ -13,6 +13,11 @@ vi.mock('@/lib/auth', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 // Mock watchlist repository
 const mockGetUserWatchlists = vi.fn();
 const mockGetWatchlistItems = vi.fn();
@@ -27,8 +32,14 @@ vi.mock('@/lib/watchlist', () => ({
     deleteWatchlist: mockDeleteWatchlist,
   })),
 }));
+// Mock profiles
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 
 const makeParams = (id: string) => ({ params: Promise.resolve({ id }) });
 
@@ -146,7 +157,7 @@ describe('Watchlist API - /api/watchlists/:id', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.watchlist.name).toBe('Renamed List');
-      expect(mockRenameWatchlist).toHaveBeenCalledWith('user-123', 'wl-1', 'Renamed List');
+      expect(mockRenameWatchlist).toHaveBeenCalledWith('profile-123', 'wl-1', 'Renamed List');
     });
 
     it('should return 500 on repository error', async () => {
@@ -184,7 +195,7 @@ describe('Watchlist API - /api/watchlists/:id', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.success).toBe(true);
-      expect(mockDeleteWatchlist).toHaveBeenCalledWith('user-123', 'wl-1');
+      expect(mockDeleteWatchlist).toHaveBeenCalledWith('profile-123', 'wl-1');
     });
 
     it('should return 500 on repository error', async () => {

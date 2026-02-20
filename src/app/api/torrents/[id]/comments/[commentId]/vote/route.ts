@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsService, type VoteValue } from '@/lib/comments';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 
 interface RouteParams {
   params: Promise<{ id: string; commentId: string }>;
@@ -43,6 +44,15 @@ export async function POST(
       );
     }
 
+    // Get active profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No active profile' },
+        { status: 400 }
+      );
+    }
+
     // Parse request body
     const body = await request.json() as { value?: number };
     const { value } = body;
@@ -56,7 +66,7 @@ export async function POST(
 
     // Create/update vote
     const service = getCommentsService();
-    const vote = await service.voteOnComment(commentId, user.id, value as VoteValue);
+    const vote = await service.voteOnComment(commentId, profileId, value as VoteValue);
 
     return NextResponse.json({ vote });
   } catch (error) {
@@ -106,9 +116,18 @@ export async function DELETE(
       );
     }
 
+    // Get active profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No active profile' },
+        { status: 400 }
+      );
+    }
+
     // Remove vote
     const service = getCommentsService();
-    await service.removeCommentVote(commentId, user.id);
+    await service.removeCommentVote(commentId, profileId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

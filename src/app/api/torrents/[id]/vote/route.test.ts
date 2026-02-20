@@ -40,6 +40,11 @@ vi.mock('@/lib/supabase/queries', () => ({
   getTorrentById: vi.fn(),
   getTorrentByInfohash: vi.fn(),
 }));
+// Mock profiles
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 
 import { getCommentsService } from '@/lib/comments';
 import { getFavoritesService } from '@/lib/favorites';
@@ -162,7 +167,7 @@ describe('Torrent Vote API', () => {
       expect(data.upvotes).toBe(43);
       expect(data.downvotes).toBe(5);
       expect(data.userVote).toBe(1);
-      expect(mockService.voteOnTorrent).toHaveBeenCalledWith('torrent-123', 'user-456', 1);
+      expect(mockService.voteOnTorrent).toHaveBeenCalledWith('torrent-123', 'profile-123', 1);
       expect(mockService.getTorrentVoteCounts).toHaveBeenCalledWith('torrent-123');
     });
 
@@ -255,7 +260,7 @@ describe('Torrent Vote API', () => {
       expect(data.upvotes).toBe(41);
       expect(data.downvotes).toBe(5);
       expect(data.userVote).toBeNull();
-      expect(mockService.removeTorrentVote).toHaveBeenCalledWith('torrent-123', 'user-456');
+      expect(mockService.removeTorrentVote).toHaveBeenCalledWith('torrent-123', 'profile-123');
       expect(mockService.getTorrentVoteCounts).toHaveBeenCalledWith('torrent-123');
     });
 

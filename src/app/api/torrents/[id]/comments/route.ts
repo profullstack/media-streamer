@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsService } from '@/lib/comments';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -66,12 +67,12 @@ export async function GET(
 
     // Get authenticated user (optional for viewing comments)
     const user = await getAuthenticatedUser(request);
-    const userId = user?.id ?? null;
+    const profileId = user ? await getActiveProfileId() : null;
 
     // Get comments with user vote status
     const service = getCommentsService();
     const [comments, total] = await Promise.all([
-      service.getCommentsWithUserVotes(torrentId, userId, limit, offset),
+      service.getCommentsWithUserVotes(torrentId, profileId, limit, offset),
       service.getCommentCount(torrentId),
     ]);
 
@@ -129,6 +130,15 @@ export async function POST(
       );
     }
 
+    // Get active profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No active profile' },
+        { status: 400 }
+      );
+    }
+
     // Parse request body
     const body = await request.json() as { content?: string; parentId?: string };
     const { content, parentId } = body;
@@ -142,7 +152,7 @@ export async function POST(
 
     // Create comment
     const service = getCommentsService();
-    const comment = await service.createComment(torrentId, user.id, content, parentId);
+    const comment = await service.createComment(torrentId, profileId, content, parentId);
 
     return NextResponse.json(
       { comment },

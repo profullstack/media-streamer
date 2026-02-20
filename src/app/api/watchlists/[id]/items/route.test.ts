@@ -13,6 +13,11 @@ vi.mock('@/lib/auth', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 // Mock watchlist repository
 const mockGetUserWatchlists = vi.fn();
 const mockAddItem = vi.fn();
@@ -25,8 +30,14 @@ vi.mock('@/lib/watchlist', () => ({
     removeItem: mockRemoveItem,
   })),
 }));
+// Mock profiles
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 
 const makeParams = (id: string) => ({ params: Promise.resolve({ id }) });
 

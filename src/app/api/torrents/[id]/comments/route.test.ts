@@ -24,8 +24,14 @@ vi.mock('@/lib/auth', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 
+// Mock the profile utils
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn(),
+}));
+
 import { getCommentsService } from '@/lib/comments';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 
 // Valid UUID v4 for testing (comments require UUID torrent IDs, not DHT infohashes)
 const TEST_TORRENT_ID = '12345678-1234-4123-8123-123456789abc';
@@ -42,7 +48,7 @@ describe('Torrent Comments API', () => {
         {
           id: 'comment-1',
           torrentId: TEST_TORRENT_ID,
-          userId: 'user-1',
+          profileId: 'user-1',
           content: 'Great torrent!',
           parentId: null,
           upvotes: 5,
@@ -62,6 +68,7 @@ describe('Torrent Comments API', () => {
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const request = new NextRequest(`http://localhost/api/torrents/${TEST_TORRENT_ID}/comments`);
       const response = await GET(request, { params: Promise.resolve({ id: TEST_TORRENT_ID }) });
@@ -78,7 +85,7 @@ describe('Torrent Comments API', () => {
         {
           id: 'comment-1',
           torrentId: TEST_TORRENT_ID,
-          userId: 'user-1',
+          profileId: 'user-1',
           content: 'Great torrent!',
           parentId: null,
           upvotes: 5,
@@ -98,6 +105,8 @@ describe('Torrent Comments API', () => {
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: TEST_USER_ID });
+      (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue("profile-123");
+      (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue('profile-123');
 
       const request = new NextRequest(`http://localhost/api/torrents/${TEST_TORRENT_ID}/comments`);
       const response = await GET(request, { params: Promise.resolve({ id: TEST_TORRENT_ID }) });
@@ -105,7 +114,7 @@ describe('Torrent Comments API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.comments[0].userVote).toBe(1);
-      expect(mockService.getCommentsWithUserVotes).toHaveBeenCalledWith(TEST_TORRENT_ID, TEST_USER_ID, 50, 0);
+      expect(mockService.getCommentsWithUserVotes).toHaveBeenCalledWith(TEST_TORRENT_ID, 'profile-123', 50, 0);
     });
 
     it('should support pagination', async () => {
@@ -155,6 +164,7 @@ describe('Torrent Comments API', () => {
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: TEST_USER_ID });
+      (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue("profile-123");
 
       const request = new NextRequest(`http://localhost/api/torrents/${TEST_TORRENT_ID}/comments`, {
         method: 'POST',
@@ -189,6 +199,7 @@ describe('Torrent Comments API', () => {
 
       (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: TEST_USER_ID });
+      (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue("profile-123");
 
       const request = new NextRequest(`http://localhost/api/torrents/${TEST_TORRENT_ID}/comments`, {
         method: 'POST',

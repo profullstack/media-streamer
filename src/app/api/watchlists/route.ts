@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { getWatchlistRepository } from '@/lib/watchlist';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -15,13 +16,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+  }
+
   try {
     const repo = getWatchlistRepository();
-    let watchlists = await repo.getUserWatchlists(user.id);
+    let watchlists = await repo.getUserWatchlists(profileId);
 
     // Auto-create default watchlist if none exist
     if (watchlists.length === 0) {
-      const defaultWatchlist = await repo.getOrCreateDefaultWatchlist(user.id);
+      const defaultWatchlist = await repo.getOrCreateDefaultWatchlist(profileId);
       watchlists = [defaultWatchlist];
     }
 
@@ -41,6 +47,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+  }
+
   try {
     const body = await request.json() as { name?: string };
     const name = body.name?.trim();
@@ -54,7 +65,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const repo = getWatchlistRepository();
-    const watchlist = await repo.createWatchlist(user.id, name);
+    const watchlist = await repo.createWatchlist(profileId, name);
 
     return NextResponse.json({ watchlist }, { status: 201 });
   } catch (error) {

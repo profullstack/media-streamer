@@ -9,24 +9,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 
 /**
  * Completion threshold - 95% watched/read = completed
  */
 const COMPLETION_THRESHOLD = 0.95;
 
-/**
- * Cookie name for auth token
- */
-const AUTH_COOKIE_NAME = 'sb-auth-token';
-
-/**
- * Session token structure stored in cookie
- */
-interface SessionToken {
-  access_token: string;
-  refresh_token: string;
-}
+// Removed: AUTH_COOKIE_NAME and SessionToken - using standard auth pattern now
 
 /**
  * Request body for updating watch progress
@@ -76,90 +67,7 @@ function isUpdateReadingProgressRequest(body: unknown): body is UpdateReadingPro
   );
 }
 
-/**
- * Parse session token from cookie
- */
-function parseSessionCookie(cookieValue: string | undefined): SessionToken | null {
-  if (!cookieValue) return null;
-
-  try {
-    const decoded = decodeURIComponent(cookieValue);
-    const parsed = JSON.parse(decoded) as unknown;
-
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      'access_token' in parsed &&
-      'refresh_token' in parsed &&
-      typeof (parsed as SessionToken).access_token === 'string' &&
-      typeof (parsed as SessionToken).refresh_token === 'string'
-    ) {
-      return parsed as SessionToken;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Extract user ID from session cookie or Authorization header
- */
-async function getUserIdFromRequest(request: NextRequest): Promise<string | null> {
-  const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  const sessionToken = parseSessionCookie(cookieValue);
-
-  if (sessionToken) {
-    const supabase = createServerClient();
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: sessionToken.access_token,
-      refresh_token: sessionToken.refresh_token,
-    });
-
-    if (!sessionError) {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (!userError && user) {
-        return user.id;
-      }
-    }
-  }
-
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-
-  try {
-    const sessionData = JSON.parse(token) as { access_token?: string };
-    if (!sessionData.access_token) {
-      return null;
-    }
-
-    const supabase = createServerClient();
-    const { data: { user }, error } = await supabase.auth.getUser(sessionData.access_token);
-
-    if (error || !user) {
-      return null;
-    }
-
-    return user.id;
-  } catch {
-    try {
-      const supabase = createServerClient();
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-
-      if (error || !user) {
-        return null;
-      }
-
-      return user.id;
-    } catch {
-      return null;
-    }
-  }
-}
+// Removed: parseSessionCookie and getUserIdFromRequest - using standard auth pattern now
 
 /**
  * GET /api/torrents/[id]/progress
@@ -175,12 +83,21 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  const userId = await getUserIdFromRequest(request);
-
-  if (!userId) {
+  // Require authentication
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
     return NextResponse.json(
       { error: 'Authentication required' },
       { status: 401 }
+    );
+  }
+
+  // Get active profile
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json(
+      { error: 'No active profile' },
+      { status: 400 }
     );
   }
 
@@ -217,7 +134,7 @@ export async function GET(
     const { data: watchProgress, error: watchError } = await supabase
       .from('watch_progress')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .in('file_id', fileIds);
 
     if (watchError) {
@@ -228,7 +145,7 @@ export async function GET(
     const { data: readingProgress, error: readingError } = await supabase
       .from('reading_progress')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .in('file_id', fileIds);
 
     if (readingError) {
@@ -285,12 +202,21 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  const userId = await getUserIdFromRequest(request);
-
-  if (!userId) {
+  // Require authentication
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
     return NextResponse.json(
       { error: 'Authentication required' },
       { status: 401 }
+    );
+  }
+
+  // Get active profile
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json(
+      { error: 'No active profile' },
+      { status: 400 }
     );
   }
 
@@ -344,14 +270,14 @@ export async function POST(
       .from('watch_progress')
       .upsert(
         {
-          user_id: userId,
+          profile_id: profileId,
           file_id: fileId,
           current_time_seconds: Math.floor(currentTimeSeconds),
           duration_seconds: durationSeconds ? Math.floor(durationSeconds) : null,
           percentage: Math.round(percentage * 100) / 100,
           last_watched_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,file_id' }
+        } as any,
+        { onConflict: 'profile_id,file_id' }
       )
       .select()
       .single();
@@ -412,14 +338,14 @@ export async function POST(
       .from('reading_progress')
       .upsert(
         {
-          user_id: userId,
+          profile_id: profileId,
           file_id: fileId,
           current_page: currentPage,
           total_pages: totalPages ?? null,
           percentage: Math.round(percentage * 100) / 100,
           last_read_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,file_id' }
+        } as any,
+        { onConflict: 'profile_id,file_id' }
       )
       .select()
       .single();

@@ -134,12 +134,12 @@ export class WatchlistRepository {
   /**
    * Get all watchlist items across all of a user's watchlists
    */
-  async getAllUserWatchlistItems(userId: string): Promise<WatchlistItemWithMeta[]> {
+  async getAllUserWatchlistItems(profileId: string): Promise<WatchlistItemWithMeta[]> {
     // First get user's watchlist IDs
     const { data: watchlists, error: wlError } = await this.supabase
       .from('user_watchlists')
       .select('id')
-      .eq('user_id', userId);
+      .eq('profile_id', profileId);
 
     if (wlError || !watchlists || watchlists.length === 0) {
       return [];
@@ -243,11 +243,11 @@ export class WatchlistRepository {
    * Check which of the user's watchlists contain this item
    */
   async getWatchlistsContainingItem(
-    userId: string,
+    profileId: string,
     tmdbId: number,
     mediaType: 'movie' | 'tv',
   ): Promise<string[]> {
-    const watchlists = await this.getUserWatchlists(userId);
+    const watchlists = await this.getUserWatchlists(profileId);
     if (watchlists.length === 0) return [];
 
     const watchlistIds = watchlists.map(w => w.id);
