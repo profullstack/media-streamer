@@ -105,6 +105,9 @@ export async function PATCH(
       // Clear default flag — no profile will be default (selector always shown)
       await profilesService.clearDefaultProfile(user.id, profileId);
       const profile = await profilesService.getProfileById(user.id, profileId);
+      if (!profile) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
       return NextResponse.json({ profile }, { status: 200 });
     }
 
