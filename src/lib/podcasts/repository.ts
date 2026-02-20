@@ -73,11 +73,11 @@ export interface PodcastRepository {
   updatePodcast(id: string, data: Partial<PodcastInsert>): Promise<Podcast>;
 
   // Subscription operations
-  subscribeToPodcast(userId: string, podcastId: string, notifyNewEpisodes?: boolean): Promise<PodcastSubscription>;
-  unsubscribeFromPodcast(userId: string, podcastId: string): Promise<void>;
-  getUserSubscriptions(userId: string): Promise<UserPodcastSubscription[]>;
+  subscribeToPodcast(profileId: string, podcastId: string, notifyNewEpisodes?: boolean): Promise<PodcastSubscription>;
+  unsubscribeFromPodcast(profileId: string, podcastId: string): Promise<void>;
+  getUserSubscriptions(profileId: string): Promise<UserPodcastSubscription[]>;
   updateSubscriptionNotifications(subscriptionId: string, notifyNewEpisodes: boolean): Promise<PodcastSubscription>;
-  isUserSubscribed(userId: string, podcastId: string): Promise<boolean>;
+  isUserSubscribed(profileId: string, podcastId: string): Promise<boolean>;
 
   // Episode operations
   createEpisode(data: PodcastEpisodeInsert): Promise<PodcastEpisode>;
@@ -86,8 +86,8 @@ export interface PodcastRepository {
 
   // Listen progress operations
   updateListenProgress(data: ListenProgressUpdate): Promise<PodcastListenProgress>;
-  getListenProgress(userId: string, episodeId: string): Promise<PodcastListenProgress | null>;
-  getListenProgressForPodcast(userId: string, podcastId: string): Promise<PodcastListenProgress[]>;
+  getListenProgress(profileId: string, episodeId: string): Promise<PodcastListenProgress | null>;
+  getListenProgressForPodcast(profileId: string, podcastId: string): Promise<PodcastListenProgress[]>;
 
   // Notification operations
   getUsersToNotify(podcastId: string, episodeId: string): Promise<UserToNotify[]>;
@@ -200,17 +200,17 @@ export function createPodcastRepository(
      * Subscribe user to podcast
      */
     async subscribeToPodcast(
-      userId: string,
+      profileId: string,
       podcastId: string,
       notifyNewEpisodes: boolean = true
     ): Promise<PodcastSubscription> {
       const { data, error } = await client
         .from('podcast_subscriptions')
         .upsert({
-          user_id: userId,
+          profile_id: profileId,
           podcast_id: podcastId,
           notify_new_episodes: notifyNewEpisodes,
-        }, { onConflict: 'user_id,podcast_id' })
+        } as any, { onConflict: 'profile_id,podcast_id' })
         .select()
         .single();
 
@@ -224,11 +224,11 @@ export function createPodcastRepository(
     /**
      * Unsubscribe user from podcast
      */
-    async unsubscribeFromPodcast(userId: string, podcastId: string): Promise<void> {
+    async unsubscribeFromPodcast(profileId: string, podcastId: string): Promise<void> {
       const { error } = await client
         .from('podcast_subscriptions')
         .delete()
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .eq('podcast_id', podcastId);
 
       if (error) {
@@ -241,9 +241,9 @@ export function createPodcastRepository(
      * Note: The RPC function returns additional fields (podcast_description, podcast_website_url)
      * that are added in migration 20260104053300_update_podcast_subscriptions_rpc.sql
      */
-    async getUserSubscriptions(userId: string): Promise<UserPodcastSubscription[]> {
-      const { data, error } = await client.rpc('get_user_podcast_subscriptions', {
-        p_user_id: userId,
+    async getUserSubscriptions(profileId: string): Promise<UserPodcastSubscription[]> {
+      const { data, error } = await (client.rpc as any)('get_profile_podcast_subscriptions', {
+        p_profile_id: profileId,
       });
 
       if (error) {
@@ -279,11 +279,11 @@ export function createPodcastRepository(
     /**
      * Check if user is subscribed to podcast
      */
-    async isUserSubscribed(userId: string, podcastId: string): Promise<boolean> {
+    async isUserSubscribed(profileId: string, podcastId: string): Promise<boolean> {
       const { data, error } = await client
         .from('podcast_subscriptions')
         .select('id')
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .eq('podcast_id', podcastId)
         .single();
 
@@ -365,15 +365,15 @@ export function createPodcastRepository(
         .from('podcast_listen_progress')
         .upsert(
           {
-            user_id: data.user_id,
+            profile_id: data.user_id,
             episode_id: data.episode_id,
             current_time_seconds: data.current_time_seconds,
             duration_seconds: data.duration_seconds,
             percentage: data.percentage ?? 0,
             completed: data.completed ?? false,
             last_listened_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,episode_id' }
+          } as any,
+          { onConflict: 'profile_id,episode_id' }
         )
         .select()
         .single();
@@ -388,11 +388,11 @@ export function createPodcastRepository(
     /**
      * Get listen progress for user and episode
      */
-    async getListenProgress(userId: string, episodeId: string): Promise<PodcastListenProgress | null> {
+    async getListenProgress(profileId: string, episodeId: string): Promise<PodcastListenProgress | null> {
       const { data, error } = await client
         .from('podcast_listen_progress')
         .select('*')
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .eq('episode_id', episodeId)
         .single();
 
@@ -409,7 +409,7 @@ export function createPodcastRepository(
     /**
      * Get listen progress for all episodes of a podcast for a user
      */
-    async getListenProgressForPodcast(userId: string, podcastId: string): Promise<PodcastListenProgress[]> {
+    async getListenProgressForPodcast(profileId: string, podcastId: string): Promise<PodcastListenProgress[]> {
       // Join with podcast_episodes to filter by podcast_id
       const { data, error } = await client
         .from('podcast_listen_progress')
@@ -417,7 +417,7 @@ export function createPodcastRepository(
           *,
           podcast_episodes!inner(podcast_id)
         `)
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .eq('podcast_episodes.podcast_id', podcastId);
 
       if (error) {

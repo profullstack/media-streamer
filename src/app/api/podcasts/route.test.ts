@@ -25,6 +25,7 @@ vi.mock('@/lib/profiles', () => ({
 import { GET, POST, DELETE } from './route';
 import { getPodcastService } from '@/lib/podcasts';
 import { createServerClient } from '@/lib/supabase';
+import { getActiveProfileId } from '@/lib/profiles';
 
 describe('Podcast API Routes', () => {
   const mockService = {
@@ -76,6 +77,7 @@ describe('Podcast API Routes', () => {
       data: { user: { id: userId } },
       error: null,
     });
+    (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue('profile-123');
   }
 
   function mockUnauthenticated(): void {
@@ -84,6 +86,7 @@ describe('Podcast API Routes', () => {
       data: { user: null },
       error: { message: 'Not authenticated' },
     });
+    (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
   }
 
   describe('GET /api/podcasts', () => {
@@ -208,8 +211,8 @@ describe('Podcast API Routes', () => {
       const response = await GET(request);
       const data = await response.json();
 
-      expect(response.status).toBe(401);
-      expect(data.error).toBe('Authentication required');
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('No profile selected');
     });
 
     it('should return empty results for empty search query', async () => {
@@ -259,7 +262,7 @@ describe('Podcast API Routes', () => {
       expect(data.subscription.feedUrl).toBe('https://example.com/feed.xml');
       expect(data.subscription.notificationsEnabled).toBe(true);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
-        'user-123',
+        'profile-123',
         'https://example.com/feed.xml',
         true
       );
@@ -294,7 +297,7 @@ describe('Podcast API Routes', () => {
       expect(response.status).toBe(200);
       expect(data.subscription.notificationsEnabled).toBe(false);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
-        'user-123',
+        'profile-123',
         'https://example.com/feed.xml',
         false
       );
@@ -311,8 +314,8 @@ describe('Podcast API Routes', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(401);
-      expect(data.error).toBe('Authentication required');
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('No profile selected');
     });
 
     it('should return 400 when feedUrl is missing', async () => {
@@ -381,7 +384,7 @@ describe('Podcast API Routes', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(mockService.unsubscribeFromPodcast).toHaveBeenCalledWith('user-123', 'podcast-456');
+      expect(mockService.unsubscribeFromPodcast).toHaveBeenCalledWith('profile-123', 'podcast-456');
     });
 
     it('should return 401 without authentication', async () => {
@@ -394,8 +397,8 @@ describe('Podcast API Routes', () => {
       const response = await DELETE(request);
       const data = await response.json();
 
-      expect(response.status).toBe(401);
-      expect(data.error).toBe('Authentication required');
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('No profile selected');
     });
 
     it('should return 400 when podcastId is missing', async () => {

@@ -106,12 +106,12 @@ export interface EpisodeProgressResponse {
 export interface PodcastService {
   searchPodcasts(query: string): Promise<PodcastSearchResult[]>;
   parseFeed(feedUrl: string): Promise<ParsedPodcastFeed | null>;
-  subscribeToPodcast(userId: string, feedUrl: string, notifyNewEpisodes?: boolean): Promise<SubscribedPodcastResponse | null>;
-  unsubscribeFromPodcast(userId: string, podcastId: string): Promise<void>;
-  getUserSubscriptions(userId: string): Promise<UserPodcastSubscription[]>;
+  subscribeToPodcast(profileId: string, feedUrl: string, notifyNewEpisodes?: boolean): Promise<SubscribedPodcastResponse | null>;
+  unsubscribeFromPodcast(profileId: string, podcastId: string): Promise<void>;
+  getUserSubscriptions(profileId: string): Promise<UserPodcastSubscription[]>;
   refreshPodcastFeed(podcastId: string): Promise<PodcastEpisode[]>;
   updateListenProgress(data: ListenProgressInput): Promise<PodcastListenProgress>;
-  getListenProgressForPodcast(userId: string, podcastId: string): Promise<EpisodeProgressResponse[]>;
+  getListenProgressForPodcast(profileId: string, podcastId: string): Promise<EpisodeProgressResponse[]>;
   getEpisodes(podcastId: string, limit?: number, offset?: number): Promise<PodcastEpisode[]>;
   getPodcastById(podcastId: string): Promise<Podcast | null>;
 }
@@ -429,7 +429,7 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
      * Returns full podcast details for the frontend
      */
     async subscribeToPodcast(
-      userId: string,
+      profileId: string,
       feedUrl: string,
       notifyNewEpisodes: boolean = true
     ): Promise<SubscribedPodcastResponse | null> {
@@ -475,7 +475,7 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
       }
 
       // Subscribe user to podcast
-      const subscription = await repository.subscribeToPodcast(userId, podcast.id, notifyNewEpisodes);
+      const subscription = await repository.subscribeToPodcast(profileId, podcast.id, notifyNewEpisodes);
 
       // Return full podcast details in the format expected by the frontend
       return {
@@ -494,15 +494,15 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
     /**
      * Unsubscribe user from podcast
      */
-    async unsubscribeFromPodcast(userId: string, podcastId: string): Promise<void> {
-      await repository.unsubscribeFromPodcast(userId, podcastId);
+    async unsubscribeFromPodcast(profileId: string, podcastId: string): Promise<void> {
+      await repository.unsubscribeFromPodcast(profileId, podcastId);
     },
 
     /**
      * Get user's podcast subscriptions
      */
-    async getUserSubscriptions(userId: string): Promise<UserPodcastSubscription[]> {
-      return repository.getUserSubscriptions(userId);
+    async getUserSubscriptions(profileId: string): Promise<UserPodcastSubscription[]> {
+      return repository.getUserSubscriptions(profileId);
     },
 
     /**
@@ -576,8 +576,8 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
     /**
      * Get listen progress for all episodes of a podcast
      */
-    async getListenProgressForPodcast(userId: string, podcastId: string): Promise<EpisodeProgressResponse[]> {
-      const progressList = await repository.getListenProgressForPodcast(userId, podcastId);
+    async getListenProgressForPodcast(profileId: string, podcastId: string): Promise<EpisodeProgressResponse[]> {
+      const progressList = await repository.getListenProgressForPodcast(profileId, podcastId);
 
       return progressList.map(progress => ({
         episodeId: progress.episode_id,
