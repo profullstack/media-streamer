@@ -259,7 +259,7 @@ describe('Podcast API Routes', () => {
       expect(data.subscription.feedUrl).toBe('https://example.com/feed.xml');
       expect(data.subscription.notificationsEnabled).toBe(true);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
-        'profile-123',
+        'user-123',
         'https://example.com/feed.xml',
         true
       );
@@ -294,7 +294,7 @@ describe('Podcast API Routes', () => {
       expect(response.status).toBe(200);
       expect(data.subscription.notificationsEnabled).toBe(false);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
-        'profile-123',
+        'user-123',
         'https://example.com/feed.xml',
         false
       );
@@ -381,7 +381,7 @@ describe('Podcast API Routes', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(mockService.unsubscribeFromPodcast).toHaveBeenCalledWith('profile-123', 'podcast-456');
+      expect(mockService.unsubscribeFromPodcast).toHaveBeenCalledWith('user-123', 'podcast-456');
     });
 
     it('should return 401 without authentication', async () => {

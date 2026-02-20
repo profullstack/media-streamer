@@ -213,11 +213,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const profileId = await getActiveProfileId();
-    if (!profileId) {
-      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
-    }
-    const subscriptions = await service.getUserSubscriptions(profileId);
+    // Subscriptions are account-level (shared across profiles)
+    const subscriptions = await service.getUserSubscriptions(userId);
     // Transform snake_case to camelCase for frontend consumption
     const transformedSubscriptions = subscriptions.map(transformSubscription);
     return NextResponse.json({ subscriptions: transformedSubscriptions });
@@ -298,12 +295,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const profileId = await getActiveProfileId();
-    if (!profileId) {
-      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
-    }
+    // Subscriptions are account-level (shared across profiles)
     const service = getPodcastService();
-    const subscription = await service.subscribeToPodcast(profileId, feedUrl, notifyNewEpisodes);
+    const subscription = await service.subscribeToPodcast(userId, feedUrl, notifyNewEpisodes);
 
     if (!subscription) {
       return NextResponse.json(
@@ -356,12 +350,9 @@ export async function DELETE(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const profileId = await getActiveProfileId();
-    if (!profileId) {
-      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
-    }
+    // Subscriptions are account-level (shared across profiles)
     const service = getPodcastService();
-    await service.unsubscribeFromPodcast(profileId, podcastId);
+    await service.unsubscribeFromPodcast(userId, podcastId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[Podcasts] Error unsubscribing from podcast:', error);

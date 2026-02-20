@@ -136,24 +136,24 @@ ON CONFLICT DO NOTHING;
 -- ============================================
 
 -- Add profile_id to torrent_favorites
-ALTER TABLE torrent_favorites ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_torrent_favorites_profile_id ON torrent_favorites(profile_id);
+ALTER TABLE bt_torrent_favorites ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX idx_bt_torrent_favorites_profile_id ON torrent_favorites(profile_id);
 
 -- Add profile_id to iptv_channel_favorites  
 ALTER TABLE iptv_channel_favorites ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
 CREATE INDEX idx_iptv_channel_favorites_profile_id ON iptv_channel_favorites(profile_id);
 
 -- Add profile_id to torrent_comments
-ALTER TABLE torrent_comments ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_torrent_comments_profile_id ON torrent_comments(profile_id);
+ALTER TABLE bt_torrent_comments ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX idx_bt_torrent_comments_profile_id ON torrent_comments(profile_id);
 
 -- Add profile_id to comment_votes
-ALTER TABLE comment_votes ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_comment_votes_profile_id ON comment_votes(profile_id);
+ALTER TABLE bt_torrent_votes ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX idx_bt_torrent_votes_profile_id ON comment_votes(profile_id);
 
 -- Add profile_id to torrent_votes  
-ALTER TABLE torrent_votes ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_torrent_votes_profile_id ON torrent_votes(profile_id);
+ALTER TABLE bt_torrent_votes ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX idx_bt_torrent_votes_profile_id ON torrent_votes(profile_id);
 
 -- Add profile_id to podcast_listen_progress
 ALTER TABLE podcast_listen_progress ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
@@ -198,7 +198,7 @@ END $$;
 -- MIGRATE DATA TO DEFAULT PROFILES
 -- ============================================
 -- Update torrent_favorites to use default profile for each user
-UPDATE torrent_favorites tf
+UPDATE bt_torrent_favorites tf
 SET profile_id = (
     SELECT p.id FROM profiles p 
     WHERE p.account_id = tf.user_id 
@@ -218,7 +218,7 @@ SET profile_id = (
 WHERE icf.profile_id IS NULL;
 
 -- Update torrent_comments to use default profile for each user
-UPDATE torrent_comments tc
+UPDATE bt_torrent_comments tc
 SET profile_id = (
     SELECT p.id FROM profiles p 
     WHERE p.account_id = tc.user_id 
@@ -228,7 +228,7 @@ SET profile_id = (
 WHERE tc.profile_id IS NULL;
 
 -- Update comment_votes to use default profile for each user
-UPDATE comment_votes cv
+UPDATE bt_torrent_votes cv
 SET profile_id = (
     SELECT p.id FROM profiles p 
     WHERE p.account_id = cv.user_id 
@@ -238,7 +238,7 @@ SET profile_id = (
 WHERE cv.profile_id IS NULL;
 
 -- Update torrent_votes to use default profile for each user
-UPDATE torrent_votes tv
+UPDATE bt_torrent_votes tv
 SET profile_id = (
     SELECT p.id FROM profiles p 
     WHERE p.account_id = tv.user_id 
@@ -330,19 +330,19 @@ END $$;
 -- ============================================
 
 -- Drop old unique constraints
-ALTER TABLE torrent_favorites DROP CONSTRAINT torrent_favorites_user_id_torrent_id_key;
+ALTER TABLE bt_torrent_favorites DROP CONSTRAINT torrent_favorites_user_id_torrent_id_key;
 ALTER TABLE iptv_channel_favorites DROP CONSTRAINT iptv_channel_favorites_user_id_playlist_id_channel_id_key;
 
 -- Add new unique constraints with profile_id
-ALTER TABLE torrent_favorites ADD CONSTRAINT unique_profile_torrent_favorite UNIQUE(profile_id, torrent_id);
+ALTER TABLE bt_torrent_favorites ADD CONSTRAINT unique_profile_torrent_favorite UNIQUE(profile_id, torrent_id);
 ALTER TABLE iptv_channel_favorites ADD CONSTRAINT unique_profile_iptv_channel_favorite UNIQUE(profile_id, playlist_id, channel_id);
 
 -- Update other unique constraints
-ALTER TABLE comment_votes DROP CONSTRAINT IF EXISTS comment_votes_user_id_comment_id_key;
-ALTER TABLE comment_votes ADD CONSTRAINT unique_profile_comment_vote UNIQUE(profile_id, comment_id);
+ALTER TABLE bt_torrent_votes DROP CONSTRAINT IF EXISTS comment_votes_user_id_comment_id_key;
+ALTER TABLE bt_torrent_votes ADD CONSTRAINT unique_profile_comment_vote UNIQUE(profile_id, comment_id);
 
-ALTER TABLE torrent_votes DROP CONSTRAINT IF EXISTS torrent_votes_user_id_torrent_id_key;
-ALTER TABLE torrent_votes ADD CONSTRAINT unique_profile_torrent_vote UNIQUE(profile_id, torrent_id);
+ALTER TABLE bt_torrent_votes DROP CONSTRAINT IF EXISTS torrent_votes_user_id_torrent_id_key;
+ALTER TABLE bt_torrent_votes ADD CONSTRAINT unique_profile_torrent_vote UNIQUE(profile_id, torrent_id);
 
 -- Podcast progress should be unique per profile
 ALTER TABLE podcast_listen_progress DROP CONSTRAINT IF EXISTS podcast_listen_progress_user_id_episode_id_key;
