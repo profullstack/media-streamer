@@ -29,10 +29,18 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     { status: 200 }
   );
 
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+
   // Clear the auth cookie by setting it to expire immediately
-  response.headers.set(
+  response.headers.append(
     'Set-Cookie',
-    `${AUTH_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
+    `${AUTH_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`
+  );
+
+  // Clear the profile cookie too
+  response.headers.append(
+    'Set-Cookie',
+    `x-profile-id=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`
   );
 
   return response;

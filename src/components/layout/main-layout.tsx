@@ -22,7 +22,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, className }: MainLayoutProps): React.ReactElement {
   const router = useRouter();
-  const { isLoggedIn, isPremium, user, refresh } = useAuth();
+  const { isLoggedIn, isPremium, user, clearAuth } = useAuth();
 
   const handleLogout = useCallback(async (): Promise<void> => {
     try {
@@ -32,13 +32,13 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
       });
 
       if (response.ok) {
-        refresh();
+        clearAuth();
         router.push('/');
       }
     } catch (error) {
       console.error('Logout failed:', error);
     }
-  }, [refresh, router]);
+  }, [clearAuth, router]);
 
   return (
     <div className="flex min-h-screen">

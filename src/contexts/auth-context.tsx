@@ -33,6 +33,7 @@ export interface AuthContextValue {
   user: AuthUser | null;
   error: string | null;
   refresh: () => void;
+  clearAuth: () => void;
   // Profile management
   profiles: Profile[];
   activeProfileId: string | null;
@@ -128,6 +129,16 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
     void fetchAuthState(true);
   }, [fetchAuthState]);
 
+  // Immediately clear all auth + profile state (used on logout)
+  const clearAuth = useCallback(() => {
+    setUser(null);
+    setProfiles([]);
+    setActiveProfileId(null);
+    lastFetchedAt.current = 0;
+    profilesLastFetchedAt.current = 0;
+    profilesFetched.current = false;
+  }, []);
+
   // Profile management functions
   const refreshProfiles = useCallback(async (): Promise<void> => {
     if (!user) {
@@ -220,6 +231,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
         user, 
         error, 
         refresh,
+        clearAuth,
         // Profile management
         profiles,
         activeProfileId,
