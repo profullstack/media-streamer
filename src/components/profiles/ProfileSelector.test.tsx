@@ -115,7 +115,7 @@ describe('ProfileSelector', () => {
   });
 
   it('should not show add profile button when max profiles reached', () => {
-    const maxProfiles = Array.from({ length: 5 }, (_, i) => ({
+    const maxProfiles = Array.from({ length: 10 }, (_, i) => ({
       id: `profile-${i + 1}`,
       account_id: 'user-123',
       name: `Profile ${i + 1}`,
@@ -209,7 +209,7 @@ describe('ProfileSelector', () => {
 
   it('should not open create dialog when max profiles reached', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const maxProfiles = Array.from({ length: 5 }, (_, i) => ({
+    const maxProfiles = Array.from({ length: 10 }, (_, i) => ({
       id: `profile-${i + 1}`,
       account_id: 'user-123',
       name: `Profile ${i + 1}`,
@@ -259,7 +259,7 @@ describe('ProfileSelector', () => {
   });
 
   it('should show max profiles message when limit reached', () => {
-    const maxProfiles = Array.from({ length: 5 }, (_, i) => ({
+    const maxProfiles = Array.from({ length: 10 }, (_, i) => ({
       id: `profile-${i + 1}`,
       account_id: 'user-123',
       name: `Profile ${i + 1}`,
@@ -272,7 +272,7 @@ describe('ProfileSelector', () => {
 
     render(<ProfileSelector {...defaultProps} profiles={maxProfiles} />);
     
-    expect(screen.getByText(/maximum 5 profiles/)).toBeInTheDocument();
+    expect(screen.getByText(/maximum 10 profiles/)).toBeInTheDocument();
   });
 
   it('should apply custom className', () => {
