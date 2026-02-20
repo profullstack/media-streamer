@@ -168,6 +168,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
     const service = getPodcastService();
     const progress = await service.getListenProgressForPodcast(profileId, podcastId);
 
@@ -239,6 +242,9 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
     const service = getPodcastService();
     const progress = await service.updateListenProgress({
       userId: profileId,

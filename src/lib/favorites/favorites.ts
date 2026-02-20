@@ -115,7 +115,7 @@ export class FavoritesService {
       .insert({
         profile_id: profileId,
         torrent_id: torrentId,
-      })
+      } as any)
       .select()
       .single();
 
@@ -249,7 +249,7 @@ export class FavoritesService {
         channel_group: input.channelGroup,
         tvg_id: input.tvgId,
         tvg_name: input.tvgName,
-      })
+      } as any)
       .select()
       .single();
 

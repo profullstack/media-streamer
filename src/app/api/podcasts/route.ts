@@ -214,6 +214,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
     const subscriptions = await service.getUserSubscriptions(profileId);
     // Transform snake_case to camelCase for frontend consumption
     const transformedSubscriptions = subscriptions.map(transformSubscription);
@@ -296,6 +299,9 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
     const service = getPodcastService();
     const subscription = await service.subscribeToPodcast(profileId, feedUrl, notifyNewEpisodes);
 
@@ -351,6 +357,9 @@ export async function DELETE(request: NextRequest): Promise<Response> {
 
   try {
     const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
     const service = getPodcastService();
     await service.unsubscribeFromPodcast(profileId, podcastId);
     return NextResponse.json({ success: true });

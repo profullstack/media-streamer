@@ -160,6 +160,12 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const profileId = await getCurrentProfileIdWithFallback();
 
+  if (!profileId) {
+
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+
+  }
+
   const { searchParams } = new URL(request.url);
   const stationId = searchParams.get('stationId');
 
@@ -210,6 +216,12 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   const profileId = await getCurrentProfileIdWithFallback();
+
+  if (!profileId) {
+
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+
+  }
 
   let body: unknown;
   try {
@@ -273,6 +285,12 @@ export async function DELETE(request: NextRequest): Promise<Response> {
   }
 
   const profileId = await getCurrentProfileIdWithFallback();
+
+  if (!profileId) {
+
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+
+  }
 
   let body: unknown;
   try {
