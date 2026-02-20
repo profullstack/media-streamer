@@ -137,6 +137,10 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
     lastFetchedAt.current = 0;
     profilesLastFetchedAt.current = 0;
     profilesFetched.current = false;
+    // Clear device-local profile default
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('default-profile-id');
+    }
   }, []);
 
   // Profile management functions
