@@ -9,6 +9,7 @@
 import { redirect } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { getCurrentUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles';
 import { getWatchlistRepository } from '@/lib/watchlist';
 import { WatchlistContent } from './watchlist-content';
 
@@ -26,12 +27,17 @@ export default async function WatchlistPage(): Promise<React.ReactElement> {
     redirect('/login?redirect=/watchlist');
   }
 
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    redirect('/profiles?redirect=/watchlist');
+  }
+
   const repo = getWatchlistRepository();
-  let watchlists = await repo.getUserWatchlists(user.id);
+  let watchlists = await repo.getUserWatchlists(profileId);
 
   // Auto-create default watchlist if none exist
   if (watchlists.length === 0) {
-    const defaultWatchlist = await repo.getOrCreateDefaultWatchlist(user.id);
+    const defaultWatchlist = await repo.getOrCreateDefaultWatchlist(profileId);
     watchlists = [defaultWatchlist];
   }
 
