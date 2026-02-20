@@ -32,6 +32,11 @@ vi.mock('@/lib/radio', () => ({
   }),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 function createRequest(
   url: string,
   options: { method?: string; body?: string; headers?: HeadersInit; authenticated?: boolean } = {}
@@ -88,7 +93,7 @@ describe('GET /api/radio/favorites', () => {
     expect(response.status).toBe(200);
     expect(data.favorites).toHaveLength(1);
     expect(data.total).toBe(1);
-    expect(mockGetUserFavorites).toHaveBeenCalledWith('user-123');
+    expect(mockGetUserFavorites).toHaveBeenCalledWith('profile-123');
   });
 
   it('checks if station is favorited when stationId provided', async () => {
@@ -103,7 +108,7 @@ describe('GET /api/radio/favorites', () => {
 
     expect(response.status).toBe(200);
     expect(data.isFavorited).toBe(true);
-    expect(mockIsFavorite).toHaveBeenCalledWith('user-123', 's123');
+    expect(mockIsFavorite).toHaveBeenCalledWith('profile-123', 's123');
   });
 
   it('returns 500 on service error', async () => {
@@ -188,7 +193,7 @@ describe('POST /api/radio/favorites', () => {
 
     expect(response.status).toBe(201);
     expect(data.favorite.id).toBe('fav-new');
-    expect(mockAddToFavorites).toHaveBeenCalledWith('user-123', {
+    expect(mockAddToFavorites).toHaveBeenCalledWith('profile-123', {
       id: 's123',
       name: 'NPR News',
       imageUrl: 'https://example.com/npr.png',
@@ -269,7 +274,7 @@ describe('DELETE /api/radio/favorites', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(mockRemoveFromFavorites).toHaveBeenCalledWith('user-123', 's123');
+    expect(mockRemoveFromFavorites).toHaveBeenCalledWith('profile-123', 's123');
   });
 
   it('returns 500 on service error', async () => {

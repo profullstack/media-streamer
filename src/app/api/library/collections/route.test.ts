@@ -25,6 +25,12 @@ vi.mock('@/lib/library', () => ({
   }),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+}));
+
+
 describe('GET /api/library/collections', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -161,7 +167,7 @@ describe('POST /api/library/collections', () => {
     expect(response.status).toBe(201);
     expect(data.collection.name).toBe('New Playlist');
     expect(mockCreateCollection).toHaveBeenCalledWith(
-      'user-123',
+      'profile-123',
       'New Playlist',
       'playlist'
     );
@@ -188,7 +194,7 @@ describe('POST /api/library/collections', () => {
 
     expect(response.status).toBe(201);
     expect(mockCreateCollection).toHaveBeenCalledWith(
-      'user-123',
+      'profile-123',
       'New Collection',
       'mixed'
     );

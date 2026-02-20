@@ -23,6 +23,12 @@ vi.mock('@/lib/library', () => ({
   }),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+}));
+
+
 describe('GET /api/library/history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -106,7 +112,7 @@ describe('GET /api/library/history', () => {
     const response = await GET(request);
 
     expect(response.status).toBe(200);
-    expect(mockGetCombinedHistory).toHaveBeenCalledWith('user-123', 10);
+    expect(mockGetCombinedHistory).toHaveBeenCalledWith('profile-123', 10);
   });
 
   it('uses default limit of 50', async () => {
@@ -118,7 +124,7 @@ describe('GET /api/library/history', () => {
     const response = await GET(request);
 
     expect(response.status).toBe(200);
-    expect(mockGetCombinedHistory).toHaveBeenCalledWith('user-123', 50);
+    expect(mockGetCombinedHistory).toHaveBeenCalledWith('profile-123', 50);
   });
 
   it('returns 500 on repository error', async () => {
@@ -161,7 +167,7 @@ describe('DELETE /api/library/history', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(mockClearAllHistory).toHaveBeenCalledWith('user-123');
+    expect(mockClearAllHistory).toHaveBeenCalledWith('profile-123');
   });
 
   it('returns 500 on repository error', async () => {

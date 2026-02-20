@@ -111,9 +111,7 @@ export async function GET(): Promise<
 
     // Get favorites for the profile
     const favoritesService = getFavoritesService();
-    // TODO: Update favorites service to use profile_id
-    // For now, fall back to user_id - this will be updated when we migrate the favorites service
-    const favorites = await favoritesService.getTorrentFavorites(user.id);
+    const favorites = await favoritesService.getTorrentFavorites(profileId);
 
     return NextResponse.json(
       { favorites },
@@ -177,7 +175,11 @@ export async function POST(
 
     // Add to favorites
     const favoritesService = getFavoritesService();
-    const favorite = await favoritesService.addTorrentFavorite(user.id, torrentId);
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    const favorite = await favoritesService.addTorrentFavorite(profileId, torrentId);
 
     return NextResponse.json({ favorite }, { status: 201 });
   } catch (error) {
@@ -236,7 +238,11 @@ export async function DELETE(
 
     // Remove from favorites
     const favoritesService = getFavoritesService();
-    await favoritesService.removeTorrentFavorite(user.id, torrentId);
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    await favoritesService.removeTorrentFavorite(profileId, torrentId);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

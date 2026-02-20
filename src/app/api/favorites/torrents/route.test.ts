@@ -14,7 +14,7 @@ vi.mock('@/lib/auth', () => ({
 
 // Mock the profiles module
 vi.mock('@/lib/profiles', () => ({
-  getCurrentProfileIdWithFallback: () => Promise.resolve('profile-default-123'),
+  getCurrentProfileIdWithFallback: () => Promise.resolve('profile-123'),
 }));
 
 // Mock the favorites service
@@ -170,7 +170,7 @@ describe('POST /api/favorites/torrents', () => {
 
     expect(response.status).toBe(201);
     expect(data.favorite.id).toBe('fav-new');
-    expect(mockAddTorrentFavorite).toHaveBeenCalledWith('user-123', 'torrent-1');
+    expect(mockAddTorrentFavorite).toHaveBeenCalledWith('profile-123', 'torrent-1');
   });
 
   it('returns 409 when torrent already favorited', async () => {
@@ -261,7 +261,7 @@ describe('DELETE /api/favorites/torrents', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(mockRemoveTorrentFavorite).toHaveBeenCalledWith(
-      'user-123',
+      'profile-123',
       'torrent-1'
     );
   });

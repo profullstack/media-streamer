@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getPodcastService } from '@/lib/podcasts';
+import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
 
 /**
  * Cookie name for auth token
@@ -166,8 +167,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
+    const profileId = await getCurrentProfileIdWithFallback();
     const service = getPodcastService();
-    const progress = await service.getListenProgressForPodcast(userId, podcastId);
+    const progress = await service.getListenProgressForPodcast(profileId, podcastId);
 
     return NextResponse.json({ progress });
   } catch (error) {
@@ -236,9 +238,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
+    const profileId = await getCurrentProfileIdWithFallback();
     const service = getPodcastService();
     const progress = await service.updateListenProgress({
-      userId,
+      userId: profileId,
       episodeId: body.episodeId,
       currentTimeSeconds: body.currentTimeSeconds,
       durationSeconds: body.durationSeconds,

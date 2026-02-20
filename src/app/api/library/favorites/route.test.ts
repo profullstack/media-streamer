@@ -27,6 +27,12 @@ vi.mock('@/lib/library', () => ({
   }),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+}));
+
+
 describe('GET /api/library/favorites', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -107,7 +113,7 @@ describe('GET /api/library/favorites', () => {
 
     expect(response.status).toBe(200);
     expect(data.isFavorited).toBe(true);
-    expect(mockIsFavorite).toHaveBeenCalledWith('user-123', 'file-1');
+    expect(mockIsFavorite).toHaveBeenCalledWith('profile-123', 'file-1');
   });
 
   it('returns isFavorited false when file is not favorited', async () => {
@@ -121,7 +127,7 @@ describe('GET /api/library/favorites', () => {
 
     expect(response.status).toBe(200);
     expect(data.isFavorited).toBe(false);
-    expect(mockIsFavorite).toHaveBeenCalledWith('user-123', 'file-2');
+    expect(mockIsFavorite).toHaveBeenCalledWith('profile-123', 'file-2');
   });
 });
 
@@ -179,7 +185,7 @@ describe('POST /api/library/favorites', () => {
 
     expect(response.status).toBe(201);
     expect(data.favorite.id).toBe('fav-new');
-    expect(mockAddFavorite).toHaveBeenCalledWith('user-123', 'file-1');
+    expect(mockAddFavorite).toHaveBeenCalledWith('profile-123', 'file-1');
   });
 
   it('returns 409 when file already favorited', async () => {
@@ -248,7 +254,7 @@ describe('DELETE /api/library/favorites', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(mockRemoveFavorite).toHaveBeenCalledWith('user-123', 'file-1');
+    expect(mockRemoveFavorite).toHaveBeenCalledWith('profile-123', 'file-1');
   });
 
   it('returns 500 on repository error', async () => {

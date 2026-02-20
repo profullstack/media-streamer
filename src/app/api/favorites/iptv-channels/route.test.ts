@@ -29,6 +29,12 @@ vi.mock('@/lib/favorites', () => ({
   }),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+}));
+
+
 describe('GET /api/favorites/iptv-channels', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,7 +80,7 @@ describe('GET /api/favorites/iptv-channels', () => {
     expect(response.status).toBe(200);
     expect(data.favorites).toHaveLength(1);
     expect(data.favorites[0].channel_name).toBe('ESPN HD');
-    expect(mockGetIptvChannelFavorites).toHaveBeenCalledWith('user-123');
+    expect(mockGetIptvChannelFavorites).toHaveBeenCalledWith('profile-123');
   });
 
   it('returns favorites for specific playlist when playlistId provided', async () => {
@@ -101,7 +107,7 @@ describe('GET /api/favorites/iptv-channels', () => {
     expect(response.status).toBe(200);
     expect(data.favorites).toHaveLength(1);
     expect(mockGetIptvChannelFavoritesByPlaylist).toHaveBeenCalledWith(
-      'user-123',
+      'profile-123',
       'playlist-1'
     );
   });
@@ -203,7 +209,7 @@ describe('POST /api/favorites/iptv-channels', () => {
     expect(data.favorite.id).toBe('fav-new');
     expect(data.favorite.channel_name).toBe('ESPN HD');
     expect(mockAddIptvChannelFavorite).toHaveBeenCalledWith(
-      'user-123',
+      'profile-123',
       expect.objectContaining({
         playlistId: 'playlist-1',
         channelId: 'ch_1',
@@ -349,7 +355,7 @@ describe('DELETE /api/favorites/iptv-channels', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(mockRemoveIptvChannelFavorite).toHaveBeenCalledWith(
-      'user-123',
+      'profile-123',
       'playlist-1',
       'ch_1'
     );

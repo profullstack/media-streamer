@@ -17,6 +17,11 @@ vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 import { GET, POST } from './route';
 import { getPodcastService } from '@/lib/podcasts';
 import { createServerClient } from '@/lib/supabase';
@@ -119,7 +124,7 @@ describe('Podcast Progress API Routes', () => {
       expect(response.status).toBe(200);
       expect(data.progress).toEqual(mockProgress);
       expect(data.progress).toHaveLength(2);
-      expect(mockService.getListenProgressForPodcast).toHaveBeenCalledWith('user-123', 'podcast-456');
+      expect(mockService.getListenProgressForPodcast).toHaveBeenCalledWith('profile-123', 'podcast-456');
     });
 
     it('should return empty array when no progress exists', async () => {
@@ -225,7 +230,7 @@ describe('Podcast Progress API Routes', () => {
       expect(data.progress.currentTimeSeconds).toBe(1800);
       expect(data.progress.percentage).toBe(50);
       expect(mockService.updateListenProgress).toHaveBeenCalledWith({
-        userId: 'user-123',
+        userId: 'profile-123',
         episodeId: 'episode-456',
         currentTimeSeconds: 1800,
         durationSeconds: 3600,
@@ -264,7 +269,7 @@ describe('Podcast Progress API Routes', () => {
       expect(data.progress.id).toBe('progress-789');
       expect(data.progress.episodeId).toBe('episode-456');
       expect(mockService.updateListenProgress).toHaveBeenCalledWith({
-        userId: 'user-123',
+        userId: 'profile-123',
         episodeId: 'episode-456',
         currentTimeSeconds: 1800,
         durationSeconds: undefined,

@@ -104,7 +104,7 @@ describe('FavoritesService', () => {
         const mockFavorites = [
           {
             id: 'fav-1',
-            user_id: userId,
+            profile_id: userId,
             torrent_id: torrentId,
             created_at: '2024-01-15T00:00:00Z',
             bt_torrents: {
@@ -163,7 +163,7 @@ describe('FavoritesService', () => {
       it('adds a torrent to favorites', async () => {
         const mockFavorite = {
           id: 'fav-new',
-          user_id: userId,
+          profile_id: userId,
           torrent_id: torrentId,
           created_at: '2024-01-15T00:00:00Z',
         };
@@ -177,7 +177,7 @@ describe('FavoritesService', () => {
 
         expect(mockClient.mocks.from).toHaveBeenCalledWith('bt_torrent_favorites');
         expect(mockClient.mocks.insert).toHaveBeenCalledWith({
-          user_id: userId,
+          profile_id: userId,
           torrent_id: torrentId,
         });
         expect(result.id).toBe('fav-new');
@@ -335,7 +335,7 @@ describe('FavoritesService', () => {
         const mockFavorites = [
           {
             id: 'fav-1',
-            user_id: userId,
+            profile_id: userId,
             playlist_id: playlistId,
             channel_id: channelId,
             channel_name: 'ESPN HD',
@@ -397,7 +397,7 @@ describe('FavoritesService', () => {
         const mockFavorites = [
           {
             id: 'fav-1',
-            user_id: userId,
+            profile_id: userId,
             playlist_id: playlistId,
             channel_id: channelId,
             channel_name: 'ESPN HD',
@@ -432,7 +432,7 @@ describe('FavoritesService', () => {
       it('adds an IPTV channel to favorites', async () => {
         const mockFavorite = {
           id: 'fav-new',
-          user_id: userId,
+          profile_id: userId,
           playlist_id: playlistId,
           channel_id: channelId,
           channel_name: 'ESPN HD',
@@ -458,7 +458,7 @@ describe('FavoritesService', () => {
           'iptv_channel_favorites'
         );
         expect(mockClient.mocks.insert).toHaveBeenCalledWith({
-          user_id: userId,
+          profile_id: userId,
           playlist_id: playlistId,
           channel_id: channelId,
           channel_name: 'ESPN HD',
@@ -481,7 +481,7 @@ describe('FavoritesService', () => {
 
         const mockFavorite = {
           id: 'fav-new',
-          user_id: userId,
+          profile_id: userId,
           playlist_id: playlistId,
           channel_id: channelId,
           channel_name: 'Test Channel',
@@ -504,7 +504,7 @@ describe('FavoritesService', () => {
         );
 
         expect(mockClient.mocks.insert).toHaveBeenCalledWith({
-          user_id: userId,
+          profile_id: userId,
           playlist_id: playlistId,
           channel_id: channelId,
           channel_name: 'Test Channel',
@@ -619,7 +619,7 @@ describe('FavoritesService', () => {
         const mockTorrentFavorites = [
           {
             id: 'tfav-1',
-            user_id: userId,
+            profile_id: userId,
             torrent_id: 'torrent-1',
             created_at: '2024-01-15T12:00:00Z',
             bt_torrents: {
@@ -633,7 +633,7 @@ describe('FavoritesService', () => {
         const mockIptvFavorites = [
           {
             id: 'ifav-1',
-            user_id: userId,
+            profile_id: userId,
             playlist_id: 'playlist-1',
             channel_id: 'ch_1',
             channel_name: 'ESPN HD',

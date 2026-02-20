@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getRadioService } from '@/lib/radio';
+import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
 import type { RadioStation } from '@/lib/radio';
 
 /**
@@ -157,6 +158,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
+  const profileId = await getCurrentProfileIdWithFallback();
+
   const { searchParams } = new URL(request.url);
   const stationId = searchParams.get('stationId');
 
@@ -165,12 +168,12 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     // If stationId is provided, check if it's favorited
     if (stationId) {
-      const isFavorited = await service.isFavorite(userId, stationId);
+      const isFavorited = await service.isFavorite(profileId, stationId);
       return NextResponse.json({ isFavorited });
     }
 
     // Otherwise, return all favorites
-    const favorites = await service.getUserFavorites(userId);
+    const favorites = await service.getUserFavorites(profileId);
 
     return NextResponse.json({
       favorites,
@@ -206,6 +209,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  const profileId = await getCurrentProfileIdWithFallback();
+
   let body: unknown;
   try {
     body = await request.json();
@@ -234,7 +239,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       genre: body.stationGenre ?? undefined,
     };
 
-    const favorite = await service.addToFavorites(userId, station);
+    const favorite = await service.addToFavorites(profileId, station);
 
     return NextResponse.json(
       { favorite },
@@ -267,6 +272,8 @@ export async function DELETE(request: NextRequest): Promise<Response> {
     );
   }
 
+  const profileId = await getCurrentProfileIdWithFallback();
+
   let body: unknown;
   try {
     body = await request.json();
@@ -288,7 +295,7 @@ export async function DELETE(request: NextRequest): Promise<Response> {
 
   try {
     const service = getRadioService();
-    await service.removeFromFavorites(userId, stationId);
+    await service.removeFromFavorites(profileId, stationId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

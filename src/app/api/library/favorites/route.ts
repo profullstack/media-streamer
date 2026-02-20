@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getLibraryRepository } from '@/lib/library';
+import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
 import type { Favorite } from '@/lib/library';
 
 /**
@@ -76,7 +77,11 @@ export async function GET(
 
     // If fileId is provided, check if that specific file is favorited
     if (fileId) {
-      const isFavorited = await libraryRepo.isFavorite(user.id, fileId);
+      const profileId = await getCurrentProfileIdWithFallback();
+      if (!profileId) {
+        return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+      }
+      const isFavorited = await libraryRepo.isFavorite(profileId, fileId);
       return NextResponse.json(
         { isFavorited },
         {
@@ -89,7 +94,11 @@ export async function GET(
     }
 
     // Otherwise, get all favorites
-    const favorites = await libraryRepo.getUserFavorites(user.id);
+    const profileId2 = await getCurrentProfileIdWithFallback();
+    if (!profileId2) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    const favorites = await libraryRepo.getUserFavorites(profileId2);
 
     return NextResponse.json(
       { favorites },
@@ -140,7 +149,11 @@ export async function POST(
 
     // Add to favorites
     const libraryRepo = getLibraryRepository();
-    const favorite = await libraryRepo.addFavorite(user.id, fileId);
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    const favorite = await libraryRepo.addFavorite(profileId, fileId);
 
     return NextResponse.json({ favorite }, { status: 201 });
   } catch (error) {
@@ -191,7 +204,11 @@ export async function DELETE(
 
     // Remove from favorites
     const libraryRepo = getLibraryRepository();
-    await libraryRepo.removeFavorite(user.id, fileId);
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    await libraryRepo.removeFavorite(profileId, fileId);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

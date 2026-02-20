@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getFavoritesService } from '@/lib/favorites';
+import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
 import type { IptvChannelFavoriteWithDetails, AddIptvChannelFavoriteInput } from '@/lib/favorites';
 import type { IptvChannelFavorite } from '@/lib/supabase/types';
 
@@ -90,15 +91,19 @@ export async function GET(
 
     // Get favorites
     const favoritesService = getFavoritesService();
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: "No active profile" }, { status: 400 });
+    }
     
     let favorites: IptvChannelFavoriteWithDetails[] | IptvChannelFavorite[];
     if (playlistId) {
       favorites = await favoritesService.getIptvChannelFavoritesByPlaylist(
-        user.id,
+        profileId,
         playlistId
       );
     } else {
-      favorites = await favoritesService.getIptvChannelFavorites(user.id);
+      favorites = await favoritesService.getIptvChannelFavorites(profileId);
     }
 
     return NextResponse.json(
@@ -172,7 +177,11 @@ export async function POST(
 
     // Add to favorites
     const favoritesService = getFavoritesService();
-    const favorite = await favoritesService.addIptvChannelFavorite(user.id, input);
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    const favorite = await favoritesService.addIptvChannelFavorite(profileId, input);
 
     return NextResponse.json({ favorite }, { status: 201 });
   } catch (error) {
@@ -223,7 +232,11 @@ export async function DELETE(
 
     // Remove from favorites
     const favoritesService = getFavoritesService();
-    await favoritesService.removeIptvChannelFavorite(user.id, playlistId, channelId);
+    const profileId = await getCurrentProfileIdWithFallback();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    await favoritesService.removeIptvChannelFavorite(profileId, playlistId, channelId);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

@@ -73,7 +73,7 @@ export class FavoritesService {
   /**
    * Get all torrent favorites for a user
    */
-  async getTorrentFavorites(userId: string): Promise<TorrentFavoriteWithDetails[]> {
+  async getTorrentFavorites(profileId: string): Promise<TorrentFavoriteWithDetails[]> {
     const { data, error } = await this.supabase
       .from('bt_torrent_favorites')
       .select(
@@ -96,7 +96,7 @@ export class FavoritesService {
         )
       `
       )
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -109,11 +109,11 @@ export class FavoritesService {
   /**
    * Add a torrent to favorites
    */
-  async addTorrentFavorite(userId: string, torrentId: string): Promise<TorrentFavorite> {
+  async addTorrentFavorite(profileId: string, torrentId: string): Promise<TorrentFavorite> {
     const { data, error } = await this.supabase
       .from('bt_torrent_favorites')
       .insert({
-        user_id: userId,
+        profile_id: profileId,
         torrent_id: torrentId,
       })
       .select()
@@ -132,11 +132,11 @@ export class FavoritesService {
   /**
    * Remove a torrent from favorites
    */
-  async removeTorrentFavorite(userId: string, torrentId: string): Promise<void> {
+  async removeTorrentFavorite(profileId: string, torrentId: string): Promise<void> {
     const { error } = await this.supabase
       .from('bt_torrent_favorites')
       .delete()
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('torrent_id', torrentId);
 
     if (error) {
@@ -147,11 +147,11 @@ export class FavoritesService {
   /**
    * Check if a torrent is favorited by a user
    */
-  async isTorrentFavorite(userId: string, torrentId: string): Promise<boolean> {
+  async isTorrentFavorite(profileId: string, torrentId: string): Promise<boolean> {
     const { data, error } = await this.supabase
       .from('bt_torrent_favorites')
       .select('id')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('torrent_id', torrentId)
       .maybeSingle();
 
@@ -185,7 +185,7 @@ export class FavoritesService {
   /**
    * Get all IPTV channel favorites for a user
    */
-  async getIptvChannelFavorites(userId: string): Promise<IptvChannelFavoriteWithDetails[]> {
+  async getIptvChannelFavorites(profileId: string): Promise<IptvChannelFavoriteWithDetails[]> {
     const { data, error } = await this.supabase
       .from('iptv_channel_favorites')
       .select(
@@ -199,7 +199,7 @@ export class FavoritesService {
         )
       `
       )
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -213,13 +213,13 @@ export class FavoritesService {
    * Get IPTV channel favorites for a specific playlist
    */
   async getIptvChannelFavoritesByPlaylist(
-    userId: string,
+    profileId: string,
     playlistId: string
   ): Promise<IptvChannelFavorite[]> {
     const { data, error } = await this.supabase
       .from('iptv_channel_favorites')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('playlist_id', playlistId)
       .order('created_at', { ascending: false });
 
@@ -234,13 +234,13 @@ export class FavoritesService {
    * Add an IPTV channel to favorites
    */
   async addIptvChannelFavorite(
-    userId: string,
+    profileId: string,
     input: AddIptvChannelFavoriteInput
   ): Promise<IptvChannelFavorite> {
     const { data, error } = await this.supabase
       .from('iptv_channel_favorites')
       .insert({
-        user_id: userId,
+        profile_id: profileId,
         playlist_id: input.playlistId,
         channel_id: input.channelId,
         channel_name: input.channelName,
@@ -267,14 +267,14 @@ export class FavoritesService {
    * Remove an IPTV channel from favorites
    */
   async removeIptvChannelFavorite(
-    userId: string,
+    profileId: string,
     playlistId: string,
     channelId: string
   ): Promise<void> {
     const { error } = await this.supabase
       .from('iptv_channel_favorites')
       .delete()
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('playlist_id', playlistId)
       .eq('channel_id', channelId);
 
@@ -287,14 +287,14 @@ export class FavoritesService {
    * Check if an IPTV channel is favorited by a user
    */
   async isIptvChannelFavorite(
-    userId: string,
+    profileId: string,
     playlistId: string,
     channelId: string
   ): Promise<boolean> {
     const { data, error } = await this.supabase
       .from('iptv_channel_favorites')
       .select('id')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('playlist_id', playlistId)
       .eq('channel_id', channelId)
       .maybeSingle();
@@ -313,10 +313,10 @@ export class FavoritesService {
   /**
    * Get all favorites for a user (torrents and IPTV channels)
    */
-  async getAllFavorites(userId: string): Promise<AllFavorites> {
+  async getAllFavorites(profileId: string): Promise<AllFavorites> {
     const [torrentFavorites, iptvChannelFavorites] = await Promise.all([
-      this.getTorrentFavorites(userId),
-      this.getIptvChannelFavorites(userId),
+      this.getTorrentFavorites(profileId),
+      this.getIptvChannelFavorites(profileId),
     ]);
 
     return {

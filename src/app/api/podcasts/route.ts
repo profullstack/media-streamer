@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getPodcastService } from '@/lib/podcasts';
+import { getCurrentProfileIdWithFallback } from '@/lib/profiles';
 import type { UserPodcastSubscription } from '@/lib/podcasts/repository';
 
 /**
@@ -212,7 +213,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const subscriptions = await service.getUserSubscriptions(userId);
+    const profileId = await getCurrentProfileIdWithFallback();
+    const subscriptions = await service.getUserSubscriptions(profileId);
     // Transform snake_case to camelCase for frontend consumption
     const transformedSubscriptions = subscriptions.map(transformSubscription);
     return NextResponse.json({ subscriptions: transformedSubscriptions });
@@ -293,8 +295,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
+    const profileId = await getCurrentProfileIdWithFallback();
     const service = getPodcastService();
-    const subscription = await service.subscribeToPodcast(userId, feedUrl, notifyNewEpisodes);
+    const subscription = await service.subscribeToPodcast(profileId, feedUrl, notifyNewEpisodes);
 
     if (!subscription) {
       return NextResponse.json(
@@ -347,8 +350,9 @@ export async function DELETE(request: NextRequest): Promise<Response> {
   }
 
   try {
+    const profileId = await getCurrentProfileIdWithFallback();
     const service = getPodcastService();
-    await service.unsubscribeFromPodcast(userId, podcastId);
+    await service.unsubscribeFromPodcast(profileId, podcastId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[Podcasts] Error unsubscribing from podcast:', error);

@@ -17,6 +17,11 @@ vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(),
 }));
 
+// Mock profiles
+vi.mock('@/lib/profiles', () => ({
+  getCurrentProfileIdWithFallback: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 import { GET, POST, DELETE } from './route';
 import { getPodcastService } from '@/lib/podcasts';
 import { createServerClient } from '@/lib/supabase';
@@ -254,7 +259,7 @@ describe('Podcast API Routes', () => {
       expect(data.subscription.feedUrl).toBe('https://example.com/feed.xml');
       expect(data.subscription.notificationsEnabled).toBe(true);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
-        'user-123',
+        'profile-123',
         'https://example.com/feed.xml',
         true
       );
@@ -289,7 +294,7 @@ describe('Podcast API Routes', () => {
       expect(response.status).toBe(200);
       expect(data.subscription.notificationsEnabled).toBe(false);
       expect(mockService.subscribeToPodcast).toHaveBeenCalledWith(
-        'user-123',
+        'profile-123',
         'https://example.com/feed.xml',
         false
       );
@@ -376,7 +381,7 @@ describe('Podcast API Routes', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(mockService.unsubscribeFromPodcast).toHaveBeenCalledWith('user-123', 'podcast-456');
+      expect(mockService.unsubscribeFromPodcast).toHaveBeenCalledWith('profile-123', 'podcast-456');
     });
 
     it('should return 401 without authentication', async () => {

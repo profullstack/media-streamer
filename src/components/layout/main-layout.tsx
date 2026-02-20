@@ -23,7 +23,7 @@ interface MainLayoutProps {
 export function MainLayout({ children, className }: MainLayoutProps): React.ReactElement {
   const router = useRouter();
   const pathname = usePathname();
-  const { isLoggedIn, isPremium, user, clearAuth, needsProfileSelection, isLoading } = useAuth();
+  const { isLoggedIn, isPremium, user, clearAuth, needsProfileSelection, isLoading, activeProfile } = useAuth();
 
   // Redirect to profile selector when user has multiple profiles and none selected
   useEffect(() => {
@@ -59,6 +59,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
         <Header
           isLoggedIn={isLoggedIn}
           userEmail={user?.email}
+          displayName={activeProfile?.name}
           onLogout={handleLogout}
         />
 

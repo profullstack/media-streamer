@@ -32,10 +32,11 @@ export interface HeaderProps {
   className?: string;
   isLoggedIn?: boolean;
   userEmail?: string;
+  displayName?: string;
   onLogout?: () => void;
 }
 
-export function Header({ className, isLoggedIn = false, userEmail, onLogout }: HeaderProps): React.ReactElement {
+export function Header({ className, isLoggedIn = false, userEmail, displayName, onLogout }: HeaderProps): React.ReactElement {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('');
@@ -207,7 +208,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
               )}
             >
               <UserIcon size={20} />
-              <span className="hidden max-w-[150px] truncate sm:inline">{userEmail}</span>
+              <span className="hidden max-w-[150px] truncate sm:inline">{displayName || userEmail}</span>
               <ChevronDownIcon size={14} className={cn('transition-transform', isUserDropdownOpen && 'rotate-180')} />
             </button>
 
@@ -226,7 +227,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
                   {/* Email display in dropdown */}
                   <div className="border-b border-border-subtle px-4 py-3">
                     <p className="text-xs text-text-muted">Signed in as</p>
-                    <p className="truncate text-sm font-medium text-text-primary">{userEmail}</p>
+                    <p className="truncate text-sm font-medium text-text-primary">{displayName || userEmail}</p>
                   </div>
 
                   {/* Account Settings Link */}
