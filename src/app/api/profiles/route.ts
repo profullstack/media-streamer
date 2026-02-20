@@ -8,6 +8,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getCurrentUser, getCurrentUserWithSubscription } from '@/lib/auth';
 import { getProfilesService } from '@/lib/profiles';
 import type { Profile, CreateProfileInput } from '@/lib/profiles/types';
@@ -17,6 +18,7 @@ import type { Profile, CreateProfileInput } from '@/lib/profiles/types';
  */
 interface ProfilesResponse {
   profiles: Profile[];
+  activeProfileId?: string | null;
 }
 
 /**
@@ -64,8 +66,12 @@ export async function GET(): Promise<
     const profilesService = getProfilesService();
     const profiles = await profilesService.getAccountProfiles(user.id);
 
+    // Read active profile from cookie (if set)
+    const cookieStore = await cookies();
+    const activeProfileId = cookieStore.get('x-profile-id')?.value || null;
+
     return NextResponse.json(
-      { profiles },
+      { profiles, activeProfileId },
       {
         status: 200,
         headers: {

@@ -18,6 +18,12 @@ vi.mock('@/lib/profiles', () => ({
   getProfilesService: vi.fn(),
 }));
 
+// Mock next/headers cookies
+const mockCookieGet = vi.fn().mockReturnValue(undefined);
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(() => Promise.resolve({ get: mockCookieGet })),
+}));
+
 const mockProfilesService: any = {
   getAccountProfiles: vi.fn(),
   createProfile: vi.fn(),

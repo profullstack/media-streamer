@@ -8,8 +8,8 @@
  * Manages auth state and passes it to child components.
  */
 
-import { useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
@@ -22,7 +22,15 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, className }: MainLayoutProps): React.ReactElement {
   const router = useRouter();
-  const { isLoggedIn, isPremium, user, clearAuth } = useAuth();
+  const pathname = usePathname();
+  const { isLoggedIn, isPremium, user, clearAuth, needsProfileSelection, isLoading } = useAuth();
+
+  // Redirect to profile selector when user has multiple profiles and none selected
+  useEffect(() => {
+    if (!isLoading && needsProfileSelection && pathname !== '/select-profile') {
+      router.push('/select-profile');
+    }
+  }, [isLoading, needsProfileSelection, pathname, router]);
 
   const handleLogout = useCallback(async (): Promise<void> => {
     try {

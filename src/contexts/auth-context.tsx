@@ -160,10 +160,14 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
       setProfiles(userProfiles);
       profilesLastFetchedAt.current = Date.now();
 
-      // If no active profile selected, use default or first profile
-      if (!activeProfileId && userProfiles.length > 0) {
-        const defaultProfile = userProfiles.find((p: Profile) => p.is_default) || userProfiles[0];
-        setActiveProfileId(defaultProfile.id);
+      // Restore active profile from server cookie, or auto-select if only one
+      const serverActiveId = data.activeProfileId;
+      if (!activeProfileId) {
+        if (serverActiveId && userProfiles.some((p: Profile) => p.id === serverActiveId)) {
+          setActiveProfileId(serverActiveId);
+        } else if (userProfiles.length === 1) {
+          setActiveProfileId(userProfiles[0].id);
+        }
       }
     } catch (error) {
       console.error('Failed to load profiles:', error);
@@ -210,8 +214,8 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
   // Get active profile object
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
 
-  // Only show profile selection for family plan users with multiple profiles
-  const needsProfileSelection = hasFamilyPlan && profiles.length > 1 && !activeProfileId;
+  // Show profile selection when user has multiple profiles and hasn't picked one yet
+  const needsProfileSelection = profiles.length > 1 && !activeProfileId;
 
   const isLoggedIn = user !== null;
   const isPremium =
