@@ -80,6 +80,8 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
           <a href="/terms" className="hover:text-text-primary transition-colors">Terms</a>
           <span className="mx-2">·</span>
           <a href="/privacy" className="hover:text-text-primary transition-colors">Privacy</a>
+          <span className="mx-2">·</span>
+          <a href="https://github.com/profullstack/media-streamer" target="_blank" rel="noopener noreferrer" className="hover:text-text-primary transition-colors">GitHub</a>
         </footer>
       </div>
     </div>
