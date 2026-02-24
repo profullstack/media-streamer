@@ -67,6 +67,20 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
         <main className={cn('flex-1 p-4 md:p-6', className)}>
           {children}
         </main>
+
+        {/* Footer */}
+        <footer className="border-t border-border-primary px-4 py-4 text-center text-sm text-text-secondary md:px-6">
+          <a
+            href="mailto:support@bittorrented.com?subject=BitTorrented"
+            className="text-accent-primary hover:text-accent-primary/80 transition-colors"
+          >
+            Contact Us
+          </a>
+          <span className="mx-2">·</span>
+          <a href="/terms" className="hover:text-text-primary transition-colors">Terms</a>
+          <span className="mx-2">·</span>
+          <a href="/privacy" className="hover:text-text-primary transition-colors">Privacy</a>
+        </footer>
       </div>
     </div>
   );
