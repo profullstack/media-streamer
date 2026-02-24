@@ -204,20 +204,6 @@ export function Sidebar({ className, isLoggedIn = false, isPremium = false }: Si
               </ul>
             </div>
           </nav>
-
-          {/* Footer */}
-          <div className="border-t border-border-primary px-3 py-3 text-center text-xs text-text-muted">
-            <a
-              href="mailto:support@bittorrented.com?subject=BitTorrented"
-              className="text-accent-primary hover:text-accent-primary/80 transition-colors"
-            >
-              Contact Us
-            </a>
-            <span className="mx-1.5">·</span>
-            <Link href="/terms" className="hover:text-text-secondary transition-colors">Terms</Link>
-            <span className="mx-1.5">·</span>
-            <Link href="/privacy" className="hover:text-text-secondary transition-colors">Privacy</Link>
-          </div>
         </div>
       </aside>
     </>
