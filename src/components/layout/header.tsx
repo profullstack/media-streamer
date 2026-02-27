@@ -12,7 +12,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, LogOutIcon, SettingsIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, LogOutIcon, SettingsIcon, ChevronDownIcon, UsersIcon } from '@/components/ui/icons';
 
 /**
  * Search categories for filtering
@@ -78,7 +78,7 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
     onLogout?.();
   }, [onLogout]);
 
-  const handleAccountSettingsClick = useCallback((): void => {
+  const handleUserMenuLinkClick = useCallback((): void => {
     setIsUserDropdownOpen(false);
   }, []);
 
@@ -230,10 +230,24 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
                     <p className="truncate text-sm font-medium text-text-primary">{displayName || userEmail}</p>
                   </div>
 
+                  {/* Switch Profile Link */}
+                  <Link
+                    href="/select-profile"
+                    onClick={handleUserMenuLinkClick}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
+                      'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                      'transition-colors'
+                    )}
+                  >
+                    <UsersIcon size={16} />
+                    <span>Switch Profile</span>
+                  </Link>
+
                   {/* Account Settings Link */}
                   <Link
                     href="/account"
-                    onClick={handleAccountSettingsClick}
+                    onClick={handleUserMenuLinkClick}
                     className={cn(
                       'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
                       'text-text-secondary hover:bg-bg-hover hover:text-text-primary',

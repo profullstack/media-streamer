@@ -5,7 +5,7 @@
  * - Search functionality
  * - Category dropdown
  * - User dropdown with email display
- * - Account settings link
+ * - Switch profile and account settings links
  * - Logout functionality
  */
 
@@ -122,6 +122,24 @@ describe('Header Component', () => {
       expect(screen.getByTestId('user-dropdown-menu')).toBeInTheDocument();
     });
 
+    it('should show Switch Profile link in dropdown', async () => {
+      render(<Header isLoggedIn={true} userEmail={userEmail} />);
+      
+      const trigger = screen.getByTestId('user-dropdown-trigger');
+      await userEvent.click(trigger);
+      
+      expect(screen.getByRole('link', { name: /switch profile/i })).toBeInTheDocument();
+    });
+
+    it('should have correct href for Switch Profile', async () => {
+      render(<Header isLoggedIn={true} userEmail={userEmail} />);
+      
+      const trigger = screen.getByTestId('user-dropdown-trigger');
+      await userEvent.click(trigger);
+      
+      expect(screen.getByRole('link', { name: /switch profile/i })).toHaveAttribute('href', '/select-profile');
+    });
+
     it('should show Account Settings link in dropdown', async () => {
       render(<Header isLoggedIn={true} userEmail={userEmail} />);
       
@@ -162,6 +180,18 @@ describe('Header Component', () => {
       if (backdrop) {
         fireEvent.click(backdrop);
       }
+      
+      expect(screen.queryByTestId('user-dropdown-menu')).not.toBeInTheDocument();
+    });
+
+    it('should close dropdown when Switch Profile is clicked', async () => {
+      render(<Header isLoggedIn={true} userEmail={userEmail} />);
+      
+      const trigger = screen.getByTestId('user-dropdown-trigger');
+      await userEvent.click(trigger);
+      
+      const switchProfileLink = screen.getByRole('link', { name: /switch profile/i });
+      await userEvent.click(switchProfileLink);
       
       expect(screen.queryByTestId('user-dropdown-menu')).not.toBeInTheDocument();
     });
