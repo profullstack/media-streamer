@@ -137,7 +137,7 @@ describe('Header Component', () => {
       const trigger = screen.getByTestId('user-dropdown-trigger');
       await userEvent.click(trigger);
       
-      expect(screen.getByRole('link', { name: /switch profile/i })).toHaveAttribute('href', '/select-profile');
+      expect(screen.getByRole('link', { name: /switch profile/i })).toHaveAttribute('href', '/select-profile?switch=1');
     });
 
     it('should show Account Settings link in dropdown', async () => {

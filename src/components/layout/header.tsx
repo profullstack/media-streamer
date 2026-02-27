@@ -232,7 +232,7 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
 
                   {/* Switch Profile Link */}
                   <Link
-                    href="/select-profile"
+                    href="/select-profile?switch=1"
                     onClick={handleUserMenuLinkClick}
                     className={cn(
                       'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',

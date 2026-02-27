@@ -7,7 +7,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ProfileSelector } from './ProfileSelector';
 import { LoadingSpinner } from '@/components/ui/icons';
 import { useAuth } from '@/hooks/use-auth';
@@ -15,6 +15,8 @@ import type { Profile } from '@/lib/profiles/types';
 
 export function ProfileSelectorPage(): React.ReactElement {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const forceSwitch = searchParams.get('switch') === '1';
   const { hasFamilyPlan, needsProfileSelection, isLoading: isAuthLoading, isLoggedIn, selectProfile } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,10 +26,10 @@ export function ProfileSelectorPage(): React.ReactElement {
   useEffect(() => {
     if (!isAuthLoading && !isLoggedIn) {
       router.push('/login');
-    } else if (!isLoading && !needsProfileSelection && !isAuthLoading) {
+    } else if (!isLoading && !needsProfileSelection && !forceSwitch && !isAuthLoading) {
       router.push('/');
     }
-  }, [isLoading, isAuthLoading, isLoggedIn, needsProfileSelection, router]);
+  }, [isLoading, isAuthLoading, isLoggedIn, needsProfileSelection, forceSwitch, router]);
 
   // Load profiles
   const loadProfiles = useCallback(async () => {
@@ -107,7 +109,7 @@ export function ProfileSelectorPage(): React.ReactElement {
   }
 
   // Don't render if redirecting
-  if ((!needsProfileSelection && !isLoading) || (!isLoggedIn && !isAuthLoading)) {
+  if (((!needsProfileSelection && !forceSwitch) && !isLoading) || (!isLoggedIn && !isAuthLoading)) {
     return <div>Redirecting...</div>;
   }
 
