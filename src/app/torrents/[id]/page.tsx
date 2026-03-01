@@ -424,17 +424,6 @@ export default function TorrentDetailPage(): React.ReactElement {
     }
   }, [torrent]);
 
-  if (isLoading) {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-center py-12">
-          <LoadingSpinner size={32} className="text-accent-primary" />
-          <span className="ml-3 text-text-secondary">Loading torrent...</span>
-        </div>
-      </MainLayout>
-    );
-  }
-
   const reportTorrentMailto = useMemo(() => {
     if (!torrent) return '';
 
@@ -452,6 +441,17 @@ Reason:`
 
     return `mailto:support@bittorrented.com?subject=${subject}&body=${body}`;
   }, [torrent]);
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center py-12">
+          <LoadingSpinner size={32} className="text-accent-primary" />
+          <span className="ml-3 text-text-secondary">Loading torrent...</span>
+        </div>
+      </MainLayout>
+    );
+  }
 
   if (error || !torrent) {
     return (
