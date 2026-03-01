@@ -507,6 +507,59 @@ export class StreamingService {
    * Destroy the WebTorrent client to free native memory (WebRTC/DHT buffers).
    * The client will be re-created on the next stream request.
    */
+  /**
+   * Force-destroy and recreate later on-demand.
+   * Safe only when there are no active streams.
+   */
+  private forceRecycleClient(reason: string): void {
+    if (!this.client) return;
+    if (this.activeStreams.size > 0) return;
+
+    const memBefore = process.memoryUsage();
+    logger.warn('Recycling WebTorrent client under memory pressure', {
+      reason,
+      rssMB: Math.round(memBefore.rss / 1024 / 1024),
+      externalMB: Math.round(memBefore.external / 1024 / 1024),
+      torrents: this.client.torrents.length,
+    });
+
+    if (this.idleShutdownTimer) {
+      clearTimeout(this.idleShutdownTimer);
+      this.idleShutdownTimer = null;
+    }
+
+    for (const torrent of [...this.client.torrents]) {
+      try {
+        (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+          { destroyStore: true },
+          () => {}
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    this.torrentWatchers.forEach((info) => {
+      if (info.cleanupTimer) clearTimeout(info.cleanupTimer);
+    });
+    this.torrentWatchers.clear();
+    this.torrentAddedAt.clear();
+
+    const client = this.client;
+    this.client = null;
+
+    client.destroy(() => {
+      if (global.gc) global.gc();
+      const memAfter = process.memoryUsage();
+      logger.warn('WebTorrent client recycled', {
+        reason,
+        rssMB: Math.round(memAfter.rss / 1024 / 1024),
+        externalMB: Math.round(memAfter.external / 1024 / 1024),
+        freedMB: Math.round((memBefore.rss - memAfter.rss) / 1024 / 1024),
+      });
+    });
+  }
+
   private shutdownIdleClient(): void {
     if (!this.client) return;
 
@@ -653,6 +706,13 @@ export class StreamingService {
     
     // Check if client can be shut down to free native memory
     this.scheduleIdleShutdown();
+
+    // If we're under pressure and nobody is actively streaming, recycle the
+    // WebTorrent client immediately to free native buffers/sockets.
+    if (memUsage.rss >= MEMORY_WARNING_THRESHOLD && this.activeStreams.size === 0) {
+      this.forceRecycleClient('memory-pressure-idle');
+      return;
+    }
 
     if (memUsage.rss >= MEMORY_SEVERE_THRESHOLD) {
       // SEVERE: Kill oldest streams to free memory immediately
