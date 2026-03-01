@@ -113,6 +113,8 @@ export default function TorrentDetailPage(): React.ReactElement {
 
   // Progress tracking state (for logged-in users only)
   const [fileProgress, setFileProgress] = useState<Map<string, FileProgress>>(new Map());
+  const [isReportingTorrent, setIsReportingTorrent] = useState(false);
+  const [reportTorrentStatus, setReportTorrentStatus] = useState<string | null>(null);
 
   // Fetch torrent details and folder metadata
   useEffect(() => {
@@ -424,23 +426,36 @@ export default function TorrentDetailPage(): React.ReactElement {
     }
   }, [torrent]);
 
-  const reportTorrentMailto = useMemo(() => {
-    if (!torrent) return '';
+  const handleReportTorrent = useCallback(async (): Promise<void> => {
+    if (!torrent || isReportingTorrent) return;
 
-    const detailsUrl = `https://bittorrented.com/torrents/${torrent.infohash}`;
-    const subject = encodeURIComponent(`Report torrent: ${torrent.cleanTitle ?? torrent.name}`);
-    const body = encodeURIComponent(
-      `Please review this indexed torrent listing:
+    try {
+      setIsReportingTorrent(true);
+      setReportTorrentStatus(null);
 
-Title: ${torrent.cleanTitle ?? torrent.name}
-Infohash: ${torrent.infohash}
-Details: ${detailsUrl}
+      const response = await fetch(`/api/torrents/${torrent.infohash}/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: torrent.cleanTitle ?? torrent.name,
+        }),
+      });
 
-Reason:`
-    );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to submit report' }));
+        throw new Error(errorData.error ?? 'Failed to submit report');
+      }
 
-    return `mailto:support@bittorrented.com?subject=${subject}&body=${body}`;
-  }, [torrent]);
+      setReportTorrentStatus('Report sent. Thanks.');
+    } catch (reportError) {
+      const message = reportError instanceof Error ? reportError.message : 'Failed to submit report';
+      setReportTorrentStatus(message);
+    } finally {
+      setIsReportingTorrent(false);
+    }
+  }, [torrent, isReportingTorrent]);
 
   if (isLoading) {
     return (
@@ -498,12 +513,17 @@ Reason:`
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {torrent.infohash}
               </p>
-              <a
-                href={reportTorrentMailto}
-                className="mt-2 inline-block text-xs text-text-muted underline hover:text-text-primary"
+              <button
+                type="button"
+                onClick={handleReportTorrent}
+                disabled={isReportingTorrent}
+                className="mt-2 inline-block text-xs text-text-muted underline hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Report torrent
-              </a>
+                {isReportingTorrent ? 'Reporting…' : 'Report torrent'}
+              </button>
+              {reportTorrentStatus ? (
+                <p className="mt-1 text-xs text-text-muted">{reportTorrentStatus}</p>
+              ) : null}
               {/* Content type, year, and genre */}
               {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                   {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
