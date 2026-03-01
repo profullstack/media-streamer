@@ -435,6 +435,24 @@ export default function TorrentDetailPage(): React.ReactElement {
     );
   }
 
+  const reportTorrentMailto = useMemo(() => {
+    if (!torrent) return '';
+
+    const detailsUrl = `https://bittorrented.com/torrents/${torrent.infohash}`;
+    const subject = encodeURIComponent(`Report torrent: ${torrent.cleanTitle ?? torrent.name}`);
+    const body = encodeURIComponent(
+      `Please review this indexed torrent listing:
+
+Title: ${torrent.cleanTitle ?? torrent.name}
+Infohash: ${torrent.infohash}
+Details: ${detailsUrl}
+
+Reason:`
+    );
+
+    return `mailto:support@bittorrented.com?subject=${subject}&body=${body}`;
+  }, [torrent]);
+
   if (error || !torrent) {
     return (
       <MainLayout>
@@ -480,6 +498,12 @@ export default function TorrentDetailPage(): React.ReactElement {
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {torrent.infohash}
               </p>
+              <a
+                href={reportTorrentMailto}
+                className="mt-2 inline-block text-xs text-text-muted underline hover:text-text-primary"
+              >
+                Report torrent
+              </a>
               {/* Content type, year, and genre */}
               {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                   {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">

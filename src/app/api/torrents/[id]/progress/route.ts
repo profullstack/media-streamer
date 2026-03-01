@@ -270,6 +270,7 @@ export async function POST(
       .from('watch_progress')
       .upsert(
         {
+          user_id: user.id,
           profile_id: profileId,
           file_id: fileId,
           current_time_seconds: Math.floor(currentTimeSeconds),
@@ -277,7 +278,8 @@ export async function POST(
           percentage: Math.round(percentage * 100) / 100,
           last_watched_at: new Date().toISOString(),
         } as any,
-        { onConflict: 'profile_id,file_id' }
+        // watch_progress has a unique constraint on (user_id, file_id)
+        { onConflict: 'user_id,file_id' }
       )
       .select()
       .single();
@@ -338,6 +340,7 @@ export async function POST(
       .from('reading_progress')
       .upsert(
         {
+          user_id: user.id,
           profile_id: profileId,
           file_id: fileId,
           current_page: currentPage,
@@ -345,7 +348,8 @@ export async function POST(
           percentage: Math.round(percentage * 100) / 100,
           last_read_at: new Date().toISOString(),
         } as any,
-        { onConflict: 'profile_id,file_id' }
+        // reading_progress has a unique constraint on (user_id, file_id)
+        { onConflict: 'user_id,file_id' }
       )
       .select()
       .single();
