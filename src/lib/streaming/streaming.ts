@@ -18,7 +18,7 @@ import nodeDataChannel from 'node-datachannel/polyfill';
 import type { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
-import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { validateMagnetUri, extractInfohash } from '../magnet';
 import { getMediaCategory, getMimeType } from '../utils';
@@ -262,15 +262,47 @@ const DEFAULT_CLEANUP_DELAY = 120000;
 
 /**
  * Memory pressure thresholds (in bytes)
- * When RSS exceeds these thresholds, take action to prevent OOM
- * Tuned for VPS with 16GB RAM
+ * When RSS exceeds these thresholds, take action to prevent OOM.
+ *
+ * We derive thresholds from cgroup/systemd memory limits when available,
+ * so app-level cleanup triggers BEFORE systemd hard limits.
  */
-// NOTE: RSS includes memory from FFmpeg child processes (each ~500MB-1GB).
-// Don't panic at 2-3GB — that's normal with 2-3 active transcodes.
-// Systemd limits are MemoryHigh=8G, MemoryMax=10G.
-const MEMORY_WARNING_THRESHOLD = 5 * 1024 * 1024 * 1024; // 5GB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 6.5 * 1024 * 1024 * 1024; // 6.5GB - emergency cleanup
-const MEMORY_SEVERE_THRESHOLD = 7.5 * 1024 * 1024 * 1024; // 7.5GB - kill oldest streams
+function readCgroupMemoryLimit(path: string): number | null {
+  try {
+    const raw = readFileSync(path, 'utf8').trim();
+    if (!raw || raw === 'max') return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function getMemoryThresholds(): { warning: number; critical: number; severe: number } {
+  // Fallbacks if cgroup limits are unavailable
+  const fallbackWarning = 5 * 1024 * 1024 * 1024;
+  const fallbackCritical = 6.5 * 1024 * 1024 * 1024;
+  const fallbackSevere = 7.5 * 1024 * 1024 * 1024;
+
+  const high = readCgroupMemoryLimit('/sys/fs/cgroup/memory.high');
+  const max = readCgroupMemoryLimit('/sys/fs/cgroup/memory.max');
+
+  const candidates = [high, max].filter((v): v is number => v !== null);
+  if (candidates.length === 0) {
+    return { warning: fallbackWarning, critical: fallbackCritical, severe: fallbackSevere };
+  }
+
+  const budget = Math.min(...candidates);
+
+  // Trigger app cleanup ahead of systemd limits.
+  const warning = Math.floor(budget * 0.82);
+  const critical = Math.floor(budget * 0.90);
+  const severe = Math.floor(budget * 0.96);
+
+  return { warning, critical, severe };
+}
+
+const { warning: MEMORY_WARNING_THRESHOLD, critical: MEMORY_CRITICAL_THRESHOLD, severe: MEMORY_SEVERE_THRESHOLD } = getMemoryThresholds();
 const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
 const TORRENT_MIN_AGE_MS = 30 * 60 * 1000; // Don't cleanup torrents younger than 30 minutes
 const ORPHAN_TORRENT_MAX_AGE_MS = 2 * 60 * 60 * 1000; // Auto-cleanup torrents with 0 watchers after 2 hours
