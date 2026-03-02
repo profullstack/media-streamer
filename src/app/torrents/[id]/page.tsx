@@ -564,7 +564,7 @@ export default function TorrentDetailPage(): React.ReactElement {
               <button
                 type="button"
                 onClick={() => setIsReportModalOpen(true)}
-                className="mt-2 inline-block text-xs text-text-muted underline hover:text-text-primary"
+                className="mt-2 block text-xs text-text-muted underline hover:text-text-primary"
               >
                 Report torrent
               </button>
