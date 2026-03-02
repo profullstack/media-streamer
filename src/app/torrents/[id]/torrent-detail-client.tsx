@@ -1,0 +1,879 @@
+'use client';
+
+/**
+ * Torrent Detail Page
+ *
+ * Shows torrent information, file browser, comments, and voting.
+ */
+
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { MainLayout } from '@/components/layout';
+import { FileTree } from '@/components/files';
+import { SearchBar, type SearchFilters } from '@/components/search';
+import { MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
+import { CommentsSection, TorrentVoting } from '@/components/comments';
+import {
+  ChevronRightIcon,
+  LoadingSpinner,
+  MusicIcon,
+  VideoIcon,
+  BookIcon,
+  FileIcon,
+  PlayIcon,
+  ShuffleIcon,
+} from '@/components/ui/icons';
+import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeholder';
+import { AmazonBuyButton } from '@/components/ui/amazon-buy-button';
+import { formatBytes } from '@/lib/utils';
+import { extractArtistFromTorrentName } from '@/lib/torrent-name';
+
+function cleanDisplayName(raw: string): string {
+  let t = raw;
+  t = t.replace(/\.\w{2,4}$/, '');
+  t = t.replace(/\[.*?\]/g, ' ');
+  t = t.replace(/^(www\.)?[a-z0-9_-]+\.(org|com|net|io|tv|cc|to|bargains|club|xyz|me)\s*[-\u2013\u2014]\s*/i, '');
+  t = t.replace(/[._]/g, ' ');
+  t = t.replace(/\b(x264|x265|h264|h265|hevc|avc|aac[0-9. ]*|ac3|dts|flac|mp3|bluray|blu-ray|bdrip|brrip|webrip|web-?dl|webdl|hdrip|dvdrip|dvdscr|cam|hdtv|pdtv|uhd|uhdr|hdr|hdr10|dv|dolby|vision|10bit|8bit|remux|repack|proper|extended|unrated|directors|cut|dubbed|subbed|multi|dual|audio|subs)\b/gi, ' ');
+  t = t.replace(/\b(480p|720p|1080p|1080i|2160p|4k)\b/gi, ' ');
+  t = t.replace(/\b(eng|cz|de|fr|es|it|pt|nl|pl|ru|ja|ko|zh|ukr|ita|ger|spa|por|ara|tur|hun)\b/gi, ' ');
+  t = t.replace(/\b\d+(\.\d+)?\s*(mb|gb|tb)\b/gi, ' ');
+  t = t.replace(/\s*[-\u2013]\s*[A-Za-z0-9]{2,15}\s*$/, '');
+  t = t.replace(/\bH\s*\d{3}\b/gi, ' ');
+  t = t.replace(/\s+/g, ' ').trim();
+  return t;
+}
+import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
+import { useAuth } from '@/hooks';
+import type { Torrent, TorrentFile, FileProgress } from '@/types';
+
+interface TorrentDetailResponse {
+  torrent: Torrent;
+  files: TorrentFile[];
+}
+
+/**
+ * Folder metadata from the API
+ */
+interface FolderMetadata {
+  id: string;
+  torrentId: string;
+  path: string;
+  artist: string | null;
+  album: string | null;
+  year: number | null;
+  coverUrl: string | null;
+  externalId: string | null;
+  externalSource: string | null;
+}
+
+interface FoldersResponse {
+  folders: FolderMetadata[];
+}
+
+/**
+ * Find the best matching folder metadata for a set of files
+ * Returns the folder whose path is the common parent of all files
+ */
+function findFolderMetadataForFiles(
+  files: TorrentFile[],
+  folders: FolderMetadata[]
+): FolderMetadata | undefined {
+  if (files.length === 0 || folders.length === 0) return undefined;
+
+  // Get the common path prefix of all files
+  const paths = files.map(f => f.path);
+  const firstPath = paths[0];
+  const parts = firstPath.split('/').filter(Boolean);
+  
+  // Find the longest common prefix
+  let commonPrefix = '';
+  for (let i = 0; i < parts.length - 1; i++) {
+    const testPrefix = parts.slice(0, i + 1).join('/');
+    const allMatch = paths.every(p => p.startsWith(testPrefix + '/') || p === testPrefix);
+    if (allMatch) {
+      commonPrefix = testPrefix;
+    } else {
+      break;
+    }
+  }
+
+  if (!commonPrefix) return undefined;
+
+  // Find the folder that matches this path
+  return folders.find(f => f.path === commonPrefix);
+}
+
+interface TorrentDetailClientProps {
+  initialTorrent: Torrent;
+  initialFiles: TorrentFile[];
+  torrentId: string;
+}
+
+export default function TorrentDetailClient({ initialTorrent, initialFiles, torrentId }: TorrentDetailClientProps): React.ReactElement {
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const [torrent, setTorrent] = useState<Torrent | null>(initialTorrent);
+  const [files, setFiles] = useState<TorrentFile[]>(initialFiles);
+  const [filteredFiles, setFilteredFiles] = useState<TorrentFile[]>(initialFiles);
+  const [folders, setFolders] = useState<FolderMetadata[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Modal state
+  const [selectedFile, setSelectedFile] = useState<TorrentFile | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Playlist modal state
+  const [playlistFiles, setPlaylistFiles] = useState<TorrentFile[]>([]);
+  const [playlistFolderMetadata, setPlaylistFolderMetadata] = useState<FolderMetadata | undefined>(undefined);
+  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+
+  // Progress tracking state (for logged-in users only)
+  const [fileProgress, setFileProgress] = useState<Map<string, FileProgress>>(new Map());
+  const [reportReason, setReportReason] = useState<'animal-abuse' | 'child-abuse' | 'copyright' | 'malware-scam' | 'other'>('copyright');
+  const [reportDetails, setReportDetails] = useState('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReportingTorrent, setIsReportingTorrent] = useState(false);
+  const [reportTorrentStatus, setReportTorrentStatus] = useState<string | null>(null);
+
+  // Fetch folder metadata (torrent data comes from server props)
+  useEffect(() => {
+    const fetchFolders = async (): Promise<void> => {
+      try {
+        const foldersResponse = await fetch(`/api/torrents/${torrentId}/folders`);
+        if (foldersResponse.ok) {
+          const foldersData = await foldersResponse.json() as FoldersResponse;
+          setFolders(foldersData.folders);
+        }
+      } catch (folderErr) {
+        console.warn('[TorrentDetailPage] Failed to fetch folder metadata:', folderErr);
+      }
+    };
+    if (torrentId) void fetchFolders();
+  }, [torrentId]);
+
+
+
+  // Fetch progress for logged-in users
+  useEffect(() => {
+    if (!user || !torrentId) {
+      setFileProgress(new Map());
+      return;
+    }
+
+    const fetchProgress = async (): Promise<void> => {
+      try {
+        const response = await fetch(`/api/torrents/${torrentId}/progress`);
+        if (response.ok) {
+          const data = await response.json() as {
+            watchProgress: Array<{
+              fileId: string;
+              currentTimeSeconds: number;
+              durationSeconds: number | null;
+              percentage: number;
+              lastWatchedAt: string;
+            }>;
+            readingProgress: Array<{
+              fileId: string;
+              currentPage: number;
+              totalPages: number | null;
+              percentage: number;
+              lastReadAt: string;
+            }>;
+          };
+
+          // Convert to Map for O(1) lookups
+          const progressMap = new Map<string, FileProgress>();
+
+          // Add watch progress
+          for (const wp of data.watchProgress) {
+            progressMap.set(wp.fileId, {
+              fileId: wp.fileId,
+              percentage: wp.percentage,
+              completed: wp.percentage >= 95,
+              currentTimeSeconds: wp.currentTimeSeconds,
+              durationSeconds: wp.durationSeconds ?? undefined,
+              lastWatchedAt: wp.lastWatchedAt,
+            });
+          }
+
+          // Add reading progress
+          for (const rp of data.readingProgress) {
+            progressMap.set(rp.fileId, {
+              fileId: rp.fileId,
+              percentage: rp.percentage,
+              completed: rp.percentage >= 95,
+              currentPage: rp.currentPage,
+              totalPages: rp.totalPages ?? undefined,
+              lastReadAt: rp.lastReadAt,
+            });
+          }
+
+          setFileProgress(progressMap);
+        }
+      } catch (err) {
+        console.warn('[TorrentDetailPage] Failed to fetch progress:', err);
+      }
+    };
+
+    void fetchProgress();
+  }, [user, torrentId]);
+
+  // Handle saving progress (called by media player)
+  const handleProgressSave = useCallback(async (
+    fileId: string,
+    currentTimeSeconds: number,
+    durationSeconds: number
+  ): Promise<void> => {
+    if (!user || !torrentId) return;
+
+    try {
+      await fetch(`/api/torrents/${torrentId}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId,
+          currentTimeSeconds,
+          durationSeconds,
+        }),
+      });
+
+      // Update local progress state
+      setFileProgress(prev => {
+        const updated = new Map(prev);
+        const percentage = durationSeconds > 0
+          ? (currentTimeSeconds / durationSeconds) * 100
+          : 0;
+        updated.set(fileId, {
+          fileId,
+          percentage,
+          completed: percentage >= 95,
+          currentTimeSeconds,
+          durationSeconds,
+          lastWatchedAt: new Date().toISOString(),
+        });
+        return updated;
+      });
+    } catch (err) {
+      console.warn('[TorrentDetailPage] Failed to save progress:', err);
+    }
+  }, [user, torrentId]);
+
+  // Handle search within torrent
+  const handleSearch = useCallback((query: string, filters: SearchFilters) => {
+    if (!query.trim() && filters.mediaTypes.length === 0) {
+      setFilteredFiles(files);
+      return;
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const filtered = files.filter((file) => {
+      // Filter by query
+      const matchesQuery = !query.trim() || 
+        file.name.toLowerCase().includes(lowerQuery) ||
+        file.path.toLowerCase().includes(lowerQuery);
+
+      // Filter by media type
+      const matchesType = filters.mediaTypes.length === 0 ||
+        filters.mediaTypes.includes(file.mediaCategory);
+
+      return matchesQuery && matchesType;
+    });
+
+    setFilteredFiles(filtered);
+  }, [files]);
+
+  // Handle file play - opens modal instead of new tab
+  const handleFilePlay = useCallback((file: TorrentFile) => {
+    if (torrent) {
+      setSelectedFile(file);
+      setIsModalOpen(true);
+    }
+  }, [torrent]);
+
+  // Handle file read - navigates to reader page for ebooks
+  const handleFileRead = useCallback((file: TorrentFile) => {
+    router.push(`/reader/${file.id}`);
+  }, [router]);
+
+  // Handle modal close
+  const handleModalClose = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedFile(null);
+  }, []);
+
+  // Handle play all - opens playlist modal with folder-specific metadata
+  const handlePlayAll = useCallback((audioFiles: TorrentFile[]) => {
+    if (audioFiles.length > 0) {
+      // Find folder metadata for these files
+      const folderMeta = findFolderMetadataForFiles(audioFiles, folders);
+      console.log('[TorrentDetailPage] Play all with folder metadata:', {
+        fileCount: audioFiles.length,
+        folderPath: folderMeta?.path,
+        folderCoverUrl: folderMeta?.coverUrl,
+        folderArtist: folderMeta?.artist,
+        folderAlbum: folderMeta?.album,
+      });
+      setPlaylistFolderMetadata(folderMeta);
+      setPlaylistFiles(audioFiles);
+      setIsPlaylistModalOpen(true);
+    }
+  }, [folders]);
+
+  // Handle play all shuffled - shuffles files before playing
+  const handlePlayAllShuffled = useCallback((audioFiles: TorrentFile[]) => {
+    if (audioFiles.length > 0) {
+      // Log original order (first 5 files) for debugging
+      console.log('[Shuffle] Original order (first 5):', audioFiles.slice(0, 5).map(f => f.path));
+
+      // Shuffle the array using Fisher-Yates algorithm
+      const shuffled = [...audioFiles];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      // Log shuffled order (first 10 files) for debugging
+      console.log('[Shuffle] Shuffled order (first 10):', shuffled.slice(0, 10).map(f => f.path));
+      console.log('[Shuffle] Total files shuffled:', shuffled.length);
+
+      // Find folder metadata for these files
+      const folderMeta = findFolderMetadataForFiles(audioFiles, folders);
+      setPlaylistFolderMetadata(folderMeta);
+      setPlaylistFiles(shuffled);
+      setIsPlaylistModalOpen(true);
+    }
+  }, [folders]);
+
+  // Handle playlist modal close
+  const handlePlaylistModalClose = useCallback(() => {
+    setIsPlaylistModalOpen(false);
+    setPlaylistFiles([]);
+    setPlaylistFolderMetadata(undefined);
+  }, []);
+
+  // Get all audio files from the torrent (sorted by path)
+  const allAudioFiles = useMemo(() => {
+    return files
+      .filter((file) => file.mediaCategory === 'audio')
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [files]);
+
+  // Handle file download
+  const handleFileDownload = useCallback((file: TorrentFile) => {
+    if (torrent) {
+      const streamUrl = `/api/stream?infohash=${torrent.infohash}&fileIndex=${file.fileIndex}`;
+      const link = document.createElement('a');
+      link.href = streamUrl;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }, [torrent]);
+
+  // Calculate media type counts
+  const mediaCounts = files.reduce(
+    (acc, file) => {
+      acc[file.mediaCategory] = (acc[file.mediaCategory] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+
+
+  const handleReportTorrent = useCallback(async (): Promise<void> => {
+    if (!torrent || isReportingTorrent) return;
+
+    const reasonLabels: Record<typeof reportReason, string> = {
+      'animal-abuse': 'Animal abuse',
+      'child-abuse': 'Child abuse',
+      copyright: 'Copyright infringement',
+      'malware-scam': 'Malware / scam',
+      other: 'Other',
+    };
+
+    const trimmedDetails = reportDetails.trim();
+    const reason = `${reasonLabels[reportReason]}${trimmedDetails ? `\nDetails: ${trimmedDetails}` : ''}`;
+
+    try {
+      setIsReportingTorrent(true);
+      setReportTorrentStatus(null);
+
+      const response = await fetch(`/api/torrents/${torrent.infohash}/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: torrent.cleanTitle || cleanDisplayName(torrent.name),
+          reason,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to submit report' }));
+        throw new Error(errorData.error ?? 'Failed to submit report');
+      }
+
+      setReportTorrentStatus('Report sent. Thanks.');
+      setReportDetails('');
+      setIsReportModalOpen(false);
+    } catch (reportError) {
+      const message = reportError instanceof Error ? reportError.message : 'Failed to submit report';
+      setReportTorrentStatus(message);
+    } finally {
+      setIsReportingTorrent(false);
+    }
+  }, [torrent, isReportingTorrent, reportReason, reportDetails]);
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center py-12">
+          <LoadingSpinner size={32} className="text-accent-primary" />
+          <span className="ml-3 text-text-secondary">Loading torrent...</span>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error || !torrent) {
+    return (
+      <MainLayout>
+        <div className="py-12 text-center">
+          <p className="text-error">{error ?? 'Torrent not found'}</p>
+          <Link
+            href="/torrents"
+            className="mt-4 inline-block text-accent-primary hover:underline"
+          >
+            Back to torrents
+          </Link>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  return (
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-sm text-text-muted">
+          <Link href="/" className="hover:text-text-primary">Home</Link>
+          <ChevronRightIcon size={14} />
+          <Link href="/torrents" className="hover:text-text-primary">Torrents</Link>
+          <ChevronRightIcon size={14} />
+          <span className="text-text-primary truncate" title={torrent.name}>{torrent.cleanTitle || cleanDisplayName(torrent.name)}</span>
+        </nav>
+
+        {/* Backdrop hero */}
+        {(torrent as any).backdropUrl && (
+          <div className="relative -mx-4 -mt-2 h-48 sm:h-64 overflow-hidden rounded-lg sm:mx-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={(torrent as any).backdropUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="eager"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/60 to-transparent" />
+          </div>
+        )}
+
+        {/* Header */}
+        <div className={`card p-6 ${(torrent as any).backdropUrl ? '-mt-24 relative z-10' : ''}`}>
+          <div className="flex items-start gap-4">
+            {/* Poster/Cover Art with Placeholder */}
+            <MediaPoster
+              src={torrent.posterUrl ?? torrent.coverUrl}
+              alt={torrent.cleanTitle || cleanDisplayName(torrent.name)}
+              contentType={torrent.contentType as MediaContentType}
+              className="shadow-lg"
+            />
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-xl font-bold text-text-primary" title={torrent.name}>
+                {torrent.cleanTitle || cleanDisplayName(torrent.name)}
+              </h1>
+              {torrent.cleanTitle && torrent.cleanTitle !== torrent.name && (
+                <p className="mt-0.5 truncate text-xs text-text-muted/50" title={torrent.name}>{torrent.name}</p>
+              )}
+              {(torrent as any).tagline && (
+                <p className="mt-1 text-sm italic text-text-muted">&ldquo;{(torrent as any).tagline}&rdquo;</p>
+              )}
+              <p className="mt-1 font-mono text-xs text-text-muted">
+                {torrent.infohash}
+              </p>
+              {/* Content type, year, and genre */}
+              {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                  {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
+                      {torrent.contentType}
+                    </span> : null}
+                  {(torrent as any).contentRating ? <span className="rounded border border-text-muted/30 px-2 py-0.5 text-xs font-medium text-text-secondary">
+                      {(torrent as any).contentRating}
+                    </span> : null}
+                  {torrent.year ? <span>{torrent.year}</span> : null}
+                  {torrent.genre ? <span className="text-text-muted">•</span> : null}
+                  {torrent.genre ? <span className="text-text-secondary">{torrent.genre}</span> : null}
+                  {(torrent as any).imdbRating ? <>
+                    <span className="text-text-muted">•</span>
+                    <a
+                      href={`https://www.imdb.com/title/${(torrent as any).externalId}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                      title={`${((torrent as any).imdbVotes ?? 0).toLocaleString()} votes on IMDB`}
+                    >
+                      ⭐ {(torrent as any).imdbRating}/10
+                    </a>
+                  </> : null}
+                  {(torrent as any).runtimeMinutes ? <>
+                    <span className="text-text-muted">•</span>
+                    <span className="text-text-secondary">{(torrent as any).runtimeMinutes} min</span>
+                  </> : null}
+                </div> : null}
+              {/* Director and Cast */}
+              {(torrent.director || torrent.actors) ? <div className="mt-2 space-y-1 text-sm">
+                  {torrent.director ? <p className="text-text-secondary">
+                      <span className="text-text-muted">Director:</span>{' '}
+                      <span className="text-text-primary">{torrent.director}</span>
+                    </p> : null}
+                  {torrent.actors ? <p className="text-text-secondary">
+                      <span className="text-text-muted">Cast:</span>{' '}
+                      <span className="text-text-primary">{torrent.actors}</span>
+                    </p> : null}
+                </div> : null}
+              {/* Writers */}
+              {(torrent as any).writers ? <div className="mt-1 text-sm">
+                  <span className="text-text-muted">Writers:</span>{' '}
+                  <span className="text-text-primary">{(torrent as any).writers}</span>
+                </div> : null}
+              {/* Synopsis / Description */}
+              {((torrent as any).overview || torrent.description) ? <p className="mt-2 line-clamp-3 text-sm text-text-secondary">
+                  {(torrent as any).overview || torrent.description}
+                </p> : null}
+              {/* Buy on Amazon affiliate link — only when we have real metadata */}
+              <AmazonBuyButton
+                title={torrent.cleanTitle || cleanDisplayName(torrent.name)}
+                contentType={torrent.contentType}
+                year={torrent.year}
+                hasMetadata={true}
+              />
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="mt-2 block text-xs text-text-muted underline hover:text-text-primary"
+              >
+                Report torrent
+              </button>
+              {reportTorrentStatus ? (
+                <p className="mt-1 text-xs text-text-muted">{reportTorrentStatus}</p>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
+            <div>
+              <p className="text-sm text-text-muted">Total Size</p>
+              <p className="text-lg font-medium text-text-primary">
+                {formatBytes(torrent.totalSize)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Files</p>
+              <p className="text-lg font-medium text-text-primary">
+                {torrent.fileCount}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Seeders</p>
+              <p className="text-lg font-medium text-green-500">
+                {torrent.seeders !== null ? torrent.seeders : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Leechers</p>
+              <p className="text-lg font-medium text-orange-500">
+                {torrent.leechers !== null ? torrent.leechers : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Health</p>
+              <div className="mt-1 flex items-center gap-0.5" title={`Health: ${calculateHealthBars(torrent.seeders, torrent.leechers)}/5`}>
+                {getHealthBarColors(calculateHealthBars(torrent.seeders, torrent.leechers)).map((color, index) => (
+                  <div
+                    key={index}
+                    className={`w-2 rounded-sm ${color}`}
+                    style={{ height: `${12 + index * 3}px` }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Piece Size</p>
+              <p className="text-lg font-medium text-text-primary">
+                {formatBytes(torrent.pieceLength)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Added</p>
+              <p className="text-lg font-medium text-text-primary">
+                {new Date(torrent.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Encoding Info - show if codec info is available */}
+          {torrent.videoCodec || torrent.audioCodec ? (
+            <div className="mt-6 rounded-lg border border-border-subtle bg-bg-secondary p-4">
+              <h3 className="text-sm font-medium text-text-primary mb-3">Encoding Details</h3>
+              <div className="flex flex-wrap items-center gap-3">
+                {torrent.videoCodec ? (
+                  <div className="flex items-center gap-2 rounded-full bg-accent-video/10 px-3 py-1 text-sm">
+                    <VideoIcon className="text-accent-video" size={14} />
+                    <span className="text-text-primary">{torrent.videoCodec.toUpperCase()}</span>
+                  </div>
+                ) : null}
+                {torrent.audioCodec ? (
+                  <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
+                    <MusicIcon className="text-accent-audio" size={14} />
+                    <span className="text-text-primary">{torrent.audioCodec.toUpperCase()}</span>
+                  </div>
+                ) : null}
+                {torrent.container ? (
+                  <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
+                    <FileIcon className="text-text-secondary" size={14} />
+                    <span className="text-text-primary">{torrent.container.toUpperCase()}</span>
+                  </div>
+                ) : null}
+                {torrent.needsTranscoding !== null ? (
+                  <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
+                    torrent.needsTranscoding
+                      ? 'bg-orange-500/10 text-orange-500'
+                      : 'bg-green-500/10 text-green-500'
+                  }`}>
+                    {torrent.needsTranscoding ? (
+                      <>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Needs Transcoding</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Browser Compatible</span>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              {torrent.codecDetectedAt ? (
+                <p className="mt-2 text-xs text-text-muted">
+                  Detected: {new Date(torrent.codecDetectedAt).toLocaleString()}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Media type breakdown */}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {/* Play All button for audio collections */}
+            {allAudioFiles.length > 1 ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handlePlayAll(allAudioFiles)}
+                  className="flex items-center gap-2 rounded-full bg-accent-audio px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-audio/90 transition-colors"
+                >
+                  <PlayIcon size={14} />
+                  <span>Play All ({allAudioFiles.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePlayAllShuffled(allAudioFiles)}
+                  className="flex items-center justify-center rounded-full bg-accent-audio/20 p-1.5 text-accent-audio hover:bg-accent-audio/30 transition-colors"
+                  title="Shuffle and play all"
+                  aria-label="Shuffle and play all audio files"
+                >
+                  <ShuffleIcon size={14} />
+                </button>
+              </div>
+            ) : null}
+            {mediaCounts.audio && mediaCounts.audio > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
+                <MusicIcon className="text-accent-audio" size={14} />
+                <span className="text-text-primary">{mediaCounts.audio} audio</span>
+              </div> : null}
+            {mediaCounts.video && mediaCounts.video > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-video/10 px-3 py-1 text-sm">
+                <VideoIcon className="text-accent-video" size={14} />
+                <span className="text-text-primary">{mediaCounts.video} video</span>
+              </div> : null}
+            {mediaCounts.ebook && mediaCounts.ebook > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-ebook/10 px-3 py-1 text-sm">
+                <BookIcon className="text-accent-ebook" size={14} />
+                <span className="text-text-primary">{mediaCounts.ebook} ebook</span>
+              </div> : null}
+            {mediaCounts.document && mediaCounts.document > 0 ? <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
+                <FileIcon className="text-text-secondary" size={14} />
+                <span className="text-text-primary">{mediaCounts.document} document</span>
+              </div> : null}
+            {mediaCounts.other && mediaCounts.other > 0 ? <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
+                <FileIcon className="text-text-secondary" size={14} />
+                <span className="text-text-primary">{mediaCounts.other} other</span>
+              </div> : null}
+          </div>
+
+          {/* Torrent Voting */}
+          <div className="mt-6 border-t border-border-subtle pt-6">
+            <TorrentVoting
+              torrentId={torrentId}
+              user={user ? { id: user.id, email: user.email ?? '' } : null}
+            />
+          </div>
+        </div>
+
+        {/* File Browser */}
+        <div className="card">
+          <div className="border-b border-border-subtle p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-text-primary">Files</h2>
+              <span className="text-sm text-text-muted">
+                {filteredFiles.length} of {files.length} files
+              </span>
+            </div>
+            <div className="mt-3">
+              <SearchBar
+                onSearch={handleSearch}
+                placeholder="Filter files..."
+                showFilters={true}
+                debounceMs={150}
+              />
+            </div>
+          </div>
+          <div className="max-h-[600px] overflow-y-auto p-2">
+            {filteredFiles.length > 0 ? (
+              <FileTree
+                files={filteredFiles}
+                folders={folders}
+                progress={user ? fileProgress : undefined}
+                onFilePlay={handleFilePlay}
+                onFileDownload={handleFileDownload}
+                onFileRead={handleFileRead}
+                onPlayAll={handlePlayAll}
+                onPlayAllShuffled={handlePlayAllShuffled}
+              />
+            ) : (
+              <div className="py-8 text-center text-text-muted">
+                No files match your filter
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Comments Section */}
+        <div className="card p-6">
+          <CommentsSection
+            torrentId={torrentId}
+            user={user ? { id: user.id, email: user.email ?? '' } : null}
+          />
+        </div>
+      </div>
+
+      {/* Report Modal */}
+      {isReportModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-border-primary bg-bg-primary p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-primary">Report torrent</h3>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="text-xs text-text-muted hover:text-text-primary"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-1 text-xs text-text-muted sm:grid-cols-2">
+              {[
+                { value: 'animal-abuse', label: 'Animal abuse' },
+                { value: 'child-abuse', label: 'Child abuse' },
+                { value: 'copyright', label: 'Copyright infringement' },
+                { value: 'malware-scam', label: 'Malware / scam' },
+                { value: 'other', label: 'Other' },
+              ].map((option) => (
+                <label key={option.value} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value={option.value}
+                    checked={reportReason === option.value}
+                    onChange={() => {
+                      setReportReason(option.value as typeof reportReason);
+                      setReportTorrentStatus(null);
+                    }}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+            <textarea
+              value={reportDetails}
+              onChange={(event) => {
+                setReportDetails(event.target.value);
+                setReportTorrentStatus(null);
+              }}
+              placeholder="Additional details (optional)"
+              rows={4}
+              className="mt-3 w-full rounded-md border border-border-primary bg-bg-secondary px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none"
+            />
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="rounded-md border border-border-primary px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleReportTorrent}
+                disabled={isReportingTorrent}
+                className="rounded-md bg-accent-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isReportingTorrent ? 'Reporting…' : 'Submit report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Media Player Modal */}
+      {torrent ? <MediaPlayerModal
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          file={selectedFile}
+          infohash={torrent.infohash}
+          torrentName={torrent.cleanTitle || cleanDisplayName(torrent.name)}
+          existingProgress={selectedFile && user ? fileProgress.get(selectedFile.id) : undefined}
+          onProgressSave={user ? handleProgressSave : undefined}
+        /> : null}
+
+      {/* Playlist Player Modal - uses folder-specific metadata when available */}
+      {torrent ? <PlaylistPlayerModal
+          isOpen={isPlaylistModalOpen}
+          onClose={handlePlaylistModalClose}
+          files={playlistFiles}
+          infohash={torrent.infohash}
+          torrentName={playlistFolderMetadata?.album ?? (torrent.cleanTitle || cleanDisplayName(torrent.name))}
+          coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
+          artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
+        /> : null}
+    </MainLayout>
+  );
+}
