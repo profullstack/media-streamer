@@ -163,19 +163,16 @@ export async function batchEnrichDhtWithImdb<T extends {
 
   try {
     const supabase = createServerClient();
-    const hexHashes = results.map(r => `\\x${r.torrent_infohash}`);
+    const hexHashes = results.map(r => r.torrent_infohash.toLowerCase());
 
     const { data: matches } = await (supabase as any)
-      .from('dht_imdb_matches')
-      .select('info_hash, tconst, poster_url')
-      .in('info_hash', hexHashes);
+      .rpc('lookup_dht_imdb_matches', { hex_hashes: hexHashes });
 
     if (!matches?.length) return results.map(r => ({ ...r, ...defaults }));
 
     const matchMap = new Map<string, { tconst: string; poster_url: string | null }>();
-    for (const m of matches as { info_hash: string; tconst: string; poster_url: string | null }[]) {
-      const hex = m.info_hash.replace(/^\\x/i, '').toLowerCase();
-      matchMap.set(hex, { tconst: m.tconst, poster_url: m.poster_url || null });
+    for (const m of matches as { info_hash_hex: string; tconst: string; poster_url: string | null }[]) {
+      matchMap.set(m.info_hash_hex.toLowerCase(), { tconst: m.tconst, poster_url: m.poster_url || null });
     }
 
     const tconsts = [...new Set([...matchMap.values()].map(v => v.tconst))];
