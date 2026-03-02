@@ -211,7 +211,7 @@ export async function GET(
       
       // Fetch TMDB data if we have an IMDB ID
       const imdbId = enriched.externalId?.startsWith('tt') ? enriched.externalId : null;
-      const tmdb = imdbId ? await fetchTmdbData(imdbId) : null;
+      const tmdb = imdbId ? await fetchTmdbData(imdbId, enriched.cleanTitle || enriched.name) : null;
       
       const torrentWithSource: TorrentWithSource = {
         ...enriched,
@@ -244,7 +244,7 @@ export async function GET(
         
         // Fetch TMDB data for DHT torrents with IMDB match
         const dhtImdbId = dhtEnriched.externalId?.startsWith('tt') ? dhtEnriched.externalId : null;
-        const dhtTmdb = dhtImdbId ? await fetchTmdbData(dhtImdbId) : null;
+        const dhtTmdb = dhtImdbId ? await fetchTmdbData(dhtImdbId, dhtEnriched.name) : null;
         
         const dhtWithTmdb = {
           ...dhtEnriched,
