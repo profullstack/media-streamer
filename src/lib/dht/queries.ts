@@ -85,12 +85,10 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     .order('index', { ascending: true })
     .limit(200) as { data: DhtFile[] | null };
 
-  // Fetch IMDB match if available
-  const { data: imdbMatch } = await (supabase as any)
-    .from('dht_imdb_matches')
-    .select('tconst')
-    .eq('info_hash', hexHash)
-    .single();
+  // Fetch IMDB match via RPC (bytea .eq() doesn't work in PostgREST)
+  const { data: imdbMatches } = await (supabase as any)
+    .rpc('lookup_dht_imdb_match', { hex_hash: infohash.toLowerCase() });
+  const imdbMatch = imdbMatches?.[0] ?? null;
 
   let imdbRating: number | null = null;
   let imdbVotes: number | null = null;
