@@ -23,6 +23,7 @@ export interface DhtTorrentDetail {
   director: string | null;
   actors: string | null;
   year: number | null;
+  poster_url: string | null;
   files: DhtFile[];
 }
 
@@ -122,6 +123,28 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     }
   }
 
+  // Fetch poster from TMDB using IMDB ID
+  let posterUrl: string | null = null;
+  if (imdbId) {
+    try {
+      const tmdbKey = process.env.TMDB_API_KEY;
+      if (tmdbKey) {
+        const tmdbRes = await fetch(
+          `https://api.themoviedb.org/3/find/${imdbId}?api_key=${tmdbKey}&external_source=imdb_id`
+        );
+        if (tmdbRes.ok) {
+          const tmdbData = await tmdbRes.json() as any;
+          const movie = tmdbData.movie_results?.[0] || tmdbData.tv_results?.[0];
+          if (movie?.poster_path) {
+            posterUrl = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+          }
+        }
+      }
+    } catch {
+      // TMDB fetch failed, continue without poster
+    }
+  }
+
   return {
     info_hash: infohash,
     name: String(torrent.name),
@@ -140,6 +163,7 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     director,
     actors: null,
     year: imdbYear,
+    poster_url: posterUrl,
     files: (files ?? []),
   };
 }

@@ -81,10 +81,19 @@ export default async function DhtTorrentPage({ params }: PageProps) {
         {/* Header card */}
         <div className="card p-6">
           <div className="flex items-start gap-4">
-            {/* Icon */}
-            <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded bg-bg-tertiary text-3xl">
-              {getMediaIcon(torrent.extension)}
-            </div>
+            {/* Poster or Icon */}
+            {torrent.poster_url ? (
+              <img
+                src={torrent.poster_url}
+                alt={displayName}
+                className="h-32 w-22 shrink-0 rounded object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded bg-bg-tertiary text-3xl">
+                {getMediaIcon(torrent.extension)}
+              </div>
+            )}
 
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-bold text-text-primary">{displayName}</h1>
