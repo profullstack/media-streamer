@@ -62,10 +62,15 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
         .replace(/\.\w{2,4}$/, '')
         .replace(/\[[^\]]*\]/g, '')
         .replace(/\([^)]*\)/g, '')
+        .replace(/^(www\.)?[a-z0-9_-]+\.(org|com|net|io|tv|cc|to|bargains|club|xyz|me)\s*[-\u2013\u2014]\s*/i, '')
         .replace(/[._]/g, ' ')
-        .replace(/(S\d{1,2}E\d{1,2}).*$/i, '')
-        .replace(/(1080p|720p|2160p|4k|480p|bluray|brrip|dvdrip|webrip|web-?dl|hdtv|hdrip|x264|x265|hevc|aac|ac3|dts|remux|uhd|hdr|h264|h265)/gi, '')
-        .replace(/(19|20)\d{2}.*$/, '')
+        .replace(/(S\d{1,2}E\d{1,2}).*$/i, '')
+        .replace(/\b(1080p|720p|2160p|4k|480p|bluray|blu-ray|brrip|bdrip|dvdrip|webrip|web-?dl|webdl|hdtv|hdrip|x264|x265|hevc|avc|aac[0-9. ]*|ac3|dts|flac|mp3|remux|uhd|uhdr|hdr|hdr10|dv|dolby|vision|10bit|8bit|repack|proper|extended|unrated|dubbed|subbed|multi|dual|audio|subs|h264|h265)\b/gi, '')
+        .replace(/\b(HQ|HDRip|ESub|HDCAM|CAM|DVDScr|PDTV|TS|TC|SCR)\b/gi, '')
+        .replace(/\b(Malayalam|Tamil|Telugu|Hindi|Kannada|Bengali|Marathi|Punjabi|Gujarati|English|Spanish|French|German|Italian|Korean|Japanese|Chinese|Russian|Arabic|Turkish|Hungarian|Polish|Dutch|Portuguese|Ukrainian|Czech)\b/gi, '')
+        .replace(/\b\d+(\.\d+)?\s*(MB|GB|TB)\b/gi, '')
+        .replace(/\s*[-\u2013]\s*[A-Za-z0-9]{2,15}\s*$/, '')
+        .replace(/(19|20)\d{2}.*$/, '')
         .replace(/\s+/g, ' ')
         .trim();
         if (cleanTitle.length < 2) cleanTitle = titleHint;
