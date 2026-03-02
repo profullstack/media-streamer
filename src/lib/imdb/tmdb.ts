@@ -134,9 +134,7 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
       }
     }
 
-    const result = { posterUrl, backdropUrl, overview, tagline, cast, writers, contentRating, tmdbId };
-    try { require('fs').writeFileSync('/tmp/tmdb-debug.json', JSON.stringify({ imdbId, titleHint, result }, null, 2)); } catch {}
-    return result;
+    return { posterUrl, backdropUrl, overview, tagline, cast, writers, contentRating, tmdbId };
   } catch {
     return EMPTY;
   }
