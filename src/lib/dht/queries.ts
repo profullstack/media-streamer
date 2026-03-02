@@ -24,6 +24,13 @@ export interface DhtTorrentDetail {
   actors: string | null;
   year: number | null;
   poster_url: string | null;
+  backdrop_url: string | null;
+  overview: string | null;
+  cast: string | null;
+  writers: string | null;
+  tmdb_id: number | null;
+  content_rating: string | null;
+  tagline: string | null;
   files: DhtFile[];
 }
 
@@ -123,25 +130,82 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     }
   }
 
-  // Fetch poster from TMDB using IMDB ID
+  // Fetch rich metadata from TMDB using IMDB ID
   let posterUrl: string | null = null;
+  let backdropUrl: string | null = null;
+  let overview: string | null = null;
+  let cast: string | null = null;
+  let writers: string | null = null;
+  let tmdbId: number | null = null;
+  let contentRating: string | null = null;
+  let tagline: string | null = null;
+
   if (imdbId) {
     try {
       const tmdbKey = process.env.TMDB_API_KEY;
       if (tmdbKey) {
-        const tmdbRes = await fetch(
+        // Step 1: Find TMDB ID from IMDB ID
+        const findRes = await fetch(
           `https://api.themoviedb.org/3/find/${imdbId}?api_key=${tmdbKey}&external_source=imdb_id`
         );
-        if (tmdbRes.ok) {
-          const tmdbData = await tmdbRes.json() as any;
-          const movie = tmdbData.movie_results?.[0] || tmdbData.tv_results?.[0];
-          if (movie?.poster_path) {
-            posterUrl = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+        if (findRes.ok) {
+          const findData = await findRes.json() as any;
+          const movieResult = findData.movie_results?.[0];
+          const tvResult = findData.tv_results?.[0];
+          const isTV = !movieResult && !!tvResult;
+          const result = movieResult || tvResult;
+
+          if (result) {
+            tmdbId = result.id;
+            posterUrl = result.poster_path
+              ? `https://image.tmdb.org/t/p/w500${result.poster_path}` : null;
+            backdropUrl = result.backdrop_path
+              ? `https://image.tmdb.org/t/p/w1280${result.backdrop_path}` : null;
+            overview = result.overview || null;
+
+            // Step 2: Get credits + release info in one call
+            const mediaType = isTV ? 'tv' : 'movie';
+            const appendTo = isTV
+              ? 'credits,content_ratings'
+              : 'credits,release_dates';
+            const detailRes = await fetch(
+              `https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${tmdbKey}&append_to_response=${appendTo}`
+            );
+            if (detailRes.ok) {
+              const detail = await detailRes.json() as any;
+              tagline = detail.tagline || null;
+              overview = detail.overview || overview;
+
+              // Cast (top 8)
+              const castList = detail.credits?.cast?.slice(0, 8);
+              if (castList?.length) {
+                cast = castList.map((c: any) => c.name).join(', ');
+              }
+
+              // Writers from crew
+              const writersList = detail.credits?.crew
+                ?.filter((c: any) => c.department === 'Writing')
+                ?.slice(0, 3);
+              if (writersList?.length) {
+                writers = writersList.map((w: any) => w.name).join(', ');
+              }
+
+              // Content rating (US)
+              if (isTV) {
+                const usRating = detail.content_ratings?.results
+                  ?.find((r: any) => r.iso_3166_1 === 'US');
+                contentRating = usRating?.rating || null;
+              } else {
+                const usRelease = detail.release_dates?.results
+                  ?.find((r: any) => r.iso_3166_1 === 'US');
+                contentRating = usRelease?.release_dates?.[0]?.certification || null;
+              }
+            }
           }
         }
       }
     } catch {
-      // TMDB fetch failed, continue without poster
+      // TMDB fetch failed, continue without enrichment
     }
   }
 
@@ -164,6 +228,13 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     actors: null,
     year: imdbYear,
     poster_url: posterUrl,
+    backdrop_url: backdropUrl,
+    overview,
+    cast,
+    writers,
+    tmdb_id: tmdbId,
+    content_rating: contentRating,
+    tagline,
     files: (files ?? []),
   };
 }

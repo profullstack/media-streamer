@@ -45,13 +45,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!torrent) return { title: 'Torrent Not Found | BitTorrented' };
 
   const title = cleanName(torrent.name);
-  const desc = `Download ${title} torrent — ${formatBytes(torrent.size)}, ${torrent.files_count ?? 0} files. ${torrent.seeders ?? 0} seeders.`;
+  const desc = torrent.overview
+    ? torrent.overview.slice(0, 160)
+    : `Download ${title} torrent — ${formatBytes(torrent.size)}, ${torrent.files_count ?? 0} files. ${torrent.seeders ?? 0} seeders.`;
 
   return {
     title,
     description: desc,
-    openGraph: { title: `${title} | BitTorrented`, description: desc },
-    twitter: { card: 'summary', title: `${title} | BitTorrented`, description: desc },
+    openGraph: {
+      title: `${title} | BitTorrented`,
+      description: desc,
+      ...(torrent.backdrop_url ? { images: [{ url: torrent.backdrop_url }] } : {}),
+    },
+    twitter: {
+      card: torrent.backdrop_url ? 'summary_large_image' : 'summary',
+      title: `${title} | BitTorrented`,
+      description: desc,
+      ...(torrent.backdrop_url ? { images: [torrent.backdrop_url] } : {}),
+    },
   };
 }
 
@@ -65,6 +76,8 @@ export default async function DhtTorrentPage({ params }: PageProps) {
 
   const displayName = cleanName(torrent.name);
   const magnetUri = `magnet:?xt=urn:btih:${infohash}&dn=${encodeURIComponent(torrent.name)}`;
+  const hasImdb = !!(torrent.imdb_id && torrent.imdb_rating);
+  const hasTmdb = !!(torrent.poster_url || torrent.overview);
 
   return (
     <MainLayout>
@@ -78,17 +91,34 @@ export default async function DhtTorrentPage({ params }: PageProps) {
           <span className="text-text-primary truncate" title={torrent.name}>{displayName}</span>
         </nav>
 
+        {/* Hero with backdrop */}
+        {torrent.backdrop_url && (
+          <div className="relative -mx-4 -mt-2 h-48 sm:h-64 overflow-hidden rounded-lg sm:mx-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={torrent.backdrop_url}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="eager"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/60 to-transparent" />
+          </div>
+        )}
+
         {/* Header card */}
-        <div className="card p-6">
-          <div className="flex items-start gap-4">
+        <div className={`card p-6 ${torrent.backdrop_url ? '-mt-24 relative z-10' : ''}`}>
+          <div className="flex items-start gap-5">
             {/* Poster or Icon */}
             {torrent.poster_url ? (
-              <img
-                src={torrent.poster_url}
-                alt={displayName}
-                className="h-32 w-22 shrink-0 rounded object-cover"
-                loading="lazy"
-              />
+              <div className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={torrent.poster_url}
+                  alt={displayName}
+                  className="h-48 w-32 rounded-lg object-cover shadow-lg sm:h-56 sm:w-38"
+                  loading="eager"
+                />
+              </div>
             ) : (
               <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded bg-bg-tertiary text-3xl">
                 {getMediaIcon(torrent.extension)}
@@ -96,26 +126,105 @@ export default async function DhtTorrentPage({ params }: PageProps) {
             )}
 
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-bold text-text-primary">{displayName}</h1>
-              <p className="mt-1 font-mono text-xs text-text-muted">{infohash}</p>
+              <h1 className="text-xl font-bold text-text-primary sm:text-2xl">{displayName}</h1>
 
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {torrent.content_type ? <span className="inline-block rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize text-text-secondary">
+              {/* Tagline */}
+              {torrent.tagline && (
+                <p className="mt-1 text-sm italic text-text-muted">&ldquo;{torrent.tagline}&rdquo;</p>
+              )}
+
+              {/* Meta badges row */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {torrent.year && (
+                  <span className="rounded bg-bg-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary">
+                    {torrent.year}
+                  </span>
+                )}
+                {torrent.content_rating && (
+                  <span className="rounded border border-text-muted/30 px-2 py-0.5 text-xs font-medium text-text-secondary">
+                    {torrent.content_rating}
+                  </span>
+                )}
+                {torrent.runtime_minutes && (
+                  <span className="text-xs text-text-muted">
+                    {Math.floor(torrent.runtime_minutes / 60)}h {torrent.runtime_minutes % 60}m
+                  </span>
+                )}
+                {torrent.content_type && (
+                  <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize text-text-secondary">
                     {torrent.content_type}
-                  </span> : null}
-                {torrent.imdb_rating && torrent.imdb_id ? <a
+                  </span>
+                )}
+              </div>
+
+              {/* IMDB rating */}
+              {hasImdb && (
+                <div className="mt-3 flex items-center gap-3">
+                  <a
                     href={`https://www.imdb.com/title/${torrent.imdb_id}/`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/20 px-3 py-1.5 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/30 transition-colors"
                     title={`${(torrent.imdb_votes ?? 0).toLocaleString()} votes on IMDB`}
                   >
                     ⭐ {torrent.imdb_rating}/10
-                  </a> : null}
-                {torrent.runtime_minutes ? <span className="text-xs text-text-muted">{torrent.runtime_minutes} min</span> : null}
-              </div>
+                  </a>
+                  <span className="text-xs text-text-muted">
+                    {(torrent.imdb_votes ?? 0).toLocaleString()} votes
+                  </span>
+                </div>
+              )}
+
+              {/* Genres */}
+              {torrent.genres && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {torrent.genres.split(', ').map((genre) => (
+                    <span
+                      key={genre}
+                      className="rounded-full bg-accent-primary/10 px-2.5 py-0.5 text-xs text-accent-primary"
+                    >
+                      {genre}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Infohash */}
+              <p className="mt-3 font-mono text-[10px] text-text-muted/60 hidden sm:block">{infohash}</p>
             </div>
           </div>
+
+          {/* Synopsis */}
+          {torrent.overview && (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-2">Synopsis</h2>
+              <p className="text-sm leading-relaxed text-text-primary">{torrent.overview}</p>
+            </div>
+          )}
+
+          {/* Credits row */}
+          {(torrent.director || torrent.cast || torrent.writers) && (
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              {torrent.director && (
+                <div>
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Director</h3>
+                  <p className="mt-1 text-sm text-text-primary">{torrent.director}</p>
+                </div>
+              )}
+              {torrent.writers && (
+                <div>
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Writers</h3>
+                  <p className="mt-1 text-sm text-text-primary">{torrent.writers}</p>
+                </div>
+              )}
+              {torrent.cast && (
+                <div className="sm:col-span-2">
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Cast</h3>
+                  <p className="mt-1 text-sm text-text-primary">{torrent.cast}</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Stats grid */}
           <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -176,6 +285,7 @@ export default async function DhtTorrentPage({ params }: PageProps) {
             <strong>{displayName}</strong> is a {torrent.content_type || 'torrent'} available via the BitTorrent DHT network.
             Total size: {formatBytes(torrent.size)} across {torrent.files_count ?? 'unknown'} files.
             {torrent.seeders != null && torrent.seeders > 0 && ` Currently ${torrent.seeders} seeders are sharing this torrent.`}
+            {hasTmdb && torrent.overview && ` ${torrent.overview}`}
           </p>
           <DhtIndexCta infohash={infohash} magnetUri={magnetUri} />
         </div>
