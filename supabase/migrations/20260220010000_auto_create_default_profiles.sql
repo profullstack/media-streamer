@@ -20,7 +20,7 @@ ON CONFLICT DO NOTHING;
 -- 2. BACKFILL: Set profile_id on existing rows that still have NULL
 -- ============================================
 -- For each table with profile_id, set it to the user's default profile
-UPDATE torrent_favorites tf
+UPDATE bt_torrent_favorites tf
 SET profile_id = p.id
 FROM profiles p
 WHERE p.account_id = tf.user_id
@@ -34,21 +34,21 @@ WHERE p.account_id = icf.user_id
 AND p.is_default = true
 AND icf.profile_id IS NULL;
 
-UPDATE torrent_comments tc
+UPDATE bt_torrent_comments tc
 SET profile_id = p.id
 FROM profiles p
 WHERE p.account_id = tc.user_id
 AND p.is_default = true
 AND tc.profile_id IS NULL;
 
-UPDATE comment_votes cv
+UPDATE bt_comment_votes cv
 SET profile_id = p.id
 FROM profiles p
 WHERE p.account_id = cv.user_id
 AND p.is_default = true
 AND cv.profile_id IS NULL;
 
-UPDATE torrent_votes tv
+UPDATE bt_torrent_votes tv
 SET profile_id = p.id
 FROM profiles p
 WHERE p.account_id = tv.user_id

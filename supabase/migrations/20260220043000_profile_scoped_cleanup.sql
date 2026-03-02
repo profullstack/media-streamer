@@ -52,7 +52,11 @@ ALTER TABLE radio_station_favorites ALTER COLUMN user_id DROP NOT NULL;
 
 ALTER TABLE podcast_listen_progress DROP CONSTRAINT IF EXISTS podcast_listen_progress_user_id_episode_id_key;
 ALTER TABLE podcast_listen_progress DROP CONSTRAINT IF EXISTS unique_profile_podcast_progress;
-ALTER TABLE podcast_listen_progress ADD CONSTRAINT unique_profile_podcast_progress UNIQUE(profile_id, episode_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_podcast_progress') THEN
+    ALTER TABLE podcast_listen_progress ADD CONSTRAINT unique_profile_podcast_progress UNIQUE(profile_id, episode_id);
+  END IF;
+END $$;
 
 -- ============================================
 -- PROFILE-BASED PODCAST SUBSCRIPTIONS RPC

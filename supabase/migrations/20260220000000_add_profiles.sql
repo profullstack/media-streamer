@@ -5,7 +5,7 @@
 -- PROFILES TABLE
 -- ============================================
 -- Replaces user_profiles with a 1:many relationship to auth.users
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- Links to the master account (auth.users)
     account_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -24,12 +24,13 @@ CREATE TABLE profiles (
 );
 
 -- Indexes for profiles
-CREATE INDEX idx_profiles_account_id ON profiles(account_id);
-CREATE INDEX idx_profiles_is_default ON profiles(account_id, is_default);
+CREATE INDEX IF NOT EXISTS idx_profiles_account_id ON profiles(account_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_default ON profiles(account_id, is_default);
 
 -- ============================================
 -- TRIGGER FOR UPDATED_AT
 -- ============================================
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at
     BEFORE UPDATE ON profiles
     FOR EACH ROW
@@ -70,6 +71,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_check_profile_constraints ON profiles;
 CREATE TRIGGER trigger_check_profile_constraints
     BEFORE INSERT ON profiles
     FOR EACH ROW
@@ -112,6 +114,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_ensure_single_default_profile ON profiles;
 CREATE TRIGGER trigger_ensure_single_default_profile
     BEFORE INSERT OR UPDATE ON profiles
     FOR EACH ROW
@@ -136,43 +139,43 @@ ON CONFLICT DO NOTHING;
 -- ============================================
 
 -- Add profile_id to torrent_favorites
-ALTER TABLE bt_torrent_favorites ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_bt_torrent_favorites_profile_id ON torrent_favorites(profile_id);
+ALTER TABLE bt_torrent_favorites ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_bt_torrent_favorites_profile_id ON bt_torrent_favorites(profile_id);
 
--- Add profile_id to iptv_channel_favorites  
-ALTER TABLE iptv_channel_favorites ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_iptv_channel_favorites_profile_id ON iptv_channel_favorites(profile_id);
+-- Add profile_id to iptv_channel_favorites
+ALTER TABLE iptv_channel_favorites ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_iptv_channel_favorites_profile_id ON iptv_channel_favorites(profile_id);
 
 -- Add profile_id to torrent_comments
-ALTER TABLE bt_torrent_comments ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_bt_torrent_comments_profile_id ON torrent_comments(profile_id);
+ALTER TABLE bt_torrent_comments ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_bt_torrent_comments_profile_id ON bt_torrent_comments(profile_id);
 
 -- Add profile_id to comment_votes
-ALTER TABLE bt_torrent_votes ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_bt_torrent_votes_profile_id ON comment_votes(profile_id);
+ALTER TABLE bt_comment_votes ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_bt_comment_votes_profile_id ON bt_comment_votes(profile_id);
 
--- Add profile_id to torrent_votes  
-ALTER TABLE bt_torrent_votes ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_bt_torrent_votes_profile_id ON torrent_votes(profile_id);
+-- Add profile_id to torrent_votes
+ALTER TABLE bt_torrent_votes ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_bt_torrent_votes_profile_id ON bt_torrent_votes(profile_id);
 
 -- Add profile_id to podcast_listen_progress
-ALTER TABLE podcast_listen_progress ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_podcast_listen_progress_profile_id ON podcast_listen_progress(profile_id);
+ALTER TABLE podcast_listen_progress ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_podcast_listen_progress_profile_id ON podcast_listen_progress(profile_id);
 
--- Add profile_id to radio_station_favorites  
-ALTER TABLE radio_station_favorites ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_radio_station_favorites_profile_id ON radio_station_favorites(profile_id);
+-- Add profile_id to radio_station_favorites
+ALTER TABLE radio_station_favorites ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_radio_station_favorites_profile_id ON radio_station_favorites(profile_id);
 
--- Add profile_id to watchlists
-ALTER TABLE watchlists ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-CREATE INDEX idx_watchlists_profile_id ON watchlists(profile_id);
+-- Add profile_id to user_watchlists
+ALTER TABLE user_watchlists ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_user_watchlists_profile_id ON user_watchlists(profile_id);
 
 -- Check if library_history table exists and add profile_id
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'library_history') THEN
-        ALTER TABLE library_history ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-        CREATE INDEX idx_library_history_profile_id ON library_history(profile_id);
+        ALTER TABLE library_history ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_library_history_profile_id ON library_history(profile_id)';
     END IF;
 END $$;
 
@@ -180,8 +183,8 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'watch_progress') THEN
-        ALTER TABLE watch_progress ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-        CREATE INDEX idx_watch_progress_profile_id ON watch_progress(profile_id);
+        ALTER TABLE watch_progress ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_watch_progress_profile_id ON watch_progress(profile_id)';
     END IF;
 END $$;
 
@@ -189,8 +192,8 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'reading_progress') THEN
-        ALTER TABLE reading_progress ADD COLUMN profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
-        CREATE INDEX idx_reading_progress_profile_id ON reading_progress(profile_id);
+        ALTER TABLE reading_progress ADD COLUMN IF NOT EXISTS profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_reading_progress_profile_id ON reading_progress(profile_id)';
     END IF;
 END $$;
 
@@ -228,11 +231,11 @@ SET profile_id = (
 WHERE tc.profile_id IS NULL;
 
 -- Update comment_votes to use default profile for each user
-UPDATE bt_torrent_votes cv
+UPDATE bt_comment_votes cv
 SET profile_id = (
-    SELECT p.id FROM profiles p 
-    WHERE p.account_id = cv.user_id 
-    AND p.is_default = true 
+    SELECT p.id FROM profiles p
+    WHERE p.account_id = cv.user_id
+    AND p.is_default = true
     LIMIT 1
 )
 WHERE cv.profile_id IS NULL;
@@ -267,8 +270,8 @@ SET profile_id = (
 )
 WHERE rsf.profile_id IS NULL;
 
--- Update watchlists to use default profile for each user
-UPDATE watchlists w
+-- Update user_watchlists to use default profile for each user
+UPDATE user_watchlists w
 SET profile_id = (
     SELECT p.id FROM profiles p 
     WHERE p.account_id = w.user_id 
@@ -330,31 +333,63 @@ END $$;
 -- ============================================
 
 -- Drop old unique constraints
-ALTER TABLE bt_torrent_favorites DROP CONSTRAINT torrent_favorites_user_id_torrent_id_key;
-ALTER TABLE iptv_channel_favorites DROP CONSTRAINT iptv_channel_favorites_user_id_playlist_id_channel_id_key;
+ALTER TABLE bt_torrent_favorites DROP CONSTRAINT IF EXISTS torrent_favorites_user_id_torrent_id_key;
+ALTER TABLE iptv_channel_favorites DROP CONSTRAINT IF EXISTS iptv_channel_favorites_user_id_playlist_id_channel_id_key;
 
--- Add new unique constraints with profile_id
-ALTER TABLE bt_torrent_favorites ADD CONSTRAINT unique_profile_torrent_favorite UNIQUE(profile_id, torrent_id);
-ALTER TABLE iptv_channel_favorites ADD CONSTRAINT unique_profile_iptv_channel_favorite UNIQUE(profile_id, playlist_id, channel_id);
+-- Add new unique constraints with profile_id (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_torrent_favorite') THEN
+    ALTER TABLE bt_torrent_favorites ADD CONSTRAINT unique_profile_torrent_favorite UNIQUE(profile_id, torrent_id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_iptv_channel_favorite') THEN
+    ALTER TABLE iptv_channel_favorites ADD CONSTRAINT unique_profile_iptv_channel_favorite UNIQUE(profile_id, playlist_id, channel_id);
+  END IF;
+END $$;
 
 -- Update other unique constraints
-ALTER TABLE bt_torrent_votes DROP CONSTRAINT IF EXISTS comment_votes_user_id_comment_id_key;
-ALTER TABLE bt_torrent_votes ADD CONSTRAINT unique_profile_comment_vote UNIQUE(profile_id, comment_id);
+ALTER TABLE bt_comment_votes DROP CONSTRAINT IF EXISTS comment_votes_user_id_comment_id_key;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_comment_vote') THEN
+    ALTER TABLE bt_comment_votes ADD CONSTRAINT unique_profile_comment_vote UNIQUE(profile_id, comment_id);
+  END IF;
+END $$;
 
 ALTER TABLE bt_torrent_votes DROP CONSTRAINT IF EXISTS torrent_votes_user_id_torrent_id_key;
-ALTER TABLE bt_torrent_votes ADD CONSTRAINT unique_profile_torrent_vote UNIQUE(profile_id, torrent_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_torrent_vote') THEN
+    ALTER TABLE bt_torrent_votes ADD CONSTRAINT unique_profile_torrent_vote UNIQUE(profile_id, torrent_id);
+  END IF;
+END $$;
 
 -- Podcast progress should be unique per profile
 ALTER TABLE podcast_listen_progress DROP CONSTRAINT IF EXISTS podcast_listen_progress_user_id_episode_id_key;
-ALTER TABLE podcast_listen_progress ADD CONSTRAINT unique_profile_podcast_progress UNIQUE(profile_id, episode_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_podcast_progress') THEN
+    ALTER TABLE podcast_listen_progress ADD CONSTRAINT unique_profile_podcast_progress UNIQUE(profile_id, episode_id);
+  END IF;
+END $$;
 
 -- Radio favorites should be unique per profile
 ALTER TABLE radio_station_favorites DROP CONSTRAINT IF EXISTS radio_station_favorites_user_id_station_id_key;
-ALTER TABLE radio_station_favorites ADD CONSTRAINT unique_profile_radio_favorite UNIQUE(profile_id, station_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_radio_favorite') THEN
+    ALTER TABLE radio_station_favorites ADD CONSTRAINT unique_profile_radio_favorite UNIQUE(profile_id, station_id);
+  END IF;
+END $$;
 
 -- Watchlists are unique per profile by name
-ALTER TABLE watchlists DROP CONSTRAINT IF EXISTS watchlists_user_id_name_key;
-ALTER TABLE watchlists ADD CONSTRAINT unique_profile_watchlist_name UNIQUE(profile_id, name);
+ALTER TABLE user_watchlists DROP CONSTRAINT IF EXISTS user_watchlists_user_id_name_key;
+-- Deduplicate before adding unique constraint (keep oldest row per profile+name)
+DELETE FROM user_watchlists a USING user_watchlists b
+WHERE a.profile_id = b.profile_id AND a.name = b.name
+AND a.created_at > b.created_at;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_profile_watchlist_name') THEN
+    ALTER TABLE user_watchlists ADD CONSTRAINT unique_profile_watchlist_name UNIQUE(profile_id, name);
+  END IF;
+END $$;
 
 -- ============================================
 -- ROW LEVEL SECURITY (RLS)
@@ -363,30 +398,35 @@ ALTER TABLE watchlists ADD CONSTRAINT unique_profile_watchlist_name UNIQUE(profi
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 -- Users can view their own profiles
+DROP POLICY IF EXISTS "Users can view their own profiles" ON profiles;
 CREATE POLICY "Users can view their own profiles"
     ON profiles FOR SELECT
     USING (auth.uid() = account_id);
 
 -- Users can insert their own profiles (max 10 enforced by trigger)
+DROP POLICY IF EXISTS "Users can insert their own profiles" ON profiles;
 CREATE POLICY "Users can insert their own profiles"
     ON profiles FOR INSERT
     WITH CHECK (auth.uid() = account_id);
 
 -- Users can update their own profiles
+DROP POLICY IF EXISTS "Users can update their own profiles" ON profiles;
 CREATE POLICY "Users can update their own profiles"
     ON profiles FOR UPDATE
     USING (auth.uid() = account_id);
 
 -- Users can delete their own profiles (but not if it's the last one)
+DROP POLICY IF EXISTS "Users can delete their own profiles" ON profiles;
 CREATE POLICY "Users can delete their own profiles"
     ON profiles FOR DELETE
     USING (
-        auth.uid() = account_id 
+        auth.uid() = account_id
         AND NOT is_default  -- Cannot delete default profile
         AND (SELECT COUNT(*) FROM profiles WHERE account_id = auth.uid()) > 1  -- Must have > 1 profile
     );
 
 -- Service role can manage all profiles
+DROP POLICY IF EXISTS "Service role can manage profiles" ON profiles;
 CREATE POLICY "Service role can manage profiles"
     ON profiles FOR ALL
     USING (auth.role() = 'service_role');
