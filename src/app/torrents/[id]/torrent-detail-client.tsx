@@ -486,94 +486,148 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
 
         {/* Header */}
         <div className={`card p-6 ${(torrent as any).backdropUrl ? '-mt-24 relative z-10' : ''}`}>
-          <div className="flex items-start gap-4">
-            {/* Poster/Cover Art with Placeholder */}
-            <MediaPoster
-              src={torrent.posterUrl ?? torrent.coverUrl}
-              alt={torrent.cleanTitle || cleanDisplayName(torrent.name)}
-              contentType={torrent.contentType as MediaContentType}
-              className="shadow-lg"
-            />
+          <div className="flex items-start gap-5">
+            {/* Poster */}
+            {torrent.posterUrl || torrent.coverUrl ? (
+              <div className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={torrent.posterUrl ?? torrent.coverUrl ?? ''}
+                  alt={torrent.cleanTitle || cleanDisplayName(torrent.name)}
+                  className="h-48 w-32 rounded-lg object-cover shadow-lg sm:h-56 sm:w-38"
+                  loading="eager"
+                />
+              </div>
+            ) : (
+              <MediaPoster
+                src={null}
+                alt={torrent.cleanTitle || cleanDisplayName(torrent.name)}
+                contentType={torrent.contentType as MediaContentType}
+                className="shadow-lg"
+              />
+            )}
+
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xl font-bold text-text-primary" title={torrent.name}>
-                {torrent.cleanTitle || cleanDisplayName(torrent.name)}
-              </h1>
-              {torrent.cleanTitle && torrent.cleanTitle !== torrent.name && (
+              <h1 className="text-xl font-bold text-text-primary sm:text-2xl">{torrent.cleanTitle || cleanDisplayName(torrent.name)}</h1>
+              {(torrent.cleanTitle || cleanDisplayName(torrent.name)) !== torrent.name && (
                 <p className="mt-0.5 truncate text-xs text-text-muted/50" title={torrent.name}>{torrent.name}</p>
               )}
+
+              {/* Tagline */}
               {(torrent as any).tagline && (
                 <p className="mt-1 text-sm italic text-text-muted">&ldquo;{(torrent as any).tagline}&rdquo;</p>
               )}
-              <p className="mt-1 font-mono text-xs text-text-muted">
-                {torrent.infohash}
-              </p>
-              {/* Content type, year, and genre */}
-              {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
-                  {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
-                      {torrent.contentType}
-                    </span> : null}
-                  {(torrent as any).contentRating ? <span className="rounded border border-text-muted/30 px-2 py-0.5 text-xs font-medium text-text-secondary">
-                      {(torrent as any).contentRating}
-                    </span> : null}
-                  {torrent.year ? <span>{torrent.year}</span> : null}
-                  {torrent.genre ? <span className="text-text-muted">•</span> : null}
-                  {torrent.genre ? <span className="text-text-secondary">{torrent.genre}</span> : null}
-                  {(torrent as any).imdbRating ? <>
-                    <span className="text-text-muted">•</span>
-                    <a
-                      href={`https://www.imdb.com/title/${(torrent as any).externalId}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors"
-                      title={`${((torrent as any).imdbVotes ?? 0).toLocaleString()} votes on IMDB`}
+
+              {/* Meta badges row */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {torrent.year && (
+                  <span className="rounded bg-bg-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary">
+                    {torrent.year}
+                  </span>
+                )}
+                {(torrent as any).contentRating && (
+                  <span className="rounded border border-text-muted/30 px-2 py-0.5 text-xs font-medium text-text-secondary">
+                    {(torrent as any).contentRating}
+                  </span>
+                )}
+                {(torrent as any).runtimeMinutes && (
+                  <span className="text-xs text-text-muted">
+                    {Math.floor((torrent as any).runtimeMinutes / 60)}h {(torrent as any).runtimeMinutes % 60}m
+                  </span>
+                )}
+                {torrent.contentType && (
+                  <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize text-text-secondary">
+                    {torrent.contentType}
+                  </span>
+                )}
+              </div>
+
+              {/* IMDB rating */}
+              {(torrent as any).imdbRating && (
+                <div className="mt-3 flex items-center gap-3">
+                  <a
+                    href={`https://www.imdb.com/title/${(torrent as any).externalId || torrent.externalId}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/20 px-3 py-1.5 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                    title={`${((torrent as any).imdbVotes ?? 0).toLocaleString()} votes on IMDB`}
+                  >
+                    ⭐ {(torrent as any).imdbRating}/10
+                  </a>
+                  <span className="text-xs text-text-muted">
+                    {((torrent as any).imdbVotes ?? 0).toLocaleString()} votes
+                  </span>
+                </div>
+              )}
+
+              {/* Genres */}
+              {torrent.genre && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {torrent.genre.split(', ').map((g: string) => (
+                    <span
+                      key={g}
+                      className="rounded-full bg-accent-primary/10 px-2.5 py-0.5 text-xs text-accent-primary"
                     >
-                      ⭐ {(torrent as any).imdbRating}/10
-                    </a>
-                  </> : null}
-                  {(torrent as any).runtimeMinutes ? <>
-                    <span className="text-text-muted">•</span>
-                    <span className="text-text-secondary">{(torrent as any).runtimeMinutes} min</span>
-                  </> : null}
-                </div> : null}
-              {/* Director and Cast */}
-              {(torrent.director || torrent.actors || (torrent as any).cast) ? <div className="mt-2 space-y-1 text-sm">
-                  {torrent.director ? <p className="text-text-secondary">
-                      <span className="text-text-muted">Director:</span>{' '}
-                      <span className="text-text-primary">{torrent.director}</span>
-                    </p> : null}
-                  {(torrent.actors || (torrent as any).cast) ? <p className="text-text-secondary">
-                      <span className="text-text-muted">Cast:</span>{' '}
-                      <span className="text-text-primary">{torrent.actors || (torrent as any).cast}</span>
-                    </p> : null}
-                </div> : null}
-              {/* Writers */}
-              {(torrent as any).writers ? <div className="mt-1 text-sm">
-                  <span className="text-text-muted">Writers:</span>{' '}
-                  <span className="text-text-primary">{(torrent as any).writers}</span>
-                </div> : null}
-              {/* Synopsis / Description */}
-              {((torrent as any).overview || torrent.description) ? <p className="mt-2 line-clamp-3 text-sm text-text-secondary">
-                  {(torrent as any).overview || torrent.description}
-                </p> : null}
-              {/* Buy on Amazon affiliate link — only when we have real metadata */}
-              <AmazonBuyButton
-                title={torrent.cleanTitle || cleanDisplayName(torrent.name)}
-                contentType={torrent.contentType}
-                year={torrent.year}
-                hasMetadata={true}
-              />
-              <button
-                type="button"
-                onClick={() => setIsReportModalOpen(true)}
-                className="mt-2 block text-xs text-text-muted underline hover:text-text-primary"
-              >
-                Report torrent
-              </button>
-              {reportTorrentStatus ? (
-                <p className="mt-1 text-xs text-text-muted">{reportTorrentStatus}</p>
-              ) : null}
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Infohash */}
+              <p className="mt-3 font-mono text-[10px] text-text-muted/60 hidden sm:block">{torrent.infohash}</p>
             </div>
           </div>
+
+          {/* Synopsis */}
+          {((torrent as any).overview || torrent.description) && (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-2">Synopsis</h2>
+              <p className="text-sm leading-relaxed text-text-primary">{(torrent as any).overview || torrent.description}</p>
+            </div>
+          )}
+
+          {/* Credits row */}
+          {(torrent.director || torrent.actors || (torrent as any).cast || (torrent as any).writers) && (
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              {torrent.director && (
+                <div>
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Director</h3>
+                  <p className="mt-1 text-sm text-text-primary">{torrent.director}</p>
+                </div>
+              )}
+              {(torrent as any).writers && (
+                <div>
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Writers</h3>
+                  <p className="mt-1 text-sm text-text-primary">{(torrent as any).writers}</p>
+                </div>
+              )}
+              {(torrent.actors || (torrent as any).cast) && (
+                <div className="sm:col-span-2">
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Cast</h3>
+                  <p className="mt-1 text-sm text-text-primary">{torrent.actors || (torrent as any).cast}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Buy on Amazon */}
+          <AmazonBuyButton
+            title={torrent.cleanTitle || cleanDisplayName(torrent.name)}
+            contentType={torrent.contentType}
+            year={torrent.year}
+            hasMetadata={true}
+          />
+          <button
+            type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            className="mt-2 block text-xs text-text-muted underline hover:text-text-primary"
+          >
+            Report torrent
+          </button>
+          {reportTorrentStatus ? (
+            <p className="mt-1 text-xs text-text-muted">{reportTorrentStatus}</p>
+          ) : null}
 
           {/* Stats */}
           <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
