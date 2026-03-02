@@ -530,16 +530,6 @@ export default function TorrentDetailPage(): React.ReactElement {
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {torrent.infohash}
               </p>
-              <button
-                type="button"
-                onClick={() => setIsReportModalOpen(true)}
-                className="mt-2 inline-block text-xs text-text-muted underline hover:text-text-primary"
-              >
-                Report torrent
-              </button>
-              {reportTorrentStatus ? (
-                <p className="mt-1 text-xs text-text-muted">{reportTorrentStatus}</p>
-              ) : null}
               {/* Content type, year, and genre */}
               {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                   {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
@@ -571,6 +561,16 @@ export default function TorrentDetailPage(): React.ReactElement {
                 year={torrent.year}
                 hasMetadata={true}
               />
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="mt-2 inline-block text-xs text-text-muted underline hover:text-text-primary"
+              >
+                Report torrent
+              </button>
+              {reportTorrentStatus ? (
+                <p className="mt-1 text-xs text-text-muted">{reportTorrentStatus}</p>
+              ) : null}
             </div>
           </div>
 
