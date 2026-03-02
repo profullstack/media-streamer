@@ -62,6 +62,8 @@ for f in "${REQUIRED_FILES[@]}"; do
   fi
 done
 
+CHUNK_SIZE=500000  # Rows per chunk (avoids Supabase 2min statement timeout)
+
 import_full() {
   local table="$1"
   local file="$2"
@@ -70,7 +72,26 @@ import_full() {
 
   echo "[$table] Full import from $file ($rows rows)..."
   psql "$DATABASE_URL" -c "TRUNCATE $table CASCADE;" 2>/dev/null || true
-  psql "$DATABASE_URL" -c "\copy $table FROM '$DATA_DIR/$file' WITH (FORMAT csv, DELIMITER E'\t', HEADER true, NULL '\\N', QUOTE E'\b')"
+
+  if [ "$rows" -le "$CHUNK_SIZE" ]; then
+    # Small file — import directly
+    psql "$DATABASE_URL" -c "\copy $table FROM '$DATA_DIR/$file' WITH (FORMAT csv, DELIMITER E'\t', HEADER true, NULL '\\N', QUOTE E'\b')"
+  else
+    # Large file — split into chunks to avoid statement timeout
+    local tmpdir=$(mktemp -d)
+    head -1 "$DATA_DIR/$file" > "$tmpdir/header.tsv"
+    tail -n +2 "$DATA_DIR/$file" | split -l "$CHUNK_SIZE" - "$tmpdir/chunk_"
+    
+    local chunk_num=0
+    local total_chunks=$(ls "$tmpdir"/chunk_* | wc -l)
+    for chunk in "$tmpdir"/chunk_*; do
+      chunk_num=$((chunk_num + 1))
+      cat "$tmpdir/header.tsv" "$chunk" > "$tmpdir/import.tsv"
+      psql "$DATABASE_URL" -c "\copy $table FROM '$tmpdir/import.tsv' WITH (FORMAT csv, DELIMITER E'\t', HEADER true, NULL '\\N', QUOTE E'\b')"
+      echo "  chunk $chunk_num/$total_chunks done"
+    done
+    rm -rf "$tmpdir"
+  fi
   
   local count
   count=$(psql "$DATABASE_URL" -t -c "SELECT count(*) FROM $table;" | tr -d ' ')
@@ -92,8 +113,21 @@ import_incremental() {
   # Create temp table with same structure
   psql "$DATABASE_URL" -c "DROP TABLE IF EXISTS $tmp_table; CREATE TEMP TABLE $tmp_table (LIKE $table INCLUDING ALL);"
   
-  # Load into temp table
-  psql "$DATABASE_URL" -c "\copy $tmp_table FROM '$DATA_DIR/$file' WITH (FORMAT csv, DELIMITER E'\t', HEADER true, NULL '\\N', QUOTE E'\b')"
+  # Load into temp table (chunked for large files)
+  local rows
+  rows=$(( $(wc -l < "$DATA_DIR/$file") - 1 ))
+  if [ "$rows" -le "$CHUNK_SIZE" ]; then
+    psql "$DATABASE_URL" -c "\copy $tmp_table FROM '$DATA_DIR/$file' WITH (FORMAT csv, DELIMITER E'\t', HEADER true, NULL '\\N', QUOTE E'\b')"
+  else
+    local tmpdir=$(mktemp -d)
+    head -1 "$DATA_DIR/$file" > "$tmpdir/header.tsv"
+    tail -n +2 "$DATA_DIR/$file" | split -l "$CHUNK_SIZE" - "$tmpdir/chunk_"
+    for chunk in "$tmpdir"/chunk_*; do
+      cat "$tmpdir/header.tsv" "$chunk" > "$tmpdir/import.tsv"
+      psql "$DATABASE_URL" -c "\copy $tmp_table FROM '$tmpdir/import.tsv' WITH (FORMAT csv, DELIMITER E'\t', HEADER true, NULL '\\N', QUOTE E'\b')"
+    done
+    rm -rf "$tmpdir"
+  fi
 
   # Build upsert SQL: INSERT ... ON CONFLICT DO UPDATE
   local set_clause=""

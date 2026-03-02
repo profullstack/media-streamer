@@ -538,6 +538,22 @@ export default function TorrentDetailPage(): React.ReactElement {
                   {torrent.year ? <span>{torrent.year}</span> : null}
                   {torrent.genre ? <span className="text-text-muted">•</span> : null}
                   {torrent.genre ? <span className="text-text-secondary">{torrent.genre}</span> : null}
+                  {(torrent as any).imdbRating ? <>
+                    <span className="text-text-muted">•</span>
+                    <a
+                      href={`https://www.imdb.com/title/${(torrent as any).externalId}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                      title={`${((torrent as any).imdbVotes ?? 0).toLocaleString()} votes on IMDB`}
+                    >
+                      ⭐ {(torrent as any).imdbRating}/10
+                    </a>
+                  </> : null}
+                  {(torrent as any).runtimeMinutes ? <>
+                    <span className="text-text-muted">•</span>
+                    <span className="text-text-secondary">{(torrent as any).runtimeMinutes} min</span>
+                  </> : null}
                 </div> : null}
               {/* Director and Cast */}
               {(torrent.director || torrent.actors) ? <div className="mt-2 space-y-1 text-sm">

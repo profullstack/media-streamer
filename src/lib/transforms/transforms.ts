@@ -41,6 +41,11 @@ export function transformTorrent(dbTorrent: DbTorrent): Torrent {
     container: dbTorrent.container,
     needsTranscoding: dbTorrent.needs_transcoding,
     codecDetectedAt: dbTorrent.codec_detected_at,
+    externalId: (dbTorrent as any).external_id ?? null,
+    externalSource: (dbTorrent as any).external_source ?? null,
+    imdbRating: null,
+    imdbVotes: null,
+    runtimeMinutes: null,
     createdAt: dbTorrent.created_at ?? new Date().toISOString(),
     updatedAt: dbTorrent.updated_at ?? new Date().toISOString(),
   };

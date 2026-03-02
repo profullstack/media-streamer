@@ -19,6 +19,7 @@ import {
   type DhtTorrentFile,
 } from '@/lib/supabase/queries';
 import { transformTorrent, transformTorrentFiles } from '@/lib/transforms';
+import { enrichWithImdb } from '@/lib/imdb/enrich';
 import type { Torrent } from '@/lib/supabase/types';
 import type { TorrentFile as TransformedFile, MediaCategory } from '@/types';
 import { getMediaCategory, getMimeType } from '@/lib/utils';
@@ -86,6 +87,11 @@ interface TorrentWithSource {
   codecDetectedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  externalId: string | null;
+  externalSource: string | null;
+  imdbRating: number | null;
+  imdbVotes: number | null;
+  runtimeMinutes: number | null;
   source: 'user' | 'dht';
 }
 
@@ -121,6 +127,11 @@ function transformDhtTorrent(dht: DhtTorrent): TorrentWithSource {
     codecDetectedAt: null,
     createdAt: dht.created_at,
     updatedAt: dht.created_at,
+    externalId: null,
+    externalSource: null,
+    imdbRating: null,
+    imdbVotes: null,
+    runtimeMinutes: null,
     source: 'dht',
   };
 }
@@ -183,8 +194,9 @@ export async function GET(
 
       // Transform to camelCase for frontend
       const transformed = transformTorrent(userTorrent);
+      const enriched = await enrichWithImdb(transformed);
       const torrentWithSource: TorrentWithSource = {
-        ...transformed,
+        ...enriched,
         source: 'user',
       };
 
@@ -202,8 +214,10 @@ export async function GET(
         // Get files from DHT
         const dhtFiles = await getDhtTorrentFiles(id);
 
+        const dhtTransformed = transformDhtTorrent(dhtTorrent);
+        const dhtEnriched = await enrichWithImdb(dhtTransformed);
         return NextResponse.json({
-          torrent: transformDhtTorrent(dhtTorrent),
+          torrent: dhtEnriched,
           files: transformDhtFiles(dhtFiles, id),
         });
       }

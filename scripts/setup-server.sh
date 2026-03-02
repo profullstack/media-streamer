@@ -978,6 +978,24 @@ else
     echo "  WARNING: ${IMDB_UPDATE_SCRIPT} not found, skipping IMDB cron setup"
 fi
 
+# Set up IMDB-DHT matching cron job (runs 90 min after IMDB update to allow import to finish)
+echo "=== Setting up IMDB-DHT matching cron job ==="
+IMDB_MATCH_SCRIPT="${PROJECT_ROOT}/scripts/match-imdb-dht.sh"
+IMDB_MATCH_CRON="30 1 * * * ${IMDB_MATCH_SCRIPT} >> /var/log/imdb-match.log 2>&1"
+if [ -f "${IMDB_MATCH_SCRIPT}" ]; then
+    chmod +x "${IMDB_MATCH_SCRIPT}"
+    sudo touch /var/log/imdb-match.log
+    sudo chown ${VPS_USER}:${VPS_USER} /var/log/imdb-match.log
+    if crontab -l 2>/dev/null | grep -q "match-imdb-dht"; then
+        echo "  IMDB-DHT matching cron job already exists"
+    else
+        (crontab -l 2>/dev/null || true; echo "${IMDB_MATCH_CRON}") | crontab -
+        echo "✓ Added cron job: IMDB-DHT matching at 01:30 daily"
+    fi
+else
+    echo "  WARNING: ${IMDB_MATCH_SCRIPT} not found, skipping"
+fi
+
 # Set up cron job to clean webtorrent temp directory at midnight
 WEBTORRENT_TMP_DIR="/home/${VPS_USER}/tmp/webtorrent"
 CRON_JOB="0 0 * * * rm -rf ${WEBTORRENT_TMP_DIR}/* >/dev/null 2>&1"

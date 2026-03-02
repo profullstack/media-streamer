@@ -15,6 +15,10 @@ export interface DhtTorrentDetail {
   seeders: number | null;
   leechers: number | null;
   content_type: string | null;
+  imdb_id: string | null;
+  imdb_rating: number | null;
+  imdb_votes: number | null;
+  runtime_minutes: number | null;
   files: DhtFile[];
 }
 
@@ -69,6 +73,32 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     .order('index', { ascending: true })
     .limit(200) as { data: DhtFile[] | null };
 
+  // Fetch IMDB match if available
+  const { data: imdbMatch } = await (supabase as any)
+    .from('dht_imdb_matches')
+    .select('tconst')
+    .eq('info_hash', hexHash)
+    .single();
+
+  let imdbRating: number | null = null;
+  let imdbVotes: number | null = null;
+  let runtimeMinutes: number | null = null;
+  const imdbId: string | null = imdbMatch?.tconst ?? null;
+
+  if (imdbId) {
+    const [ratingsRes, basicsRes] = await Promise.all([
+      (supabase as any).from('imdb_title_ratings').select('average_rating, num_votes').eq('tconst', imdbId).single(),
+      (supabase as any).from('imdb_title_basics').select('runtime_minutes').eq('tconst', imdbId).single(),
+    ]);
+    if (ratingsRes.data) {
+      imdbRating = parseFloat(ratingsRes.data.average_rating) || null;
+      imdbVotes = parseInt(ratingsRes.data.num_votes, 10) || null;
+    }
+    if (basicsRes.data?.runtime_minutes && basicsRes.data.runtime_minutes !== '\\N') {
+      runtimeMinutes = parseInt(basicsRes.data.runtime_minutes, 10) || null;
+    }
+  }
+
   return {
     info_hash: infohash,
     name: String(torrent.name),
@@ -79,6 +109,10 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     seeders: swarm?.seeders ?? null,
     leechers: swarm?.leechers ?? null,
     content_type: contentType,
+    imdb_id: imdbId,
+    imdb_rating: imdbRating,
+    imdb_votes: imdbVotes,
+    runtime_minutes: runtimeMinutes,
     files: (files ?? []),
   };
 }

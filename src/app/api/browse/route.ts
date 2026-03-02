@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, resetServerClient } from '@/lib/supabase/client';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import { transformTorrents } from '@/lib/transforms';
+import { batchEnrichWithImdb } from '@/lib/imdb/enrich';
 import type { Torrent as DbTorrent } from '@/lib/supabase/types';
 
 const logger = createLogger('API:browse');
@@ -192,7 +193,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     // Transform to camelCase for frontend
-    const transformedTorrents = transformTorrents((torrents ?? []) as DbTorrent[]);
+    const transformedTorrents = await batchEnrichWithImdb(transformTorrents((torrents ?? []) as DbTorrent[]));
 
     return NextResponse.json({
       torrents: transformedTorrents,

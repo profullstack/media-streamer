@@ -90,11 +90,21 @@ export default async function DhtTorrentPage({ params }: PageProps) {
               <h1 className="text-xl font-bold text-text-primary">{displayName}</h1>
               <p className="mt-1 font-mono text-xs text-text-muted">{infohash}</p>
 
-              {torrent.content_type && (
-                <span className="mt-2 inline-block rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize text-text-secondary">
-                  {torrent.content_type}
-                </span>
-              )}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {torrent.content_type ? <span className="inline-block rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize text-text-secondary">
+                    {torrent.content_type}
+                  </span> : null}
+                {torrent.imdb_rating && torrent.imdb_id ? <a
+                    href={`https://www.imdb.com/title/${torrent.imdb_id}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                    title={`${(torrent.imdb_votes ?? 0).toLocaleString()} votes on IMDB`}
+                  >
+                    ⭐ {torrent.imdb_rating}/10
+                  </a> : null}
+                {torrent.runtime_minutes ? <span className="text-xs text-text-muted">{torrent.runtime_minutes} min</span> : null}
+              </div>
             </div>
           </div>
 

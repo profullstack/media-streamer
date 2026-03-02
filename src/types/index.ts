@@ -51,6 +51,16 @@ export interface Torrent {
   needsTranscoding: boolean | null;
   /** When codec info was detected */
   codecDetectedAt: string | null;
+  /** External ID (IMDB tt*, MusicBrainz UUID, etc.) */
+  externalId: string | null;
+  /** External source (omdb, musicbrainz, etc.) */
+  externalSource: string | null;
+  /** IMDB rating (0-10) from imdb_title_ratings */
+  imdbRating: number | null;
+  /** IMDB vote count from imdb_title_ratings */
+  imdbVotes: number | null;
+  /** Runtime in minutes from imdb_title_basics */
+  runtimeMinutes: number | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -456,6 +456,10 @@ const TorrentCard = memo(function TorrentCard({ torrent }: TorrentCardProps): Re
         <div className="mt-1 flex items-center gap-1 text-[10px] text-text-muted">
           {torrent.year ? <span>{torrent.year}</span> : null}
           {torrent.year ? <span>•</span> : null}
+          {(torrent as any).imdbRating ? <>
+            <span className="text-yellow-400">⭐{(torrent as any).imdbRating}</span>
+            <span>•</span>
+          </> : null}
           <span>{formatSize(torrent.totalSize)}</span>
         </div>
       </div>
