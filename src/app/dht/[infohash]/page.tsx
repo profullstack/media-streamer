@@ -12,14 +12,26 @@ import { DhtIndexCta } from '@/components/dht/dht-index-cta';
  */
 function cleanName(raw: string): string {
   let t = raw;
+  // Remove file extension
   t = t.replace(/\.\w{2,4}$/, '');
-  t = t.replace(/[._]/g, ' ');
-  t = t.replace(/\b(x264|x265|h264|h265|hevc|avc|aac|ac3|dts|flac|mp3|bluray|bdrip|brrip|webrip|web-dl|webdl|hdrip|dvdrip|dvdscr|cam|ts|hdtv|pdtv|uhd|uhdr|hdr|hdr10|dv|dolby|vision|10bit|8bit|remux|repack|proper|extended|unrated|directors|cut|dubbed|subbed|multi|dual|audio|subs|eng|cz|en|de|fr|es|it|pt|nl|pl|ru|ja|ko|zh)\b/gi, ' ');
-  t = t.replace(/\b(480p|720p|1080p|1080i|2160p|4k)\b/gi, ' ');
-  t = t.replace(/[+]/g, ' ');
-  t = t.replace(/[-–]\s*\w+\s*$/, '');
+  // Remove bracketed content [anything]
   t = t.replace(/\[.*?\]/g, ' ');
-  t = t.replace(/\([^)]*\)/g, ' ');
+  // Remove website prefixes
+  t = t.replace(/^(www\.)?[a-z0-9_-]+\.(org|com|net|io|tv|cc|to|bargains|club|xyz|me)\s*[-–—]\s*/i, '');
+  // Replace dots and underscores with spaces
+  t = t.replace(/[._]/g, ' ');
+  // Remove quality/codec/format tags
+  t = t.replace(/\b(x264|x265|h264|h265|hevc|avc|aac[0-9. ]*|ac3|dts|flac|mp3|bluray|blu-ray|bdrip|brrip|webrip|web-?dl|webdl|hdrip|dvdrip|dvdscr|cam|hdtv|pdtv|uhd|uhdr|hdr|hdr10|dv|dolby|vision|10bit|8bit|remux|repack|proper|extended|unrated|directors|cut|dubbed|subbed|multi|dual|audio|subs)\b/gi, ' ');
+  t = t.replace(/\b(480p|720p|1080p|1080i|2160p|4k)\b/gi, ' ');
+  // Remove language codes
+  t = t.replace(/\b(eng|cz|de|fr|es|it|pt|nl|pl|ru|ja|ko|zh|ukr|ita|ger|spa|por|ara|tur|hun)\b/gi, ' ');
+  // Remove size indicators
+  t = t.replace(/\b\d+(\.\d+)?\s*(mb|gb|tb)\b/gi, ' ');
+  // Remove trailing release group (dash + short word at end)
+  t = t.replace(/\s*[-–]\s*[A-Za-z0-9]{2,15}\s*$/, '');
+  // Remove H 264 style codec remnants
+  t = t.replace(/\bH\s*\d{3}\b/gi, ' ');
+  // Clean up whitespace
   t = t.replace(/\s+/g, ' ').trim();
   return t;
 }
