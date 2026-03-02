@@ -22,7 +22,8 @@ const EMPTY: TmdbData = {
 
 export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise<TmdbData> {
   const tmdbKey = process.env.TMDB_API_KEY;
-  if (!tmdbKey || !imdbId) return EMPTY;
+  if (!tmdbKey) return EMPTY;
+    if (!imdbId && !titleHint) return EMPTY;
 
   try {
     let tmdbId: number | null = null;
@@ -32,7 +33,8 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
     let overview: string | null = null;
 
     console.log('[TMDB] fetchTmdbData called:', imdbId, 'titleHint:', titleHint?.slice(0, 50));
-    // Step 1: Find TMDB ID from IMDB ID
+    // Step 1: Find TMDB ID from IMDB ID (skip if no imdbId)
+    if (imdbId) {
     const findRes = await fetch(
       `https://api.themoviedb.org/3/find/${imdbId}?api_key=${tmdbKey}&external_source=imdb_id`
     );
@@ -51,6 +53,7 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
           ? `https://image.tmdb.org/t/p/w1280${result.backdrop_path}` : null;
         overview = result.overview || null;
       }
+    }
     }
 
     console.log('[TMDB] after find, tmdbId:', tmdbId, 'titleHint?:', !!titleHint);

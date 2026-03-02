@@ -130,7 +130,7 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
   }
 
   // Fetch rich metadata from TMDB
-  const tmdb = imdbId ? await fetchTmdbData(imdbId, String(torrent.name)) : null;
+  const tmdb = await fetchTmdbData(imdbId || '', String(torrent.name));
 
   return {
     info_hash: infohash,
