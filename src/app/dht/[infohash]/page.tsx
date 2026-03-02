@@ -127,6 +127,9 @@ export default async function DhtTorrentPage({ params }: PageProps) {
 
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-bold text-text-primary sm:text-2xl">{displayName}</h1>
+              {displayName !== torrent.name && (
+                <p className="mt-0.5 truncate text-xs text-text-muted/50" title={torrent.name}>{torrent.name}</p>
+              )}
 
               {/* Tagline */}
               {torrent.tagline && (

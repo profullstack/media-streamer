@@ -541,6 +541,9 @@ export default function TorrentDetailPage(): React.ReactElement {
               <h1 className="truncate text-xl font-bold text-text-primary" title={torrent.name}>
                 {torrent.cleanTitle ?? torrent.name}
               </h1>
+              {torrent.cleanTitle && torrent.cleanTitle !== torrent.name && (
+                <p className="mt-0.5 truncate text-xs text-text-muted/50" title={torrent.name}>{torrent.name}</p>
+              )}
               {(torrent as any).tagline && (
                 <p className="mt-1 text-sm italic text-text-muted">&ldquo;{(torrent as any).tagline}&rdquo;</p>
               )}
