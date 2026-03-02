@@ -15,6 +15,15 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { Database } from '../../src/lib/supabase/types';
 import { FETCH_CONFIG, LOG_PREFIX } from './config';
+
+/**
+ * Derive a stable temp filename from a playlist URL.
+ * Each provider gets its own file that gets overwritten.
+ */
+function playlistTempPath(url: string): string {
+  const hash = Buffer.from(url).toString('base64url').slice(0, 32);
+  return join(tmpdir(), `iptv-playlist-${hash}.m3u`);
+}
 import type { IptvPlaylist, PlaylistFetchResult } from './types';
 import type { Channel } from '../../src/lib/iptv/m3u-parser';
 

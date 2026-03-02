@@ -82,6 +82,11 @@ describe('transforms', () => {
         genre: null,
         // Codec fields
         videoCodec: null,
+        externalId: null,
+        externalSource: null,
+        imdbRating: null,
+        imdbVotes: null,
+        runtimeMinutes: null,
         audioCodec: null,
         container: null,
         needsTranscoding: false,
