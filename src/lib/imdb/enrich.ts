@@ -140,3 +140,83 @@ export async function batchEnrichWithImdb<T extends {
     return torrents;
   }
 }
+
+/**
+ * Batch enrich DHT search results with IMDB data via dht_imdb_matches table.
+ * Looks up infohashes → tconst → ratings/basics.
+ */
+export async function batchEnrichDhtWithImdb<T extends {
+  torrent_infohash: string;
+  [key: string]: unknown;
+}>(results: T[]): Promise<(T & {
+  imdb_id: string | null;
+  imdb_rating: number | null;
+  imdb_votes: number | null;
+  runtime_minutes: number | null;
+  genres: string | null;
+  year: number | null;
+  poster_url: string | null;
+})[]> {
+  const defaults = { imdb_id: null, imdb_rating: null, imdb_votes: null, runtime_minutes: null, genres: null, year: null, poster_url: null };
+
+  if (results.length === 0) return results.map(r => ({ ...r, ...defaults }));
+
+  try {
+    const supabase = createServerClient();
+    const hexHashes = results.map(r => `\\x${r.torrent_infohash}`);
+
+    const { data: matches } = await (supabase as any)
+      .from('dht_imdb_matches')
+      .select('info_hash, tconst, poster_url')
+      .in('info_hash', hexHashes);
+
+    if (!matches?.length) return results.map(r => ({ ...r, ...defaults }));
+
+    const matchMap = new Map<string, { tconst: string; poster_url: string | null }>();
+    for (const m of matches as { info_hash: string; tconst: string; poster_url: string | null }[]) {
+      const hex = m.info_hash.replace(/^\\x/i, '').toLowerCase();
+      matchMap.set(hex, { tconst: m.tconst, poster_url: m.poster_url || null });
+    }
+
+    const tconsts = [...new Set([...matchMap.values()].map(v => v.tconst))];
+
+    if (tconsts.length === 0) return results.map(r => ({ ...r, ...defaults }));
+
+    const [ratingsRes, basicsRes] = await Promise.all([
+      (supabase as any).from('imdb_title_ratings')
+        .select('tconst, average_rating, num_votes').in('tconst', tconsts),
+      (supabase as any).from('imdb_title_basics')
+        .select('tconst, runtime_minutes, genres, start_year').in('tconst', tconsts),
+    ]);
+
+    type RatingRow = { tconst: string; average_rating: string; num_votes: string };
+    type BasicRow = { tconst: string; runtime_minutes: string; genres: string; start_year: string };
+
+    const ratingsMap = new Map(((ratingsRes.data ?? []) as RatingRow[]).map(r => [r.tconst, r]));
+    const basicsMap = new Map(((basicsRes.data ?? []) as BasicRow[]).map(b => [b.tconst, b]));
+
+    return results.map(r => {
+      const match = matchMap.get(r.torrent_infohash.toLowerCase());
+      const tconst = match?.tconst ?? null;
+      const rating = tconst ? ratingsMap.get(tconst) : null;
+      const basics = tconst ? basicsMap.get(tconst) : null;
+
+      return {
+        ...r,
+        imdb_id: tconst,
+        poster_url: match?.poster_url ?? null,
+        imdb_rating: rating?.average_rating ? parseFloat(rating.average_rating) : null,
+        imdb_votes: rating?.num_votes ? parseInt(rating.num_votes, 10) : null,
+        runtime_minutes: basics?.runtime_minutes && basics.runtime_minutes !== '\\N'
+          ? parseInt(basics.runtime_minutes, 10) : null,
+        genres: basics?.genres && basics.genres !== '\\N'
+          ? basics.genres.replace(/,/g, ', ') : null,
+        year: basics?.start_year && basics.start_year !== '\\N'
+          ? parseInt(basics.start_year, 10) : null,
+      };
+    });
+  } catch (error) {
+    console.error('[IMDB] DHT batch enrichment error:', error);
+    return results.map(r => ({ ...r, ...defaults }));
+  }
+}

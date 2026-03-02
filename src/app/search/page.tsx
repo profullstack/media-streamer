@@ -32,6 +32,11 @@ interface TorrentSearchResult {
   torrent_leechers: number | null;
   torrent_created_at: string;
   torrent_poster_url?: string | null;
+  imdb_id?: string | null;
+  imdb_rating?: number | null;
+  imdb_votes?: number | null;
+  genres?: string | null;
+  year?: number | null;
   torrent_cover_url?: string | null;
   match_type: string;
   rank: number;
@@ -135,7 +140,7 @@ const SearchResultsList = memo(function SearchResultsList({
   return (
     <div className="space-y-1">
       {results.map((result) => {
-        const imageUrl = result.torrent_poster_url ?? result.torrent_cover_url;
+        const imageUrl = result.torrent_poster_url ?? (result as any).poster_url ?? result.torrent_cover_url;
         const displayName = result.torrent_clean_title ?? result.torrent_name;
         const isDht = result.source === 'dht';
 
@@ -194,6 +199,24 @@ const SearchResultsList = memo(function SearchResultsList({
                   >
                     {result.source === 'dht' ? 'DHT' : 'Library'}
                   </span> : null}
+                {(result as any).imdb_rating && (
+                  <a
+                    href={`https://www.imdb.com/title/${(result as any).imdb_id}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-xs text-yellow-400"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`${(result as any).imdb_votes?.toLocaleString()} votes`}
+                  >
+                    ⭐{(result as any).imdb_rating}
+                  </a>
+                )}
+                {(result as any).year && (
+                  <span className="shrink-0 text-[10px] text-text-muted">{(result as any).year}</span>
+                )}
+                {(result as any).genres && (
+                  <span className="shrink-0 truncate text-[10px] text-text-muted max-w-[120px]">{(result as any).genres}</span>
+                )}
               </div>
               {/* Show raw name if different from clean title */}
               {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name ? <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>

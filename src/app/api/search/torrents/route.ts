@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { batchEnrichDhtWithImdb } from '@/lib/imdb/enrich';
 import { searchTorrents, searchAllTorrents } from '@/lib/supabase';
 import type { MediaCategory, TorrentSearchResult } from '@/lib/supabase';
 
@@ -213,6 +214,19 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         sortOrder,
       });
       results = unifiedResults;
+    }
+
+    // Enrich DHT results with IMDB data
+    const dhtResults = results.filter(r => r.source === 'dht');
+    if (dhtResults.length > 0) {
+      const enriched = await batchEnrichDhtWithImdb(dhtResults as any);
+      const enrichedMap = new Map(enriched.map(r => [r.torrent_infohash, r]));
+      results = results.map(r => {
+        if (r.source === 'dht') {
+          return enrichedMap.get(r.torrent_infohash) ?? r;
+        }
+        return r;
+      }) as typeof results;
     }
 
     // Determine if there are more results
