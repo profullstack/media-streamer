@@ -334,7 +334,7 @@ export async function fetchAndParsePlaylist(
       // Large file - stream to disk
       console.log(`${LOG_PREFIX} Large playlist detected (${Math.round(estimatedSize / 1024 / 1024)}MB), streaming to disk...`);
 
-      tempFilePath = join(tmpdir(), 'iptv-playlist.m3u');
+      tempFilePath = playlistTempPath(m3uUrl);
       const actualSize = await streamToFile(response, tempFilePath);
       console.log(`${LOG_PREFIX} Downloaded ${Math.round(actualSize / 1024 / 1024)}MB to ${tempFilePath}`);
 
@@ -470,7 +470,7 @@ export async function fetchAndParsePlaylistStreaming(
     const response = await fetchWithRetry(m3uUrl);
 
     // Always stream to disk first for streaming mode
-    tempFilePath = join(tmpdir(), 'iptv-playlist.m3u');
+    tempFilePath = playlistTempPath(m3uUrl);
     const actualSize = await streamToFile(response, tempFilePath);
     console.log(`${LOG_PREFIX} Downloaded ${Math.round(actualSize / 1024 / 1024)}MB to ${tempFilePath}`);
 
