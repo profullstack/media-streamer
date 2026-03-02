@@ -32,7 +32,6 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
     let backdropUrl: string | null = null;
     let overview: string | null = null;
 
-    console.log('[TMDB] fetchTmdbData called:', imdbId, 'titleHint:', titleHint?.slice(0, 50));
     // Step 1: Find TMDB ID from IMDB ID (skip if no imdbId)
     if (imdbId) {
     const findRes = await fetch(
@@ -56,7 +55,6 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
     }
     }
 
-    console.log('[TMDB] after find, tmdbId:', tmdbId, 'titleHint?:', !!titleHint);
     // Step 1b: Fallback — search TMDB by title if /find returned nothing
     if (!tmdbId && titleHint) {
       // Clean the title: strip codecs, quality, brackets, file extensions, season/episode info
@@ -70,8 +68,7 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
         .replace(/(19|20)\d{2}.*$/, '')
         .replace(/\s+/g, ' ')
         .trim();
-      console.log('[TMDB] search fallback, cleanTitle:', cleanTitle);
-      if (cleanTitle.length < 2) cleanTitle = titleHint;
+        if (cleanTitle.length < 2) cleanTitle = titleHint;
       const searchQuery = encodeURIComponent(cleanTitle);
       // Try TV first, then movie
       for (const mediaType of ['tv', 'movie'] as const) {
@@ -137,7 +134,9 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
       }
     }
 
-    return { posterUrl, backdropUrl, overview, tagline, cast, writers, contentRating, tmdbId };
+    const result = { posterUrl, backdropUrl, overview, tagline, cast, writers, contentRating, tmdbId };
+    try { require('fs').writeFileSync('/tmp/tmdb-debug.json', JSON.stringify({ imdbId, titleHint, result }, null, 2)); } catch {}
+    return result;
   } catch {
     return EMPTY;
   }
