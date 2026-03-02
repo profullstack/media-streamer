@@ -22,7 +22,7 @@ export async function POST(
     const reason = (body.reason ?? '').trim() || 'Not specified';
 
     const detailsUrl = `https://bittorrented.com/torrents/${id}`;
-    const reportTo = (body.to ?? process.env.REPORT_EMAIL_TO ?? 'support@bittorrented.com').trim();
+    const reportTo = 'report@bittorrented.com';
 
     let emailService;
     try {
