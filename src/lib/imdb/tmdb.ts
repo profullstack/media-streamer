@@ -54,7 +54,19 @@ export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise
 
     // Step 1b: Fallback — search TMDB by title if /find returned nothing
     if (!tmdbId && titleHint) {
-      const searchQuery = encodeURIComponent(titleHint);
+      // Clean the title: strip codecs, quality, brackets, file extensions, season/episode info
+      let cleanTitle = titleHint
+        .replace(/\.\w{2,4}$/, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .replace(/\([^)]*\)/g, '')
+        .replace(/[._]/g, ' ')
+        .replace(/(S\d{1,2}E\d{1,2}).*$/i, '')
+        .replace(/(1080p|720p|2160p|4k|480p|bluray|brrip|dvdrip|webrip|web-?dl|hdtv|hdrip|x264|x265|hevc|aac|ac3|dts|remux|uhd|hdr|h264|h265)/gi, '')
+        .replace(/(19|20)\d{2}.*$/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleanTitle.length < 2) cleanTitle = titleHint;
+      const searchQuery = encodeURIComponent(cleanTitle);
       // Try TV first, then movie
       for (const mediaType of ['tv', 'movie'] as const) {
         const searchRes = await fetch(
