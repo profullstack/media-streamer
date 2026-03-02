@@ -536,14 +536,14 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                   </> : null}
                 </div> : null}
               {/* Director and Cast */}
-              {(torrent.director || torrent.actors) ? <div className="mt-2 space-y-1 text-sm">
+              {(torrent.director || torrent.actors || (torrent as any).cast) ? <div className="mt-2 space-y-1 text-sm">
                   {torrent.director ? <p className="text-text-secondary">
                       <span className="text-text-muted">Director:</span>{' '}
                       <span className="text-text-primary">{torrent.director}</span>
                     </p> : null}
-                  {torrent.actors ? <p className="text-text-secondary">
+                  {(torrent.actors || (torrent as any).cast) ? <p className="text-text-secondary">
                       <span className="text-text-muted">Cast:</span>{' '}
-                      <span className="text-text-primary">{torrent.actors}</span>
+                      <span className="text-text-primary">{torrent.actors || (torrent as any).cast}</span>
                     </p> : null}
                 </div> : null}
               {/* Writers */}
