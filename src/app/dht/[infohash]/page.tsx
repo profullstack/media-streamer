@@ -86,7 +86,7 @@ export default async function DhtTorrentPage({ params }: PageProps) {
         <nav className="flex items-center gap-2 text-sm text-text-muted">
           <Link href="/" className="hover:text-text-primary">Home</Link>
           <span>/</span>
-          <Link href="/find-torrents" className="hover:text-text-primary">Torrents</Link>
+          <Link href="/search" className="hover:text-text-primary">DHT</Link>
           <span>/</span>
           <span className="text-text-primary truncate" title={torrent.name}>{displayName}</span>
         </nav>

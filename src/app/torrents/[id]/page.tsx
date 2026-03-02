@@ -506,11 +506,11 @@ export default function TorrentDetailPage(): React.ReactElement {
       <div className="space-y-6">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-text-muted">
-          <Link href="/torrents" className="hover:text-text-primary">
-            Torrents
-          </Link>
+          <Link href="/" className="hover:text-text-primary">Home</Link>
           <ChevronRightIcon size={14} />
-          <span className="text-text-primary" title={torrent.name}>{torrent.cleanTitle ?? torrent.name}</span>
+          <Link href="/search" className="hover:text-text-primary">Torrents</Link>
+          <ChevronRightIcon size={14} />
+          <span className="text-text-primary truncate" title={torrent.name}>{torrent.cleanTitle ?? torrent.name}</span>
         </nav>
 
         {/* Backdrop hero */}
