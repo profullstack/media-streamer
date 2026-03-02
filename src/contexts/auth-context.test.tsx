@@ -11,9 +11,29 @@ import { renderHook } from '@testing-library/react';
 import { AuthProvider, AuthContext } from './auth-context';
 import { useContext } from 'react';
 
-// Mock fetch
+// Mock fetch — handles both /api/auth/me and /api/profiles
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+/**
+ * Helper: set up mockFetch to handle /api/auth/me with the given response,
+ * and auto-respond to /api/profiles with an empty profiles array.
+ */
+function setupAuthMock(authResponse: unknown) {
+  mockFetch.mockImplementation((url: string) => {
+    if (url === '/api/profiles') {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ profiles: [] }),
+      });
+    }
+    if (typeof url === 'string' && url.includes('/api/profiles/')) {
+      return Promise.resolve({ ok: true, json: async () => ({ success: true }) });
+    }
+    // Default: /api/auth/me
+    return typeof authResponse === 'function' ? authResponse() : Promise.resolve(authResponse);
+  });
+}
 
 // Helper to consume context in tests
 function TestConsumer(): React.ReactElement {
@@ -203,8 +223,8 @@ describe('AuthContext', () => {
   });
 
   describe('Caching behavior', () => {
-    it('should only fetch once on mount', async () => {
-      mockFetch.mockResolvedValue({
+    it('should only fetch auth once on mount', async () => {
+      setupAuthMock({
         ok: true,
         json: async () => ({ user: { id: 'u1', email: 'a@b.com' } }),
       });
@@ -215,14 +235,15 @@ describe('AuthContext', () => {
         expect(screen.getByTestId('is-loading')).toHaveTextContent('false');
       });
 
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      expect(mockFetch).toHaveBeenCalledWith('/api/auth/me');
+      // Auth fetch + profiles fetch (triggered after user loads)
+      const authCalls = mockFetch.mock.calls.filter((c: string[]) => c[0] === '/api/auth/me');
+      expect(authCalls).toHaveLength(1);
     });
 
     it('should share auth state between multiple consumers', async () => {
       const mockUser = { id: 'u1', email: 'shared@example.com' };
 
-      mockFetch.mockResolvedValueOnce({
+      setupAuthMock({
         ok: true,
         json: async () => ({ user: mockUser }),
       });
@@ -246,21 +267,25 @@ describe('AuthContext', () => {
       // Both consumers see the same data from a single fetch
       expect(screen.getByTestId('user-email')).toHaveTextContent('shared@example.com');
       expect(screen.getByTestId('second-email')).toHaveTextContent('shared@example.com');
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const authCalls = mockFetch.mock.calls.filter((c: string[]) => c[0] === '/api/auth/me');
+      expect(authCalls).toHaveLength(1);
     });
   });
 
   describe('Refresh', () => {
     it('should refetch auth state on refresh', async () => {
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ user: null }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ user: { id: 'u1', email: 'new@example.com' } }),
-        });
+      let authCallCount = 0;
+      mockFetch.mockImplementation((url: string) => {
+        if (url !== '/api/auth/me') {
+          // Handle /api/profiles and any other calls
+          return Promise.resolve({ ok: true, json: async () => ({ profiles: [] }) });
+        }
+        authCallCount++;
+        if (authCallCount <= 1) {
+          return Promise.resolve({ ok: true, json: async () => ({ user: null }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ user: { id: 'u1', email: 'new@example.com' } }) });
+      });
 
       renderWithProvider();
 
@@ -280,16 +305,21 @@ describe('AuthContext', () => {
       });
 
       expect(screen.getByTestId('user-email')).toHaveTextContent('new@example.com');
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(authCallCount).toBe(2);
     });
 
     it('should clear error on refresh', async () => {
-      mockFetch
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ user: { id: 'u1', email: 'recovered@example.com' } }),
-        });
+      let authCallCount = 0;
+      mockFetch.mockImplementation((url: string) => {
+        if (url !== '/api/auth/me') {
+          return Promise.resolve({ ok: true, json: async () => ({ profiles: [] }) });
+        }
+        authCallCount++;
+        if (authCallCount <= 1) {
+          return Promise.reject(new Error('Network error'));
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ user: { id: 'u1', email: 'recovered@example.com' } }) });
+      });
 
       renderWithProvider();
 

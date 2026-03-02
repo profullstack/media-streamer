@@ -13,6 +13,7 @@
 
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles';
 import { getFavoritesService } from '@/lib/favorites';
 import { getTorrentById, getTorrentByInfohash } from '@/lib/supabase/queries';
 import type { TorrentFavoriteWithDetails } from '@/lib/favorites';
@@ -99,9 +100,18 @@ export async function GET(): Promise<
       );
     }
 
-    // Get favorites
+    // Get current profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No profile selected' },
+        { status: 400 }
+      );
+    }
+
+    // Get favorites for the profile
     const favoritesService = getFavoritesService();
-    const favorites = await favoritesService.getTorrentFavorites(user.id);
+    const favorites = await favoritesService.getTorrentFavorites(profileId);
 
     return NextResponse.json(
       { favorites },
@@ -165,7 +175,11 @@ export async function POST(
 
     // Add to favorites
     const favoritesService = getFavoritesService();
-    const favorite = await favoritesService.addTorrentFavorite(user.id, torrentId);
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    const favorite = await favoritesService.addTorrentFavorite(profileId, torrentId);
 
     return NextResponse.json({ favorite }, { status: 201 });
   } catch (error) {
@@ -224,7 +238,11 @@ export async function DELETE(
 
     // Remove from favorites
     const favoritesService = getFavoritesService();
-    await favoritesService.removeTorrentFavorite(user.id, torrentId);
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+    }
+    await favoritesService.removeTorrentFavorite(profileId, torrentId);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

@@ -368,7 +368,11 @@ export function MediaPlayerModal({
         // Also use HLS when codec detection failed — let server-side FFprobe handle it
         // (prevents .mp4 HEVC files from being sent via direct stream on iOS).
         const codecDetectionFailed = !codecInfo && getMediaCategory(file.name) === 'video';
-        const needsHLS = (isIOS || isSafari) && (requiresTranscoding || audioOnlyRemuxNeeded || codecDetectionFailed) && getMediaCategory(file.name) === 'video';
+        // iOS/Safari: ALWAYS use HLS for video files, even "native" formats like .mp4
+        // iOS Safari can't reliably handle byte-range streaming from partially-downloaded
+        // torrents (moov atom may not be available yet, chunked transfer doesn't work).
+        // HLS handles buffering gracefully and is what iOS was designed for.
+        const needsHLS = (isIOS || isSafari) && getMediaCategory(file.name) === 'video';
 
         console.log('[MediaPlayerModal] HLS decision:', {
           isIOS, isSafari, requiresTranscoding, audioOnlyRemuxNeeded,
@@ -654,6 +658,25 @@ export function MediaPlayerModal({
     }
     onClose();
   }, [onClose, webTorrentStopStream, infohash]);
+
+  // Release torrent on tab close / navigate away (beforeunload won't fire handleClose reliably)
+  useEffect(() => {
+    if (!isOpen || !infohash) return;
+
+    const releaseOnUnload = () => {
+      // navigator.sendBeacon is the only reliable way to fire a request during unload
+      navigator.sendBeacon(`/api/stream/release?infohash=${infohash}`, '');
+    };
+
+    // pagehide is more reliable than beforeunload on mobile browsers
+    window.addEventListener('pagehide', releaseOnUnload);
+    window.addEventListener('beforeunload', releaseOnUnload);
+
+    return () => {
+      window.removeEventListener('pagehide', releaseOnUnload);
+      window.removeEventListener('beforeunload', releaseOnUnload);
+    };
+  }, [isOpen, infohash]);
 
   // Reset transcoding retry state when file changes
   useEffect(() => {
@@ -1221,7 +1244,7 @@ export function MediaPlayerModal({
               </svg>
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm sm:text-base font-medium text-error">Playback Error</h4>
-                <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-text-muted truncate">{error}</p>
+                <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-text-muted break-words">{error}</p>
                 <button
                   type="button"
                   onClick={handleRetry}

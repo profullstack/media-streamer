@@ -95,9 +95,9 @@ export class LibraryRepository {
   // ============================================
 
   /**
-   * Get all favorites for a user
+   * Get all favorites for a profile
    */
-  async getUserFavorites(userId: string): Promise<Favorite[]> {
+  async getUserFavorites(profileId: string): Promise<Favorite[]> {
     const { data, error } = await this.supabase
       .from('user_favorites')
       .select(
@@ -109,7 +109,7 @@ export class LibraryRepository {
         )
       `
       )
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -122,13 +122,13 @@ export class LibraryRepository {
   /**
    * Add a file to favorites
    */
-  async addFavorite(userId: string, fileId: string): Promise<Favorite> {
+  async addFavorite(profileId: string, fileId: string): Promise<Favorite> {
     const { data, error } = await this.supabase
       .from('user_favorites')
       .insert({
-        user_id: userId,
+        profile_id: profileId,
         file_id: fileId,
-      })
+      } as any)
       .select()
       .single();
 
@@ -145,11 +145,11 @@ export class LibraryRepository {
   /**
    * Remove a file from favorites
    */
-  async removeFavorite(userId: string, fileId: string): Promise<void> {
+  async removeFavorite(profileId: string, fileId: string): Promise<void> {
     const { error } = await this.supabase
       .from('user_favorites')
       .delete()
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('file_id', fileId);
 
     if (error) {
@@ -158,13 +158,13 @@ export class LibraryRepository {
   }
 
   /**
-   * Check if a file is favorited by a user
+   * Check if a file is favorited by a profile
    */
-  async isFavorite(userId: string, fileId: string): Promise<boolean> {
+  async isFavorite(profileId: string, fileId: string): Promise<boolean> {
     const { data, error } = await this.supabase
       .from('user_favorites')
       .select('id')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('file_id', fileId)
       .maybeSingle();
 
@@ -180,9 +180,9 @@ export class LibraryRepository {
   // ============================================
 
   /**
-   * Get all collections for a user
+   * Get all collections for a profile
    */
-  async getUserCollections(userId: string): Promise<Collection[]> {
+  async getUserCollections(profileId: string): Promise<Collection[]> {
     const { data, error } = await this.supabase
       .from('collections')
       .select(
@@ -191,7 +191,7 @@ export class LibraryRepository {
         collection_items (count)
       `
       )
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .order('updated_at', { ascending: false });
 
     if (error) {
@@ -211,7 +211,7 @@ export class LibraryRepository {
    * Get a single collection by ID
    */
   async getCollection(
-    userId: string,
+    profileId: string,
     collectionId: string
   ): Promise<Collection | null> {
     const { data, error } = await this.supabase
@@ -223,7 +223,7 @@ export class LibraryRepository {
       `
       )
       .eq('id', collectionId)
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .maybeSingle();
 
     if (error) {
@@ -246,17 +246,17 @@ export class LibraryRepository {
    * Create a new collection
    */
   async createCollection(
-    userId: string,
+    profileId: string,
     name: string,
     collectionType: CollectionType
   ): Promise<Collection> {
     const { data, error } = await this.supabase
       .from('collections')
       .insert({
-        user_id: userId,
+        profile_id: profileId,
         name,
         collection_type: collectionType,
-      })
+      } as any)
       .select()
       .single();
 
@@ -271,7 +271,7 @@ export class LibraryRepository {
    * Update a collection
    */
   async updateCollection(
-    userId: string,
+    profileId: string,
     collectionId: string,
     updates: { name?: string; collection_type?: CollectionType }
   ): Promise<Collection> {
@@ -279,7 +279,7 @@ export class LibraryRepository {
       .from('collections')
       .update(updates)
       .eq('id', collectionId)
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .select()
       .single();
 
@@ -293,12 +293,12 @@ export class LibraryRepository {
   /**
    * Delete a collection
    */
-  async deleteCollection(userId: string, collectionId: string): Promise<void> {
+  async deleteCollection(profileId: string, collectionId: string): Promise<void> {
     const { error } = await this.supabase
       .from('collections')
       .delete()
       .eq('id', collectionId)
-      .eq('user_id', userId);
+      .eq('profile_id', profileId);
 
     if (error) {
       throw new Error(`Failed to delete collection: ${error.message}`);
@@ -402,9 +402,9 @@ export class LibraryRepository {
   // ============================================
 
   /**
-   * Get watch history for a user
+   * Get watch history for a profile
    */
-  async getWatchHistory(userId: string, limit = 50): Promise<WatchProgress[]> {
+  async getWatchHistory(profileId: string, limit = 50): Promise<WatchProgress[]> {
     const { data, error } = await this.supabase
       .from('watch_progress')
       .select(
@@ -413,7 +413,7 @@ export class LibraryRepository {
         bt_torrent_files (*)
       `
       )
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .order('last_watched_at', { ascending: false })
       .limit(limit);
 
@@ -428,13 +428,13 @@ export class LibraryRepository {
    * Get watch progress for a specific file
    */
   async getWatchProgress(
-    userId: string,
+    profileId: string,
     fileId: string
   ): Promise<WatchProgress | null> {
     const { data, error } = await this.supabase
       .from('watch_progress')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('file_id', fileId)
       .maybeSingle();
 
@@ -449,7 +449,7 @@ export class LibraryRepository {
    * Update watch progress for a file
    */
   async updateWatchProgress(
-    userId: string,
+    profileId: string,
     fileId: string,
     currentTimeSeconds: number,
     durationSeconds: number
@@ -461,17 +461,18 @@ export class LibraryRepository {
 
     const { data, error } = await this.supabase
       .from('watch_progress')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .upsert(
         {
-          user_id: userId,
+          profile_id: profileId,
           file_id: fileId,
           current_time_seconds: currentTimeSeconds,
           duration_seconds: durationSeconds,
           percentage,
           last_watched_at: new Date().toISOString(),
-        },
+        } as any,
         {
-          onConflict: 'user_id,file_id',
+          onConflict: 'profile_id,file_id',
         }
       )
       .select()
@@ -485,13 +486,13 @@ export class LibraryRepository {
   }
 
   /**
-   * Clear watch history for a user
+   * Clear watch history for a profile
    */
-  async clearWatchHistory(userId: string): Promise<void> {
+  async clearWatchHistory(profileId: string): Promise<void> {
     const { error } = await this.supabase
       .from('watch_progress')
       .delete()
-      .eq('user_id', userId);
+      .eq('profile_id', profileId);
 
     if (error) {
       throw new Error(`Failed to clear watch history: ${error.message}`);
@@ -503,10 +504,10 @@ export class LibraryRepository {
   // ============================================
 
   /**
-   * Get reading history for a user
+   * Get reading history for a profile
    */
   async getReadingHistory(
-    userId: string,
+    profileId: string,
     limit = 50
   ): Promise<ReadingProgress[]> {
     const { data, error } = await this.supabase
@@ -517,7 +518,7 @@ export class LibraryRepository {
         bt_torrent_files (*)
       `
       )
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .order('last_read_at', { ascending: false })
       .limit(limit);
 
@@ -532,13 +533,13 @@ export class LibraryRepository {
    * Get reading progress for a specific file
    */
   async getReadingProgress(
-    userId: string,
+    profileId: string,
     fileId: string
   ): Promise<ReadingProgress | null> {
     const { data, error } = await this.supabase
       .from('reading_progress')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('file_id', fileId)
       .maybeSingle();
 
@@ -553,7 +554,7 @@ export class LibraryRepository {
    * Update reading progress for a file
    */
   async updateReadingProgress(
-    userId: string,
+    profileId: string,
     fileId: string,
     currentPage: number,
     totalPages: number
@@ -563,17 +564,18 @@ export class LibraryRepository {
 
     const { data, error } = await this.supabase
       .from('reading_progress')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .upsert(
         {
-          user_id: userId,
+          profile_id: profileId,
           file_id: fileId,
           current_page: currentPage,
           total_pages: totalPages,
           percentage,
           last_read_at: new Date().toISOString(),
-        },
+        } as any,
         {
-          onConflict: 'user_id,file_id',
+          onConflict: 'profile_id,file_id',
         }
       )
       .select()
@@ -587,13 +589,13 @@ export class LibraryRepository {
   }
 
   /**
-   * Clear reading history for a user
+   * Clear reading history for a profile
    */
-  async clearReadingHistory(userId: string): Promise<void> {
+  async clearReadingHistory(profileId: string): Promise<void> {
     const { error } = await this.supabase
       .from('reading_progress')
       .delete()
-      .eq('user_id', userId);
+      .eq('profile_id', profileId);
 
     if (error) {
       throw new Error(`Failed to clear reading history: ${error.message}`);
@@ -607,11 +609,11 @@ export class LibraryRepository {
   /**
    * Get combined watch and reading history
    */
-  async getCombinedHistory(userId: string, limit = 50): Promise<HistoryItem[]> {
+  async getCombinedHistory(profileId: string, limit = 50): Promise<HistoryItem[]> {
     // Fetch both histories in parallel
     const [watchHistory, readingHistory] = await Promise.all([
-      this.getWatchHistory(userId, limit),
-      this.getReadingHistory(userId, limit),
+      this.getWatchHistory(profileId, limit),
+      this.getReadingHistory(profileId, limit),
     ]);
 
     // Transform to unified format
@@ -648,12 +650,12 @@ export class LibraryRepository {
   }
 
   /**
-   * Clear all history for a user
+   * Clear all history for a profile
    */
-  async clearAllHistory(userId: string): Promise<void> {
+  async clearAllHistory(profileId: string): Promise<void> {
     await Promise.all([
-      this.clearWatchHistory(userId),
-      this.clearReadingHistory(userId),
+      this.clearWatchHistory(profileId),
+      this.clearReadingHistory(profileId),
     ]);
   }
 }

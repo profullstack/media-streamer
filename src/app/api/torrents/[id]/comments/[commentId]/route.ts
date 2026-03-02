@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsService } from '@/lib/comments';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 
 interface RouteParams {
   params: Promise<{ id: string; commentId: string }>;
@@ -43,6 +44,15 @@ export async function PATCH(
       );
     }
 
+    // Get active profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No active profile' },
+        { status: 400 }
+      );
+    }
+
     // Parse request body
     const body = await request.json() as { content?: string };
     const { content } = body;
@@ -56,7 +66,7 @@ export async function PATCH(
 
     // Update comment
     const service = getCommentsService();
-    const comment = await service.updateComment(commentId, user.id, content);
+    const comment = await service.updateComment(commentId, profileId, content);
 
     return NextResponse.json({ comment });
   } catch (error) {
@@ -118,9 +128,18 @@ export async function DELETE(
       );
     }
 
+    // Get active profile
+    const profileId = await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'No active profile' },
+        { status: 400 }
+      );
+    }
+
     // Delete comment
     const service = getCommentsService();
-    await service.deleteComment(commentId, user.id);
+    await service.deleteComment(commentId, profileId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

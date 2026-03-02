@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { getWatchlistRepository } from '@/lib/watchlist';
 
 interface RouteParams {
@@ -20,11 +21,16 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+  }
+
   const { id } = await params;
 
   try {
     const repo = getWatchlistRepository();
-    const watchlists = await repo.getUserWatchlists(user.id);
+    const watchlists = await repo.getUserWatchlists(profileId);
     const watchlist = watchlists.find(w => w.id === id);
 
     if (!watchlist) {
@@ -49,6 +55,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams): Prom
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+  }
+
   const { id } = await params;
 
   try {
@@ -64,7 +75,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams): Prom
     }
 
     const repo = getWatchlistRepository();
-    const watchlist = await repo.renameWatchlist(user.id, id, name);
+    const watchlist = await repo.renameWatchlist(profileId, id, name);
 
     return NextResponse.json({ watchlist });
   } catch (error) {
@@ -82,11 +93,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
+  const profileId = await getActiveProfileId();
+  if (!profileId) {
+    return NextResponse.json({ error: 'No active profile' }, { status: 400 });
+  }
+
   const { id } = await params;
 
   try {
     const repo = getWatchlistRepository();
-    await repo.deleteWatchlist(user.id, id);
+    await repo.deleteWatchlist(profileId, id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

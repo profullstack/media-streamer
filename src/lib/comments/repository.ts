@@ -47,7 +47,7 @@ export type TorrentVoteRow = TorrentVoteType;
  */
 export interface CommentInsert {
   torrent_id: string;
-  user_id: string;
+  profile_id: string;
   content: string;
   parent_id: string | null;
 }
@@ -73,17 +73,17 @@ export interface CommentsRepository {
   getCommentCount(torrentId: string): Promise<number>;
 
   // Comment vote operations
-  getCommentVote(commentId: string, userId: string): Promise<CommentVoteRow | null>;
-  upsertCommentVote(commentId: string, userId: string, voteValue: VoteValue): Promise<CommentVoteRow>;
-  deleteCommentVote(commentId: string, userId: string): Promise<void>;
-  getUserCommentVotes(torrentId: string, userId: string): Promise<CommentVoteRow[]>;
+  getCommentVote(commentId: string, profileId: string): Promise<CommentVoteRow | null>;
+  upsertCommentVote(commentId: string, profileId: string, voteValue: VoteValue): Promise<CommentVoteRow>;
+  deleteCommentVote(commentId: string, profileId: string): Promise<void>;
+  getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVoteRow[]>;
 
   // Torrent vote operations
-  getTorrentVote(torrentId: string, userId: string): Promise<TorrentVoteRow | null>;
-  upsertTorrentVote(torrentId: string, userId: string, voteValue: VoteValue): Promise<TorrentVoteRow>;
-  deleteTorrentVote(torrentId: string, userId: string): Promise<void>;
+  getTorrentVote(torrentId: string, profileId: string): Promise<TorrentVoteRow | null>;
+  upsertTorrentVote(torrentId: string, profileId: string, voteValue: VoteValue): Promise<TorrentVoteRow>;
+  deleteTorrentVote(torrentId: string, profileId: string): Promise<void>;
   getTorrentVoteCounts(torrentId: string): Promise<VoteCounts>;
-  getUserTorrentVote(torrentId: string, userId: string): Promise<TorrentVoteRow | null>;
+  getUserTorrentVote(torrentId: string, profileId: string): Promise<TorrentVoteRow | null>;
 }
 
 // ============================================================================
@@ -158,10 +158,10 @@ export function createCommentsRepository(
         .from('bt_torrent_comments')
         .insert({
           torrent_id: data.torrent_id,
-          user_id: data.user_id,
+          profile_id: data.profile_id,
           content: data.content,
           parent_id: data.parent_id,
-        })
+        } as any)
         .select()
         .single();
 
@@ -224,12 +224,12 @@ export function createCommentsRepository(
     /**
      * Get a user's vote on a comment
      */
-    async getCommentVote(commentId: string, userId: string): Promise<CommentVoteRow | null> {
+    async getCommentVote(commentId: string, profileId: string): Promise<CommentVoteRow | null> {
       const { data, error } = await client
         .from('bt_comment_votes')
         .select('*')
         .eq('comment_id', commentId)
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .single();
 
       if (error) {
@@ -247,7 +247,7 @@ export function createCommentsRepository(
      */
     async upsertCommentVote(
       commentId: string,
-      userId: string,
+      profileId: string,
       voteValue: VoteValue
     ): Promise<CommentVoteRow> {
       const { data, error } = await client
@@ -255,11 +255,11 @@ export function createCommentsRepository(
         .upsert(
           {
             comment_id: commentId,
-            user_id: userId,
+            profile_id: profileId,
             vote_value: voteValue,
             updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'comment_id,user_id' }
+          } as any,
+          { onConflict: 'comment_id,profile_id' }
         )
         .select()
         .single();
@@ -274,12 +274,12 @@ export function createCommentsRepository(
     /**
      * Delete a comment vote
      */
-    async deleteCommentVote(commentId: string, userId: string): Promise<void> {
+    async deleteCommentVote(commentId: string, profileId: string): Promise<void> {
       const { error } = await client
         .from('bt_comment_votes')
         .delete()
         .eq('comment_id', commentId)
-        .eq('user_id', userId);
+        .eq('profile_id', profileId);
 
       if (error) {
         throw new Error(error.message);
@@ -289,7 +289,7 @@ export function createCommentsRepository(
     /**
      * Get all user votes for comments on a torrent
      */
-    async getUserCommentVotes(torrentId: string, userId: string): Promise<CommentVoteRow[]> {
+    async getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVoteRow[]> {
       // First get comment IDs for this torrent
       const { data: comments, error: commentsError } = await client
         .from('bt_torrent_comments')
@@ -310,7 +310,7 @@ export function createCommentsRepository(
       const { data: votes, error: votesError } = await client
         .from('bt_comment_votes')
         .select('*')
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .in('comment_id', commentIds);
 
       if (votesError) {
@@ -323,12 +323,12 @@ export function createCommentsRepository(
     /**
      * Get a user's vote on a torrent
      */
-    async getTorrentVote(torrentId: string, userId: string): Promise<TorrentVoteRow | null> {
+    async getTorrentVote(torrentId: string, profileId: string): Promise<TorrentVoteRow | null> {
       const { data, error } = await client
         .from('bt_torrent_votes')
         .select('*')
         .eq('torrent_id', torrentId)
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .single();
 
       if (error) {
@@ -346,7 +346,7 @@ export function createCommentsRepository(
      */
     async upsertTorrentVote(
       torrentId: string,
-      userId: string,
+      profileId: string,
       voteValue: VoteValue
     ): Promise<TorrentVoteRow> {
       const { data, error } = await client
@@ -354,11 +354,11 @@ export function createCommentsRepository(
         .upsert(
           {
             torrent_id: torrentId,
-            user_id: userId,
+            profile_id: profileId,
             vote_value: voteValue,
             updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'torrent_id,user_id' }
+          } as any,
+          { onConflict: 'torrent_id,profile_id' }
         )
         .select()
         .single();
@@ -373,12 +373,12 @@ export function createCommentsRepository(
     /**
      * Delete a torrent vote
      */
-    async deleteTorrentVote(torrentId: string, userId: string): Promise<void> {
+    async deleteTorrentVote(torrentId: string, profileId: string): Promise<void> {
       const { error } = await client
         .from('bt_torrent_votes')
         .delete()
         .eq('torrent_id', torrentId)
-        .eq('user_id', userId);
+        .eq('profile_id', profileId);
 
       if (error) {
         throw new Error(error.message);
@@ -411,8 +411,8 @@ export function createCommentsRepository(
     /**
      * Get user's vote on a torrent
      */
-    async getUserTorrentVote(torrentId: string, userId: string): Promise<TorrentVoteRow | null> {
-      return this.getTorrentVote(torrentId, userId);
+    async getUserTorrentVote(torrentId: string, profileId: string): Promise<TorrentVoteRow | null> {
+      return this.getTorrentVote(torrentId, profileId);
     },
   };
 }

@@ -26,6 +26,12 @@ const MAX_PROCESS_RUNTIME_MS = 4 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
+ * Maximum concurrent FFmpeg processes allowed
+ * Matches server core count to avoid CPU/memory exhaustion
+ */
+const MAX_CONCURRENT_FFMPEG = 8;
+
+/**
  * Tracked FFmpeg process info
  */
 interface TrackedProcess {
@@ -64,6 +70,16 @@ class FFmpegProcessManager {
     process: ChildProcess,
     context: TrackedProcess['context'] = {}
   ): string {
+    if (this.processes.size >= MAX_CONCURRENT_FFMPEG) {
+      logger.warn('Max concurrent FFmpeg processes reached, killing new process', {
+        activeCount: this.processes.size,
+        max: MAX_CONCURRENT_FFMPEG,
+        context,
+      });
+      try { process.kill('SIGTERM'); } catch { /* already dead */ }
+      throw new Error(`Maximum concurrent FFmpeg processes (${MAX_CONCURRENT_FFMPEG}) reached`);
+    }
+
     const id = `ffmpeg-${++this.processCounter}-${Date.now()}`;
     
     // Set up automatic kill timeout

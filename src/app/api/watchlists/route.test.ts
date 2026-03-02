@@ -25,6 +25,11 @@ vi.mock('@/lib/watchlist', () => ({
     createWatchlist: mockCreateWatchlist,
   })),
 }));
+// Mock profiles
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 
 import { getAuthenticatedUser } from '@/lib/auth';
 
@@ -80,7 +85,7 @@ describe('Watchlist API - /api/watchlists', () => {
       const data = await response.json();
       expect(data.watchlists).toHaveLength(1);
       expect(data.watchlists[0].name).toBe('My Watchlist');
-      expect(mockGetOrCreateDefaultWatchlist).toHaveBeenCalledWith('user-123');
+      expect(mockGetOrCreateDefaultWatchlist).toHaveBeenCalledWith('profile-123');
     });
 
     it('should return 500 on repository error', async () => {
@@ -173,7 +178,7 @@ describe('Watchlist API - /api/watchlists', () => {
       expect(response.status).toBe(201);
       const data = await response.json();
       expect(data.watchlist.name).toBe('Action Movies');
-      expect(mockCreateWatchlist).toHaveBeenCalledWith('user-123', 'Action Movies');
+      expect(mockCreateWatchlist).toHaveBeenCalledWith('profile-123', 'Action Movies');
     });
 
     it('should return 500 on repository error', async () => {

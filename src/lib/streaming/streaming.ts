@@ -18,7 +18,7 @@ import nodeDataChannel from 'node-datachannel/polyfill';
 import type { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
-import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { validateMagnetUri, extractInfohash } from '../magnet';
 import { getMediaCategory, getMimeType } from '../utils';
@@ -262,14 +262,50 @@ const DEFAULT_CLEANUP_DELAY = 120000;
 
 /**
  * Memory pressure thresholds (in bytes)
- * When RSS exceeds these thresholds, take action to prevent OOM
- * Tuned for VPS with 16GB RAM
+ * When RSS exceeds these thresholds, take action to prevent OOM.
+ *
+ * We derive thresholds from cgroup/systemd memory limits when available,
+ * so app-level cleanup triggers BEFORE systemd hard limits.
  */
-const MEMORY_WARNING_THRESHOLD = 4 * 1024 * 1024 * 1024; // 4GB - start aggressive cleanup
-const MEMORY_CRITICAL_THRESHOLD = 6 * 1024 * 1024 * 1024; // 6GB - emergency cleanup
-const MEMORY_SEVERE_THRESHOLD = 8 * 1024 * 1024 * 1024; // 8GB - kill oldest streams
-const MEMORY_CHECK_INTERVAL_MS = 10000; // Check every 10 seconds
-const TORRENT_MIN_AGE_MS = 4 * 60 * 60 * 1000; // Don't cleanup torrents younger than 4 hours
+function readCgroupMemoryLimit(path: string): number | null {
+  try {
+    const raw = readFileSync(path, 'utf8').trim();
+    if (!raw || raw === 'max') return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function getMemoryThresholds(): { warning: number; critical: number; severe: number } {
+  // Fallbacks if cgroup limits are unavailable
+  const fallbackWarning = 5 * 1024 * 1024 * 1024;
+  const fallbackCritical = 6.5 * 1024 * 1024 * 1024;
+  const fallbackSevere = 7.5 * 1024 * 1024 * 1024;
+
+  const high = readCgroupMemoryLimit('/sys/fs/cgroup/memory.high');
+  const max = readCgroupMemoryLimit('/sys/fs/cgroup/memory.max');
+
+  const candidates = [high, max].filter((v): v is number => v !== null);
+  if (candidates.length === 0) {
+    return { warning: fallbackWarning, critical: fallbackCritical, severe: fallbackSevere };
+  }
+
+  const budget = Math.min(...candidates);
+
+  // Trigger app cleanup ahead of systemd limits.
+  const warning = Math.floor(budget * 0.82);
+  const critical = Math.floor(budget * 0.90);
+  const severe = Math.floor(budget * 0.96);
+
+  return { warning, critical, severe };
+}
+
+const { warning: MEMORY_WARNING_THRESHOLD, critical: MEMORY_CRITICAL_THRESHOLD, severe: MEMORY_SEVERE_THRESHOLD } = getMemoryThresholds();
+const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+const TORRENT_MIN_AGE_MS = 30 * 60 * 1000; // Don't cleanup torrents younger than 30 minutes
+const ORPHAN_TORRENT_MAX_AGE_MS = 2 * 60 * 60 * 1000; // Auto-cleanup torrents with 0 watchers after 2 hours
 
 /**
  * Watcher tracking for a torrent
@@ -285,7 +321,7 @@ interface TorrentWatchers {
  * Service for streaming media files from torrents
  */
 export class StreamingService {
-  private client: WebTorrent.Instance;
+  private client: WebTorrent.Instance | null = null;
   private maxConcurrentStreams: number;
   private streamTimeout: number;
   private torrentCleanupDelay: number;
@@ -298,143 +334,28 @@ export class StreamingService {
   private dhtStatusTimeout: ReturnType<typeof setTimeout> | null = null;
   private dhtEventHandlers: { event: string; handler: (...args: unknown[]) => void }[] = [];
   private memoryCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private idleShutdownTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly IDLE_SHUTDOWN_MS = 5 * 60 * 1000; // Destroy client after 5 min idle
+  private options: StreamingServiceOptions;
 
   constructor(options: StreamingServiceOptions = {}) {
     // Get and ensure WebTorrent download directory exists
     this.downloadPath = getWebTorrentDir();
     ensureDir(this.downloadPath);
+    this.options = options;
 
-    logger.info('Initializing StreamingService', {
-      maxConcurrentStreams: options.maxConcurrentStreams ?? 10,
-      streamTimeout: options.streamTimeout ?? 120000,
-      torrentCleanupDelay: options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY,
-      downloadPath: this.downloadPath,
-    });
-    
-    // Configure WebTorrent with DHT bootstrap nodes for trackerless operation
-    // Note: DHT requires UDP which may be blocked on cloud platforms
-    //
-    // CRITICAL: Configure WebSocket trackers for hybrid P2P streaming
-    // The server MUST announce to the same WebSocket trackers that browser clients use
-    // This enables browsers to discover the server as a WebRTC peer
-    // Without this, browsers will only see other browser peers, not the server
-    this.client = new WebTorrent({
-      dht: {
-        bootstrap: DHT_BOOTSTRAP_NODES,
-        // Reduce concurrency to limit parallel DHT queries and memory usage
-        concurrency: 8,
-        // Cap the routing table rotations (LRU of k-bucket snapshots)
-        // Lower = fewer stale routing tables kept in memory
-        maxTables: 100,
-        // Cap stored values (BEP-44 mutable/immutable values)
-        maxValues: 500,
-        // Reduce k (nodes per bucket) from default 20 to 8
-        // Max nodes ≈ 160 buckets * 8 = 1,280 (vs 3,200+ with k=20)
-        // Still plenty for peer discovery, much less memory
-        k: 8,
-        // Limit max peers tracked per infohash
-        maxPeers: 3000,
-      },
-      // Configure tracker with WebSocket trackers for browser peer discovery
-      // This is CRITICAL for hybrid P2P streaming - the server must announce to
-      // the same WebSocket trackers that browser WebTorrent clients use
-      tracker: {
-        // Announce to WebSocket trackers so browsers can discover this server
-        announce: WEBSOCKET_TRACKERS,
-      },
-      lsd: true, // Local Service Discovery
-      webSeeds: true,
-      // Limit max connections per torrent to control memory/CPU
-      maxConns: 55, // Increased from 20 — more connections = faster streaming start
-      // Use configured download path instead of /tmp/webtorrent
-      path: this.downloadPath,
-      // Download queue settings for better performance
-      downloadLimit: 3 * 1024 * 1024, // 3MB/s limit to prevent memory bloat (was unlimited)
-      uploadLimit: 512 * 1024, // 512 KB/s upload limit to reduce CPU/bandwidth
-    } as WebTorrent.Options);
-    
-    // Increase max listeners to prevent EventEmitter warnings with many concurrent streams
-    // The default is 10, but with concurrent torrents/streams we can exceed this
-    this.client.setMaxListeners(50);
-    
-    logger.info('WebTorrent client configured with WebSocket trackers for hybrid P2P', {
-      websocketTrackers: WEBSOCKET_TRACKERS,
-      note: 'Server will announce to these trackers so browsers can discover it as a WebRTC peer',
-    });
-    
     this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
     this.streamTimeout = options.streamTimeout ?? 120000;
     this.torrentCleanupDelay = options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY;
     this.activeStreams = new Map();
     this.torrentWatchers = new Map();
-    
-    // Log client events
-    this.client.on('error', (err) => {
-      logger.error('WebTorrent client error', err);
-    });
-    
-    // Log DHT events for debugging and track DHT state
-    // Store handlers so they can be removed in destroy()
-    const dht = (this.client as unknown as { dht?: { on: (event: string, cb: (...args: unknown[]) => void) => void; off?: (event: string, cb: (...args: unknown[]) => void) => void; removeListener?: (event: string, cb: (...args: unknown[]) => void) => void; toJSON?: () => { nodes: unknown[] } } }).dht;
-    if (dht) {
-      const readyHandler = (): void => {
-        this.dhtReady = true;
-        // Note: "ready" just means DHT is initialized, NOT that it has connected to nodes
-        // Check dhtNodeCount to see if UDP is actually working
-        logger.info('DHT initialized (waiting for nodes via UDP)', {
-          note: 'If dhtNodeCount stays at 0, UDP is likely blocked on this platform',
-        });
-      };
-      const peerHandler = (peer: unknown, infoHash: unknown): void => {
-        logger.info('DHT found peer via UDP!', { peer, infoHash });
-      };
-      const nodeHandler = (): void => {
-        this.dhtNodeCount++;
-        // Log first node connection - this confirms UDP is working
-        if (this.dhtNodeCount === 1) {
-          logger.info('DHT connected to first node - UDP is working!', { nodes: this.dhtNodeCount });
-        } else if (this.dhtNodeCount % 50 === 0) {
-          logger.info('DHT node count', { nodes: this.dhtNodeCount });
-        }
-      };
-      const errorHandler = (err: unknown): void => {
-        logger.warn('DHT error - UDP may be blocked on this platform', {
-          error: String(err),
-          hint: 'Check firewall settings for outbound UDP on ports 6881, 6969',
-        });
-      };
 
-      dht.on('ready', readyHandler);
-      dht.on('peer', peerHandler);
-      dht.on('node', nodeHandler);
-      dht.on('error', errorHandler);
-
-      // Store handlers for cleanup
-      this.dhtEventHandlers = [
-        { event: 'ready', handler: readyHandler },
-        { event: 'peer', handler: peerHandler },
-        { event: 'node', handler: nodeHandler },
-        { event: 'error', handler: errorHandler },
-      ];
-
-      // Check DHT status after 10 seconds (store timeout for cleanup)
-      this.dhtStatusTimeout = setTimeout(() => {
-        if (this.dhtNodeCount === 0) {
-          logger.warn('DHT has 0 nodes after 10 seconds - UDP is likely blocked', {
-            dhtReady: this.dhtReady,
-            dhtNodeCount: this.dhtNodeCount,
-            hint: 'Enable outbound UDP in firewall settings, or use HTTP trackers only',
-          });
-        } else {
-          logger.info('DHT is working', { dhtNodeCount: this.dhtNodeCount });
-        }
-      }, 10000);
-    } else {
-      logger.warn('DHT not available on WebTorrent client');
-    }
-    
-    logger.debug('WebTorrent client created for streaming with DHT bootstrap nodes', {
-      bootstrapNodes: DHT_BOOTSTRAP_NODES.length,
+    logger.info('StreamingService initialized (lazy mode — WebTorrent client created on first use)', {
+      maxConcurrentStreams: this.maxConcurrentStreams,
+      streamTimeout: this.streamTimeout,
+      torrentCleanupDelay: this.torrentCleanupDelay,
+      downloadPath: this.downloadPath,
+      idleShutdownMs: StreamingService.IDLE_SHUTDOWN_MS,
     });
 
     // Start memory pressure monitoring
@@ -463,6 +384,231 @@ export class StreamingService {
   }
 
   /**
+   * Lazily create the WebTorrent client on first use.
+   * Returns the existing client if already running.
+   */
+  private ensureClient(): WebTorrent.Instance {
+    if (this.client) {
+      // Cancel any pending idle shutdown — we're active again
+      if (this.idleShutdownTimer) {
+        clearTimeout(this.idleShutdownTimer);
+        this.idleShutdownTimer = null;
+      }
+      return this.client;
+    }
+
+    logger.info('Creating WebTorrent client on demand');
+
+    this.client = new WebTorrent({
+      dht: {
+        bootstrap: DHT_BOOTSTRAP_NODES,
+        concurrency: 8,
+        maxTables: 10,
+        maxValues: 200,
+        k: 4,
+        maxPeers: 500,
+      },
+      tracker: {
+        announce: WEBSOCKET_TRACKERS,
+      },
+      lsd: true,
+      webSeeds: true,
+      maxConns: 30,
+      path: this.downloadPath,
+      downloadLimit: 3 * 1024 * 1024,
+      uploadLimit: 512 * 1024,
+    } as WebTorrent.Options);
+
+    this.client.setMaxListeners(50);
+
+    this.client.on('error', (err) => {
+      logger.error('WebTorrent client error', err);
+    });
+
+    // DHT event handlers
+    this.dhtReady = false;
+    this.dhtNodeCount = 0;
+    this.dhtEventHandlers = [];
+
+    const dht = (this.client as unknown as { dht?: { on: (event: string, cb: (...args: unknown[]) => void) => void } }).dht;
+    if (dht) {
+      const readyHandler = (): void => {
+        this.dhtReady = true;
+        logger.info('DHT initialized');
+      };
+      const nodeHandler = (): void => {
+        this.dhtNodeCount++;
+        if (this.dhtNodeCount === 1) {
+          logger.info('DHT connected to first node — UDP working');
+        } else if (this.dhtNodeCount % 100 === 0) {
+          logger.info('DHT node count', { nodes: this.dhtNodeCount });
+        }
+      };
+      const errorHandler = (err: unknown): void => {
+        logger.warn('DHT error', { error: String(err) });
+      };
+
+      dht.on('ready', readyHandler);
+      dht.on('node', nodeHandler);
+      dht.on('error', errorHandler);
+
+      this.dhtEventHandlers = [
+        { event: 'ready', handler: readyHandler },
+        { event: 'node', handler: nodeHandler },
+        { event: 'error', handler: errorHandler },
+      ];
+
+      this.dhtStatusTimeout = setTimeout(() => {
+        if (this.dhtNodeCount === 0) {
+          logger.warn('DHT has 0 nodes after 10s — UDP likely blocked');
+        }
+      }, 10000);
+    }
+
+    logger.info('WebTorrent client created', {
+      dhtBootstrapNodes: DHT_BOOTSTRAP_NODES.length,
+      websocketTrackers: WEBSOCKET_TRACKERS.length,
+    });
+
+    return this.client;
+  }
+
+  /**
+   * Check if the client is idle (no torrents, no streams, no watchers) and schedule shutdown.
+   * Called after any cleanup/release operation.
+   */
+  private scheduleIdleShutdown(): void {
+    if (!this.client) return;
+    if (this.idleShutdownTimer) return; // already scheduled
+
+    // Check if truly idle
+    const hasTorrents = this.client.torrents.length > 0;
+    const hasStreams = this.activeStreams.size > 0;
+    const hasWatchers = Array.from(this.torrentWatchers.values()).some(w => w.watchers.size > 0);
+
+    if (hasTorrents || hasStreams || hasWatchers) return;
+
+    logger.info('No active torrents/streams/watchers — scheduling client shutdown', {
+      delayMs: StreamingService.IDLE_SHUTDOWN_MS,
+    });
+
+    this.idleShutdownTimer = setTimeout(() => {
+      this.idleShutdownTimer = null;
+      this.shutdownIdleClient();
+    }, StreamingService.IDLE_SHUTDOWN_MS);
+
+    // Don't prevent process exit
+    if (this.idleShutdownTimer.unref) {
+      this.idleShutdownTimer.unref();
+    }
+  }
+
+  /**
+   * Destroy the WebTorrent client to free native memory (WebRTC/DHT buffers).
+   * The client will be re-created on the next stream request.
+   */
+  /**
+   * Force-destroy and recreate later on-demand.
+   * Safe only when there are no active streams.
+   */
+  private forceRecycleClient(reason: string): void {
+    if (!this.client) return;
+    if (this.activeStreams.size > 0) return;
+
+    const memBefore = process.memoryUsage();
+    logger.warn('Recycling WebTorrent client under memory pressure', {
+      reason,
+      rssMB: Math.round(memBefore.rss / 1024 / 1024),
+      externalMB: Math.round(memBefore.external / 1024 / 1024),
+      torrents: this.client.torrents.length,
+    });
+
+    if (this.idleShutdownTimer) {
+      clearTimeout(this.idleShutdownTimer);
+      this.idleShutdownTimer = null;
+    }
+
+    for (const torrent of [...this.client.torrents]) {
+      try {
+        (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+          { destroyStore: true },
+          () => {}
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    this.torrentWatchers.forEach((info) => {
+      if (info.cleanupTimer) clearTimeout(info.cleanupTimer);
+    });
+    this.torrentWatchers.clear();
+    this.torrentAddedAt.clear();
+
+    const client = this.client;
+    this.client = null;
+
+    client.destroy(() => {
+      if (global.gc) global.gc();
+      const memAfter = process.memoryUsage();
+      logger.warn('WebTorrent client recycled', {
+        reason,
+        rssMB: Math.round(memAfter.rss / 1024 / 1024),
+        externalMB: Math.round(memAfter.external / 1024 / 1024),
+        freedMB: Math.round((memBefore.rss - memAfter.rss) / 1024 / 1024),
+      });
+    });
+  }
+
+  private shutdownIdleClient(): void {
+    if (!this.client) return;
+
+    // Double-check still idle
+    if (this.client.torrents.length > 0 || this.activeStreams.size > 0) {
+      logger.info('Client no longer idle — aborting shutdown');
+      return;
+    }
+
+    const memBefore = process.memoryUsage();
+    logger.info('Shutting down idle WebTorrent client to free native memory', {
+      rssMB: Math.round(memBefore.rss / 1024 / 1024),
+      externalMB: Math.round(memBefore.external / 1024 / 1024),
+      dhtNodes: this.dhtNodeCount,
+    });
+
+    // Clean up DHT handlers
+    if (this.dhtStatusTimeout) {
+      clearTimeout(this.dhtStatusTimeout);
+      this.dhtStatusTimeout = null;
+    }
+    this.dhtEventHandlers = [];
+    this.dhtReady = false;
+    this.dhtNodeCount = 0;
+
+    const client = this.client;
+    this.client = null;
+
+    client.destroy(() => {
+      // Force GC if available
+      if (global.gc) global.gc();
+
+      const memAfter = process.memoryUsage();
+      logger.info('Idle WebTorrent client destroyed — native memory freed', {
+        rssMB: Math.round(memAfter.rss / 1024 / 1024),
+        externalMB: Math.round(memAfter.external / 1024 / 1024),
+        freedMB: Math.round((memBefore.rss - memAfter.rss) / 1024 / 1024),
+      });
+    });
+  }
+
+  /**
+   * Whether the WebTorrent client is currently running.
+   */
+  get isClientActive(): boolean {
+    return this.client !== null;
+  }
+
+  /**
    * Clean up stale torrent download folders that are no longer associated with active torrents
    */
   private cleanupStaleTorrentData(): void {
@@ -475,7 +621,7 @@ export class StreamingService {
       for (const entry of entries) {
         const fullPath = join(this.downloadPath, entry);
         // If no active torrent matches this folder, remove it
-        const hasActiveTorrent = this.client.torrents.some(
+        const hasActiveTorrent = (this.client?.torrents ?? []).some(
           (t: { name: string; infoHash: string }) => entry === t.name || entry === t.infoHash
         );
         if (!hasActiveTorrent) {
@@ -496,6 +642,56 @@ export class StreamingService {
   }
 
   /**
+   * Auto-cleanup torrents that have 0 watchers and have been loaded for too long.
+   * This catches leaked torrents where neither releaseTorrent nor SSE disconnect cleaned up.
+   */
+  private cleanupOrphanTorrents(): void {
+    const now = Date.now();
+    for (const torrent of (this.client?.torrents ?? [])) {
+      const infohash = torrent.infoHash;
+      const addedAt = this.torrentAddedAt.get(infohash);
+      if (!addedAt) continue;
+      
+      const age = now - addedAt;
+      if (age < ORPHAN_TORRENT_MAX_AGE_MS) continue;
+      
+      const watcherInfo = this.torrentWatchers.get(infohash);
+      const watcherCount = watcherInfo?.watchers.size ?? 0;
+      if (watcherCount > 0) continue;
+      
+      // Check for active streams/transcodes
+      const hasActiveStreams = Array.from(this.activeStreams.values()).some(s => s.infohash === infohash);
+      if (hasActiveStreams) continue;
+      
+      let hasActiveTranscode = false;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getFileTranscodingService } = require('../file-transcoding');
+        hasActiveTranscode = getFileTranscodingService().hasActiveTranscode(infohash);
+      } catch { /* */ }
+      if (hasActiveTranscode) continue;
+      
+      logger.warn('Cleaning up orphan torrent (no watchers, exceeded max age)', {
+        infohash,
+        ageMinutes: Math.round(age / 60000),
+        torrentName: torrent.name,
+      });
+      
+      const torrentName = torrent.name;
+      if (watcherInfo?.cleanupTimer) clearTimeout(watcherInfo.cleanupTimer);
+      this.torrentWatchers.delete(infohash);
+      this.torrentAddedAt.delete(infohash);
+      
+      (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+        { destroyStore: true },
+        () => {
+          this.deleteTorrentFolder(torrentName, infohash).catch(() => {});
+        }
+      );
+    }
+  }
+
+  /**
    * Check current memory usage and trigger cleanup if needed
    */
   private checkMemoryPressure(): void {
@@ -504,13 +700,26 @@ export class StreamingService {
 
     // Periodically clean stale torrent data regardless of memory pressure
     this.cleanupStaleTorrentData();
+    
+    // Auto-cleanup orphan torrents (loaded but 0 watchers for too long)
+    this.cleanupOrphanTorrents();
+    
+    // Check if client can be shut down to free native memory
+    this.scheduleIdleShutdown();
+
+    // If we're under pressure and nobody is actively streaming, recycle the
+    // WebTorrent client immediately to free native buffers/sockets.
+    if (memUsage.rss >= MEMORY_WARNING_THRESHOLD && this.activeStreams.size === 0) {
+      this.forceRecycleClient('memory-pressure-idle');
+      return;
+    }
 
     if (memUsage.rss >= MEMORY_SEVERE_THRESHOLD) {
       // SEVERE: Kill oldest streams to free memory immediately
       logger.error('SEVERE memory pressure - killing oldest streams', {
         rssMB,
         heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
-        activeTorrents: this.client.torrents.length,
+        activeTorrents: (this.client?.torrents ?? []).length,
         activeStreams: this.activeStreams.size,
       });
       this.killOldestStreams(Math.max(3, Math.floor(this.activeStreams.size / 2)));
@@ -519,7 +728,7 @@ export class StreamingService {
       logger.error('CRITICAL memory pressure - triggering emergency cleanup', {
         rssMB,
         heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
-        activeTorrents: this.client.torrents.length,
+        activeTorrents: (this.client?.torrents ?? []).length,
         activeStreams: this.activeStreams.size,
       });
       this.emergencyCleanup();
@@ -527,7 +736,7 @@ export class StreamingService {
       logger.warn('High memory pressure - triggering aggressive cleanup', {
         rssMB,
         heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
-        activeTorrents: this.client.torrents.length,
+        activeTorrents: (this.client?.torrents ?? []).length,
         activeStreams: this.activeStreams.size,
       });
       this.aggressiveCleanup();
@@ -538,31 +747,12 @@ export class StreamingService {
    * Kill the oldest N streams to free memory during severe pressure
    */
   private killOldestStreams(count: number): void {
-    const streams = Array.from(this.activeStreams.entries())
-      .sort((a, b) => a[1].createdAt.getTime() - b[1].createdAt.getTime());
-    
-    const toKill = streams.slice(0, count);
-    
-    for (const [streamId, stream] of toKill) {
-      logger.warn('Killing stream due to memory pressure', {
-        streamId,
-        infohash: stream.infohash,
-        ageSeconds: Math.round((Date.now() - stream.createdAt.getTime()) / 1000),
-      });
-      
-      // Clean up the stream - remove all listeners first to prevent memory leaks
-      this.activeStreams.delete(streamId);
-      
-      // Remove all event listeners before destroying
-      if (stream.stream) {
-        stream.stream.removeAllListeners();
-        stream.stream.destroy(new Error('Stream terminated due to memory pressure'));
-      }
-    }
-    
-    logger.warn('Killed streams for memory relief', {
-      killed: toKill.length,
-      remaining: this.activeStreams.size,
+    // NEVER kill active streams. Users are watching these — killing them mid-playback
+    // is a terrible UX. If memory is truly critical, systemd's MemoryMax will handle it.
+    // Emergency/aggressive cleanup already removes idle torrents without active watchers.
+    logger.warn('killOldestStreams called but SKIPPING — active streams are protected', {
+      requestedKill: count,
+      activeStreams: this.activeStreams.size,
     });
   }
 
@@ -578,7 +768,7 @@ export class StreamingService {
     // But skip torrents younger than TORRENT_MIN_AGE_MS to protect active downloads/transcodes
     for (const [infohash, watcherInfo] of this.torrentWatchers) {
       if (watcherInfo.watchers.size === 0) {
-        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === infohash);
         
         // Skip young torrents — they may be actively downloading or transcoding
         const addedAt = this.torrentAddedAt.get(infohash) ?? 0;
@@ -617,7 +807,7 @@ export class StreamingService {
    */
   private emergencyCleanup(): void {
     let cleaned = 0;
-    let skippedYoung = 0;
+    const skippedYoung = 0;
     const now = Date.now();
     const activeInfohashes = new Set<string>();
 
@@ -627,7 +817,7 @@ export class StreamingService {
     }
 
     // In emergency, remove ALL torrents without active streams (ignore min age)
-    const torrentsToRemove = this.client.torrents.filter(t => {
+    const torrentsToRemove = (this.client?.torrents ?? []).filter(t => {
       if (activeInfohashes.has(t.infoHash)) return false;
       // Also check for active transcodes
       let hasTranscode = false;
@@ -1041,7 +1231,7 @@ export class StreamingService {
    * @returns true if file was selected, false if torrent/file not found
    */
   selectFileForDownload(infohash: string, fileIndex: number): boolean {
-    const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+    const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === infohash);
     if (!torrent || !torrent.ready) {
       return false;
     }
@@ -1074,7 +1264,8 @@ export class StreamingService {
     }
 
     // Check if torrent already exists
-    const existing = this.client.torrents.find(t => t.infoHash === infohash);
+    const client = this.ensureClient();
+    const existing = client.torrents.find(t => t.infoHash === infohash);
     if (existing) {
       logger.debug('Torrent already exists in client', { infohash });
       return;
@@ -1090,7 +1281,7 @@ export class StreamingService {
       try {
         // Pass path option to ensure downloads go to configured directory
         // Type assertion needed because WebTorrent types are incomplete
-        const torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
+        const torrent = client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
         this.torrentAddedAt.set(torrent.infoHash, Date.now());
 
         // Use named handlers so they can be removed when torrent is destroyed
@@ -1163,13 +1354,13 @@ export class StreamingService {
    * Returns null if torrent not loaded
    */
   getTorrentFilePath(infohash: string, fileIndex: number): string | null {
-    const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+    const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === infohash);
     if (!torrent || !torrent.ready || fileIndex >= torrent.files.length) return null;
     return torrent.files[fileIndex].path;
   }
 
   getTorrentStats(infohash: string, fileIndex?: number, selectFile = false): TorrentStats | null {
-    const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+    const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === infohash);
     if (!torrent) {
       return null;
     }
@@ -1223,7 +1414,7 @@ export class StreamingService {
    * @returns Array of TorrentStats for all loaded torrents
    */
   getAllTorrentStats(): TorrentStats[] {
-    return this.client.torrents.map(torrent => ({
+    return (this.client?.torrents ?? []).map(torrent => ({
       infohash: torrent.infoHash,
       numPeers: torrent.numPeers,
       progress: torrent.progress,
@@ -1306,9 +1497,13 @@ export class StreamingService {
       remainingWatchers: watcherInfo.watchers.size,
     });
     
-    // SSE disconnect does NOT trigger cleanup anymore.
-    // Cleanup is triggered only by explicit releaseTorrent() call
-    // (when user closes the player modal).
+    // If this was the last watcher, schedule cleanup as a fallback.
+    // The explicit releaseTorrent() call (user closes player) fires faster,
+    // but this catches cases where the tab closes without firing release
+    // (e.g., browser crash, mobile tab killed, navigate away without beacon).
+    if (watcherInfo.watchers.size === 0) {
+      this.scheduleCleanup(infohash);
+    }
   }
 
   /**
@@ -1332,7 +1527,7 @@ export class StreamingService {
     totalWatchers: number;
     watchersPerTorrent: { infohash: string; watchers: number; hasCleanupTimer: boolean }[];
     dht: { ready: boolean; nodeCount: number };
-    torrents: { infohash: string; name: string; numPeers: number; progress: number; downloadSpeed: number }[];
+    torrents: { infohash: string; name: string; numPeers: number; progress: number; downloadSpeed: number; downloaded: number; length: number }[];
   } {
     const watchersPerTorrent: { infohash: string; watchers: number; hasCleanupTimer: boolean }[] = [];
     let totalWatchers = 0;
@@ -1347,17 +1542,19 @@ export class StreamingService {
       });
     }
 
-    const torrents = this.client.torrents.map(t => ({
+    const torrents = (this.client?.torrents ?? []).map(t => ({
       infohash: t.infoHash,
       name: t.name || 'Unknown',
       numPeers: t.numPeers,
       progress: t.progress,
       downloadSpeed: t.downloadSpeed,
+      downloaded: t.downloaded,
+      length: t.length,
     }));
 
     return {
       activeStreams: this.activeStreams.size,
-      activeTorrents: this.client.torrents.length,
+      activeTorrents: (this.client?.torrents ?? []).length,
       totalWatchers,
       watchersPerTorrent,
       dht: {
@@ -1417,6 +1614,16 @@ export class StreamingService {
     }
     
     const timer = setTimeout(() => {
+      // Check if other watchers (other users) are still connected
+      const currentWatcherInfo = this.torrentWatchers.get(infohash);
+      if (currentWatcherInfo && currentWatcherInfo.watchers.size > 0) {
+        logger.info('Release deferred - other watchers still connected', {
+          infohash,
+          activeWatchers: currentWatcherInfo.watchers.size,
+        });
+        return; // Don't destroy — other users are still watching
+      }
+
       // Check for active streams/transcodes before deleting
       const hasActiveStreams = Array.from(this.activeStreams.values()).some(s => s.infohash === infohash);
       let hasActiveTranscode = false;
@@ -1432,7 +1639,7 @@ export class StreamingService {
         return;
       }
       
-      const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+      const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === infohash);
       const torrentName = torrent?.name;
       
       if (torrent) {
@@ -1521,7 +1728,7 @@ export class StreamingService {
         // Remove the torrent from WebTorrent client AND delete downloaded files
         // destroyStore: true ensures the downloaded data is deleted from disk
         // This is critical for disk space management and DMCA compliance
-        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === infohash);
         const torrentName = torrent?.name;
         
         if (torrent) {
@@ -1609,13 +1816,19 @@ export class StreamingService {
       this.activeStreams.delete(streamId);
     }
 
-    // Destroy WebTorrent client
-    return new Promise((resolve) => {
-      this.client.destroy(() => {
-        logger.debug('WebTorrent client destroyed');
-        resolve();
+    // Destroy WebTorrent client if active
+    if (this.client) {
+      const client = this.client;
+      this.client = null;
+      return new Promise<void>((resolve) => {
+        client.destroy(() => {
+          logger.debug('WebTorrent client destroyed');
+          resolve();
+        });
       });
-    });
+    }
+    
+    return Promise.resolve();
   }
 
   /**
@@ -1640,7 +1853,7 @@ export class StreamingService {
     return new Promise((resolve) => {
       try {
         // Check if torrent exists in the client's torrent list
-        const torrent = this.client.torrents.find(t => t.infoHash === infohash);
+        const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === infohash);
         if (!torrent) {
           logger.debug('Torrent not in client list, nothing to remove', { infohash });
           // Still try to delete the folder in case it exists
@@ -1764,7 +1977,8 @@ export class StreamingService {
     const startTime = Date.now();
 
     // Check if torrent already exists in the client's torrent list
-    const existingInList = this.client.torrents.find(t => t.infoHash === infohash);
+    const client = this.ensureClient();
+    const existingInList = client.torrents.find(t => t.infoHash === infohash);
     if (existingInList) {
       // Validate that the torrent object is valid (has expected methods)
       if (this.isValidTorrent(existingInList)) {
@@ -1889,7 +2103,7 @@ export class StreamingService {
       }, this.streamTimeout);
 
       // Pass path option to ensure downloads go to configured directory
-      torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions, (t) => {
+      torrent = client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions, (t) => {
         this.torrentAddedAt.set(t.infoHash, Date.now());
         logger.debug('Torrent add callback fired', {
           infohash: t.infoHash,

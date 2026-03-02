@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getPodcastService } from '@/lib/podcasts';
+import { getActiveProfileId } from '@/lib/profiles';
 import type { UserPodcastSubscription } from '@/lib/podcasts/repository';
 
 /**
@@ -201,18 +202,19 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ results });
   }
 
-  // Otherwise, get user's subscriptions (auth required)
-  const userId = await getUserIdFromRequest(request);
+  // Otherwise, get user's subscriptions (auth required, profile-scoped)
+  const profileId = await getActiveProfileId();
   
-  if (!userId) {
+  if (!profileId) {
     return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
+      { error: 'No profile selected' },
+      { status: 400 }
     );
   }
 
   try {
-    const subscriptions = await service.getUserSubscriptions(userId);
+    // Subscriptions are per-profile
+    const subscriptions = await service.getUserSubscriptions(profileId);
     // Transform snake_case to camelCase for frontend consumption
     const transformedSubscriptions = subscriptions.map(transformSubscription);
     return NextResponse.json({ subscriptions: transformedSubscriptions });
@@ -241,12 +243,12 @@ export async function GET(request: NextRequest): Promise<Response> {
  * - 404: Could not parse podcast feed
  */
 export async function POST(request: NextRequest): Promise<Response> {
-  const userId = await getUserIdFromRequest(request);
+  const profileId = await getActiveProfileId();
   
-  if (!userId) {
+  if (!profileId) {
     return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
+      { error: 'No profile selected' },
+      { status: 400 }
     );
   }
 
@@ -294,7 +296,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const service = getPodcastService();
-    const subscription = await service.subscribeToPodcast(userId, feedUrl, notifyNewEpisodes);
+    const subscription = await service.subscribeToPodcast(profileId, feedUrl, notifyNewEpisodes);
 
     if (!subscription) {
       return NextResponse.json(
@@ -327,12 +329,12 @@ export async function POST(request: NextRequest): Promise<Response> {
  * - 401: Authentication required
  */
 export async function DELETE(request: NextRequest): Promise<Response> {
-  const userId = await getUserIdFromRequest(request);
+  const profileId = await getActiveProfileId();
   
-  if (!userId) {
+  if (!profileId) {
     return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
+      { error: 'No profile selected' },
+      { status: 400 }
     );
   }
 
@@ -348,7 +350,7 @@ export async function DELETE(request: NextRequest): Promise<Response> {
 
   try {
     const service = getPodcastService();
-    await service.unsubscribeFromPodcast(userId, podcastId);
+    await service.unsubscribeFromPodcast(profileId, podcastId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[Podcasts] Error unsubscribing from podcast:', error);

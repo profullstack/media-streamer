@@ -22,6 +22,11 @@ vi.mock('@/lib/comments', () => ({
 vi.mock('@/lib/auth', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
+// Mock profiles
+vi.mock('@/lib/profiles/profile-utils', () => ({
+  getActiveProfileId: vi.fn().mockResolvedValue('profile-123'),
+}));
+
 
 import { getCommentsService } from '@/lib/comments';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -65,7 +70,7 @@ describe('Individual Comment API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.comment.content).toBe('Updated content');
-      expect(mockService.updateComment).toHaveBeenCalledWith('comment-123', 'user-456', 'Updated content');
+      expect(mockService.updateComment).toHaveBeenCalledWith('comment-123', 'profile-123', 'Updated content');
     });
 
     it('should return 401 when not authenticated', async () => {
@@ -167,7 +172,7 @@ describe('Individual Comment API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.success).toBe(true);
-      expect(mockService.deleteComment).toHaveBeenCalledWith('comment-123', 'user-456');
+      expect(mockService.deleteComment).toHaveBeenCalledWith('comment-123', 'profile-123');
     });
 
     it('should return 401 when not authenticated', async () => {

@@ -557,3 +557,51 @@ export async function getAuthenticatedUser(
     return null;
   }
 }
+
+/**
+ * Get current user with subscription information (for API routes that need subscription tier)
+ * 
+ * @returns User with subscription info or null if not authenticated
+ */
+export async function getCurrentUserWithSubscription(): Promise<{ 
+  id: string; 
+  email: string; 
+  subscription_tier: SubscriptionTier;
+  subscription_expired?: boolean;
+} | null> {
+  try {
+    const baseUser = await getCurrentUser();
+    if (!baseUser) {
+      return null;
+    }
+
+    // Get user subscription info
+    const supabase = createServerClient();
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('tier, status, trial_expires_at, subscription_expires_at')
+      .eq('user_id', baseUser.id)
+      .single();
+
+    // Check if subscription is expired
+    const now = new Date();
+    const tier = (subscription?.tier as SubscriptionTier) ?? 'trial';
+    let subscription_expired = false;
+
+    if (tier === 'trial' && subscription?.trial_expires_at) {
+      subscription_expired = new Date(subscription.trial_expires_at) < now;
+    } else if ((tier === 'premium' || tier === 'family') && subscription?.subscription_expires_at) {
+      subscription_expired = new Date(subscription.subscription_expires_at) < now;
+    }
+
+    return {
+      id: baseUser.id,
+      email: baseUser.email,
+      subscription_tier: tier,
+      subscription_expired,
+    };
+  } catch (error) {
+    console.error('[Auth] Error getting user with subscription:', error);
+    return null;
+  }
+}

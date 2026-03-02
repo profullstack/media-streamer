@@ -12,7 +12,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, LogOutIcon, SettingsIcon, ChevronDownIcon } from '@/components/ui/icons';
+import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, LogOutIcon, SettingsIcon, ChevronDownIcon, UsersIcon } from '@/components/ui/icons';
 
 /**
  * Search categories for filtering
@@ -32,10 +32,11 @@ export interface HeaderProps {
   className?: string;
   isLoggedIn?: boolean;
   userEmail?: string;
+  displayName?: string;
   onLogout?: () => void;
 }
 
-export function Header({ className, isLoggedIn = false, userEmail, onLogout }: HeaderProps): React.ReactElement {
+export function Header({ className, isLoggedIn = false, userEmail, displayName, onLogout }: HeaderProps): React.ReactElement {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('');
@@ -77,7 +78,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
     onLogout?.();
   }, [onLogout]);
 
-  const handleAccountSettingsClick = useCallback((): void => {
+  const handleUserMenuLinkClick = useCallback((): void => {
     setIsUserDropdownOpen(false);
   }, []);
 
@@ -207,7 +208,7 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
               )}
             >
               <UserIcon size={20} />
-              <span className="hidden max-w-[150px] truncate sm:inline">{userEmail}</span>
+              <span className="hidden max-w-[150px] truncate sm:inline">{displayName || userEmail}</span>
               <ChevronDownIcon size={14} className={cn('transition-transform', isUserDropdownOpen && 'rotate-180')} />
             </button>
 
@@ -226,13 +227,27 @@ export function Header({ className, isLoggedIn = false, userEmail, onLogout }: H
                   {/* Email display in dropdown */}
                   <div className="border-b border-border-subtle px-4 py-3">
                     <p className="text-xs text-text-muted">Signed in as</p>
-                    <p className="truncate text-sm font-medium text-text-primary">{userEmail}</p>
+                    <p className="truncate text-sm font-medium text-text-primary">{displayName || userEmail}</p>
                   </div>
+
+                  {/* Switch Profile Link */}
+                  <Link
+                    href="/select-profile?switch=1"
+                    onClick={handleUserMenuLinkClick}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
+                      'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                      'transition-colors'
+                    )}
+                  >
+                    <UsersIcon size={16} />
+                    <span>Switch Profile</span>
+                  </Link>
 
                   {/* Account Settings Link */}
                   <Link
                     href="/account"
-                    onClick={handleAccountSettingsClick}
+                    onClick={handleUserMenuLinkClick}
                     className={cn(
                       'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
                       'text-text-secondary hover:bg-bg-hover hover:text-text-primary',

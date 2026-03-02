@@ -113,6 +113,11 @@ export default function TorrentDetailPage(): React.ReactElement {
 
   // Progress tracking state (for logged-in users only)
   const [fileProgress, setFileProgress] = useState<Map<string, FileProgress>>(new Map());
+  const [reportReason, setReportReason] = useState<'animal-abuse' | 'child-abuse' | 'copyright' | 'malware-scam' | 'other'>('copyright');
+  const [reportDetails, setReportDetails] = useState('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReportingTorrent, setIsReportingTorrent] = useState(false);
+  const [reportTorrentStatus, setReportTorrentStatus] = useState<string | null>(null);
 
   // Fetch torrent details and folder metadata
   useEffect(() => {
@@ -424,6 +429,51 @@ export default function TorrentDetailPage(): React.ReactElement {
     }
   }, [torrent]);
 
+  const handleReportTorrent = useCallback(async (): Promise<void> => {
+    if (!torrent || isReportingTorrent) return;
+
+    const reasonLabels: Record<typeof reportReason, string> = {
+      'animal-abuse': 'Animal abuse',
+      'child-abuse': 'Child abuse',
+      copyright: 'Copyright infringement',
+      'malware-scam': 'Malware / scam',
+      other: 'Other',
+    };
+
+    const trimmedDetails = reportDetails.trim();
+    const reason = `${reasonLabels[reportReason]}${trimmedDetails ? `\nDetails: ${trimmedDetails}` : ''}`;
+
+    try {
+      setIsReportingTorrent(true);
+      setReportTorrentStatus(null);
+
+      const response = await fetch(`/api/torrents/${torrent.infohash}/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: torrent.cleanTitle ?? torrent.name,
+          reason,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to submit report' }));
+        throw new Error(errorData.error ?? 'Failed to submit report');
+      }
+
+      setReportTorrentStatus('Report sent. Thanks.');
+      setReportDetails('');
+      setIsReportModalOpen(false);
+    } catch (reportError) {
+      const message = reportError instanceof Error ? reportError.message : 'Failed to submit report';
+      setReportTorrentStatus(message);
+    } finally {
+      setIsReportingTorrent(false);
+    }
+  }, [torrent, isReportingTorrent, reportReason, reportDetails]);
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -480,6 +530,16 @@ export default function TorrentDetailPage(): React.ReactElement {
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {torrent.infohash}
               </p>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="mt-2 inline-block text-xs text-text-muted underline hover:text-text-primary"
+              >
+                Report torrent
+              </button>
+              {reportTorrentStatus ? (
+                <p className="mt-1 text-xs text-text-muted">{reportTorrentStatus}</p>
+              ) : null}
               {/* Content type, year, and genre */}
               {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                   {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
@@ -722,6 +782,75 @@ export default function TorrentDetailPage(): React.ReactElement {
           />
         </div>
       </div>
+
+      {/* Report Modal */}
+      {isReportModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-border-primary bg-bg-primary p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-primary">Report torrent</h3>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="text-xs text-text-muted hover:text-text-primary"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-1 text-xs text-text-muted sm:grid-cols-2">
+              {[
+                { value: 'animal-abuse', label: 'Animal abuse' },
+                { value: 'child-abuse', label: 'Child abuse' },
+                { value: 'copyright', label: 'Copyright infringement' },
+                { value: 'malware-scam', label: 'Malware / scam' },
+                { value: 'other', label: 'Other' },
+              ].map((option) => (
+                <label key={option.value} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value={option.value}
+                    checked={reportReason === option.value}
+                    onChange={() => {
+                      setReportReason(option.value as typeof reportReason);
+                      setReportTorrentStatus(null);
+                    }}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+            <textarea
+              value={reportDetails}
+              onChange={(event) => {
+                setReportDetails(event.target.value);
+                setReportTorrentStatus(null);
+              }}
+              placeholder="Additional details (optional)"
+              rows={4}
+              className="mt-3 w-full rounded-md border border-border-primary bg-bg-secondary px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none"
+            />
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="rounded-md border border-border-primary px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleReportTorrent}
+                disabled={isReportingTorrent}
+                className="rounded-md bg-accent-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isReportingTorrent ? 'Reporting…' : 'Submit report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Media Player Modal */}
       {torrent ? <MediaPlayerModal

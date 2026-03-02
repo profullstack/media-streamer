@@ -318,20 +318,20 @@ describe('Sidebar Navigation', () => {
       render(<Sidebar isLoggedIn={false} />);
 
       const links = screen.getAllByRole('link');
-      // Logo link + 13 main nav items + 2 account items + 4 external sites = 20
-      // Home, Search, Trending, My Library, Watchlist, Upcoming, Torrents, Find Torrents, News, Podcasts, Live TV, Live Radio, Watch Party = 13 main
+      // Logo link + 14 main nav items + 2 account items + 4 external sites = 21
+      // Home, Search, Find Torrents, The DHT, Trending, My Library, Watchlist, Upcoming, Torrents, News, Podcasts, Live TV, Live Radio, Watch Party = 14 main
       // Pricing, Settings = 2 account
       // Logo = 1
       // External: The Pirate Bay, LimeTorrents, 1337x, IMDB = 4
-      expect(links.length).toBe(20);
+      expect(links.length).toBe(21);
     });
 
     it('should show all nav items when logged in', () => {
       render(<Sidebar isLoggedIn={true} />);
 
       const links = screen.getAllByRole('link');
-      // Logo link + 13 main nav items + 2 account items + 4 external sites = 20
-      expect(links.length).toBe(20);
+      // Logo link + 14 main nav items + 2 account items + 4 external sites = 21
+      expect(links.length).toBe(21);
     });
   });
 

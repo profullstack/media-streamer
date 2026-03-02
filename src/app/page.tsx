@@ -131,6 +131,7 @@ async function getCategoryCounts(includexxx: boolean): Promise<{
 }
 
 export default async function HomePage(): Promise<React.ReactElement> {
+  const user = await getCurrentUser();
   // Check if user has paid subscription for XXX access
   const canAccessXxx = await hasActivePaidSubscription();
   const counts = await getCategoryCounts(canAccessXxx);
@@ -227,8 +228,8 @@ export default async function HomePage(): Promise<React.ReactElement> {
           </ol>
         </section>
 
-        {/* News Section */}
-        <NewsSection searchTerm="" limit={6} />
+        {/* News Section - only for logged-in users */}
+        {user && <NewsSection searchTerm="" limit={6} />}
       </div>
     </MainLayout>
   );

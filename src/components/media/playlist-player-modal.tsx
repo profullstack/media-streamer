@@ -173,9 +173,9 @@ export function PlaylistPlayerModal({
   // when the parent re-renders with a new array reference but same content
   const filesKey = files.map(f => f.fileIndex).join(',');
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset when files change
+     
     setCurrentIndex(startIndex);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- filesKey is a stable derived key for files
+   
   }, [filesKey, startIndex]);
 
   // Current file
@@ -360,7 +360,7 @@ export function PlaylistPlayerModal({
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional cleanup when modal closes
+       
       setConnectionStatus(null);
       return;
     }
@@ -405,7 +405,7 @@ export function PlaylistPlayerModal({
         // Only prefetch if we haven't already prefetched this file
         if (!prefetchedIndicesRef.current.has(nextFile.fileIndex)) {
           prefetchedIndicesRef.current.add(nextFile.fileIndex);
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional trigger to subscribe to SSE for prefetched files
+           
           setPrefetchedIndicesVersion(v => v + 1);
           prefetchPromises.push(prefetchFile(infohash, nextFile.fileIndex));
         }
@@ -422,7 +422,7 @@ export function PlaylistPlayerModal({
   useEffect(() => {
     if (!isOpen) {
       prefetchedIndicesRef.current.clear();
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset when modal closes
+       
       setPrefetchedIndicesVersion(0);
     }
   }, [isOpen]);
@@ -486,7 +486,7 @@ export function PlaylistPlayerModal({
   useEffect(() => {
     if (!connectionStatus || currentFileIndex === undefined) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Syncing external SSE status to state
+     
     setFileDownloadStatuses((prev) => {
       const next = new Map(prev);
       next.set(currentFileIndex, {
@@ -504,9 +504,12 @@ export function PlaylistPlayerModal({
   if (!currentFile || files.length === 0) return null;
 
   // Wait for file to have enough buffer before showing player
-  // fileReady indicates the file has enough data buffered for streaming (2MB for audio, 10MB for video)
-  // Falls back to ready (metadata ready) if fileReady is not yet available
-  const isFileReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
+  // For transcoded audio (FLAC, WMA, etc.), don't wait for fileReady — FFmpeg handles buffering
+  // internally via pipe-based transcoding. Waiting for 4MB of raw data first just adds latency.
+  // For non-transcoded audio, wait for fileReady (enough raw data buffered for direct playback).
+  const isFileReady = isTranscoding
+    ? (connectionStatus?.ready ?? false) // transcoded: just need torrent metadata ready
+    : (connectionStatus?.fileReady ?? connectionStatus?.ready ?? false);
   const isLoading = !isPlayerReady && !error;
   const title = `Playing ${currentIndex + 1} of ${files.length}`;
 

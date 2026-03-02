@@ -28,6 +28,8 @@ export interface HealthCheckResponse {
     activeCount: number;
     activeStreams: number;
     totalWatchers?: number;
+    clientActive?: boolean;
+    streaming?: { name: string; infohash: string; numPeers: number; progress: number; downloadSpeed: number; downloadedMB: number; sizeMB: number }[];
   };
   transcoding?: {
     activeDownloads: number;
@@ -41,7 +43,7 @@ export interface HealthCheckResponse {
   };
   debug?: {
     watchersPerTorrent: { infohash: string; watchers: number; hasCleanupTimer: boolean }[];
-    torrents: { infohash: string; name: string; numPeers: number; progress: number; downloadSpeed: number }[];
+    torrents: { infohash: string; name: string; numPeers: number; progress: number; downloadSpeed: number; downloaded: number; length: number }[];
   };
 }
 
@@ -97,6 +99,16 @@ export async function GET(request: NextRequest): Promise<NextResponse<HealthChec
       activeCount: debugInfo.activeTorrents,
       activeStreams: debugInfo.activeStreams,
       totalWatchers: debugInfo.totalWatchers,
+      clientActive: service.isClientActive,
+      streaming: debugInfo.torrents.map(t => ({
+        name: t.name,
+        infohash: t.infohash,
+        numPeers: t.numPeers,
+        progress: Math.round(t.progress * 100 * 100) / 100,
+        downloadSpeed: t.downloadSpeed,
+        downloadedMB: Math.round(t.downloaded / 1024 / 1024 * 100) / 100,
+        sizeMB: Math.round(t.length / 1024 / 1024 * 100) / 100,
+      })),
     },
     transcoding: {
       activeDownloads: fileTranscodingService.getActiveDownloadCount(),

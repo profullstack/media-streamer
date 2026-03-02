@@ -106,7 +106,18 @@ export function VideoPlayer({
     // For transcoded fMP4 streams, disable VHS override so native <video> handles
     // progressive playback. VHS is designed for HLS/DASH, not raw fMP4 streams,
     // and will buffer indefinitely trying to parse segment metadata.
-    const html5Override = videoSource.requiresTranscoding ? {
+    //
+    // For HLS on iOS/Safari, also use native playback — Safari's native HLS player
+    // is far more reliable than Video.js VHS on iOS. VHS fights with Safari's
+    // native MSE/HLS handling and causes "corruption" abort errors.
+    const isIOSOrSafari = typeof navigator !== 'undefined' && (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+      (/Safari/.test(navigator.userAgent) && !/Chrome|Chromium/.test(navigator.userAgent))
+    );
+    const useNativePlayback = videoSource.requiresTranscoding || 
+      (videoSource.format === 'hls' && isIOSOrSafari);
+    const html5Override = useNativePlayback ? {
       vhs: { overrideNative: false },
       nativeVideoTracks: true,
       nativeAudioTracks: true,

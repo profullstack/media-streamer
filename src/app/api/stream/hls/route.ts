@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { createLogger, generateRequestId } from '@/lib/logger';
 import { getStreamingService } from '@/lib/streaming';
 import { getTorrentByInfohash } from '@/lib/supabase';
@@ -26,10 +27,13 @@ const logger = createLogger('API:stream:hls');
 const HLS_BASE_DIR = join(process.env.HOME ?? '/tmp', 'tmp', 'hls-transcode');
 
 /**
- * Get or create HLS output directory for a specific stream
+ * Get or create HLS output directory for a specific stream session.
+ * Each user/session gets its own directory to avoid sharing live playlists
+ * (which causes new users to start from the live edge instead of the beginning).
  */
-function getHlsDir(infohash: string, fileIndex: number): string {
-  const dir = join(HLS_BASE_DIR, `${infohash}_${fileIndex}`);
+function getHlsDir(infohash: string, fileIndex: number, sessionId?: string): string {
+  const suffix = sessionId ? `_${sessionId}` : '';
+  const dir = join(HLS_BASE_DIR, `${infohash}_${fileIndex}${suffix}`);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
@@ -37,20 +41,43 @@ function getHlsDir(infohash: string, fileIndex: number): string {
 }
 
 /**
- * Check if an HLS session is already running for this torrent/file
+ * Check if an HLS session is already running for a specific session directory
  */
-function isHlsSessionActive(infohash: string, fileIndex: number): boolean {
-  const dir = getHlsDir(infohash, fileIndex);
-  const playlistPath = join(dir, 'stream.m3u8');
+function isHlsSessionActive(hlsDir: string): boolean {
+  const playlistPath = join(hlsDir, 'stream.m3u8');
   if (!existsSync(playlistPath)) return false;
   
-  // Check if playlist was updated recently (within last 30 seconds)
   try {
-    const stat = statSync(playlistPath);
-    return Date.now() - stat.mtimeMs < 30000;
+    const content = readFileSync(playlistPath, 'utf-8');
+    // If playlist has ENDLIST, transcode is complete — always reuse
+    if (content.includes('#EXT-X-ENDLIST')) return true;
+    // Otherwise check if playlist was updated recently (FFmpeg still running)
+    const s = statSync(playlistPath);
+    return Date.now() - s.mtimeMs < 30000;
   } catch {
     return false;
   }
+}
+
+/**
+ * Find an existing active HLS session for a given infohash+fileIndex.
+ * Returns the session directory and sessionId if found, null otherwise.
+ */
+function findActiveSession(infohash: string, fileIndex: number): { hlsDir: string; sessionId: string } | null {
+  if (!existsSync(HLS_BASE_DIR)) return null;
+  const prefix = `${infohash}_${fileIndex}_`;
+  try {
+    const entries = readdirSync(HLS_BASE_DIR);
+    for (const entry of entries) {
+      if (!entry.startsWith(prefix)) continue;
+      const dir = join(HLS_BASE_DIR, entry);
+      if (isHlsSessionActive(dir)) {
+        const sid = entry.slice(prefix.length);
+        return { hlsDir: dir, sessionId: sid };
+      }
+    }
+  } catch { /* */ }
+  return null;
 }
 
 /**
@@ -103,18 +130,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid fileIndex' }, { status: 400 });
   }
 
-  const hlsDir = getHlsDir(infohash, fileIndex);
-  
-  reqLogger.info('HLS stream request', { infohash, fileIndex, hlsDir });
-
-  // If HLS session already active, just return the playlist
-  if (isHlsSessionActive(infohash, fileIndex)) {
-    reqLogger.info('Reusing existing HLS session');
-    const playlistPath = join(hlsDir, 'stream.m3u8');
+  // Check for an existing active HLS session for this infohash+fileIndex.
+  // Safari's native HLS player re-fetches the playlist URL to discover new segments.
+  // We must return the updated playlist from the same FFmpeg session, not start a new one.
+  const existing = findActiveSession(infohash, fileIndex);
+  if (existing) {
+    reqLogger.info('Reusing existing HLS session', { sessionId: existing.sessionId });
+    const playlistPath = join(existing.hlsDir, 'stream.m3u8');
     const content = readFileSync(playlistPath, 'utf-8');
     
-    // Rewrite segment URLs to be absolute
-    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=`;
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${existing.sessionId}&file=`;
     const rewritten = content
       .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
       .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
@@ -124,11 +149,17 @@ export async function GET(request: NextRequest): Promise<Response> {
     return new Response(rewritten, {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store',
         'Access-Control-Allow-Origin': '*',
       },
     });
   }
+
+  // No existing session — start a new one
+  const sessionId = randomUUID().slice(0, 8);
+  const hlsDir = getHlsDir(infohash, fileIndex, sessionId);
+  
+  reqLogger.info('HLS stream request - starting new session', { infohash, fileIndex, sessionId, hlsDir });
 
   // Start new HLS transcoding session
   try {
@@ -163,6 +194,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     let audioOnlyRemux = false;  // copy video, transcode audio
     let copyRemux = false;       // copy both video and audio (no transcode)
     let localInputPath: string | null = null;
+    let detectedVideoCodec: string | null = null;
     
     // Try to find local file and detect codecs via FFprobe
     try {
@@ -204,11 +236,28 @@ export async function GET(request: NextRequest): Promise<Response> {
         
         try {
           const codecInfo = await detectCodecFromUrl(filePath, 15);
+          detectedVideoCodec = codecInfo.videoCodec ?? null;
           reqLogger.info('HLS: codec detection result', {
             videoCodec: codecInfo.videoCodec,
             audioCodec: codecInfo.audioCodec,
+            videoProfile: codecInfo.videoProfile,
+            pixFmt: codecInfo.pixFmt,
           });
-          if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase())) {
+          
+          // Detect 10-bit / HDR content — iOS Safari crashes on HEVC Main 10
+          // even on devices with hardware decode, especially in HLS fMP4 segments.
+          // Force full transcode to 8-bit H.264 for maximum compatibility.
+          const is10Bit = codecInfo.pixFmt?.includes('10') || 
+            codecInfo.videoProfile?.toLowerCase().includes('main 10') ||
+            codecInfo.videoProfile?.toLowerCase().includes('high 10');
+          
+          if (is10Bit) {
+            reqLogger.info('HLS: detected 10-bit video, forcing full H.264 transcode for iOS compatibility', {
+              pixFmt: codecInfo.pixFmt,
+              profile: codecInfo.videoProfile,
+            });
+            // Don't set copyRemux or audioOnlyRemux — fall through to full transcode
+          } else if (codecInfo.videoCodec && NATIVE_VIDEO_CODECS.has(codecInfo.videoCodec.toLowerCase())) {
             if (codecInfo.audioCodec && INCOMPATIBLE_AUDIO_CODECS.has(codecInfo.audioCodec.toLowerCase())) {
               audioOnlyRemux = true;
               reqLogger.info('HLS: using audio-only remux (copy video, transcode audio)', {
@@ -238,6 +287,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     // Build FFmpeg HLS args
     const ffmpegArgs: string[] = [
       '-threads', '2',
+      '-fflags', '+genpts+discardcorrupt',
       '-probesize', '20000000',
       '-analyzeduration', '10000000',
     ];
@@ -249,41 +299,52 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     if (copyRemux) {
       // Full copy remux: copy both video and audio streams (no transcoding)
-      // Use fMP4 segments for HEVC compatibility (MPEG-TS doesn't support HEVC well)
+      // Use fMP4 segments for broad compatibility
+      const isHEVC = detectedVideoCodec && ['hevc', 'h265'].includes(detectedVideoCodec.toLowerCase());
       ffmpegArgs.push(
         '-i', localInputPath || 'pipe:0',
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-c:v', 'copy',
-        '-tag:v', 'hvc1',
+        // Only tag as hvc1 for actual HEVC streams — wrong tag on H.264 causes iOS crashes
+        ...(isHEVC ? ['-tag:v', 'hvc1'] : []),
         '-c:a', 'copy',
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
-        '-hls_flags', 'append_list+independent_segments',
-        '-hls_segment_type', 'fmp4',
-        '-hls_fmp4_init_filename', 'init.mp4',
-        '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        '-hls_flags', 'independent_segments',
+        // Use fMP4 for HEVC (MPEG-TS doesn't support HEVC well), TS for H.264
+        ...(isHEVC ? [
+          '-hls_segment_type', 'fmp4',
+          '-hls_fmp4_init_filename', 'init.mp4',
+          '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        ] : [
+          '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
+        ]),
         join(hlsDir, 'stream.m3u8'),
       );
     } else if (audioOnlyRemux) {
       // Audio-only remux: copy video stream, transcode only audio
-      // Use fMP4 segments for HEVC compatibility (MPEG-TS doesn't support HEVC well)
+      const isHEVCAudio = detectedVideoCodec && ['hevc', 'h265'].includes(detectedVideoCodec.toLowerCase());
       ffmpegArgs.push(
         '-i', localInputPath || 'pipe:0',
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-c:v', 'copy',
-        '-tag:v', 'hvc1',
+        ...(isHEVCAudio ? ['-tag:v', 'hvc1'] : []),
         '-c:a', 'aac',
         '-b:a', '192k',
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
-        '-hls_flags', 'append_list+independent_segments',
-        '-hls_segment_type', 'fmp4',
-        '-hls_fmp4_init_filename', 'init.mp4',
-        '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        '-hls_flags', 'independent_segments',
+        ...(isHEVCAudio ? [
+          '-hls_segment_type', 'fmp4',
+          '-hls_fmp4_init_filename', 'init.mp4',
+          '-hls_segment_filename', join(hlsDir, 'segment%d.m4s'),
+        ] : [
+          '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
+        ]),
         join(hlsDir, 'stream.m3u8'),
       );
     } else {
@@ -309,7 +370,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         '-f', 'hls',
         '-hls_time', '4',
         '-hls_list_size', '0',
-        '-hls_flags', 'append_list+independent_segments',
+        '-hls_flags', 'independent_segments',
         '-hls_segment_filename', join(hlsDir, 'segment%d.ts'),
         join(hlsDir, 'stream.m3u8'),
       );
@@ -368,8 +429,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
 
     // Wait for first few segments to be ready
+    // Use 3 segments (12s at 4s/segment) for iOS — gives Safari enough runway
+    // to start native HLS playback without hitting "corruption" errors
     reqLogger.info('Waiting for initial HLS segments...');
-    const playlist = await waitForPlaylist(hlsDir, 2, 60000);
+    const playlist = await waitForPlaylist(hlsDir, 3, 90000);
     
     if (!playlist) {
       reqLogger.error('Timed out waiting for HLS segments');
@@ -380,10 +443,12 @@ export async function GET(request: NextRequest): Promise<Response> {
       );
     }
 
-    reqLogger.info('HLS playlist ready, serving');
+    reqLogger.info('HLS playlist ready, serving initial playlist');
 
-    // Rewrite segment URLs to be absolute
-    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&file=`;
+    // Serve the current playlist. Subsequent requests to the same URL will hit
+    // findActiveSession() above and return the updated playlist as FFmpeg produces
+    // more segments. This is how Safari's native HLS player discovers new segments.
+    const segBase = `/api/stream/hls/segment?infohash=${infohash}&fileIndex=${fileIndex}&sessionId=${sessionId}&file=`;
     const rewritten = playlist
       .replace(/^(segment\d+\.ts)$/gm, `${segBase}$1`)
       .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
@@ -393,7 +458,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     return new Response(rewritten, {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store',
         'Access-Control-Allow-Origin': '*',
       },
     });
