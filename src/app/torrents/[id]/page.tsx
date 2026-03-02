@@ -28,6 +28,22 @@ import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeh
 import { AmazonBuyButton } from '@/components/ui/amazon-buy-button';
 import { formatBytes } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
+
+function cleanDisplayName(raw: string): string {
+  let t = raw;
+  t = t.replace(/\.\w{2,4}$/, '');
+  t = t.replace(/\[.*?\]/g, ' ');
+  t = t.replace(/^(www\.)?[a-z0-9_-]+\.(org|com|net|io|tv|cc|to|bargains|club|xyz|me)\s*[-\u2013\u2014]\s*/i, '');
+  t = t.replace(/[._]/g, ' ');
+  t = t.replace(/\b(x264|x265|h264|h265|hevc|avc|aac[0-9. ]*|ac3|dts|flac|mp3|bluray|blu-ray|bdrip|brrip|webrip|web-?dl|webdl|hdrip|dvdrip|dvdscr|cam|hdtv|pdtv|uhd|uhdr|hdr|hdr10|dv|dolby|vision|10bit|8bit|remux|repack|proper|extended|unrated|directors|cut|dubbed|subbed|multi|dual|audio|subs)\b/gi, ' ');
+  t = t.replace(/\b(480p|720p|1080p|1080i|2160p|4k)\b/gi, ' ');
+  t = t.replace(/\b(eng|cz|de|fr|es|it|pt|nl|pl|ru|ja|ko|zh|ukr|ita|ger|spa|por|ara|tur|hun)\b/gi, ' ');
+  t = t.replace(/\b\d+(\.\d+)?\s*(mb|gb|tb)\b/gi, ' ');
+  t = t.replace(/\s*[-\u2013]\s*[A-Za-z0-9]{2,15}\s*$/, '');
+  t = t.replace(/\bH\s*\d{3}\b/gi, ' ');
+  t = t.replace(/\s+/g, ' ').trim();
+  return t;
+}
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import { useAuth } from '@/hooks';
 import type { Torrent, TorrentFile, FileProgress } from '@/types';
@@ -176,7 +192,7 @@ export default function TorrentDetailPage(): React.ReactElement {
   // Set page title and meta description for SEO
   useEffect(() => {
     if (!torrent) return;
-    const title = torrent.cleanTitle ?? torrent.name;
+    const title = torrent.cleanTitle || cleanDisplayName(torrent.name);
     const parts = [title];
     if (torrent.year) parts.push(`(${torrent.year})`);
     if (torrent.contentType) parts.push(`- ${torrent.contentType.charAt(0).toUpperCase() + torrent.contentType.slice(1)}`);
@@ -425,7 +441,7 @@ export default function TorrentDetailPage(): React.ReactElement {
   // Set document title to include infohash for SEO
   useEffect(() => {
     if (torrent) {
-      document.title = `${torrent.cleanTitle ?? torrent.name} (${torrent.infohash}) | BitTorrented`;
+      document.title = `${torrent.cleanTitle || cleanDisplayName(torrent.name)} (${torrent.infohash}) | BitTorrented`;
     }
   }, [torrent]);
 
@@ -453,7 +469,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: torrent.cleanTitle ?? torrent.name,
+          title: torrent.cleanTitle || cleanDisplayName(torrent.name),
           reason,
         }),
       });
@@ -510,7 +526,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           <ChevronRightIcon size={14} />
           <Link href="/torrents" className="hover:text-text-primary">Torrents</Link>
           <ChevronRightIcon size={14} />
-          <span className="text-text-primary truncate" title={torrent.name}>{torrent.cleanTitle ?? torrent.name}</span>
+          <span className="text-text-primary truncate" title={torrent.name}>{torrent.cleanTitle || cleanDisplayName(torrent.name)}</span>
         </nav>
 
         {/* Backdrop hero */}
@@ -533,13 +549,13 @@ export default function TorrentDetailPage(): React.ReactElement {
             {/* Poster/Cover Art with Placeholder */}
             <MediaPoster
               src={torrent.posterUrl ?? torrent.coverUrl}
-              alt={torrent.cleanTitle ?? torrent.name}
+              alt={torrent.cleanTitle || cleanDisplayName(torrent.name)}
               contentType={torrent.contentType as MediaContentType}
               className="shadow-lg"
             />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-xl font-bold text-text-primary" title={torrent.name}>
-                {torrent.cleanTitle ?? torrent.name}
+                {torrent.cleanTitle || cleanDisplayName(torrent.name)}
               </h1>
               {torrent.cleanTitle && torrent.cleanTitle !== torrent.name && (
                 <p className="mt-0.5 truncate text-xs text-text-muted/50" title={torrent.name}>{torrent.name}</p>
@@ -600,7 +616,7 @@ export default function TorrentDetailPage(): React.ReactElement {
                 </p> : null}
               {/* Buy on Amazon affiliate link — only when we have real metadata */}
               <AmazonBuyButton
-                title={torrent.cleanTitle ?? torrent.name}
+                title={torrent.cleanTitle || cleanDisplayName(torrent.name)}
                 contentType={torrent.contentType}
                 year={torrent.year}
                 hasMetadata={true}
@@ -902,7 +918,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           onClose={handleModalClose}
           file={selectedFile}
           infohash={torrent.infohash}
-          torrentName={torrent.cleanTitle ?? torrent.name}
+          torrentName={torrent.cleanTitle || cleanDisplayName(torrent.name)}
           existingProgress={selectedFile && user ? fileProgress.get(selectedFile.id) : undefined}
           onProgressSave={user ? handleProgressSave : undefined}
         /> : null}
@@ -913,7 +929,7 @@ export default function TorrentDetailPage(): React.ReactElement {
           onClose={handlePlaylistModalClose}
           files={playlistFiles}
           infohash={torrent.infohash}
-          torrentName={playlistFolderMetadata?.album ?? torrent.cleanTitle ?? torrent.name}
+          torrentName={playlistFolderMetadata?.album ?? (torrent.cleanTitle || cleanDisplayName(torrent.name))}
           coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
           artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
         /> : null}
