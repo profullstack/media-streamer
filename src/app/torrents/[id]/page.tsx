@@ -513,8 +513,22 @@ export default function TorrentDetailPage(): React.ReactElement {
           <span className="text-text-primary" title={torrent.name}>{torrent.cleanTitle ?? torrent.name}</span>
         </nav>
 
+        {/* Backdrop hero */}
+        {(torrent as any).backdropUrl && (
+          <div className="relative -mx-4 -mt-2 h-48 sm:h-64 overflow-hidden rounded-lg sm:mx-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={(torrent as any).backdropUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="eager"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/60 to-transparent" />
+          </div>
+        )}
+
         {/* Header */}
-        <div className="card p-6">
+        <div className={`card p-6 ${(torrent as any).backdropUrl ? '-mt-24 relative z-10' : ''}`}>
           <div className="flex items-start gap-4">
             {/* Poster/Cover Art with Placeholder */}
             <MediaPoster
@@ -527,6 +541,9 @@ export default function TorrentDetailPage(): React.ReactElement {
               <h1 className="truncate text-xl font-bold text-text-primary" title={torrent.name}>
                 {torrent.cleanTitle ?? torrent.name}
               </h1>
+              {(torrent as any).tagline && (
+                <p className="mt-1 text-sm italic text-text-muted">&ldquo;{(torrent as any).tagline}&rdquo;</p>
+              )}
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {torrent.infohash}
               </p>
@@ -534,6 +551,9 @@ export default function TorrentDetailPage(): React.ReactElement {
               {(torrent.contentType || torrent.year || torrent.genre) ? <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                   {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize">
                       {torrent.contentType}
+                    </span> : null}
+                  {(torrent as any).contentRating ? <span className="rounded border border-text-muted/30 px-2 py-0.5 text-xs font-medium text-text-secondary">
+                      {(torrent as any).contentRating}
                     </span> : null}
                   {torrent.year ? <span>{torrent.year}</span> : null}
                   {torrent.genre ? <span className="text-text-muted">•</span> : null}
@@ -566,9 +586,14 @@ export default function TorrentDetailPage(): React.ReactElement {
                       <span className="text-text-primary">{torrent.actors}</span>
                     </p> : null}
                 </div> : null}
-              {/* Description */}
-              {torrent.description ? <p className="mt-2 line-clamp-3 text-sm text-text-secondary">
-                  {torrent.description}
+              {/* Writers */}
+              {(torrent as any).writers ? <div className="mt-1 text-sm">
+                  <span className="text-text-muted">Writers:</span>{' '}
+                  <span className="text-text-primary">{(torrent as any).writers}</span>
+                </div> : null}
+              {/* Synopsis / Description */}
+              {((torrent as any).overview || torrent.description) ? <p className="mt-2 line-clamp-3 text-sm text-text-secondary">
+                  {(torrent as any).overview || torrent.description}
                 </p> : null}
               {/* Buy on Amazon affiliate link — only when we have real metadata */}
               <AmazonBuyButton

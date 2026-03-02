@@ -20,6 +20,7 @@ import {
 } from '@/lib/supabase/queries';
 import { transformTorrent, transformTorrentFiles } from '@/lib/transforms';
 import { enrichWithImdb } from '@/lib/imdb/enrich';
+import { fetchTmdbData } from '@/lib/imdb/tmdb';
 import type { Torrent } from '@/lib/supabase/types';
 import type { TorrentFile as TransformedFile, MediaCategory } from '@/types';
 import { getMediaCategory, getMimeType } from '@/lib/utils';
@@ -93,6 +94,12 @@ interface TorrentWithSource {
   imdbVotes: number | null;
   runtimeMinutes: number | null;
   source: 'user' | 'dht';
+  backdropUrl: string | null;
+  overview: string | null;
+  tagline: string | null;
+  cast: string | null;
+  writers: string | null;
+  contentRating: string | null;
 }
 
 /**
@@ -133,6 +140,12 @@ function transformDhtTorrent(dht: DhtTorrent): TorrentWithSource {
     imdbVotes: null,
     runtimeMinutes: null,
     source: 'dht',
+    backdropUrl: null,
+    overview: null,
+    tagline: null,
+    cast: null,
+    writers: null,
+    contentRating: null,
   };
 }
 
@@ -195,9 +208,21 @@ export async function GET(
       // Transform to camelCase for frontend
       const transformed = transformTorrent(userTorrent);
       const enriched = await enrichWithImdb(transformed);
+      
+      // Fetch TMDB data if we have an IMDB ID
+      const imdbId = enriched.externalId?.startsWith('tt') ? enriched.externalId : null;
+      const tmdb = imdbId ? await fetchTmdbData(imdbId) : null;
+      
       const torrentWithSource: TorrentWithSource = {
         ...enriched,
         source: 'user',
+        posterUrl: enriched.posterUrl || tmdb?.posterUrl || null,
+        backdropUrl: tmdb?.backdropUrl || null,
+        overview: enriched.description || tmdb?.overview || null,
+        tagline: tmdb?.tagline || null,
+        cast: enriched.actors || tmdb?.cast || null,
+        writers: tmdb?.writers || null,
+        contentRating: tmdb?.contentRating || null,
       };
 
       return NextResponse.json({
@@ -216,8 +241,24 @@ export async function GET(
 
         const dhtTransformed = transformDhtTorrent(dhtTorrent);
         const dhtEnriched = await enrichWithImdb(dhtTransformed);
+        
+        // Fetch TMDB data for DHT torrents with IMDB match
+        const dhtImdbId = dhtEnriched.externalId?.startsWith('tt') ? dhtEnriched.externalId : null;
+        const dhtTmdb = dhtImdbId ? await fetchTmdbData(dhtImdbId) : null;
+        
+        const dhtWithTmdb = {
+          ...dhtEnriched,
+          source: 'dht' as const,
+          posterUrl: dhtEnriched.posterUrl || dhtTmdb?.posterUrl || null,
+          backdropUrl: dhtTmdb?.backdropUrl || null,
+          overview: dhtEnriched.description || dhtTmdb?.overview || null,
+          tagline: dhtTmdb?.tagline || null,
+          cast: dhtEnriched.actors || dhtTmdb?.cast || null,
+          writers: dhtTmdb?.writers || null,
+          contentRating: dhtTmdb?.contentRating || null,
+        };
         return NextResponse.json({
-          torrent: dhtEnriched,
+          torrent: dhtWithTmdb,
           files: transformDhtFiles(dhtFiles, id),
         });
       }
