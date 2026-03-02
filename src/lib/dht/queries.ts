@@ -19,6 +19,10 @@ export interface DhtTorrentDetail {
   imdb_rating: number | null;
   imdb_votes: number | null;
   runtime_minutes: number | null;
+  genres: string | null;
+  director: string | null;
+  actors: string | null;
+  year: number | null;
   files: DhtFile[];
 }
 
@@ -83,19 +87,38 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
   let imdbRating: number | null = null;
   let imdbVotes: number | null = null;
   let runtimeMinutes: number | null = null;
+  let genres: string | null = null;
+  let director: string | null = null;
+  let imdbYear: number | null = null;
   const imdbId: string | null = imdbMatch?.tconst ?? null;
 
   if (imdbId) {
-    const [ratingsRes, basicsRes] = await Promise.all([
+    const [ratingsRes, basicsRes, crewRes] = await Promise.all([
       (supabase as any).from('imdb_title_ratings').select('average_rating, num_votes').eq('tconst', imdbId).single(),
-      (supabase as any).from('imdb_title_basics').select('runtime_minutes').eq('tconst', imdbId).single(),
+      (supabase as any).from('imdb_title_basics').select('runtime_minutes, genres, start_year').eq('tconst', imdbId).single(),
+      (supabase as any).from('imdb_title_crew').select('directors').eq('tconst', imdbId).single(),
     ]);
     if (ratingsRes.data) {
       imdbRating = parseFloat(ratingsRes.data.average_rating) || null;
       imdbVotes = parseInt(ratingsRes.data.num_votes, 10) || null;
     }
-    if (basicsRes.data?.runtime_minutes && basicsRes.data.runtime_minutes !== '\\N') {
-      runtimeMinutes = parseInt(basicsRes.data.runtime_minutes, 10) || null;
+    if (basicsRes.data) {
+      const rt = basicsRes.data.runtime_minutes;
+      if (rt && rt !== '\\N') runtimeMinutes = parseInt(rt, 10) || null;
+      const g = basicsRes.data.genres;
+      if (g && g !== '\\N') genres = g.replace(/,/g, ', ');
+      const y = basicsRes.data.start_year;
+      if (y && y !== '\\N') imdbYear = parseInt(y, 10) || null;
+    }
+    if (crewRes.data?.directors && crewRes.data.directors !== '\\N') {
+      const dirIds = crewRes.data.directors.split(',').slice(0, 3);
+      const { data: names } = await (supabase as any)
+        .from('imdb_name_basics')
+        .select('primary_name')
+        .in('nconst', dirIds);
+      if (names?.length) {
+        director = (names as any[]).map((n: any) => n.primary_name).join(', ');
+      }
     }
   }
 
@@ -113,6 +136,10 @@ export async function getDhtTorrentDetail(infohash: string): Promise<DhtTorrentD
     imdb_rating: imdbRating,
     imdb_votes: imdbVotes,
     runtime_minutes: runtimeMinutes,
+    genres,
+    director,
+    actors: null,
+    year: imdbYear,
     files: (files ?? []),
   };
 }
