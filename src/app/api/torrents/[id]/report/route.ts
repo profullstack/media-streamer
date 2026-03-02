@@ -33,7 +33,7 @@ export async function POST(
       );
     }
 
-    const { data, error } = await emailService.resend.emails.send({
+    const payload = {
       from: `${process.env.EMAIL_FROM_NAME || 'BitTorrented'} <${process.env.EMAIL_FROM || 'noreply@bittorrented.com'}>`,
       to: 'support@bittorrented.com',
       subject: `Report torrent: ${title}`,
@@ -45,14 +45,20 @@ export async function POST(
         `Details: ${detailsUrl}`,
         `Reason: ${reason}`,
       ].join('\n'),
-    });
+    };
+
+    const { data, error } = await emailService.resend.emails.send(payload);
 
     if (error) {
-      console.error('[Torrent Report] Failed to send report email:', error);
-      return NextResponse.json({ error: 'Failed to submit report' }, { status: 502 });
+      console.error('[Torrent Report] Resend send failed:', {
+        error,
+        payload: { ...payload, to: '[redacted]' },
+      });
+      return NextResponse.json({ error: 'Failed to submit report', provider: 'resend' }, { status: 502 });
     }
 
-    return NextResponse.json({ success: true, messageId: data?.id ?? null }, { status: 200 });
+    console.log('[Torrent Report] Resend accepted message:', data?.id);
+    return NextResponse.json({ success: true, provider: 'resend', messageId: data?.id ?? null }, { status: 200 });
   } catch (error) {
     console.error('[Torrent Report] Unexpected error:', error);
     return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 });
