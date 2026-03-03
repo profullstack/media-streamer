@@ -25,9 +25,6 @@ const EMPTY: TmdbData = {
   cast: null, writers: null, contentRating: null, tmdbId: null,
 };
 
-/** Max age for cache entries (30 days) */
-const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-
 function getCacheKey(imdbId: string, titleHint?: string): string {
   if (imdbId) return imdbId;
   if (titleHint) return 'title:' + createHash('sha256').update(titleHint.toLowerCase().trim()).digest('hex').slice(0, 32);
@@ -52,10 +49,6 @@ async function getCached(key: string): Promise<TmdbData | null> {
       .eq('lookup_key', key)
       .single();
     if (!data) return null;
-
-    // Check freshness
-    const age = Date.now() - new Date(data.updated_at).getTime();
-    if (age > CACHE_MAX_AGE_MS) return null;
 
     return {
       posterUrl: data.poster_url,
@@ -89,7 +82,6 @@ async function setCache(key: string, data: TmdbData): Promise<void> {
         cast_names: data.cast,
         writers: data.writers,
         content_rating: data.contentRating,
-        updated_at: new Date().toISOString(),
       }, { onConflict: 'lookup_key' });
   } catch {
     // Cache write failure is non-critical
