@@ -19,7 +19,7 @@ export default async function LiveTvPage(): Promise<React.ReactElement> {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect('/login?redirect=/live-tv');
+    redirect('/login?redirect=/live-tv&reason=live-tv');
   }
 
   return <LiveTvContent />;
