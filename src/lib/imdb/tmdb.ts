@@ -3,7 +3,7 @@
  * Makes 2-3 API calls: /find (IMDB→TMDB) + /movie or /tv (details+credits).
  * Falls back to /search if /find returns nothing (common for obscure IMDB entries).
  *
- * Results are cached in the tmdb_cache table to avoid repeated API calls.
+ * Results are cached in the tmdb_data table to avoid repeated API calls.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -44,7 +44,7 @@ async function getCached(key: string): Promise<TmdbData | null> {
     const supabase = getSupabaseClient();
     if (!supabase) return null;
     const { data } = await supabase
-      .from('tmdb_cache')
+      .from('tmdb_data')
       .select('*')
       .eq('lookup_key', key)
       .single();
@@ -71,7 +71,7 @@ async function setCache(key: string, data: TmdbData): Promise<void> {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     await supabase
-      .from('tmdb_cache')
+      .from('tmdb_data')
       .upsert({
         lookup_key: key,
         tmdb_id: data.tmdbId,
