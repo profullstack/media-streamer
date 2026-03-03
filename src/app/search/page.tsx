@@ -1,5 +1,6 @@
 'use client';
 
+
 /**
  * Search Page
  *

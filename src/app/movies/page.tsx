@@ -1,5 +1,6 @@
 'use client';
 
+
 /**
  * Movies Page
  *

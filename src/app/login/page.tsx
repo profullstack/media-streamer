@@ -53,6 +53,12 @@ export default function LoginPage(): React.ReactElement {
     <MainLayout>
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="w-full max-w-md">
+          {/* Reason message for redirects */}
+          {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('reason') === 'live-tv' && (
+            <div className="mb-4 rounded-lg border border-accent-primary/30 bg-accent-primary/10 px-4 py-3 text-center text-sm text-text-primary">
+              Sign in to access Live TV — add your IPTV playlists and stream live channels.
+            </div>
+          )}
           {/* Logo */}
           <div className="mb-8 text-center">
             <Link href="/" className="inline-block mb-4">
