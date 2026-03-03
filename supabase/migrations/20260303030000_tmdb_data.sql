@@ -24,7 +24,10 @@ ALTER TABLE tmdb_data ENABLE ROW LEVEL SECURITY;
 
 -- Public read/write (no user-scoping needed, this is shared cache)
 CREATE POLICY "tmdb_data_public_read" ON tmdb_data FOR SELECT USING (true);
-CREATE POLICY "tmdb_data_service_write" ON tmdb_data FOR ALL USING (true);
+CREATE POLICY "tmdb_data_service_write" ON tmdb_data
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
 
 COMMENT ON TABLE tmdb_data IS 'Cache for TMDB API responses to reduce API calls. Entries keyed by IMDB ID or title hash.';
 COMMENT ON COLUMN tmdb_data.lookup_key IS 'IMDB ID (e.g. tt1234567) or sha256 of cleaned title for non-IMDB lookups';
