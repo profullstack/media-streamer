@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Trending — BitTorrented',
+  title: 'Trending',
   description: 'Browse Trending on BitTorrented',
 };
 

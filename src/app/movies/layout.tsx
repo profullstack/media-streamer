@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Movies — BitTorrented',
+  title: 'Movies',
   description: 'Browse Movies on BitTorrented',
 };
 

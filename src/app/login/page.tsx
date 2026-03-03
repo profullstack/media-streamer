@@ -6,7 +6,7 @@
  * User authentication with email/password.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
@@ -17,6 +17,12 @@ export default function LoginPage(): React.ReactElement {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setReason(params.get('reason'));
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -54,7 +60,7 @@ export default function LoginPage(): React.ReactElement {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="w-full max-w-md">
           {/* Reason message for redirects */}
-          {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('reason') === 'live-tv' && (
+          {reason === 'live-tv' && (
             <div className="mb-4 rounded-lg border border-accent-primary/30 bg-accent-primary/10 px-4 py-3 text-center text-sm text-text-primary">
               Sign in to access Live TV — add your IPTV playlists and stream live channels.
             </div>
