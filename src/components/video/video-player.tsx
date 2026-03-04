@@ -276,7 +276,15 @@ export function VideoPlayer({
           nativeVideo.pause();
           nativeVideo.removeAttribute('src');
           nativeVideo.load();
+          // Remove the native video element from the DOM to avoid duplicates on re-init
+          if (nativeVideo.parentElement) {
+            nativeVideo.parentElement.removeChild(nativeVideo);
+          }
         }
+      }
+      // Reset native player state flag so subsequent inits start from a clean state
+      if (isNativePlayerRef && typeof isNativePlayerRef.current !== 'undefined') {
+        isNativePlayerRef.current = false;
       }
     };
   }, []);
