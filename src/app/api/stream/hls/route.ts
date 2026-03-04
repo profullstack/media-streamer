@@ -207,19 +207,36 @@ export async function GET(request: NextRequest): Promise<Response> {
       const filePath = pathJoin(downloadDir, info.filePath);
       
       // Wait for file to appear on disk (WebTorrent may not have created it yet)
+      // WebTorrent creates the file immediately but writes pieces as they arrive.
+      // We need sufficient data for FFprobe codec detection (~5MB for MP4 with moov at end).
       let fileExists = existsSync(filePath);
       let fileSize = 0;
       if (!fileExists) {
-        reqLogger.info('HLS: local file not found yet, waiting up to 10s for WebTorrent to create it', {
+        reqLogger.info('HLS: local file not found yet, waiting up to 30s for WebTorrent to create it', {
           fullPath: filePath,
         });
-        for (let i = 0; i < 10 && !fileExists; i++) {
+        for (let i = 0; i < 30 && !fileExists; i++) {
           await new Promise(r => setTimeout(r, 1000));
           fileExists = existsSync(filePath);
         }
       }
       if (fileExists) {
         try { fileSize = statSync(filePath).size; } catch { /* */ }
+        // Wait for enough data for FFprobe to detect codecs reliably.
+        // MP4 files need the moov atom (streaming service prioritizes downloading
+        // the last 10MB + first 1MB), but other formats need at least some data.
+        // Wait up to 30s for the file to grow beyond a minimum threshold.
+        const MIN_CODEC_DETECT_SIZE = 2 * 1024 * 1024; // 2MB minimum for codec detection
+        if (fileSize < MIN_CODEC_DETECT_SIZE) {
+          reqLogger.info('HLS: waiting for more data before codec detection', {
+            currentSize: fileSize, minRequired: MIN_CODEC_DETECT_SIZE,
+          });
+          for (let i = 0; i < 30 && fileSize < MIN_CODEC_DETECT_SIZE; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            try { fileSize = statSync(filePath).size; } catch { break; }
+          }
+          reqLogger.info('HLS: file size after waiting', { fileSize });
+        }
       }
       
       reqLogger.info('HLS: checking local file for codec detection', {
@@ -284,12 +301,25 @@ export async function GET(request: NextRequest): Promise<Response> {
       });
     }
 
+    // For copy-remux paths using local file, verify the file has enough data.
+    // WebTorrent downloads pieces that may arrive out of order, creating a sparse file.
+    // Copy-remux from a sparse file fails because FFmpeg reads sequentially and hits gaps.
+    // For full transcode, pipe input (sequential WebTorrent stream) is more reliable.
+    //
+    // Strategy:
+    // - Copy/audio remux: REQUIRE local file with sufficient data (codec detection succeeded)
+    //   FFmpeg needs moov atom for MP4 which is available if FFprobe succeeded.
+    //   Add '-err_detect ignore_err' to tolerate minor gaps in data.
+    // - Full transcode: prefer pipe input for sequential streaming, fall back to local file
+    
     // Build FFmpeg HLS args
     const ffmpegArgs: string[] = [
       '-threads', '2',
-      '-fflags', '+genpts+discardcorrupt',
+      '-fflags', '+genpts+discardcorrupt+igndts',
       '-probesize', '20000000',
       '-analyzeduration', '10000000',
+      // Tolerate I/O errors from partially-downloaded files (WebTorrent sparse files)
+      '-err_detect', 'ignore_err',
     ];
     
     // Only set demuxer when reading from pipe (local file auto-detects)
@@ -297,12 +327,18 @@ export async function GET(request: NextRequest): Promise<Response> {
       ffmpegArgs.push('-f', demuxer);
     }
 
+    // Determine input source:
+    // - copy/audio remux: MUST use local file (needs moov atom seeking for MP4)
+    // - full transcode: prefer pipe (sequential, handles buffering) unless local file exists
+    const inputForCopyRemux = localInputPath || 'pipe:0';
+    const inputForTranscode = localInputPath || 'pipe:0';
+
     if (copyRemux) {
       // Full copy remux: copy both video and audio streams (no transcoding)
       // Use fMP4 segments for broad compatibility
       const isHEVC = detectedVideoCodec && ['hevc', 'h265'].includes(detectedVideoCodec.toLowerCase());
       ffmpegArgs.push(
-        '-i', localInputPath || 'pipe:0',
+        '-i', inputForCopyRemux,
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-c:v', 'copy',
@@ -327,7 +363,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       // Audio-only remux: copy video stream, transcode only audio
       const isHEVCAudio = detectedVideoCodec && ['hevc', 'h265'].includes(detectedVideoCodec.toLowerCase());
       ffmpegArgs.push(
-        '-i', localInputPath || 'pipe:0',
+        '-i', inputForCopyRemux,
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-c:v', 'copy',
@@ -350,7 +386,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     } else {
       // Full transcode: re-encode video to H.264
       ffmpegArgs.push(
-        '-i', localInputPath || 'pipe:0',
+        '-i', inputForTranscode,
         '-map', '0:v:0',
         '-map', '0:a:0?',
         '-acodec', 'aac',
@@ -428,11 +464,13 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
     });
 
-    // Wait for first few segments to be ready
-    // Use 3 segments (12s at 4s/segment) for iOS — gives Safari enough runway
-    // to start native HLS playback without hitting "corruption" errors
-    reqLogger.info('Waiting for initial HLS segments...');
-    const playlist = await waitForPlaylist(hlsDir, 3, 90000);
+    // Wait for first few segments to be ready before serving the playlist.
+    // Copy-remux is much faster than full transcode, so we can use fewer initial
+    // segments (2 = 8s) to reduce time-to-playback on iOS.
+    // Full transcode needs 3 segments (12s) for Safari to have enough runway.
+    const minSegments = (copyRemux || audioOnlyRemux) ? 2 : 3;
+    reqLogger.info('Waiting for initial HLS segments...', { minSegments, copyRemux, audioOnlyRemux });
+    const playlist = await waitForPlaylist(hlsDir, minSegments, 90000);
     
     if (!playlist) {
       reqLogger.error('Timed out waiting for HLS segments');
