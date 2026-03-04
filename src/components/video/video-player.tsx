@@ -99,12 +99,33 @@ export function VideoPlayer({
       return;
     }
 
-    // If we previously used native video, update its src instead of creating new elements
+    // Detect iOS/Safari + HLS early so we can decide the native-video path
+    const isIOSOrSafari = typeof navigator !== 'undefined' && (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+      (/Safari/.test(navigator.userAgent) && !/Chrome|Chromium/.test(navigator.userAgent))
+    );
+    const isHLSOnSafari = videoSource.format === 'hls' && isIOSOrSafari;
+
+    // If we previously used native video, either update its src (still HLS on Safari)
+    // or tear it down so Video.js can initialize for non-HLS sources.
     if (isNativePlayerRef.current && videoRef.current) {
-      const existingVideo = videoRef.current.querySelector('video');
-      if (existingVideo) {
-        existingVideo.src = videoSource.src;
-        return;
+      if (isHLSOnSafari) {
+        const existingVideo = videoRef.current.querySelector('video');
+        if (existingVideo) {
+          existingVideo.src = videoSource.src;
+          return;
+        }
+      } else {
+        // Source is no longer HLS-on-Safari — tear down native element
+        const existingVideo = videoRef.current.querySelector('video');
+        if (existingVideo) {
+          existingVideo.pause();
+          existingVideo.removeAttribute('src');
+          existingVideo.load();
+          existingVideo.remove();
+        }
+        isNativePlayerRef.current = false;
       }
     }
 
@@ -125,12 +146,6 @@ export function VideoPlayer({
     // For HLS on iOS/Safari, also use native playback — Safari's native HLS player
     // is far more reliable than Video.js VHS on iOS. VHS fights with Safari's
     // native MSE/HLS handling and causes "corruption" abort errors.
-    const isIOSOrSafari = typeof navigator !== 'undefined' && (
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
-      (/Safari/.test(navigator.userAgent) && !/Chrome|Chromium/.test(navigator.userAgent))
-    );
-    const isHLSOnSafari = videoSource.format === 'hls' && isIOSOrSafari;
     const useNativePlayback = videoSource.requiresTranscoding || isHLSOnSafari;
     const html5Override = useNativePlayback ? {
       vhs: { overrideNative: false },
