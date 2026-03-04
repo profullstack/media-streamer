@@ -174,7 +174,7 @@ export function VideoPlayer({
         setIsLoading(false);
         // Call onReady — the Player type is expected but modal handlers
         // don't actually use the player reference, they just track ready state
-        if (onReady) onReady(null as unknown as Player);
+        if (onReady) onReady(null);
       });
       nativeVideo.addEventListener('play', () => onPlay?.());
       nativeVideo.addEventListener('pause', () => onPause?.());
