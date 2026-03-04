@@ -384,13 +384,22 @@ export function MediaPlayerModal({
         let url: string;
         if (needsHLS) {
           // Use HLS endpoint for iOS/Safari — outputs m3u8 playlist with .ts segments
+          // The HLS endpoint auto-detects codecs and chooses the best strategy:
+          // - h264+aac: copy remux (no re-encode, fast)
+          // - hevc+aac: copy remux to fMP4 segments with hvc1 tag
+          // - hevc+dts/eac3: audio-only remux (copy video, transcode audio)
+          // - 10-bit/HDR: full transcode to h264 (iOS compatibility)
+          // - mkv/avi/other: full transcode to h264
           url = `/api/stream/hls?infohash=${infohash}&fileIndex=${file.fileIndex}`;
-          setStreamingPhase(audioOnlyRemuxNeeded 
-            ? 'Starting HLS stream (remuxing audio)...' 
+          const hlsPhase = requiresTranscoding 
+            ? 'Preparing HLS stream (transcoding)...'
+            : audioOnlyRemuxNeeded
+            ? 'Preparing HLS stream (remuxing audio)...'
             : codecDetectionFailed
-            ? 'Starting HLS stream (detecting codecs)...'
-            : 'Starting HLS stream (transcoding)...');
-          console.log('[MediaPlayerModal] Using HLS for iOS/Safari:', url);
+            ? 'Preparing HLS stream...'
+            : 'Preparing HLS stream (remuxing)...';
+          setStreamingPhase(hlsPhase);
+          console.log('[MediaPlayerModal] Using HLS for iOS/Safari:', url, { requiresTranscoding, audioOnlyRemuxNeeded, codecDetectionFailed });
         } else {
           // Build server-side stream URL
           // Use demuxer param from codec detection when available (precise),
@@ -926,15 +935,24 @@ export function MediaPlayerModal({
   const isP2PReady = isP2PStreaming && webTorrent.streamUrl !== null;
   const isServerStreamReady = connectionStatus?.fileReady ?? connectionStatus?.ready ?? false;
   const isStreamReady = isP2PStreaming ? isP2PReady : isServerStreamReady;
+  // Detect if this is an HLS stream (iOS/Safari path)
+  const isHLSStream = streamUrl?.includes('/api/stream/hls') ?? false;
   // Show play button when stream is ready but user hasn't clicked play yet
   // On TV screens, skip the play button overlay - let autoplay handle it
-  const showPlayButton = !isTv && isStreamReady && !userClickedPlay && !isPlayerReady;
+  // For HLS on iOS/Safari, skip the play button — HLS autoplay is more reliable
+  // and the native player has its own play button
+  const showPlayButton = !isTv && !isHLSStream && isStreamReady && !userClickedPlay && !isPlayerReady;
   // Show loading spinner when stream is not ready yet (for P2P, check WebTorrent status)
   // WebTorrent status: 'idle' | 'loading' | 'buffering' | 'ready' | 'no-peers' | 'error'
   // Also show loading when falling back from P2P to server streaming ('no-peers' status)
   const showLoadingSpinner = isP2PStreaming
     ? (webTorrent.status === 'loading' || webTorrent.status === 'buffering' || webTorrent.status === 'no-peers') && !error
     : !isServerStreamReady && !error;
+  // For HLS on iOS/Safari: only mount the VideoPlayer after SSE confirms stream readiness.
+  // The HLS endpoint blocks server-side waiting for FFmpeg segments, but if the torrent
+  // hasn't even connected to peers yet, Safari's ~60s media timeout can expire first.
+  // Waiting for SSE "ready" ensures data is flowing before hitting the HLS endpoint.
+  const shouldMountPlayer = isHLSStream ? isStreamReady : true;
 
   // Show paywall if subscription expired
   if (isOpen && !isPremium) {
@@ -1330,7 +1348,11 @@ export function MediaPlayerModal({
                   </div>
                 </div>
               </div> : null}
-            <VideoPlayer
+            {/* Mount VideoPlayer only when stream data is flowing (shouldMountPlayer).
+                For HLS on iOS/Safari, we wait for SSE "ready" before mounting so the
+                HLS endpoint doesn't time out waiting for torrent data. For direct streams,
+                the player mounts immediately and Video.js handles buffering. */}
+            {shouldMountPlayer ? <VideoPlayer
               key={`video-${retryCount}-${isTranscoding ? 'transcode' : 'native'}`}
               src={streamUrl}
               filename={file.name}
@@ -1339,7 +1361,7 @@ export function MediaPlayerModal({
               onError={handlePlayerError}
               showTranscodingNotice={false}
               autoplay
-            />
+            /> : null}
           </div> : null}
 
         {/* Audio Player - render when we have a URL, stream is ready, and it's audio - compact for TV */}
