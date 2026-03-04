@@ -35,7 +35,7 @@ export interface VideoPlayerProps {
   /** Optional player options override */
   options?: Partial<PlayerOptions>;
   /** Callback when player is ready */
-  onReady?: (player: Player) => void;
+  onReady?: (player: Player | null) => void;
   /** Callback when playback starts */
   onPlay?: () => void;
   /** Callback when playback pauses */
