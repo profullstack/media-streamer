@@ -55,7 +55,7 @@ describe('useSupportedCoins', () => {
 
     expect(result.current.coins).toEqual(mockCoins);
     expect(result.current.error).toBeNull();
-    expect(mockFetch).toHaveBeenCalledWith('/api/supported-coins?active_only=true');
+    expect(mockFetch).toHaveBeenCalledWith('/api/supported-coins?active_only=true', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('should filter active coins by default', async () => {
@@ -72,7 +72,7 @@ describe('useSupportedCoins', () => {
     renderHook(() => useSupportedCoins());
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/supported-coins?active_only=true');
+      expect(mockFetch).toHaveBeenCalledWith('/api/supported-coins?active_only=true', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     });
   });
 
@@ -90,7 +90,7 @@ describe('useSupportedCoins', () => {
     renderHook(() => useSupportedCoins({ activeOnly: false }));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/supported-coins?active_only=false');
+      expect(mockFetch).toHaveBeenCalledWith('/api/supported-coins?active_only=false', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     });
   });
 
