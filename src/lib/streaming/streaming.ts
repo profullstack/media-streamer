@@ -303,8 +303,9 @@ function getMemoryThresholds(): { warning: number; critical: number; severe: num
 }
 
 const { warning: MEMORY_WARNING_THRESHOLD, critical: MEMORY_CRITICAL_THRESHOLD, severe: MEMORY_SEVERE_THRESHOLD } = getMemoryThresholds();
-const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+const MEMORY_CHECK_INTERVAL_MS = 15000; // Check every 15 seconds
 const TORRENT_MIN_AGE_MS = 30 * 60 * 1000; // Don't cleanup torrents younger than 30 minutes
+const TORRENT_MIN_AGE_CRITICAL_MS = 5 * 60 * 1000; // Shortened to 5 minutes under critical/severe pressure
 const ORPHAN_TORRENT_MAX_AGE_MS = 2 * 60 * 60 * 1000; // Auto-cleanup torrents with 0 watchers after 2 hours
 
 /**
@@ -344,7 +345,7 @@ export class StreamingService {
     ensureDir(this.downloadPath);
     this.options = options;
 
-    this.maxConcurrentStreams = options.maxConcurrentStreams ?? 10;
+    this.maxConcurrentStreams = options.maxConcurrentStreams ?? 4;
     this.streamTimeout = options.streamTimeout ?? 120000;
     this.torrentCleanupDelay = options.torrentCleanupDelay ?? DEFAULT_CLEANUP_DELAY;
     this.activeStreams = new Map();
@@ -724,6 +725,7 @@ export class StreamingService {
       });
       this.killOldestStreams(Math.max(3, Math.floor(this.activeStreams.size / 2)));
       this.emergencyCleanup();
+      this.aggressiveCleanup('severe');
     } else if (memUsage.rss >= MEMORY_CRITICAL_THRESHOLD) {
       logger.error('CRITICAL memory pressure - triggering emergency cleanup', {
         rssMB,
@@ -732,6 +734,7 @@ export class StreamingService {
         activeStreams: this.activeStreams.size,
       });
       this.emergencyCleanup();
+      this.aggressiveCleanup('critical');
     } else if (memUsage.rss >= MEMORY_WARNING_THRESHOLD) {
       logger.warn('High memory pressure - triggering aggressive cleanup', {
         rssMB,
@@ -747,19 +750,60 @@ export class StreamingService {
    * Kill the oldest N streams to free memory during severe pressure
    */
   private killOldestStreams(count: number): void {
-    // NEVER kill active streams. Users are watching these — killing them mid-playback
-    // is a terrible UX. If memory is truly critical, systemd's MemoryMax will handle it.
-    // Emergency/aggressive cleanup already removes idle torrents without active watchers.
-    logger.warn('killOldestStreams called but SKIPPING — active streams are protected', {
-      requestedKill: count,
-      activeStreams: this.activeStreams.size,
+    // Only kill streams that have NO active watchers (nobody is watching).
+    // Active watchers = someone has an SSE connection open for this torrent.
+    // This protects users mid-playback while still freeing unwatched resources.
+    const unwatchedStreams: Array<[string, ActiveStream]> = [];
+
+    for (const [id, stream] of this.activeStreams) {
+      const watcherInfo = this.torrentWatchers.get(stream.infohash);
+      const watcherCount = watcherInfo?.watchers.size ?? 0;
+      if (watcherCount === 0) {
+        unwatchedStreams.push([id, stream]);
+      }
+    }
+
+    if (unwatchedStreams.length === 0) {
+      logger.warn('killOldestStreams: all streams have active watchers — skipping to protect playback', {
+        requestedKill: count,
+        activeStreams: this.activeStreams.size,
+      });
+      return;
+    }
+
+    // Sort by creation time (oldest first) and kill up to `count`
+    const toKill = unwatchedStreams.slice(0, count);
+    for (const [id, stream] of toKill) {
+      logger.warn('Killing unwatched stream under memory pressure', {
+        streamId: id,
+        infohash: stream.infohash,
+      });
+      // Destroy the stream's torrent
+      const torrent = (this.client?.torrents ?? []).find(t => t.infoHash === stream.infohash);
+      if (torrent) {
+        (torrent.destroy as (opts: { destroyStore: boolean }, callback?: (err: Error | null) => void) => void)(
+          { destroyStore: true },
+          () => {
+            this.deleteTorrentFolder(torrent.name, stream.infohash).catch(() => {});
+          }
+        );
+      }
+      this.activeStreams.delete(id);
+      this.torrentWatchers.delete(stream.infohash);
+      this.torrentAddedAt.delete(stream.infohash);
+    }
+
+    logger.warn('killOldestStreams completed', {
+      killed: toKill.length,
+      skippedWatched: unwatchedStreams.length - toKill.length + (this.activeStreams.size - unwatchedStreams.length),
+      remaining: this.activeStreams.size,
     });
   }
 
   /**
    * Aggressive cleanup - remove torrents with no active watchers
    */
-  private aggressiveCleanup(): void {
+  private aggressiveCleanup(pressureLevel: 'warning' | 'critical' | 'severe' = 'warning'): void {
     let cleaned = 0;
     let skippedYoung = 0;
     const now = Date.now();
@@ -772,7 +816,8 @@ export class StreamingService {
         
         // Skip young torrents — they may be actively downloading or transcoding
         const addedAt = this.torrentAddedAt.get(infohash) ?? 0;
-        if (addedAt && (now - addedAt) < TORRENT_MIN_AGE_MS) {
+        const minAge = pressureLevel === 'warning' ? TORRENT_MIN_AGE_MS : TORRENT_MIN_AGE_CRITICAL_MS;
+        if (addedAt && (now - addedAt) < minAge) {
           skippedYoung++;
           continue;
         }
