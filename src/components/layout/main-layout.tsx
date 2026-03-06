@@ -70,7 +70,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
 
         {/* Footer */}
         <footer className="border-t border-border-primary px-4 py-4 text-center text-sm text-text-secondary md:px-6">
-          <span>&copy; {new Date().getFullYear()} BitTorrented</span>
+          <span>&copy; {new Date().getFullYear()} Media Streamer</span>
           <span className="mx-2">&middot;</span>
           <a
             href="mailto:support@bittorrented.com?subject=BitTorrented"
