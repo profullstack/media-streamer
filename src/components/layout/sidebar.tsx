@@ -224,15 +224,15 @@ function NavSection({ items, pathname, onItemClick, isLoggedIn, isPremium }: Nav
       {items.map((item) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
-        // Redirect to login if auth-required and not logged in, or paid feature and not premium
+        // Show lock icon for auth-required items when not logged in
         const needsLogin = (item.requiresAuth && !isLoggedIn) || (item.requiresPaid && !isPremium);
-        const href = needsLogin ? '/login' : item.href;
 
         return (
           <li key={item.href}>
             <Link
-              href={href}
+              href={needsLogin ? '/login' : item.href}
               onClick={onItemClick}
+              title={needsLogin ? 'Login required' : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                 isActive
@@ -242,6 +242,7 @@ function NavSection({ items, pathname, onItemClick, isLoggedIn, isPremium }: Nav
             >
               <Icon size={20} className={isActive ? 'text-accent-primary' : ''} />
               <span>{item.label}</span>
+              {needsLogin ? <span className="ml-auto text-xs opacity-50" title="Login required">🔒</span> : null}
               {item.badge ? <span className="ml-auto rounded-full bg-accent-primary px-2 py-0.5 text-xs font-medium text-white">
                   {item.badge}
                 </span> : null}
