@@ -119,6 +119,21 @@ describe('Sidebar Navigation', () => {
       expect(link).toHaveAttribute('href', '/login');
     });
 
+    it('should show lock icon on auth-required items when not logged in', () => {
+      render(<Sidebar isLoggedIn={false} />);
+
+      // Auth-required items should have a lock icon with "Login required" title
+      const lockIcons = screen.getAllByTitle('Login required');
+      expect(lockIcons.length).toBeGreaterThan(0);
+    });
+
+    it('should not show lock icon on auth-required items when logged in and premium', () => {
+      render(<Sidebar isLoggedIn={true} isPremium={true} />);
+
+      const lockIcons = screen.queryAllByTitle('Login required');
+      expect(lockIcons.length).toBe(0);
+    });
+
     it('should show My Library link with correct href when user IS logged in', () => {
       render(<Sidebar isLoggedIn={true} />);
 
