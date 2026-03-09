@@ -116,6 +116,9 @@ jobs:
             
             echo ""
             echo "=== Cleaning build cache ==="
+            # Kill any lingering next build processes to avoid lock conflicts
+            pkill -f "next build" 2>/dev/null || true
+            sleep 1
             rm -rf .next 2>/dev/null || true
             echo "✓ Build cache cleaned"
             
