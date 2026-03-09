@@ -1,4 +1,3 @@
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 'use client';
 
 /**
@@ -7,6 +6,7 @@ import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
  * Displays a radio station with play button and favorite toggle.
  */
 
+import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { cn } from '@/lib/utils';
 import { PlayIcon, HeartIcon, HeartFilledIcon, LoadingSpinner } from '@/components/ui/icons';
 import { useRadioStationFavorite, type RadioStation } from '@/hooks/use-radio';

@@ -126,10 +126,16 @@ jobs:
             
             echo ""
             echo "=== Building application ==="
-            nice -n 10 pnpm build
+            nice -n 10 pnpm build || { echo "✗ Build FAILED"; echo "failed" > "$STATUS_FILE"; exit 1; }
             echo "✓ Build complete"
             
             echo ""
+            # Verify build output exists before restarting
+            if [ ! -f .next/standalone/server.js ]; then
+              echo "✗ Build output missing (.next/standalone/server.js not found)"
+              echo "failed" > "$STATUS_FILE"
+              exit 1
+            fi
             echo "=== Restarting services ==="
             sudo systemctl restart bittorrented || echo "Warning: Could not restart main service"
             echo "✓ Main service restart attempted"
