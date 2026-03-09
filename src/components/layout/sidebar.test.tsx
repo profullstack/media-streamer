@@ -1,3 +1,4 @@
+import React from 'react';
 /**
  * Sidebar Navigation Component Tests
  * 
@@ -16,6 +17,24 @@ import { Sidebar } from './sidebar';
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn(() => '/'),
+  useRouter: vi.fn(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  })),
+}));
+
+// Mock spatial navigation
+vi.mock('@noriginmedia/norigin-spatial-navigation', () => ({
+  useFocusable: vi.fn(() => ({
+    ref: { current: null },
+    focused: false,
+  })),
+  FocusContext: { Provider: ({ children }: { children: React.ReactNode }) => children },
+  init: vi.fn(),
 }));
 
 // Mock next/image

@@ -597,3 +597,9 @@ html.tv [role="dialog"] p {
 html.tv .max-w-md {
   max-width: 20rem;
 }
+
+/* Spatial Navigation - TV/keyboard focus styles */
+.tv [data-focused="true"],
+[data-focused="true"] {
+  scroll-margin: 2rem;
+}

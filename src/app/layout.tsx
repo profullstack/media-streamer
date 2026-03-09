@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
-import { TvLayoutProvider } from '@/components/layout';
+import { TvLayoutProvider, SpatialNavProvider } from '@/components/layout';
 import { Providers } from '@/components/providers';
 
 const inter = Inter({
@@ -110,9 +110,9 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
         <Providers>
-          <TvLayoutProvider>
+          <TvLayoutProvider><SpatialNavProvider>
             {children}
-          </TvLayoutProvider>
+          </SpatialNavProvider></TvLayoutProvider>
         </Providers>
         
         {/* Datafast Analytics */}
