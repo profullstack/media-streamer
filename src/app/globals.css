@@ -603,3 +603,19 @@ html.tv .max-w-md {
 [data-focused="true"] {
   scroll-margin: 2rem;
 }
+
+/* Fire Stick / TV Spatial Navigation Focus Styles */
+.tv [data-focused="true"],
+html.tv [data-focused="true"] {
+  outline: 3px solid rgb(139, 92, 246) !important;
+  outline-offset: 2px;
+  transform: scale(1.02);
+  transition: outline 0.15s ease, transform 0.15s ease;
+  scroll-margin: 3rem;
+}
+
+/* Ensure focused items scroll into view on TV */
+html.tv *:focus-visible {
+  outline: 3px solid rgb(139, 92, 246) !important;
+  outline-offset: 2px;
+}
