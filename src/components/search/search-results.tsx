@@ -7,6 +7,7 @@
  */
 
 import { useMemo } from 'react';
+import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { cn } from '@/lib/utils';
 import {
   MusicIcon,
@@ -140,6 +141,7 @@ function SearchResultItem({
   onPlay,
   onDownload,
 }: SearchResultItemProps): React.ReactElement {
+  const { ref, focused } = useFocusable();
   const isFile = result.type === 'file' && result.file;
   const Icon = useMemo(() => {
     return isFile ? getMediaIcon(result.file!.mediaCategory) : MagnetIcon;

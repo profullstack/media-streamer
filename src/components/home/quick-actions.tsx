@@ -1,3 +1,4 @@
+import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 'use client';
 
 /**
