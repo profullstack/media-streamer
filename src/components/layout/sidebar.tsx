@@ -11,7 +11,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -267,7 +266,6 @@ function FocusableNavItem({ href, isActive, needsLogin, icon: Icon, label, badge
 
   return (
     <Link
-      ref={ref}
       href={href}
       onClick={onItemClick}
       title={needsLogin ? 'Login required' : undefined}
@@ -276,8 +274,7 @@ function FocusableNavItem({ href, isActive, needsLogin, icon: Icon, label, badge
         isActive
           ? 'bg-accent-primary/10 text-accent-primary'
           : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
-        focused && 'ring-2 ring-accent-primary bg-bg-hover text-text-primary',
-      )}
+              )}
     >
       <Icon size={20} className={isActive || focused ? 'text-accent-primary' : ''} />
       <span>{label}</span>

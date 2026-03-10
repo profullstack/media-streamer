@@ -7,7 +7,6 @@
  * Handles the "Add Torrent" button to open the magnet modal.
  */
 
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';

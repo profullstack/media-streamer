@@ -13,8 +13,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { useRouter } from 'next/navigation';
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { SearchIcon, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
@@ -412,19 +410,13 @@ interface TorrentCardProps {
 
 const TorrentCard = memo(function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const imageUrl = torrent.posterUrl ?? torrent.coverUrl;
-  const router = useRouter();
-  const { ref, focused } = useFocusable({
-    onEnterPress: () => router.push(`/torrents/${torrent.id}`),
-  });
-  
   // Map ContentType to MediaContentType for the placeholder
   const mediaContentType: MediaContentType = torrent.contentType ?? 'other';
 
   return (
     <Link
-      ref={ref}
       href={`/torrents/${torrent.id}`}
-      className={cn('card-hover group overflow-hidden transition-all hover:scale-[1.01] outline-none', focused && 'ring-2 ring-accent-primary scale-[1.02]')}
+      className="card-hover group overflow-hidden transition-transform hover:scale-[1.01]"
     >
       {/* Image - more compact aspect ratio */}
       <div className="aspect-[3/4] bg-bg-tertiary relative overflow-hidden rounded-t-lg">

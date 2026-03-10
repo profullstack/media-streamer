@@ -8,7 +8,6 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { formatBytes } from '@/lib/utils';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import { FolderIcon, ChevronRightIcon, MusicIcon, VideoIcon, BookIcon } from '@/components/ui/icons';
@@ -121,7 +120,6 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
 
   return (
     <Link
-      ref={ref}
       href={`/torrents/${torrent.infohash}`}
       className={`card-hover flex items-center gap-4 p-4 transition-all hover:scale-[1.01] outline-none ${focused ? 'ring-2 ring-accent-primary scale-[1.01]' : ''}`}
     >
