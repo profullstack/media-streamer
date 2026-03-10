@@ -43,3 +43,5 @@ public/workbox-*.js.map
 # Misc
 .vercel
 .turbo
+firetv/.gradle/
+firetv/app/build/
