@@ -14,7 +14,6 @@
  */
 
 import { useState, useCallback, useEffect, useRef, memo } from 'react';
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner, EditIcon, TrashIcon, HeartFilledIcon } from '@/components/ui/icons';
@@ -36,18 +35,13 @@ const ChannelCard = memo(function ChannelCard({
   channel: Channel;
   onClick: (channel: Channel) => void;
 }) {
-  const { ref, focused } = useFocusable({
-    onEnterPress: () => onClick(channel),
-  });
-
   return (
     <div
-      ref={ref}
+     
       onClick={() => onClick(channel)}
       className={cn(
         'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-4 outline-none transition-all',
-        'hover:border-accent-primary/50 hover:bg-bg-hover',
-        focused && 'ring-2 ring-accent-primary border-accent-primary/50 bg-bg-hover'
+        'hover:border-accent-primary/50 hover:bg-bg-hover'
       )}
     >
       <div className="flex items-center gap-3">

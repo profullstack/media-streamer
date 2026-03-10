@@ -114,14 +114,11 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const mediaStats = getMediaStats(torrent.files ?? []);
   const imageUrl = torrent.posterUrl ?? torrent.coverUrl;
   const router = useRouter();
-  const { ref, focused } = useFocusable({
-    onEnterPress: () => router.push(`/torrents/${torrent.infohash}`),
-  });
 
   return (
     <Link
       href={`/torrents/${torrent.infohash}`}
-      className={`card-hover flex items-center gap-4 p-4 transition-all hover:scale-[1.01] outline-none ${focused ? 'ring-2 ring-accent-primary scale-[1.01]' : ''}`}
+      className="card-hover flex items-center gap-4 p-4 transition-all hover:scale-[1.01]"
     >
       {/* Poster/Cover Image with Placeholder */}
       <MediaThumbnail

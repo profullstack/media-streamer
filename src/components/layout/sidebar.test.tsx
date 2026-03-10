@@ -28,14 +28,6 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Mock spatial navigation
-vi.mock('@noriginmedia/norigin-spatial-navigation', () => ({
-  useFocusable: vi.fn(() => ({
-    ref: { current: null },
-    focused: false,
-  })),
-  FocusContext: { Provider: ({ children }: { children: React.ReactNode }) => children },
-  init: vi.fn(),
-}));
 
 // Mock next/image
 vi.mock('next/image', () => ({

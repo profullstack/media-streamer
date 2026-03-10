@@ -257,12 +257,6 @@ interface FocusableNavItemProps {
 
 function FocusableNavItem({ href, isActive, needsLogin, icon: Icon, label, badge, onItemClick }: FocusableNavItemProps): React.ReactElement {
   const router = useRouter();
-  const { ref, focused } = useFocusable({
-    onEnterPress: () => {
-      onItemClick();
-      router.push(href);
-    },
-  });
 
   return (
     <Link
@@ -276,7 +270,7 @@ function FocusableNavItem({ href, isActive, needsLogin, icon: Icon, label, badge
           : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
               )}
     >
-      <Icon size={20} className={isActive || focused ? 'text-accent-primary' : ''} />
+      <Icon size={20} className={isActive ? 'text-accent-primary' : ''} />
       <span>{label}</span>
       {needsLogin ? <span className="ml-auto text-xs opacity-50" title="Login required">🔒</span> : null}
       {badge ? <span className="ml-auto rounded-full bg-accent-primary px-2 py-0.5 text-xs font-medium text-white">
