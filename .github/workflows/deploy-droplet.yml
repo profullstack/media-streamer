@@ -15,6 +15,10 @@ on:
     branches: [main, master]
   workflow_dispatch: # Allow manual trigger
 
+concurrency:
+  group: deploy-droplet
+  cancel-in-progress: true
+
 env:
   # Deploy path: /home/ubuntu/www/:domain/:repo
   DEPLOY_PATH: /home/ubuntu/www/bittorrented.com/media-streamer
@@ -116,7 +120,11 @@ jobs:
             
             echo ""
             echo "=== Cleaning build cache ==="
-            # Kill any lingering next build processes to avoid lock conflicts
+            # Acquire exclusive lock to prevent concurrent deploys on server
+            exec 200>/tmp/deploy-build.lock
+            flock -n 200 || { echo "✗ Another deploy is running"; echo "failed" > "$STATUS_FILE"; exit 1; }
+            
+            # Kill any lingering next build processes
             pkill -f "next build" 2>/dev/null || true
             sleep 1
             rm -rf .next 2>/dev/null || true
