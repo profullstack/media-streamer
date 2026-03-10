@@ -120,9 +120,9 @@ jobs:
             
             echo ""
             echo "=== Cleaning build cache ==="
-            # Acquire exclusive lock to prevent concurrent deploys on server
+            # Acquire exclusive lock — wait for any previous deploy to finish
             exec 200>/tmp/deploy-build.lock
-            flock -n 200 || { echo "✗ Another deploy is running"; echo "failed" > "$STATUS_FILE"; exit 1; }
+            flock -w 300 200 || { echo "✗ Lock timeout after 300s"; echo "failed" > "$STATUS_FILE"; exit 1; }
             
             # Kill any lingering next build processes
             pkill -f "next build" 2>/dev/null || true
