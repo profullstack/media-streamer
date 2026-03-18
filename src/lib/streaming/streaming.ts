@@ -278,26 +278,53 @@ function readCgroupMemoryLimit(path: string): number | null {
   }
 }
 
+/**
+ * Discover the cgroup path for this process.
+ * On cgroupv2, /proc/self/cgroup contains "0::/path" — we need to read
+ * memory limits from /sys/fs/cgroup/<path>/memory.{high,max} not from
+ * the root cgroup (which may not exist).
+ */
+function getCgroupBasePath(): string {
+  try {
+    const raw = readFileSync('/proc/self/cgroup', 'utf8').trim();
+    // cgroupv2 format: "0::/system.slice/service.service"
+    const match = raw.match(/0::(.+)/);
+    if (match && match[1] && match[1] !== '/') {
+      return `/sys/fs/cgroup${match[1]}`;
+    }
+  } catch {
+    // ignore
+  }
+  return '/sys/fs/cgroup';
+}
+
 function getMemoryThresholds(): { warning: number; critical: number; severe: number } {
   // Fallbacks if cgroup limits are unavailable
-  const fallbackWarning = 5 * 1024 * 1024 * 1024;
-  const fallbackCritical = 6.5 * 1024 * 1024 * 1024;
-  const fallbackSevere = 7.5 * 1024 * 1024 * 1024;
+  const fallbackWarning = 4 * 1024 * 1024 * 1024;     // 4 GB
+  const fallbackCritical = 5 * 1024 * 1024 * 1024;     // 5 GB
+  const fallbackSevere = 5.5 * 1024 * 1024 * 1024;     // 5.5 GB
 
-  const high = readCgroupMemoryLimit('/sys/fs/cgroup/memory.high');
-  const max = readCgroupMemoryLimit('/sys/fs/cgroup/memory.max');
+  const cgroupBase = getCgroupBasePath();
+  const high = readCgroupMemoryLimit(`${cgroupBase}/memory.high`);
+  const max = readCgroupMemoryLimit(`${cgroupBase}/memory.max`);
 
-  const candidates = [high, max].filter((v): v is number => v !== null);
+  // Also try root paths as fallback (for containers that expose them there)
+  const rootHigh = high ?? readCgroupMemoryLimit('/sys/fs/cgroup/memory.high');
+  const rootMax = max ?? readCgroupMemoryLimit('/sys/fs/cgroup/memory.max');
+
+  const candidates = [rootHigh, rootMax].filter((v): v is number => v !== null);
   if (candidates.length === 0) {
     return { warning: fallbackWarning, critical: fallbackCritical, severe: fallbackSevere };
   }
 
   const budget = Math.min(...candidates);
 
-  // Trigger app cleanup ahead of systemd limits.
-  const warning = Math.floor(budget * 0.82);
-  const critical = Math.floor(budget * 0.90);
-  const severe = Math.floor(budget * 0.96);
+  // Trigger app cleanup well ahead of systemd/cgroup hard limits.
+  // Use MemoryHigh (soft limit) as the budget when available — it's the
+  // point where the kernel starts throttling, so we want to stay below it.
+  const warning = Math.floor(budget * 0.70);   // 70% — start cleanup early
+  const critical = Math.floor(budget * 0.82);   // 82% — aggressive cleanup
+  const severe = Math.floor(budget * 0.90);     // 90% — emergency, kill streams
 
   return { warning, critical, severe };
 }
