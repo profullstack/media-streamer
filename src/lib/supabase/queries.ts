@@ -663,6 +663,14 @@ export interface TorrentSearchOptions {
   offset?: number;
   sortBy?: 'relevance' | 'date' | 'seeders' | 'leechers' | 'size';
   sortOrder?: 'asc' | 'desc';
+  minSeeders?: number;
+  maxSeeders?: number;
+  minLeechers?: number;
+  maxLeechers?: number;
+  minSize?: number;
+  maxSize?: number;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 /**
@@ -673,7 +681,12 @@ export interface TorrentSearchOptions {
 export async function searchTorrents(options: TorrentSearchOptions): Promise<TorrentSearchResult[]> {
   const client = getServerClient();
 
-  const { query, mediaType = null, limit = 50, offset = 0, sortBy = 'seeders', sortOrder = 'desc' } = options;
+  const {
+    query, mediaType = null, limit = 50, offset = 0,
+    sortBy = 'seeders', sortOrder = 'desc',
+    minSeeders, maxSeeders, minLeechers, maxLeechers,
+    minSize, maxSize, dateFrom, dateTo,
+  } = options;
 
   // Build the search pattern
   const searchPattern = `%${query.toLowerCase()}%`;
@@ -689,6 +702,16 @@ export async function searchTorrents(options: TorrentSearchOptions): Promise<Tor
     .from('bt_torrents')
     .select('id, name, clean_title, infohash, total_size, file_count, seeders, leechers, created_at, poster_url, cover_url')
     .ilike('name', searchPattern);
+
+  // Apply advanced filters
+  if (minSeeders !== undefined) queryBuilder = queryBuilder.gte('seeders', minSeeders);
+  if (maxSeeders !== undefined) queryBuilder = queryBuilder.lte('seeders', maxSeeders);
+  if (minLeechers !== undefined) queryBuilder = queryBuilder.gte('leechers', minLeechers);
+  if (maxLeechers !== undefined) queryBuilder = queryBuilder.lte('leechers', maxLeechers);
+  if (minSize !== undefined) queryBuilder = queryBuilder.gte('total_size', minSize);
+  if (maxSize !== undefined) queryBuilder = queryBuilder.lte('total_size', maxSize);
+  if (dateFrom) queryBuilder = queryBuilder.gte('created_at', dateFrom);
+  if (dateTo) queryBuilder = queryBuilder.lte('created_at', dateTo);
 
   // Apply primary sort
   queryBuilder = queryBuilder.order(sortColumn, { ascending: sortOrder === 'asc', nullsFirst: false });
@@ -811,7 +834,12 @@ export async function searchAllTorrents(
   }
 ): Promise<(TorrentSearchResult & { source: 'user' | 'dht' })[]> {
   const client = getServerClient();
-  const { query, source = 'all', limit = 50, offset = 0, sortBy = 'seeders', sortOrder = 'desc' } = options;
+  const {
+    query, source = 'all', limit = 50, offset = 0,
+    sortBy = 'seeders', sortOrder = 'desc',
+    minSeeders, maxSeeders, minLeechers, maxLeechers,
+    minSize, maxSize, dateFrom, dateTo,
+  } = options;
 
   // Use the search_all_torrents RPC
   const { data, error } = await client.rpc('search_all_torrents', {
@@ -820,6 +848,14 @@ export async function searchAllTorrents(
     result_offset: source === 'all' ? offset : 0,
     sort_by: sortBy === 'relevance' ? 'seeders' : sortBy, // Relevance defaults to seeders
     sort_order: sortOrder,
+    min_seeders: minSeeders ?? null,
+    max_seeders: maxSeeders ?? null,
+    min_leechers: minLeechers ?? null,
+    max_leechers: maxLeechers ?? null,
+    min_size: minSize ?? null,
+    max_size: maxSize ?? null,
+    date_from: dateFrom ?? null,
+    date_to: dateTo ?? null,
   });
 
   if (error) {

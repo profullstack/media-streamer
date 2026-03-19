@@ -63,9 +63,14 @@ export function useSupportedCoins(
     setError(null);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const response = await fetch(
-        `/api/supported-coins?active_only=${activeOnly}`
+        `/api/supported-coins?active_only=${activeOnly}`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
 
       const data = (await response.json()) as
         | SupportedCoinsResponse
@@ -79,7 +84,10 @@ export function useSupportedCoins(
       const successData = data as SupportedCoinsResponse;
       setCoins(successData.coins);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch supported coins');
+      const message = err instanceof Error && err.name === 'AbortError'
+        ? 'Payment methods unavailable. Please try again later.'
+        : err instanceof Error ? err.message : 'Failed to fetch supported coins';
+      setError(message);
       setCoins([]);
     } finally {
       setIsLoading(false);

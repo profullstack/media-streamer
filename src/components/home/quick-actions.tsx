@@ -8,6 +8,8 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 import { MagnetIcon, SearchIcon, MusicIcon, VideoIcon } from '@/components/ui/icons';
 import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
@@ -63,10 +65,16 @@ function QuickActionCard({
 
 export function QuickActions(): React.ReactElement {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { isLoggedIn } = useAuth();
+  const router = useRouter();
 
   const handleOpenModal = useCallback((): void => {
+    if (!isLoggedIn) {
+      router.push('/login');
+      return;
+    }
     setIsModalOpen(true);
-  }, []);
+  }, [isLoggedIn, router]);
 
   const handleCloseModal = useCallback((): void => {
     setIsModalOpen(false);
@@ -78,8 +86,8 @@ export function QuickActions(): React.ReactElement {
         <QuickActionCard
           onClick={handleOpenModal}
           icon={MagnetIcon}
-          title="Add Torrent"
-          description="Add a magnet link to start streaming"
+          title={isLoggedIn ? 'Add Torrent' : 'Add Torrent 🔒'}
+          description={isLoggedIn ? 'Add a magnet link to start streaming' : 'Login required to add torrents'}
           color="accent-primary"
         />
         <QuickActionCard

@@ -37,10 +37,11 @@ const ChannelCard = memo(function ChannelCard({
 }) {
   return (
     <div
+     
       onClick={() => onClick(channel)}
       className={cn(
-        'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-4',
-        'hover:border-accent-primary/50 hover:bg-bg-hover transition-colors'
+        'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-4 outline-none transition-all',
+        'hover:border-accent-primary/50 hover:bg-bg-hover'
       )}
     >
       <div className="flex items-center gap-3">

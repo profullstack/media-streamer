@@ -410,7 +410,6 @@ interface TorrentCardProps {
 
 const TorrentCard = memo(function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const imageUrl = torrent.posterUrl ?? torrent.coverUrl;
-  
   // Map ContentType to MediaContentType for the placeholder
   const mediaContentType: MediaContentType = torrent.contentType ?? 'other';
 

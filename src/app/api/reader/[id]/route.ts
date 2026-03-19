@@ -52,7 +52,7 @@ interface FileWithTorrent {
   size: number;
   media_category: string | null;
   mime_type: string | null;
-  torrents: {
+  bt_torrents: {
     id: string;
     infohash: string;
     name: string;
@@ -93,7 +93,7 @@ export async function GET(
       size,
       media_category,
       mime_type,
-      torrents (
+      bt_torrents (
         id,
         infohash,
         name,
@@ -130,7 +130,7 @@ export async function GET(
   }
 
   // Build stream URL
-  const streamUrl = `/api/stream?infohash=${fileData.torrents.infohash}&fileIndex=${fileData.file_index}`;
+  const streamUrl = `/api/stream?infohash=${fileData.bt_torrents.infohash}&fileIndex=${fileData.file_index}`;
 
   // Return file info
   return NextResponse.json({
@@ -144,10 +144,10 @@ export async function GET(
       fileIndex: fileData.file_index,
     },
     torrent: {
-      id: fileData.torrents.id,
-      infohash: fileData.torrents.infohash,
-      name: fileData.torrents.name,
-      cleanTitle: fileData.torrents.clean_title,
+      id: fileData.bt_torrents.id,
+      infohash: fileData.bt_torrents.infohash,
+      name: fileData.bt_torrents.name,
+      cleanTitle: fileData.bt_torrents.clean_title,
     },
     streamUrl,
   });

@@ -7,6 +7,7 @@
  */
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { formatBytes } from '@/lib/utils';
 import { calculateHealthBars, getHealthBarColors } from '@/lib/torrent-health';
 import { FolderIcon, ChevronRightIcon, MusicIcon, VideoIcon, BookIcon } from '@/components/ui/icons';
@@ -112,11 +113,12 @@ function HealthIndicator({ seeders, leechers }: HealthIndicatorProps): React.Rea
 function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
   const mediaStats = getMediaStats(torrent.files ?? []);
   const imageUrl = torrent.posterUrl ?? torrent.coverUrl;
+  const router = useRouter();
 
   return (
     <Link
       href={`/torrents/${torrent.infohash}`}
-      className="card-hover flex items-center gap-4 p-4 transition-transform hover:scale-[1.01]"
+      className="card-hover flex items-center gap-4 p-4 transition-all hover:scale-[1.01]"
     >
       {/* Poster/Cover Image with Placeholder */}
       <MediaThumbnail

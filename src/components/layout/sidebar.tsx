@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -224,31 +225,57 @@ function NavSection({ items, pathname, onItemClick, isLoggedIn, isPremium }: Nav
       {items.map((item) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
-        // Redirect to login if auth-required and not logged in, or paid feature and not premium
-        const needsLogin = (item.requiresAuth && !isLoggedIn) || (item.requiresPaid && !isPremium);
-        const href = needsLogin ? '/login' : item.href;
+        const needsLogin = !!(item.requiresAuth && !isLoggedIn) || !!(item.requiresPaid && !isPremium);
 
         return (
           <li key={item.href}>
-            <Link
-              href={href}
-              onClick={onItemClick}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-accent-primary/10 text-accent-primary'
-                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-              )}
-            >
-              <Icon size={20} className={isActive ? 'text-accent-primary' : ''} />
-              <span>{item.label}</span>
-              {item.badge ? <span className="ml-auto rounded-full bg-accent-primary px-2 py-0.5 text-xs font-medium text-white">
-                  {item.badge}
-                </span> : null}
-            </Link>
+            <FocusableNavItem
+              href={needsLogin ? '/login' : item.href}
+              isActive={isActive}
+              needsLogin={needsLogin}
+              icon={Icon}
+              label={item.label}
+              badge={item.badge}
+              onItemClick={onItemClick}
+            />
           </li>
         );
       })}
     </ul>
+  );
+}
+
+interface FocusableNavItemProps {
+  href: string;
+  isActive: boolean;
+  needsLogin: boolean;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+  label: string;
+  badge?: string;
+  onItemClick: () => void;
+}
+
+function FocusableNavItem({ href, isActive, needsLogin, icon: Icon, label, badge, onItemClick }: FocusableNavItemProps): React.ReactElement {
+  const router = useRouter();
+
+  return (
+    <Link
+      href={href}
+      onClick={onItemClick}
+      title={needsLogin ? 'Login required' : undefined}
+      className={cn(
+        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all outline-none',
+        isActive
+          ? 'bg-accent-primary/10 text-accent-primary'
+          : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+              )}
+    >
+      <Icon size={20} className={isActive ? 'text-accent-primary' : ''} />
+      <span>{label}</span>
+      {needsLogin ? <span className="ml-auto text-xs opacity-50" title="Login required">🔒</span> : null}
+      {badge ? <span className="ml-auto rounded-full bg-accent-primary px-2 py-0.5 text-xs font-medium text-white">
+          {badge}
+        </span> : null}
+    </Link>
   );
 }

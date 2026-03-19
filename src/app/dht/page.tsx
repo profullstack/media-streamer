@@ -15,6 +15,8 @@ import { MainLayout } from '@/components/layout';
 import { cn, formatBytes } from '@/lib/utils';
 import { LoadingSpinner, SortIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon } from '@/components/ui/icons';
 import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
+import { TorrentFilterPanel, filtersFromSearchParams, filtersToSearchParams } from '@/components/filters/torrent-filters';
+import type { TorrentFilters } from '@/components/filters/torrent-filters';
 
 /**
  * DHT torrent result from API
@@ -130,66 +132,62 @@ const DhtResultsList = memo(function DhtResultsList({
           key={result.infohash}
           href={`/dht/${result.infohash}`}
           className={cn(
-            'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+            'block rounded border border-transparent px-3 py-2',
             'hover:border-accent-primary/30 hover:bg-bg-hover',
             'transition-colors'
           )}
         >
-          {/* Add to Library button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onAddToLibrary(result);
-            }}
-            className={cn(
-              'flex items-center gap-1 rounded px-2 py-1 text-xs',
-              'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
-              'transition-colors shrink-0'
-            )}
-            title="Add to Library"
-          >
-            <PlusIcon size={14} />
-            <span className="hidden sm:inline">Add</span>
-          </button>
+          {/* Top row: Add button + Name */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAddToLibrary(result);
+              }}
+              className={cn(
+                'flex items-center gap-1 rounded px-2 py-1 text-xs',
+                'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
+                'transition-colors shrink-0'
+              )}
+              title="Add to Library"
+            >
+              <PlusIcon size={14} />
+              <span className="hidden sm:inline">Add</span>
+            </button>
 
-          {/* Name */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-sm text-text-primary">
-                {result.name}
-              </span>
-              {result.content_type ? (
-                <span className={cn(
-                  'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
-                  getCategoryColor(result.content_type)
-                )}>
-                  {formatContentType(result.content_type)}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm text-text-primary">
+                  {result.name}
                 </span>
-              ) : null}
+                {result.content_type ? (
+                  <span className={cn(
+                    'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+                    getCategoryColor(result.content_type)
+                  )}>
+                    {formatContentType(result.content_type)}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
-            <span className="w-16 text-right">{formatBytes(result.size)}</span>
+          {/* Stats row — wraps naturally on small screens */}
+          <div className="mt-1 ml-[52px] flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-muted">
+            <span>{formatBytes(result.size)}</span>
             {result.files_count > 0 && (
-              <span className="w-12 text-right">{result.files_count} files</span>
+              <span>{result.files_count} files</span>
             )}
             <span className={cn(
-              'w-16 text-right',
               result.seeders > 10 ? 'text-green-400' :
               result.seeders > 0 ? 'text-yellow-400' : 'text-red-400'
             )}>
               {result.seeders} S
             </span>
-            <span className="w-12 text-right text-text-muted">
-              {result.leechers} L
-            </span>
-            <span className="w-20 text-right hidden sm:block">
-              {formatDate(result.created_at)}
-            </span>
+            <span>{result.leechers} L</span>
+            <span>{formatDate(result.created_at)}</span>
           </div>
         </Link>
       ))}
@@ -220,6 +218,9 @@ function DhtPageInner(): React.ReactElement {
   );
   const [offset, setOffset] = useState(0);
 
+  // Filter state
+  const [filters, setFilters] = useState<TorrentFilters>(() => filtersFromSearchParams(searchParams));
+
   // Add Magnet modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedTorrent, setSelectedTorrent] = useState<DhtTorrent | null>(null);
@@ -243,6 +244,16 @@ function DhtPageInner(): React.ReactElement {
         limit: String(PAGE_SIZE),
         offset: String(currentOffset),
       });
+
+      // Add filter params
+      if (filters.minSeeders) params.set('min_seeders', String(filters.minSeeders));
+      if (filters.maxSeeders) params.set('max_seeders', String(filters.maxSeeders));
+      if (filters.minLeechers) params.set('min_leechers', String(filters.minLeechers));
+      if (filters.maxLeechers) params.set('max_leechers', String(filters.maxLeechers));
+      if (filters.minSize) params.set('min_size', String(filters.minSize));
+      if (filters.maxSize) params.set('max_size', String(filters.maxSize));
+      if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+      if (filters.dateTo) params.set('date_to', filters.dateTo);
 
       const response = await fetch(`/api/dht/browse?${params.toString()}`);
       if (!response.ok) {
@@ -268,26 +279,35 @@ function DhtPageInner(): React.ReactElement {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [sortBy, sortOrder, offset]);
+  }, [sortBy, sortOrder, offset, filters]);
 
-  // Initial load and reload on sort change
+  // Initial load and reload on sort/filter change
   useEffect(() => {
     setOffset(0);
     fetchTorrents(false);
-  }, [sortBy, sortOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortBy, sortOrder, filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update URL params
-  const updateUrlParams = useCallback((updates: { sortBy?: SortBy; sortOrder?: SortOrder }): void => {
+  const updateUrlParams = useCallback((updates: { sortBy?: SortBy; sortOrder?: SortOrder; filters?: TorrentFilters }): void => {
     const params = new URLSearchParams();
     const newSortBy = updates.sortBy ?? sortBy;
     const newSortOrder = updates.sortOrder ?? sortOrder;
+    const newFilters = updates.filters ?? filters;
 
     if (newSortBy !== 'seeders') params.set('sortBy', newSortBy);
     if (newSortOrder !== 'desc') params.set('sortOrder', newSortOrder);
+    filtersToSearchParams(newFilters, params);
 
     const newUrl = params.toString() ? `/dht?${params.toString()}` : '/dht';
     router.replace(newUrl, { scroll: false });
-  }, [sortBy, sortOrder, router]);
+  }, [sortBy, sortOrder, filters, router]);
+
+  // Handle filter change
+  const handleFilterChange = useCallback((newFilters: TorrentFilters): void => {
+    setFilters(newFilters);
+    setOffset(0);
+    updateUrlParams({ filters: newFilters });
+  }, [updateUrlParams]);
 
   // Handle sort click
   const handleSort = useCallback((newSortBy: SortBy): void => {
@@ -333,6 +353,16 @@ function DhtPageInner(): React.ReactElement {
           offset: String(newOffset),
         });
 
+        // Add filter params
+        if (filters.minSeeders) params.set('min_seeders', String(filters.minSeeders));
+        if (filters.maxSeeders) params.set('max_seeders', String(filters.maxSeeders));
+        if (filters.minLeechers) params.set('min_leechers', String(filters.minLeechers));
+        if (filters.maxLeechers) params.set('max_leechers', String(filters.maxLeechers));
+        if (filters.minSize) params.set('min_size', String(filters.minSize));
+        if (filters.maxSize) params.set('max_size', String(filters.maxSize));
+        if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+        if (filters.dateTo) params.set('date_to', filters.dateTo);
+
         const response = await fetch(`/api/dht/browse?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to load more');
 
@@ -347,7 +377,7 @@ function DhtPageInner(): React.ReactElement {
     };
 
     fetchMore();
-  }, [offset, sortBy, sortOrder]);
+  }, [offset, sortBy, sortOrder, filters]);
 
   const hasMore = hasMoreFromApi && results.length < MAX_RESULTS;
   const reachedMax = results.length >= MAX_RESULTS;
@@ -407,6 +437,12 @@ function DhtPageInner(): React.ReactElement {
             </div>
           </div>
         </div>
+
+        {/* Filter Panel */}
+        <TorrentFilterPanel
+          filters={filters}
+          onChange={handleFilterChange}
+        />
 
         {/* Results count */}
         {!isLoading && results.length > 0 ? (

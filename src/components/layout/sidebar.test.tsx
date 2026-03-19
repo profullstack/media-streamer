@@ -1,3 +1,4 @@
+import React from 'react';
 /**
  * Sidebar Navigation Component Tests
  * 
@@ -16,7 +17,17 @@ import { Sidebar } from './sidebar';
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn(() => '/'),
+  useRouter: vi.fn(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  })),
 }));
+
+// Mock spatial navigation
 
 // Mock next/image
 vi.mock('next/image', () => ({
@@ -117,6 +128,21 @@ describe('Sidebar Navigation', () => {
       const link = screen.getByRole('link', { name: /my library/i });
       expect(link).toBeInTheDocument();
       expect(link).toHaveAttribute('href', '/login');
+    });
+
+    it('should show lock icon on auth-required items when not logged in', () => {
+      render(<Sidebar isLoggedIn={false} />);
+
+      // Auth-required items should have a lock icon with "Login required" title
+      const lockIcons = screen.getAllByTitle('Login required');
+      expect(lockIcons.length).toBeGreaterThan(0);
+    });
+
+    it('should not show lock icon on auth-required items when logged in and premium', () => {
+      render(<Sidebar isLoggedIn={true} isPremium={true} />);
+
+      const lockIcons = screen.queryAllByTitle('Login required');
+      expect(lockIcons.length).toBe(0);
     });
 
     it('should show My Library link with correct href when user IS logged in', () => {
