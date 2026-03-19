@@ -18,6 +18,8 @@ import { cn, formatBytes } from '@/lib/utils';
 import { LoadingSpinner, SortIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon } from '@/components/ui/icons';
 import { MediaPlaceholder } from '@/components/ui/media-placeholder';
 import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
+import { TorrentFilterPanel, filtersFromSearchParams, filtersToSearchParams } from '@/components/filters/torrent-filters';
+import type { TorrentFilters } from '@/components/filters/torrent-filters';
 
 /**
  * Torrent search result from API
@@ -200,8 +202,7 @@ const SearchResultsList = memo(function SearchResultsList({
                   >
                     {result.source === 'dht' ? 'DHT' : 'Library'}
                   </span> : null}
-                {(result as any).imdb_rating && (
-                  <a
+                {(result as any).imdb_rating ? <a
                     href={`https://www.imdb.com/title/${(result as any).imdb_id}/`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -210,14 +211,9 @@ const SearchResultsList = memo(function SearchResultsList({
                     title={`${(result as any).imdb_votes?.toLocaleString()} votes`}
                   >
                     ⭐{(result as any).imdb_rating}
-                  </a>
-                )}
-                {(result as any).year && (
-                  <span className="shrink-0 text-[10px] text-text-muted">{(result as any).year}</span>
-                )}
-                {(result as any).genres && (
-                  <span className="shrink-0 truncate text-[10px] text-text-muted max-w-[120px]">{(result as any).genres}</span>
-                )}
+                  </a> : null}
+                {(result as any).year ? <span className="shrink-0 text-[10px] text-text-muted">{(result as any).year}</span> : null}
+                {(result as any).genres ? <span className="shrink-0 truncate text-[10px] text-text-muted max-w-[120px]">{(result as any).genres}</span> : null}
               </div>
               {/* Show raw name if different from clean title */}
               {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name ? <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>
@@ -310,6 +306,9 @@ function SearchPageInner(): React.ReactElement {
   const [source, setSource] = useState<SearchSource>(sourceParam && ['all', 'user', 'dht'].includes(sourceParam) ? sourceParam : 'all');
   const [totalTorrentsInDb, setTotalTorrentsInDb] = useState<number | null>(null);
 
+  // Filter state
+  const [filters, setFilters] = useState<TorrentFilters>(() => filtersFromSearchParams(searchParams));
+
   // Add Magnet modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedDhtTorrent, setSelectedDhtTorrent] = useState<TorrentSearchResult | null>(null);
@@ -369,6 +368,16 @@ function SearchPageInner(): React.ReactElement {
         params.set('sortOrder', sortOrder);
       }
 
+      // Add filter params
+      if (filters.minSeeders) params.set('min_seeders', String(filters.minSeeders));
+      if (filters.maxSeeders) params.set('max_seeders', String(filters.maxSeeders));
+      if (filters.minLeechers) params.set('min_leechers', String(filters.minLeechers));
+      if (filters.maxLeechers) params.set('max_leechers', String(filters.maxLeechers));
+      if (filters.minSize) params.set('min_size', String(filters.minSize));
+      if (filters.maxSize) params.set('max_size', String(filters.maxSize));
+      if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+      if (filters.dateTo) params.set('date_to', filters.dateTo);
+
       const response = await fetch(`/api/search/torrents?${params.toString()}`);
       
       if (!response.ok) {
@@ -394,7 +403,7 @@ function SearchPageInner(): React.ReactElement {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [queryParam, typeParam, sortBy, sortOrder, offset, source]);
+  }, [queryParam, typeParam, sortBy, sortOrder, offset, source, filters]);
 
   // Search when query or type changes
   useEffect(() => {
@@ -402,16 +411,16 @@ function SearchPageInner(): React.ReactElement {
     performSearch(false);
   }, [queryParam, typeParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-search when sort or source changes
+  // Re-search when sort, source, or filters change
   useEffect(() => {
     if (hasSearched) {
       setOffset(0);
       performSearch(false);
     }
-  }, [sortBy, sortOrder, source]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortBy, sortOrder, source, filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update URL with current filters (preserving existing params)
-  const updateUrlParams = useCallback((updates: { sortBy?: SortBy; sortOrder?: SortOrder; source?: SearchSource }): void => {
+  const updateUrlParams = useCallback((updates: { sortBy?: SortBy; sortOrder?: SortOrder; source?: SearchSource; filters?: TorrentFilters }): void => {
     const params = new URLSearchParams(searchParams.toString());
 
     // Update sortBy
@@ -441,9 +450,21 @@ function SearchPageInner(): React.ReactElement {
       }
     }
 
+    // Update filter params
+    if (updates.filters !== undefined) {
+      filtersToSearchParams(updates.filters, params);
+    }
+
     const newUrl = params.toString() ? `?${params.toString()}` : '/search';
     router.replace(newUrl, { scroll: false });
   }, [searchParams, router]);
+
+  // Handle filter change
+  const handleFilterChange = useCallback((newFilters: TorrentFilters): void => {
+    setFilters(newFilters);
+    setOffset(0);
+    updateUrlParams({ filters: newFilters });
+  }, [updateUrlParams]);
 
   // Handle source tab change
   const handleSourceChange = useCallback((newSource: SearchSource): void => {
@@ -508,6 +529,16 @@ function SearchPageInner(): React.ReactElement {
           params.set('sortOrder', sortOrder);
         }
 
+        // Add filter params
+        if (filters.minSeeders) params.set('min_seeders', String(filters.minSeeders));
+        if (filters.maxSeeders) params.set('max_seeders', String(filters.maxSeeders));
+        if (filters.minLeechers) params.set('min_leechers', String(filters.minLeechers));
+        if (filters.maxLeechers) params.set('max_leechers', String(filters.maxLeechers));
+        if (filters.minSize) params.set('min_size', String(filters.minSize));
+        if (filters.maxSize) params.set('max_size', String(filters.maxSize));
+        if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+        if (filters.dateTo) params.set('date_to', filters.dateTo);
+
         const response = await fetch(`/api/search/torrents?${params.toString()}`);
 
         if (!response.ok) {
@@ -525,7 +556,7 @@ function SearchPageInner(): React.ReactElement {
     };
 
     fetchMore();
-  }, [offset, queryParam, typeParam, sortBy, sortOrder, source]);
+  }, [offset, queryParam, typeParam, sortBy, sortOrder, source, filters]);
 
   const categoryLabel = CATEGORY_LABELS[typeParam] ?? 'All';
   const hasMore = hasMoreFromApi && results.length < MAX_RESULTS;
@@ -625,6 +656,12 @@ function SearchPageInner(): React.ReactElement {
               </button>
             ))}
           </div> : null}
+
+        {/* Filter Panel */}
+        {hasSearched ? <TorrentFilterPanel
+            filters={filters}
+            onChange={handleFilterChange}
+          /> : null}
 
         {/* Results count */}
         {hasSearched && !isLoading && results.length > 0 ? <div className="text-xs text-text-muted">

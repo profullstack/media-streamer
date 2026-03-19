@@ -15,6 +15,8 @@ import { MainLayout } from '@/components/layout';
 import { cn, formatBytes } from '@/lib/utils';
 import { LoadingSpinner, SortIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon } from '@/components/ui/icons';
 import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
+import { TorrentFilterPanel, filtersFromSearchParams, filtersToSearchParams } from '@/components/filters/torrent-filters';
+import type { TorrentFilters } from '@/components/filters/torrent-filters';
 
 /**
  * DHT torrent result from API
@@ -220,6 +222,9 @@ function DhtPageInner(): React.ReactElement {
   );
   const [offset, setOffset] = useState(0);
 
+  // Filter state
+  const [filters, setFilters] = useState<TorrentFilters>(() => filtersFromSearchParams(searchParams));
+
   // Add Magnet modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedTorrent, setSelectedTorrent] = useState<DhtTorrent | null>(null);
@@ -243,6 +248,16 @@ function DhtPageInner(): React.ReactElement {
         limit: String(PAGE_SIZE),
         offset: String(currentOffset),
       });
+
+      // Add filter params
+      if (filters.minSeeders) params.set('min_seeders', String(filters.minSeeders));
+      if (filters.maxSeeders) params.set('max_seeders', String(filters.maxSeeders));
+      if (filters.minLeechers) params.set('min_leechers', String(filters.minLeechers));
+      if (filters.maxLeechers) params.set('max_leechers', String(filters.maxLeechers));
+      if (filters.minSize) params.set('min_size', String(filters.minSize));
+      if (filters.maxSize) params.set('max_size', String(filters.maxSize));
+      if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+      if (filters.dateTo) params.set('date_to', filters.dateTo);
 
       const response = await fetch(`/api/dht/browse?${params.toString()}`);
       if (!response.ok) {
@@ -268,26 +283,35 @@ function DhtPageInner(): React.ReactElement {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [sortBy, sortOrder, offset]);
+  }, [sortBy, sortOrder, offset, filters]);
 
-  // Initial load and reload on sort change
+  // Initial load and reload on sort/filter change
   useEffect(() => {
     setOffset(0);
     fetchTorrents(false);
-  }, [sortBy, sortOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortBy, sortOrder, filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update URL params
-  const updateUrlParams = useCallback((updates: { sortBy?: SortBy; sortOrder?: SortOrder }): void => {
+  const updateUrlParams = useCallback((updates: { sortBy?: SortBy; sortOrder?: SortOrder; filters?: TorrentFilters }): void => {
     const params = new URLSearchParams();
     const newSortBy = updates.sortBy ?? sortBy;
     const newSortOrder = updates.sortOrder ?? sortOrder;
+    const newFilters = updates.filters ?? filters;
 
     if (newSortBy !== 'seeders') params.set('sortBy', newSortBy);
     if (newSortOrder !== 'desc') params.set('sortOrder', newSortOrder);
+    filtersToSearchParams(newFilters, params);
 
     const newUrl = params.toString() ? `/dht?${params.toString()}` : '/dht';
     router.replace(newUrl, { scroll: false });
-  }, [sortBy, sortOrder, router]);
+  }, [sortBy, sortOrder, filters, router]);
+
+  // Handle filter change
+  const handleFilterChange = useCallback((newFilters: TorrentFilters): void => {
+    setFilters(newFilters);
+    setOffset(0);
+    updateUrlParams({ filters: newFilters });
+  }, [updateUrlParams]);
 
   // Handle sort click
   const handleSort = useCallback((newSortBy: SortBy): void => {
@@ -333,6 +357,16 @@ function DhtPageInner(): React.ReactElement {
           offset: String(newOffset),
         });
 
+        // Add filter params
+        if (filters.minSeeders) params.set('min_seeders', String(filters.minSeeders));
+        if (filters.maxSeeders) params.set('max_seeders', String(filters.maxSeeders));
+        if (filters.minLeechers) params.set('min_leechers', String(filters.minLeechers));
+        if (filters.maxLeechers) params.set('max_leechers', String(filters.maxLeechers));
+        if (filters.minSize) params.set('min_size', String(filters.minSize));
+        if (filters.maxSize) params.set('max_size', String(filters.maxSize));
+        if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+        if (filters.dateTo) params.set('date_to', filters.dateTo);
+
         const response = await fetch(`/api/dht/browse?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to load more');
 
@@ -347,7 +381,7 @@ function DhtPageInner(): React.ReactElement {
     };
 
     fetchMore();
-  }, [offset, sortBy, sortOrder]);
+  }, [offset, sortBy, sortOrder, filters]);
 
   const hasMore = hasMoreFromApi && results.length < MAX_RESULTS;
   const reachedMax = results.length >= MAX_RESULTS;
@@ -407,6 +441,12 @@ function DhtPageInner(): React.ReactElement {
             </div>
           </div>
         </div>
+
+        {/* Filter Panel */}
+        <TorrentFilterPanel
+          filters={filters}
+          onChange={handleFilterChange}
+        />
 
         {/* Results count */}
         {!isLoading && results.length > 0 ? (

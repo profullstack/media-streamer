@@ -188,6 +188,16 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
   }
   const sortOrder = sortOrderParam as SortOrder;
 
+  // Extract advanced filter params
+  const minSeeders = searchParams.get('min_seeders') ? parseInt(searchParams.get('min_seeders')!, 10) : undefined;
+  const maxSeeders = searchParams.get('max_seeders') ? parseInt(searchParams.get('max_seeders')!, 10) : undefined;
+  const minLeechers = searchParams.get('min_leechers') ? parseInt(searchParams.get('min_leechers')!, 10) : undefined;
+  const maxLeechers = searchParams.get('max_leechers') ? parseInt(searchParams.get('max_leechers')!, 10) : undefined;
+  const minSize = searchParams.get('min_size') ? parseInt(searchParams.get('min_size')!, 10) : undefined;
+  const maxSize = searchParams.get('max_size') ? parseInt(searchParams.get('max_size')!, 10) : undefined;
+  const dateFrom = searchParams.get('date_from') ?? undefined;
+  const dateTo = searchParams.get('date_to') ?? undefined;
+
   // Perform search
   try {
     let results: ExtendedSearchResult[];
@@ -201,6 +211,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         offset,
         sortBy,
         sortOrder,
+        minSeeders,
+        maxSeeders,
+        minLeechers,
+        maxLeechers,
+        minSize,
+        maxSize,
+        dateFrom,
+        dateTo,
       });
       results = userResults.map(r => ({ ...r, source: 'user' as const }));
     } else {
@@ -212,6 +230,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         offset,
         sortBy,
         sortOrder,
+        minSeeders,
+        maxSeeders,
+        minLeechers,
+        maxLeechers,
+        minSize,
+        maxSize,
+        dateFrom,
+        dateTo,
       });
       results = unifiedResults;
     }

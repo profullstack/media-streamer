@@ -1,57 +1,56 @@
 /**
- * Middleware Tests — Bot blocking on API routes
+ * Middleware Tests — Rate limiting and bot handling on API routes
+ *
+ * Behavior:
+ * - Good bots (Googlebot, Bingbot, Applebot): rate-limited (10/min), NOT blocked
+ * - Bad bots on expensive routes (/api/search/*, /api/dht/*): blocked (403)
+ * - Bad bots on other API routes: rate-limited (5/min), allowed through
+ * - Normal browsers: rate-limited on expensive routes (30/min)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-// We test the middleware by importing and calling it directly
-// Mock NextResponse and NextRequest
-const mockNextUrl = { pathname: '' };
-
-function createMockRequest(pathname: string, userAgent: string | null) {
-  return {
-    nextUrl: { pathname },
-    headers: {
-      get: (name: string) => (name === 'user-agent' ? userAgent : null),
-    },
-  };
-}
-
-// Import the actual middleware
+import { describe, it, expect } from 'vitest';
 import { middleware } from './middleware';
 import { NextRequest } from 'next/server';
 
-describe('Bot Blocking Middleware', () => {
+describe('Bot Handling Middleware', () => {
   function callMiddleware(pathname: string, userAgent: string | null) {
     const url = new URL(`http://localhost${pathname}`);
     const req = new NextRequest(url, {
-      headers: userAgent ? { 'user-agent': userAgent } : {},
+      headers: {
+        ...(userAgent ? { 'user-agent': userAgent } : {}),
+        'x-forwarded-for': `${Math.random().toString(36).slice(2)}.1.1.1`, // unique IP per call to avoid rate limit state
+      },
     });
     return middleware(req);
   }
 
-  it('should block Googlebot from API routes', () => {
+  it('should allow Googlebot on non-expensive API routes (rate-limited, not blocked)', () => {
     const res = callMiddleware('/api/torrents/123', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
-    expect(res).toBeDefined();
-    expect(res!.status).toBe(403);
+    // Good bots are allowed through (rate-limited at 10/min but first request passes)
+    expect(res).toBeUndefined();
   });
 
-  it('should block Bingbot from API routes', () => {
+  it('should allow Bingbot on non-expensive API routes', () => {
     const res = callMiddleware('/api/stream', 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)');
+    expect(res).toBeUndefined();
+  });
+
+  it('should block bad bots from expensive API routes with 403', () => {
+    const res = callMiddleware('/api/search/torrents', 'SomeBot/1.0');
     expect(res).toBeDefined();
     expect(res!.status).toBe(403);
   });
 
-  it('should block generic bot user agents', () => {
-    const res = callMiddleware('/api/torrents/index', 'SomeBot/1.0');
+  it('should block GPTBot from expensive API routes', () => {
+    const res = callMiddleware('/api/dht/browse', 'GPTBot/1.0');
     expect(res).toBeDefined();
     expect(res!.status).toBe(403);
   });
 
-  it('should block GPTBot', () => {
-    const res = callMiddleware('/api/torrents/123', 'GPTBot/1.0');
-    expect(res).toBeDefined();
-    expect(res!.status).toBe(403);
+  it('should allow bad bots on non-expensive API routes (rate-limited)', () => {
+    // Bad bots on non-expensive routes are rate-limited but not immediately blocked
+    const res = callMiddleware('/api/torrents/123', 'SomeBot/1.0');
+    expect(res).toBeUndefined();
   });
 
   it('should allow normal browsers to access API routes', () => {
@@ -65,18 +64,17 @@ describe('Bot Blocking Middleware', () => {
   });
 
   it('should not block bots from non-API routes', () => {
-    // Middleware matcher only runs on /api/ routes, but test the function directly
     const res = callMiddleware('/torrents/123', 'Googlebot/2.1');
     expect(res).toBeUndefined();
   });
 
-  it('should block AhrefsBot', () => {
-    const res = callMiddleware('/api/torrents/123', 'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)');
+  it('should block AhrefsBot from expensive API routes', () => {
+    const res = callMiddleware('/api/search/torrents', 'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)');
     expect(res).toBeDefined();
     expect(res!.status).toBe(403);
   });
 
-  it('should block social media preview bots from API', () => {
+  it('should block social media preview bots from expensive API routes', () => {
     const agents = [
       'facebookexternalhit/1.1',
       'Twitterbot/1.0',
@@ -86,7 +84,7 @@ describe('Bot Blocking Middleware', () => {
       'Discordbot/2.0',
     ];
     for (const ua of agents) {
-      const res = callMiddleware('/api/torrents/123', ua);
+      const res = callMiddleware('/api/search/torrents', ua);
       expect(res).toBeDefined();
       expect(res!.status).toBe(403);
     }

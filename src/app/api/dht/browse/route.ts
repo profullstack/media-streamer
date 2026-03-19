@@ -94,6 +94,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Optional category filter
   const category = searchParams.get('category') ?? null;
 
+  // Optional advanced filters
+  const minSeeders = searchParams.get('min_seeders') ? parseInt(searchParams.get('min_seeders')!, 10) : null;
+  const maxSeeders = searchParams.get('max_seeders') ? parseInt(searchParams.get('max_seeders')!, 10) : null;
+  const minLeechers = searchParams.get('min_leechers') ? parseInt(searchParams.get('min_leechers')!, 10) : null;
+  const maxLeechers = searchParams.get('max_leechers') ? parseInt(searchParams.get('max_leechers')!, 10) : null;
+  const minSize = searchParams.get('min_size') ? parseInt(searchParams.get('min_size')!, 10) : null;
+  const maxSize = searchParams.get('max_size') ? parseInt(searchParams.get('max_size')!, 10) : null;
+  const dateFrom = searchParams.get('date_from') ?? null;
+  const dateTo = searchParams.get('date_to') ?? null;
+
   try {
     const client = getServerClient();
     // browse_dht_torrents is a custom RPC not in generated Supabase types
@@ -103,6 +113,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       sort_by: sortByParam,
       sort_order: sortOrderParam,
       filter_category: category,
+      min_seeders: minSeeders,
+      max_seeders: maxSeeders,
+      min_leechers: minLeechers,
+      max_leechers: maxLeechers,
+      min_size: minSize,
+      max_size: maxSize,
+      date_from: dateFrom,
+      date_to: dateTo,
     });
 
     if (error) {
