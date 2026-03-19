@@ -80,7 +80,7 @@ describe('GET /api/reader/[id]', () => {
       size: 1000000,
       media_category: 'video',
       mime_type: 'video/mp4',
-      torrents: {
+      bt_torrents: {
         id: 'torrent-456',
         infohash: 'abc123def456',
         name: 'Test Video',
@@ -120,7 +120,7 @@ describe('GET /api/reader/[id]', () => {
       size: 500000,
       media_category: 'ebook',
       mime_type: 'application/epub+zip',
-      torrents: {
+      bt_torrents: {
         id: 'torrent-456',
         infohash: 'abc123def456',
         name: 'Test Book Collection',
@@ -178,7 +178,7 @@ describe('GET /api/reader/[id]', () => {
       size: 2000000,
       media_category: 'ebook',
       mime_type: 'application/pdf',
-      torrents: {
+      bt_torrents: {
         id: 'torrent-456',
         infohash: 'xyz789abc123',
         name: 'Technical Manuals',
