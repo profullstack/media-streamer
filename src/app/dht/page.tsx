@@ -126,72 +126,68 @@ const DhtResultsList = memo(function DhtResultsList({
   }
 
   return (
-    <div className="space-y-1 overflow-x-hidden" style={{ textSizeAdjust: '100%', WebkitTextSizeAdjust: '100%' }}>
+    <div className="space-y-1" style={{ textSizeAdjust: '100%', WebkitTextSizeAdjust: '100%' }}>
       {results.map((result) => (
         <Link
           key={result.infohash}
           href={`/dht/${result.infohash}`}
           className={cn(
-            'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+            'block rounded border border-transparent px-3 py-2',
             'hover:border-accent-primary/30 hover:bg-bg-hover',
             'transition-colors'
           )}
         >
-          {/* Add to Library button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onAddToLibrary(result);
-            }}
-            className={cn(
-              'flex items-center gap-1 rounded px-2 py-1 text-xs',
-              'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
-              'transition-colors shrink-0'
-            )}
-            title="Add to Library"
-          >
-            <PlusIcon size={14} />
-            <span className="hidden sm:inline">Add</span>
-          </button>
+          {/* Top row: Add button + Name */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAddToLibrary(result);
+              }}
+              className={cn(
+                'flex items-center gap-1 rounded px-2 py-1 text-xs',
+                'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
+                'transition-colors shrink-0'
+              )}
+              title="Add to Library"
+            >
+              <PlusIcon size={14} />
+              <span className="hidden sm:inline">Add</span>
+            </button>
 
-          {/* Name */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-sm text-text-primary">
-                {result.name}
-              </span>
-              {result.content_type ? (
-                <span className={cn(
-                  'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
-                  getCategoryColor(result.content_type)
-                )}>
-                  {formatContentType(result.content_type)}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm text-text-primary">
+                  {result.name}
                 </span>
-              ) : null}
+                {result.content_type ? (
+                  <span className={cn(
+                    'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+                    getCategoryColor(result.content_type)
+                  )}>
+                    {formatContentType(result.content_type)}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="hidden sm:flex items-center gap-4 text-xs text-text-muted shrink-0">
-            <span className="w-16 text-right">{formatBytes(result.size)}</span>
+          {/* Stats row — wraps naturally on small screens */}
+          <div className="mt-1 ml-[52px] flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-muted">
+            <span>{formatBytes(result.size)}</span>
             {result.files_count > 0 && (
-              <span className="w-12 text-right">{result.files_count} files</span>
+              <span>{result.files_count} files</span>
             )}
             <span className={cn(
-              'w-16 text-right',
               result.seeders > 10 ? 'text-green-400' :
               result.seeders > 0 ? 'text-yellow-400' : 'text-red-400'
             )}>
               {result.seeders} S
             </span>
-            <span className="w-12 text-right text-text-muted">
-              {result.leechers} L
-            </span>
-            <span className="w-20 text-right hidden sm:block">
-              {formatDate(result.created_at)}
-            </span>
+            <span>{result.leechers} L</span>
+            <span>{formatDate(result.created_at)}</span>
           </div>
         </Link>
       ))}

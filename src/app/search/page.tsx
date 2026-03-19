@@ -141,7 +141,7 @@ const SearchResultsList = memo(function SearchResultsList({
   }
 
   return (
-    <div className="space-y-1 overflow-x-hidden">
+    <div className="space-y-1">
       {results.map((result) => {
         const imageUrl = result.torrent_poster_url ?? (result as any).poster_url ?? result.torrent_cover_url;
         const displayName = result.torrent_clean_title ?? result.torrent_name;
@@ -150,84 +150,87 @@ const SearchResultsList = memo(function SearchResultsList({
         // Common content for both link and button versions
         const content = (
           <>
-            {/* Add to Library button for DHT results - positioned first */}
-            {isDht ? <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onAddToLibrary(result);
-                }}
-                className={cn(
-                  'flex items-center gap-1 rounded px-2 py-1 text-xs',
-                  'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
-                  'transition-colors shrink-0'
+            {/* Top row: buttons + thumbnail + name */}
+            <div className="flex items-center gap-3">
+              {/* Add to Library button for DHT results */}
+              {isDht ? <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onAddToLibrary(result);
+                  }}
+                  className={cn(
+                    'flex items-center gap-1 rounded px-2 py-1 text-xs',
+                    'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
+                    'transition-colors shrink-0'
+                  )}
+                  title="Add to Library"
+                >
+                  <PlusIcon size={14} />
+                  <span className="hidden sm:inline">Add</span>
+                </button> : null}
+
+              {/* Thumbnail */}
+              <div className="relative h-10 w-7 shrink-0 overflow-hidden rounded bg-bg-tertiary">
+                {imageUrl ? (
+                  <Image
+                    src={imageUrl}
+                    alt={displayName}
+                    fill
+                    sizes="28px"
+                    className="object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <MediaPlaceholder alt={displayName} contentType="video" size="sm" className="h-full w-full" />
                 )}
-                title="Add to Library"
-              >
-                <PlusIcon size={14} />
-                <span className="hidden sm:inline">Add</span>
-              </button> : null}
-
-            {/* Thumbnail */}
-            <div className="relative h-10 w-7 shrink-0 overflow-hidden rounded bg-bg-tertiary">
-              {imageUrl ? (
-                <Image
-                  src={imageUrl}
-                  alt={displayName}
-                  fill
-                  sizes="28px"
-                  className="object-cover"
-                  unoptimized
-                />
-              ) : (
-                <MediaPlaceholder alt={displayName} contentType="video" size="sm" className="h-full w-full" />
-              )}
-            </div>
-
-            {/* Name - takes most space */}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm text-text-primary">
-                  {displayName}
-                </span>
-                {/* Source badge */}
-                {result.source ? <span
-                    className={cn(
-                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
-                      result.source === 'dht'
-                        ? 'bg-purple-500/20 text-purple-400'
-                        : 'bg-green-500/20 text-green-400'
-                    )}
-                  >
-                    {result.source === 'dht' ? 'DHT' : 'Library'}
-                  </span> : null}
-                {(result as any).imdb_rating ? <a
-                    href={`https://www.imdb.com/title/${(result as any).imdb_id}/`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-xs text-yellow-400"
-                    onClick={(e) => e.stopPropagation()}
-                    title={`${(result as any).imdb_votes?.toLocaleString()} votes`}
-                  >
-                    ⭐{(result as any).imdb_rating}
-                  </a> : null}
-                {(result as any).year ? <span className="shrink-0 text-[10px] text-text-muted">{(result as any).year}</span> : null}
-                {(result as any).genres ? <span className="shrink-0 truncate text-[10px] text-text-muted max-w-[120px]">{(result as any).genres}</span> : null}
               </div>
-              {/* Show raw name if different from clean title */}
-              {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name ? <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>
-                  {result.torrent_name}
-                </span> : null}
+
+              {/* Name */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm text-text-primary">
+                    {displayName}
+                  </span>
+                  {result.source ? <span
+                      className={cn(
+                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+                        result.source === 'dht'
+                          ? 'bg-purple-500/20 text-purple-400'
+                          : 'bg-green-500/20 text-green-400'
+                      )}
+                    >
+                      {result.source === 'dht' ? 'DHT' : 'Library'}
+                    </span> : null}
+                  {(result as any).imdb_rating ? <a
+                      href={`https://www.imdb.com/title/${(result as any).imdb_id}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-yellow-400"
+                      onClick={(e) => e.stopPropagation()}
+                      title={`${(result as any).imdb_votes?.toLocaleString()} votes`}
+                    >
+                      ⭐{(result as any).imdb_rating}
+                    </a> : null}
+                  {(result as any).year ? <span className="shrink-0 text-[10px] text-text-muted">{(result as any).year}</span> : null}
+                  {(result as any).genres ? <span className="shrink-0 truncate text-[10px] text-text-muted max-w-[120px]">{(result as any).genres}</span> : null}
+                </div>
+                {result.torrent_clean_title && result.torrent_clean_title !== result.torrent_name ? <span className="block truncate text-xs text-text-muted" title={result.torrent_name}>
+                    {result.torrent_name}
+                  </span> : null}
+              </div>
             </div>
 
-            {/* Stats - compact, hidden on very small screens */}
-            <div className="hidden sm:flex items-center gap-4 text-xs text-text-muted shrink-0">
-              <span className="w-16 text-right">{formatBytes(result.torrent_total_size)}</span>
-              <span className="w-12 text-right">{result.torrent_file_count} files</span>
+            {/* Stats row — wraps naturally on small screens */}
+            <div className={cn(
+              'mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-muted',
+              isDht ? 'ml-[80px]' : 'ml-[40px]'
+            )}>
+              <span>{formatBytes(result.torrent_total_size)}</span>
+              <span>{result.torrent_file_count} files</span>
               {result.torrent_seeders !== null && (
                 <span className={cn(
-                  'w-16 text-right',
                   result.torrent_seeders > 10 ? 'text-green-400' :
                   result.torrent_seeders > 0 ? 'text-yellow-400' : 'text-red-400'
                 )}>
@@ -235,13 +238,9 @@ const SearchResultsList = memo(function SearchResultsList({
                 </span>
               )}
               {result.torrent_leechers !== null && (
-                <span className="w-12 text-right text-text-muted">
-                  {result.torrent_leechers} L
-                </span>
+                <span>{result.torrent_leechers} L</span>
               )}
-              <span className="w-20 text-right hidden sm:block">
-                {formatDate(result.torrent_created_at)}
-              </span>
+              <span>{formatDate(result.torrent_created_at)}</span>
             </div>
           </>
         );
@@ -253,7 +252,7 @@ const SearchResultsList = memo(function SearchResultsList({
               key={result.torrent_id}
               href={`/dht/${result.torrent_infohash}`}
               className={cn(
-                'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+                'block rounded border border-transparent px-3 py-2',
                 'hover:border-accent-primary/30 hover:bg-bg-hover',
                 'transition-colors'
               )}
@@ -268,7 +267,7 @@ const SearchResultsList = memo(function SearchResultsList({
             key={result.torrent_id}
             href={`/torrents/${result.torrent_id}`}
             className={cn(
-              'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+              'block rounded border border-transparent px-3 py-2',
               'hover:border-accent-primary/30 hover:bg-bg-hover',
               'transition-colors'
             )}
