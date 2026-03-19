@@ -221,8 +221,8 @@ const SearchResultsList = memo(function SearchResultsList({
                 </span> : null}
             </div>
 
-            {/* Stats - compact */}
-            <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
+            {/* Stats - compact, hidden on very small screens */}
+            <div className="hidden sm:flex items-center gap-4 text-xs text-text-muted shrink-0">
               <span className="w-16 text-right">{formatBytes(result.torrent_total_size)}</span>
               <span className="w-12 text-right">{result.torrent_file_count} files</span>
               {result.torrent_seeders !== null && (

@@ -174,7 +174,7 @@ const DhtResultsList = memo(function DhtResultsList({
           </div>
 
           {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-text-muted shrink-0">
+          <div className="hidden sm:flex items-center gap-4 text-xs text-text-muted shrink-0">
             <span className="w-16 text-right">{formatBytes(result.size)}</span>
             {result.files_count > 0 && (
               <span className="w-12 text-right">{result.files_count} files</span>
