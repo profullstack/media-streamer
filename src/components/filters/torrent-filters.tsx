@@ -6,6 +6,8 @@
  * Collapsible filter panel for torrent search/browse pages.
  * Supports: min seeders, min/max leechers, size range, date range.
  * Persists filters in URL params.
+ *
+ * Filters are staged locally and only applied when the user clicks "Apply".
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -82,7 +84,7 @@ const SIZE_UNIT_MULTIPLIERS: Record<SizeUnit, number> = {
 };
 
 // =============================================================================
-// Helper: figure out which size preset is active
+// Helpers
 // =============================================================================
 
 function getActiveSizePreset(filters: TorrentFilters): string {
@@ -103,7 +105,6 @@ function getActiveDatePreset(filters: TorrentFilters): string {
   const nowMs = Date.now();
   const diffMs = nowMs - fromMs;
 
-  // Allow 5 minute tolerance for matching presets
   const tolerance = 5 * 60 * 1000;
   if (Math.abs(diffMs - 24 * 60 * 60 * 1000) < tolerance) return '24h';
   if (Math.abs(diffMs - 7 * 24 * 60 * 60 * 1000) < tolerance) return 'week';
@@ -122,25 +123,44 @@ function hasActiveFilters(filters: TorrentFilters): boolean {
   );
 }
 
+function filtersEqual(a: TorrentFilters, b: TorrentFilters): boolean {
+  return a.minSeeders === b.minSeeders
+    && a.maxSeeders === b.maxSeeders
+    && a.minLeechers === b.minLeechers
+    && a.maxLeechers === b.maxLeechers
+    && a.minSize === b.minSize
+    && a.maxSize === b.maxSize
+    && a.dateFrom === b.dateFrom
+    && a.dateTo === b.dateTo;
+}
+
 // =============================================================================
 // Component
 // =============================================================================
 
 export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilterPanelProps): React.ReactElement {
   const [isOpen, setIsOpen] = useState(hasActiveFilters(filters));
+
+  // Staged (draft) filters — only applied on "Apply" click
+  const [draft, setDraft] = useState<TorrentFilters>(filters);
   const [customSizeMin, setCustomSizeMin] = useState('');
   const [customSizeMax, setCustomSizeMax] = useState('');
   const [customSizeUnit, setCustomSizeUnit] = useState<SizeUnit>('GB');
 
-  const activeSizePreset = getActiveSizePreset(filters);
-  const activeDatePreset = getActiveDatePreset(filters);
+  // Sync draft when external filters change (e.g. URL navigation)
+  useEffect(() => {
+    setDraft(filters);
+  }, [filters]);
+
+  const activeSizePreset = getActiveSizePreset(draft);
+  const activeDatePreset = getActiveDatePreset(draft);
   const hasFilters = hasActiveFilters(filters);
+  const hasDraftChanges = !filtersEqual(draft, filters);
 
   // Sync custom size inputs from filter values on mount
   useEffect(() => {
-    if (activeSizePreset === 'Custom') {
+    if (getActiveSizePreset(filters) === 'Custom') {
       if (filters.minSize) {
-        // Try to find the best unit
         const unit: SizeUnit = filters.minSize >= SIZE_UNIT_MULTIPLIERS.TB ? 'TB'
           : filters.minSize >= SIZE_UNIT_MULTIPLIERS.GB ? 'GB' : 'MB';
         setCustomSizeUnit(unit);
@@ -155,38 +175,28 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSizePreset = useCallback((preset: SizePreset) => {
-    if (preset.label === 'Custom') return; // Just opens custom inputs
-    onChange({
-      ...filters,
-      minSize: preset.minSize,
-      maxSize: preset.maxSize,
-    });
-  }, [filters, onChange]);
-
-  const handleDatePreset = useCallback((preset: DatePreset) => {
-    onChange({
-      ...filters,
-      dateFrom: preset.getDateFrom(),
-      dateTo: undefined,
-    });
-  }, [filters, onChange]);
-
-  const handleApplyCustomSize = useCallback(() => {
-    const multiplier = SIZE_UNIT_MULTIPLIERS[customSizeUnit];
-    const min = customSizeMin ? parseFloat(customSizeMin) * multiplier : undefined;
-    const max = customSizeMax ? parseFloat(customSizeMax) * multiplier : undefined;
-    onChange({ ...filters, minSize: min, maxSize: max });
-  }, [filters, onChange, customSizeMin, customSizeMax, customSizeUnit]);
+  const handleApply = useCallback(() => {
+    // If custom size is selected, compute bytes from the custom inputs
+    let finalDraft = draft;
+    if (getActiveSizePreset(draft) === 'Custom') {
+      const multiplier = SIZE_UNIT_MULTIPLIERS[customSizeUnit];
+      const min = customSizeMin ? parseFloat(customSizeMin) * multiplier : undefined;
+      const max = customSizeMax ? parseFloat(customSizeMax) * multiplier : undefined;
+      finalDraft = { ...draft, minSize: min, maxSize: max };
+    }
+    onChange(finalDraft);
+  }, [draft, onChange, customSizeMin, customSizeMax, customSizeUnit]);
 
   const handleClear = useCallback(() => {
     setCustomSizeMin('');
     setCustomSizeMax('');
-    onChange({});
+    const empty = {};
+    setDraft(empty);
+    onChange(empty);
   }, [onChange]);
 
   return (
-    <div className={cn('rounded-lg border border-border-subtle', className)}>
+    <div className={cn('overflow-hidden rounded-lg border border-border-subtle', className)}>
       {/* Toggle button */}
       <button
         type="button"
@@ -210,19 +220,19 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
       </button>
 
       {/* Filter content */}
-      {isOpen ? <div className="space-y-4 p-3">
+      {isOpen ? <div className="space-y-4 overflow-x-hidden p-3">
           {/* Row 1: Seeders & Leechers */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {/* Min Seeders */}
-            <div>
+            <div className="min-w-0">
               <label className="mb-1 block text-xs text-text-muted">Min Seeders</label>
               <input
                 type="number"
                 min="0"
                 placeholder="e.g. 3"
-                value={filters.minSeeders ?? ''}
-                onChange={(e) => onChange({
-                  ...filters,
+                value={draft.minSeeders ?? ''}
+                onChange={(e) => setDraft({
+                  ...draft,
                   minSeeders: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
@@ -234,15 +244,15 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
             </div>
 
             {/* Max Seeders */}
-            <div>
+            <div className="min-w-0">
               <label className="mb-1 block text-xs text-text-muted">Max Seeders</label>
               <input
                 type="number"
                 min="0"
                 placeholder="No limit"
-                value={filters.maxSeeders ?? ''}
-                onChange={(e) => onChange({
-                  ...filters,
+                value={draft.maxSeeders ?? ''}
+                onChange={(e) => setDraft({
+                  ...draft,
                   maxSeeders: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
@@ -254,15 +264,15 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
             </div>
 
             {/* Min Leechers */}
-            <div>
+            <div className="min-w-0">
               <label className="mb-1 block text-xs text-text-muted">Min Leechers</label>
               <input
                 type="number"
                 min="0"
                 placeholder="No min"
-                value={filters.minLeechers ?? ''}
-                onChange={(e) => onChange({
-                  ...filters,
+                value={draft.minLeechers ?? ''}
+                onChange={(e) => setDraft({
+                  ...draft,
                   minLeechers: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
@@ -274,15 +284,15 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
             </div>
 
             {/* Max Leechers */}
-            <div>
+            <div className="min-w-0">
               <label className="mb-1 block text-xs text-text-muted">Max Leechers</label>
               <input
                 type="number"
                 min="0"
                 placeholder="No limit"
-                value={filters.maxLeechers ?? ''}
-                onChange={(e) => onChange({
-                  ...filters,
+                value={draft.maxLeechers ?? ''}
+                onChange={(e) => setDraft({
+                  ...draft,
                   maxLeechers: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
@@ -295,7 +305,7 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
           </div>
 
           {/* Row 2: Size presets */}
-          <div>
+          <div className="min-w-0">
             <label className="mb-1.5 block text-xs text-text-muted">Size</label>
             <div className="flex flex-wrap gap-1.5">
               {SIZE_PRESETS.map((preset) => (
@@ -304,10 +314,11 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   type="button"
                   onClick={() => {
                     if (preset.label === 'Custom') {
-                      // Just toggle custom mode - don't apply yet
+                      // Set draft to custom mode (clear size presets)
+                      setDraft({ ...draft, minSize: undefined, maxSize: undefined });
                       return;
                     }
-                    handleSizePreset(preset);
+                    setDraft({ ...draft, minSize: preset.minSize, maxSize: preset.maxSize });
                   }}
                   className={cn(
                     'rounded px-2.5 py-1 text-xs transition-colors',
@@ -323,7 +334,7 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
 
             {/* Custom size inputs */}
             {activeSizePreset === 'Custom' && (
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input
                   type="number"
                   min="0"
@@ -363,26 +374,23 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   <option value="GB">GB</option>
                   <option value="TB">TB</option>
                 </select>
-                <button
-                  type="button"
-                  onClick={handleApplyCustomSize}
-                  className="rounded bg-accent-primary/20 px-2.5 py-1.5 text-xs text-accent-primary hover:bg-accent-primary/30 transition-colors"
-                >
-                  Apply
-                </button>
               </div>
             )}
           </div>
 
           {/* Row 3: Date range */}
-          <div>
+          <div className="min-w-0">
             <label className="mb-1.5 block text-xs text-text-muted">Date Added</label>
             <div className="flex flex-wrap gap-1.5">
               {DATE_PRESETS.map((preset) => (
                 <button
                   key={preset.key}
                   type="button"
-                  onClick={() => handleDatePreset(preset)}
+                  onClick={() => setDraft({
+                    ...draft,
+                    dateFrom: preset.getDateFrom(),
+                    dateTo: undefined,
+                  })}
                   className={cn(
                     'rounded px-2.5 py-1 text-xs transition-colors',
                     activeDatePreset === preset.key
@@ -396,16 +404,31 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
             </div>
           </div>
 
-          {/* Clear button */}
-          {hasFilters ? <div className="flex justify-end">
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-2">
+            {hasFilters ? (
               <button
                 type="button"
                 onClick={handleClear}
-                className="rounded px-3 py-1 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                className="rounded px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
               >
-                Clear all filters
+                Clear all
               </button>
-            </div> : null}
+            ) : null}
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={!hasDraftChanges}
+              className={cn(
+                'rounded px-4 py-1.5 text-xs font-medium transition-colors',
+                hasDraftChanges
+                  ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
+                  : 'bg-bg-hover text-text-muted cursor-not-allowed'
+              )}
+            >
+              Apply Filters
+            </button>
+          </div>
         </div> : null}
     </div>
   );

@@ -141,7 +141,7 @@ const SearchResultsList = memo(function SearchResultsList({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 overflow-x-hidden">
       {results.map((result) => {
         const imageUrl = result.torrent_poster_url ?? (result as any).poster_url ?? result.torrent_cover_url;
         const displayName = result.torrent_clean_title ?? result.torrent_name;
