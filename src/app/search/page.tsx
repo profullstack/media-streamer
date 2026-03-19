@@ -595,7 +595,7 @@ function SearchPageInner(): React.ReactElement {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
+      <div className="space-y-4 overflow-x-hidden">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
