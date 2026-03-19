@@ -174,18 +174,21 @@ export function VideoPlayer({
       nativeVideo.setAttribute('playsinline', '');
       nativeVideo.setAttribute('webkit-playsinline', '');
       nativeVideo.controls = true;
-      nativeVideo.autoplay = autoplay || !!options?.autoplay;
+      nativeVideo.preload = 'auto';
       nativeVideo.style.width = '100%';
       nativeVideo.style.height = '100%';
+      // CORS attribute is required so Safari's media engine can fetch HLS segments
+      // from our API endpoints (which return Access-Control-Allow-Origin: *)
+      nativeVideo.crossOrigin = 'anonymous';
       if (poster) nativeVideo.poster = poster;
       
       // Remove the video-js element we just created and use native instead
       videoRef.current.removeChild(videoElement);
       videoRef.current.appendChild(nativeVideo);
 
-      nativeVideo.src = videoSource.src;
-
+      // Attach event listeners BEFORE setting src so we don't miss early events
       nativeVideo.addEventListener('loadedmetadata', () => {
+        console.log('[VideoPlayer] iOS HLS: loadedmetadata fired');
         setIsLoading(false);
         // Call onReady — the Player type is expected but modal handlers
         // don't actually use the player reference, they just track ready state
@@ -200,15 +203,41 @@ export function VideoPlayer({
       nativeVideo.addEventListener('error', () => {
         const mediaError = nativeVideo.error;
         const errorMessage = mediaError?.message || `Media error code ${mediaError?.code || 'unknown'}`;
+        console.error('[VideoPlayer] iOS HLS error:', errorMessage, 'code:', mediaError?.code);
         setError(errorMessage);
         onError?.(new Error(errorMessage));
       });
-
-      // Try to play — catch autoplay blocks gracefully
-      nativeVideo.play().catch((playErr) => {
-        console.warn('[VideoPlayer] iOS autoplay blocked:', playErr.message);
-        // Don't treat autoplay block as error — user can tap play
+      // Track stalled/waiting events for debugging iOS playback issues
+      nativeVideo.addEventListener('stalled', () => {
+        console.warn('[VideoPlayer] iOS HLS: stalled event');
       });
+      nativeVideo.addEventListener('waiting', () => {
+        console.warn('[VideoPlayer] iOS HLS: waiting for data');
+      });
+
+      // Set source and explicitly load — this triggers Safari to fetch the m3u8
+      nativeVideo.src = videoSource.src;
+      nativeVideo.load();
+
+      // Only attempt autoplay AFTER loadedmetadata fires to avoid iOS race conditions.
+      // iOS Safari rejects play() if called before the media engine has parsed the playlist.
+      if (autoplay || options?.autoplay) {
+        const playOnReady = () => {
+          nativeVideo.removeEventListener('loadedmetadata', playOnReady);
+          nativeVideo.play().catch((playErr) => {
+            console.warn('[VideoPlayer] iOS autoplay blocked:', playErr.message);
+            // Don't treat autoplay block as error — user can tap play via native controls
+          });
+        };
+        // If loadedmetadata already fired (unlikely but defensive), play immediately
+        if (nativeVideo.readyState >= 1) {
+          nativeVideo.play().catch((playErr) => {
+            console.warn('[VideoPlayer] iOS autoplay blocked:', playErr.message);
+          });
+        } else {
+          nativeVideo.addEventListener('loadedmetadata', playOnReady);
+        }
+      }
 
       // Store ref for cleanup (no Video.js player in this path)
       playerRef.current = null;

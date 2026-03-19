@@ -109,11 +109,6 @@ async function getMagnetUri(infohash: string): Promise<string> {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  // Subscription check
-  const { requireActiveSubscription } = await import('@/lib/subscription/guard');
-  const subscriptionError = await requireActiveSubscription(request);
-  if (subscriptionError) return subscriptionError;
-
   const requestId = generateRequestId();
   const reqLogger = logger.child({ requestId });
 
@@ -130,9 +125,24 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid fileIndex' }, { status: 400 });
   }
 
+  // CORS headers required for iOS Safari's native HLS player.
+  // Safari's media engine fetches the playlist and segments from an internal context
+  // that may require CORS headers even for same-origin requests.
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers': 'Range, Content-Type',
+    'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
+  };
+
   // Check for an existing active HLS session for this infohash+fileIndex.
   // Safari's native HLS player re-fetches the playlist URL to discover new segments.
   // We must return the updated playlist from the same FFmpeg session, not start a new one.
+  //
+  // NOTE: No subscription check for re-fetches. Safari's native HLS player makes
+  // periodic playlist requests from its internal media engine, which may NOT include
+  // session cookies. The initial request (new session below) is auth-gated.
+  // Rejecting a playlist re-fetch kills playback entirely.
   const existing = findActiveSession(infohash, fileIndex);
   if (existing) {
     reqLogger.info('Reusing existing HLS session', { sessionId: existing.sessionId });
@@ -150,10 +160,16 @@ export async function GET(request: NextRequest): Promise<Response> {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store',
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders,
       },
     });
   }
+
+  // Subscription check — only for NEW sessions (initial playlist request).
+  // Re-fetches of existing sessions skip this (handled above).
+  const { requireActiveSubscription } = await import('@/lib/subscription/guard');
+  const subscriptionError = await requireActiveSubscription(request);
+  if (subscriptionError) return subscriptionError;
 
   // No existing session — start a new one
   const sessionId = randomUUID().slice(0, 8);
@@ -497,7 +513,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store',
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders,
       },
     });
   } catch (error) {
@@ -507,4 +523,22 @@ export async function GET(request: NextRequest): Promise<Response> {
       { status: 500 }
     );
   }
+}
+
+/**
+ * OPTIONS /api/stream/hls
+ * Handle CORS preflight requests for iOS Safari's native HLS player.
+ * Safari's media engine may send preflight requests when fetching playlists.
+ */
+export async function OPTIONS(): Promise<Response> {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Range, Content-Type',
+      'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
 }

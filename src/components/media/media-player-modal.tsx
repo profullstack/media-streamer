@@ -937,6 +937,12 @@ export function MediaPlayerModal({
   const isStreamReady = isP2PStreaming ? isP2PReady : isServerStreamReady;
   // Detect if this is an HLS stream (iOS/Safari path)
   const isHLSStream = streamUrl?.includes('/api/stream/hls') ?? false;
+  // For HLS on iOS/Safari: mount the player as soon as the torrent has metadata
+  // (torrent.ready). We do NOT wait for the full fileReady threshold (20MB for video)
+  // because the HLS endpoint has its own buffering — FFmpeg reads from the local file
+  // and waits for data, then produces segments incrementally. Waiting for 20MB would
+  // cause an excessive delay or infinite loading spinner on slow torrents.
+  const isHLSTorrentReady = connectionStatus?.ready ?? false;
   // Show play button when stream is ready but user hasn't clicked play yet
   // On TV screens, skip the play button overlay - let autoplay handle it
   // For HLS on iOS/Safari, skip the play button — HLS autoplay is more reliable
@@ -945,14 +951,13 @@ export function MediaPlayerModal({
   // Show loading spinner when stream is not ready yet (for P2P, check WebTorrent status)
   // WebTorrent status: 'idle' | 'loading' | 'buffering' | 'ready' | 'no-peers' | 'error'
   // Also show loading when falling back from P2P to server streaming ('no-peers' status)
+  // For HLS: only wait for torrent metadata (ready), not full 20MB buffer (fileReady)
   const showLoadingSpinner = isP2PStreaming
     ? (webTorrent.status === 'loading' || webTorrent.status === 'buffering' || webTorrent.status === 'no-peers') && !error
-    : !isServerStreamReady && !error;
-  // For HLS on iOS/Safari: only mount the VideoPlayer after SSE confirms stream readiness.
-  // The HLS endpoint blocks server-side waiting for FFmpeg segments, but if the torrent
-  // hasn't even connected to peers yet, Safari's ~60s media timeout can expire first.
-  // Waiting for SSE "ready" ensures data is flowing before hitting the HLS endpoint.
-  const shouldMountPlayer = isHLSStream ? isStreamReady : true;
+    : isHLSStream
+      ? !isHLSTorrentReady && !error
+      : !isServerStreamReady && !error;
+  const shouldMountPlayer = isHLSStream ? isHLSTorrentReady : true;
 
   // Show paywall if subscription expired
   if (isOpen && !isPremium) {
