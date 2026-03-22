@@ -54,23 +54,17 @@ export async function GET(request: NextRequest) {
   const cacheKey = getCacheKey(title, contentType);
   const supabase = getSupabase();
 
-  // ── 1. Check cache first ──
+  // ── 1. Check cache first (cached forever) ──
   if (supabase) {
     try {
       const { data: cached } = await supabase
         .from('amazon_search_cache')
-        .select('result, expires_at')
+        .select('result')
         .eq('search_key', cacheKey)
         .single();
 
       if (cached) {
-        const isExpired = new Date(cached.expires_at) < new Date();
-        if (!isExpired) {
-          // Cache hit — return stored result (may be null = no result)
-          return NextResponse.json({ result: cached.result || null });
-        }
-        // Expired — delete and re-fetch
-        await supabase.from('amazon_search_cache').delete().eq('search_key', cacheKey);
+        return NextResponse.json({ result: cached.result || null });
       }
     } catch {
       // Cache miss or error — proceed to API
@@ -134,7 +128,6 @@ export async function GET(request: NextRequest) {
             title,
             content_type: contentType || null,
             result,
-            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           },
           { onConflict: 'search_key' }
         );
