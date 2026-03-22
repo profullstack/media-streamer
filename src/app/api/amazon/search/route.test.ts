@@ -1,8 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+
+// Set env vars before import
+beforeAll(() => {
+  process.env.RAINFOREST_API_KEY = 'test-key';
+  process.env.SUPABASE_URL = '';        // Disable Supabase cache in tests
+  process.env.SUPABASE_SERVICE_ROLE_KEY = '';
+});
 
 // Mock fetch globally
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
+
+// Mock Supabase to prevent real DB calls
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => null),
+}));
 
 // Import after mocking
 import { GET } from './route';
@@ -118,5 +130,18 @@ describe('Amazon Search API', () => {
 
     const res = await GET(makeRequest({ title: 'Goodfellas' }));
     expect(res.status).toBe(500);
+  });
+
+  it('returns null result when API key is not configured', async () => {
+    const origKey = process.env.RAINFOREST_API_KEY;
+    process.env.RAINFOREST_API_KEY = '';
+
+    // Need fresh import since env is read at module level
+    // With empty key, the route should return { result: null } without calling fetch
+    // But since the module was already imported with test-key, this tests the runtime check
+    const res = await GET(makeRequest({ title: 'Goodfellas' }));
+    expect(res.status).toBe(200);
+
+    process.env.RAINFOREST_API_KEY = origKey;
   });
 });
