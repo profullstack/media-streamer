@@ -17,8 +17,8 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       '@noriginmedia/norigin-spatial-navigation':
-        specifier: ^2.3.0
-        version: 2.3.0(react@19.2.4)
+        specifier: ^3.0.0
+        version: 3.0.0(react@19.2.4)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -922,10 +922,16 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@noriginmedia/norigin-spatial-navigation@2.3.0':
-    resolution: {integrity: sha512-gR//N45NnKz1h0/AVknkfg7QnNATETdgXUUD3EKPxuQPyhk7NhsphODzRamyvjYaxsU6VbY/szcUlzBWWBkNMw==}
+  '@noriginmedia/norigin-spatial-navigation-core@3.0.0':
+    resolution: {integrity: sha512-Jdo0W/5yrNsZe0ki/afBjnzKYm8eEstVGbUAi4KD7ysPft0SeNNSlu10vw1+tjqSwYUB56Kur8A5vReMwOFZ6A==}
+
+  '@noriginmedia/norigin-spatial-navigation-react@3.0.0':
+    resolution: {integrity: sha512-nz+gR2lKnEoDmeaUJHxdGqNF74BA91cKltMVlGwjdPCBuperos4usoajLl59erjyHmdoqpzFu6Voi4qgp3E2CA==}
     peerDependencies:
       react: '>=16.8.0'
+
+  '@noriginmedia/norigin-spatial-navigation@3.0.0':
+    resolution: {integrity: sha512-99xJV5jeWNb1MN/oa7ak2wU5k8HGuebMUUxJfRdT9jT3DKsfukP49AbZVgeEcyuuYqvoFuHDJk71YECE3dxylg==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -3454,6 +3460,9 @@ packages:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
 
+  lodash-es@4.17.23:
+    resolution: {integrity: sha512-kVI48u3PZr38HdYz98UmfPnXl2DXrpdctLrFLCd3kOx1xUkOmpFPx7gCWWM5MPkL/fD8zb+Ph0QzjGFs4+hHWg==}
+
   lodash.defaults@4.2.0:
     resolution: {integrity: sha512-qjxPLHd3r5DnsdGacqOMU6pb/avJzdh9tFX2ymgoZE27BmjXrNy/y4LoaiTeAb+O3gL8AfpJGtqfX/ae2leYYQ==}
 
@@ -5490,10 +5499,22 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@noriginmedia/norigin-spatial-navigation@2.3.0(react@19.2.4)':
+  '@noriginmedia/norigin-spatial-navigation-core@3.0.0':
     dependencies:
-      lodash: 4.17.23
+      lodash-es: 4.17.23
+
+  '@noriginmedia/norigin-spatial-navigation-react@3.0.0(react@19.2.4)':
+    dependencies:
+      '@noriginmedia/norigin-spatial-navigation-core': 3.0.0
+      lodash-es: 4.17.23
       react: 19.2.4
+
+  '@noriginmedia/norigin-spatial-navigation@3.0.0(react@19.2.4)':
+    dependencies:
+      '@noriginmedia/norigin-spatial-navigation-core': 3.0.0
+      '@noriginmedia/norigin-spatial-navigation-react': 3.0.0(react@19.2.4)
+    transitivePeerDependencies:
+      - react
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -8366,6 +8387,8 @@ snapshots:
   locate-path@6.0.0:
     dependencies:
       p-locate: 5.0.0
+
+  lodash-es@4.17.23: {}
 
   lodash.defaults@4.2.0: {}
 
