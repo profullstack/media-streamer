@@ -86,8 +86,8 @@ importers:
         specifier: ^0.18.12
         version: 0.18.12
       lucide-react:
-        specifier: ^0.577.0
-        version: 0.577.0(react@19.2.4)
+        specifier: ^1.0.1
+        version: 1.0.1(react@19.2.4)
       mpegts.js:
         specifier: ^1.8.0
         version: 1.8.0
@@ -3495,8 +3495,8 @@ packages:
     resolution: {integrity: sha512-ZVcaRbZpNB6ugwa5T9gUN0Jg9XGT9cyVjZJvdbN3V27rOQ170rEs//zaQXEQkTCBhh3i/JnCRF472KWHJu74Yg==}
     engines: {node: '>=12.20.0'}
 
-  lucide-react@0.577.0:
-    resolution: {integrity: sha512-4LjoFv2eEPwYDPg/CUdBJQSDfPyzXCRrVW1X7jrx/trgxnxkHFjnVZINbzvzxjN70dxychOfg+FTYwBiS3pQ5A==}
+  lucide-react@1.0.1:
+    resolution: {integrity: sha512-lih7tKEczCYOQjVEzpFuxEuNzlwf+1yhvlMlEkGWJM3va8Pugv8bYXc/pRtcjPncaP7k84X0Pt/71ufxvqEPtQ==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -8402,7 +8402,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  lucide-react@0.577.0(react@19.2.4):
+  lucide-react@1.0.1(react@19.2.4):
     dependencies:
       react: 19.2.4
 
