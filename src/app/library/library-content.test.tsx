@@ -680,9 +680,8 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Find and click the play button for ESPN HD
-      const playButtons = screen.getAllByTitle('Play channel');
-      await user.click(playButtons[0]);
+      // Click the ESPN HD card (whole card is now clickable)
+      await user.click(screen.getByText('ESPN HD'));
 
       // HLS player modal should be open with the channel name
       expect(screen.getByTestId('hls-player-modal')).toBeInTheDocument();
@@ -938,15 +937,12 @@ describe('LibraryContent', () => {
       // Ebook should be visible
       expect(screen.getByText('Programming.epub')).toBeInTheDocument();
 
-      // Should have a "Read" button for ebook
-      expect(screen.getByTitle('Read')).toBeInTheDocument();
-
-      // Should have "Play" buttons for audio/video
-      const playButtons = screen.getAllByTitle('Play');
-      expect(playButtons).toHaveLength(2);
+      // All favorite items should be displayed
+      expect(screen.getByText('Song.mp3')).toBeInTheDocument();
+      expect(screen.getByText('Movie.mp4')).toBeInTheDocument();
     });
 
-    it('navigates to ebook reader when clicking Read button on ebook', async () => {
+    it('navigates to ebook reader when clicking ebook card', async () => {
       const user = userEvent.setup();
       render(
         <LibraryContent
@@ -958,14 +954,14 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Click the Read button for ebook
-      await user.click(screen.getByTitle('Read'));
+      // Click the ebook card (whole card is clickable)
+      await user.click(screen.getByText('Programming.epub'));
 
       // Should navigate to reader page with file ID
       expect(mockPush).toHaveBeenCalledWith('/reader/file-ebook-1');
     });
 
-    it('navigates to torrent details when clicking Play button on audio file', async () => {
+    it('navigates to torrent details when clicking audio file card', async () => {
       const user = userEvent.setup();
       render(
         <LibraryContent
@@ -977,15 +973,14 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Click the first Play button (for audio file)
-      const playButtons = screen.getAllByTitle('Play');
-      await user.click(playButtons[0]);
+      // Click the audio file card (whole card is clickable)
+      await user.click(screen.getByText('Song.mp3'));
 
       // Should navigate to torrent details page with infohash
       expect(mockPush).toHaveBeenCalledWith('/torrents/audio123hash');
     });
 
-    it('navigates to torrent details when clicking Play button on video file', async () => {
+    it('navigates to torrent details when clicking video file card', async () => {
       const user = userEvent.setup();
       render(
         <LibraryContent
@@ -997,9 +992,8 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Click the second Play button (for video file)
-      const playButtons = screen.getAllByTitle('Play');
-      await user.click(playButtons[1]);
+      // Click the video file card (whole card is clickable)
+      await user.click(screen.getByText('Movie.mp4'));
 
       // Should navigate to torrent details page with infohash
       expect(mockPush).toHaveBeenCalledWith('/torrents/video456hash');
@@ -1016,18 +1010,13 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Check that file names are links to torrent details
-      const songLink = screen.getByRole('link', { name: 'Song.mp3' });
-      expect(songLink).toHaveAttribute('href', '/torrents/audio123hash');
-
-      const movieLink = screen.getByRole('link', { name: 'Movie.mp4' });
-      expect(movieLink).toHaveAttribute('href', '/torrents/video456hash');
-
-      const ebookLink = screen.getByRole('link', { name: 'Programming.epub' });
-      expect(ebookLink).toHaveAttribute('href', '/torrents/ebook789hash');
+      // Check that file names are displayed (whole card is now clickable)
+      expect(screen.getByText('Song.mp3')).toBeInTheDocument();
+      expect(screen.getByText('Movie.mp4')).toBeInTheDocument();
+      expect(screen.getByText('Programming.epub')).toBeInTheDocument();
     });
 
-    it('torrent names link to torrent details page', () => {
+    it('torrent names are displayed in favorites', () => {
       render(
         <LibraryContent
           initialFavorites={mockFavorites}
@@ -1038,12 +1027,9 @@ describe('LibraryContent', () => {
         />
       );
 
-      // Check that torrent names are links to torrent details
-      const albumLink = screen.getByRole('link', { name: 'Test Album' });
-      expect(albumLink).toHaveAttribute('href', '/torrents/audio123hash');
-
-      const guideLink = screen.getByRole('link', { name: 'Programming Guide' });
-      expect(guideLink).toHaveAttribute('href', '/torrents/ebook789hash');
+      // Check that torrent names are displayed (whole card is now clickable)
+      expect(screen.getByText('Test Album')).toBeInTheDocument();
+      expect(screen.getByText('Programming Guide')).toBeInTheDocument();
     });
 
     it('filters ebooks correctly when Ebooks filter is selected', async () => {

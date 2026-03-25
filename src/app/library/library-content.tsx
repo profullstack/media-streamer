@@ -420,63 +420,70 @@ export function LibraryContent({
                 {filteredTorrentFavorites.map((item) => (
                   <div
                     key={item.id}
-                    onClick={() => {
-                      if (item.bt_torrents?.infohash) {
-                        router.push(`/torrents/${item.bt_torrents.infohash}`);
-                      }
-                    }}
-                    className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group cursor-pointer"
+                    className="relative group"
                   >
-                    {/* Poster/Cover */}
-                    {item.bt_torrents?.poster_url || item.bt_torrents?.cover_url ? (
-                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={item.bt_torrents?.poster_url ?? item.bt_torrents?.cover_url ?? ''}
-                          alt={item.bt_torrents?.name ?? 'Torrent'}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
-                        <FolderIcon size={24} className="text-text-muted" />
-                      </div>
-                    )}
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <Link
-                        href={`/torrents/${item.bt_torrents?.infohash}`}
-                        className="font-medium text-text-primary hover:text-accent-primary truncate block"
-                      >
-                        {item.bt_torrents?.name ?? 'Unknown Torrent'}
-                      </Link>
-                      <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
-                        {item.bt_torrents?.content_type ? <span className="px-2 py-0.5 rounded bg-bg-tertiary">
-                            {item.bt_torrents.content_type}
-                          </span> : null}
-                        {item.bt_torrents?.year ? <span>{item.bt_torrents.year}</span> : null}
-                        {item.bt_torrents?.file_count ? <span>{item.bt_torrents.file_count} files</span> : null}
-                      </div>
-                      <p className="text-xs text-text-muted mt-1">
-                        Added {formatTimeAgo(item.created_at)}
-                      </p>
-                    </div>
-
-                    {/* Remove button */}
+                    {/* Delete button - above the card */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         removeTorrentFavorite(item.torrent_id);
                       }}
-                      className="p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all"
+                      className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all shadow-md"
                       title="Remove from favorites"
                     >
                       <CloseIcon size={14} />
                     </button>
+
+                    {/* Whole card is clickable */}
+                    <div
+                      onClick={() => {
+                        if (item.bt_torrents?.infohash) {
+                          router.push(`/torrents/${item.bt_torrents.infohash}`);
+                        }
+                      }}
+                      className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+                    >
+                      {/* Poster/Cover */}
+                      {item.bt_torrents?.poster_url || item.bt_torrents?.cover_url ? (
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.bt_torrents?.poster_url ?? item.bt_torrents?.cover_url ?? ''}
+                            alt={item.bt_torrents?.name ?? 'Torrent'}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                          <FolderIcon size={24} className="text-text-muted" />
+                        </div>
+                      )}
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-text-primary truncate">
+                          {item.bt_torrents?.name ?? 'Unknown Torrent'}
+                        </h3>
+                        <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
+                          {item.bt_torrents?.content_type ? <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                              {item.bt_torrents.content_type}
+                            </span> : null}
+                          {item.bt_torrents?.year ? <span>{item.bt_torrents.year}</span> : null}
+                          {item.bt_torrents?.file_count ? <span>{item.bt_torrents.file_count} files</span> : null}
+                        </div>
+                        <p className="text-xs text-text-muted mt-1">
+                          Added {formatTimeAgo(item.created_at)}
+                        </p>
+                      </div>
+
+                      {/* Play indicator */}
+                      <div className="p-2 rounded-full bg-accent-primary/10 text-accent-primary self-center">
+                        <PlayIcon size={16} />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -494,63 +501,72 @@ export function LibraryContent({
                 {filteredWatchlistItems.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group cursor-pointer"
-                    onClick={() => {
-                      // Search for the title to find a torrent
-                      router.push(`/search?q=${encodeURIComponent(item.title)}`);
-                    }}
+                    className="relative group"
                   >
-                    {/* Poster */}
-                    {item.poster_path ? (
-                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`https://image.tmdb.org/t/p/w154${item.poster_path}`}
-                          alt={item.title}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
-                        <VideoIcon size={24} className="text-text-muted" />
-                      </div>
-                    )}
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-text-primary hover:text-accent-primary truncate">
-                        {item.title}
-                      </h3>
-                      <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
-                        <span className="px-2 py-0.5 rounded bg-bg-tertiary">
-                          {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
-                        </span>
-                        {item.release_date ? (
-                          <span>{new Date(item.release_date).getFullYear()}</span>
-                        ) : null}
-                        {item.vote_average ? (
-                          <span>⭐ {Number(item.vote_average).toFixed(1)}</span>
-                        ) : null}
-                      </div>
-                      <p className="text-xs text-text-muted mt-1">
-                        Added {formatTimeAgo(item.created_at)}
-                      </p>
-                    </div>
-
-                    {/* Remove button */}
+                    {/* Delete button - above the card */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         removeWatchlistItem(item.id);
                       }}
-                      className="p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all"
+                      className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all shadow-md"
                       title="Remove from watchlist"
                     >
                       <CloseIcon size={14} />
                     </button>
+
+                    {/* Whole card is clickable */}
+                    <div
+                      onClick={() => {
+                        router.push(`/search?q=${encodeURIComponent(item.title)}`);
+                      }}
+                      className="flex items-start gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+                    >
+                      {/* Poster */}
+                      {item.poster_path ? (
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`https://image.tmdb.org/t/p/w154${item.poster_path}`}
+                            alt={item.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                          <VideoIcon size={24} className="text-text-muted" />
+                        </div>
+                      )}
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-text-primary truncate">
+                          {item.title}
+                        </h3>
+                        <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
+                          <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                            {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
+                          </span>
+                          {item.release_date ? (
+                            <span>{new Date(item.release_date).getFullYear()}</span>
+                          ) : null}
+                          {item.vote_average ? (
+                            <span>⭐ {Number(item.vote_average).toFixed(1)}</span>
+                          ) : null}
+                        </div>
+                        <p className="text-xs text-text-muted mt-1">
+                          Added {formatTimeAgo(item.created_at)}
+                        </p>
+                      </div>
+
+                      {/* Play indicator */}
+                      <div className="p-2 rounded-full bg-accent-primary/10 text-accent-primary self-center">
+                        <PlayIcon size={16} />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -572,60 +588,44 @@ export function LibraryContent({
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center gap-4 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                    className="relative group"
                   >
-                    {/* Thumbnail placeholder */}
-                    <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-muted">
-                      {getMediaIcon(item.bt_torrent_files?.media_category)}
-                    </div>
+                    {/* Delete button - above the card */}
+                    <button
+                      onClick={() => removeFavorite(item.file_id)}
+                      className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all shadow-md"
+                      title="Remove from favorites"
+                    >
+                      <CloseIcon size={14} />
+                    </button>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      {infohash ? (
-                        <Link
-                          href={`/torrents/${infohash}`}
-                          className="font-medium text-text-primary hover:text-accent-primary truncate block"
-                        >
-                          {item.bt_torrent_files?.name ?? 'Unknown'}
-                        </Link>
-                      ) : (
+                    {/* Whole card is clickable to play/read */}
+                    <div
+                      onClick={() => handleFileAction(item)}
+                      className="flex items-center gap-4 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+                    >
+                      {/* Thumbnail placeholder */}
+                      <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-muted">
+                        {getMediaIcon(item.bt_torrent_files?.media_category)}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-text-primary truncate">
                           {item.bt_torrent_files?.name ?? 'Unknown'}
                         </h3>
-                      )}
-                      {infohash ? (
-                        <Link
-                          href={`/torrents/${infohash}`}
-                          className="text-sm text-text-secondary hover:text-accent-primary truncate block"
-                        >
-                          {item.bt_torrent_files?.bt_torrents?.name ?? 'Unknown torrent'}
-                        </Link>
-                      ) : (
                         <p className="text-sm text-text-secondary truncate">
                           {item.bt_torrent_files?.bt_torrents?.name ?? 'Unknown torrent'}
                         </p>
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleFileAction(item)}
-                        className={cn(
-                          'p-2 rounded-full text-white hover:opacity-80',
-                          isEbook ? 'bg-accent-ebook' : 'bg-accent-primary'
-                        )}
-                        title={isEbook ? 'Read' : 'Play'}
-                      >
+                      {/* Play/Read indicator */}
+                      <div className={cn(
+                        'p-2 rounded-full',
+                        isEbook ? 'bg-accent-ebook/10 text-accent-ebook' : 'bg-accent-primary/10 text-accent-primary'
+                      )}>
                         {isEbook ? <BookIcon size={16} /> : <PlayIcon size={16} />}
-                      </button>
-                      <button
-                        onClick={() => removeFavorite(item.file_id)}
-                        className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
-                        title="Remove from favorites"
-                      >
-                        <CloseIcon size={16} />
-                      </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -649,55 +649,57 @@ export function LibraryContent({
                 {filteredChannels.map((item) => (
                   <div
                     key={`${item.playlist_id}-${item.channel_id}`}
-                    className="flex items-center gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                    className="relative group"
                   >
-                    {/* Channel Logo */}
-                    {item.channel_logo ? (
-                      <div className="w-12 h-12 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={item.channel_logo}
-                          alt={item.channel_name}
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
-                        <TvIcon size={24} className="text-text-muted" />
-                      </div>
-                    )}
+                    {/* Delete button - above the card */}
+                    <button
+                      onClick={() => removeIptvChannelFavorite(item.playlist_id, item.channel_id)}
+                      className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10 opacity-0 group-hover:opacity-100 transition-all shadow-md"
+                      title="Remove from favorites"
+                    >
+                      <CloseIcon size={14} />
+                    </button>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-text-primary truncate">
-                        {item.channel_name}
-                      </h3>
-                      {item.iptv_playlists?.name ? <p className="text-xs text-text-muted truncate">{item.iptv_playlists.name}</p> : null}
-                      {item.channel_group ? <p className="text-sm text-text-secondary truncate">{item.channel_group}</p> : null}
-                      <p className="text-xs text-text-muted mt-1">
-                        Added {formatTimeAgo(item.created_at)}
-                      </p>
-                    </div>
+                    {/* Whole card is clickable to play */}
+                    <div
+                      onClick={() => handlePlayChannel(item)}
+                      className="flex items-center gap-3 p-4 rounded-lg bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+                    >
+                      {/* Channel Logo */}
+                      {item.channel_logo ? (
+                        <div className="w-12 h-12 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.channel_logo}
+                            alt={item.channel_name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                          <TvIcon size={24} className="text-text-muted" />
+                        </div>
+                      )}
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handlePlayChannel(item)}
-                        className="p-2 rounded-full bg-accent-primary text-white hover:bg-accent-primary/80"
-                        title="Play channel"
-                      >
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-text-primary truncate">
+                          {item.channel_name}
+                        </h3>
+                        {item.iptv_playlists?.name ? <p className="text-xs text-text-muted truncate">{item.iptv_playlists.name}</p> : null}
+                        {item.channel_group ? <p className="text-sm text-text-secondary truncate">{item.channel_group}</p> : null}
+                        <p className="text-xs text-text-muted mt-1">
+                          Added {formatTimeAgo(item.created_at)}
+                        </p>
+                      </div>
+
+                      {/* Play indicator */}
+                      <div className="p-2 rounded-full bg-accent-primary/10 text-accent-primary">
                         <PlayIcon size={16} />
-                      </button>
-                      <button
-                        onClick={() => removeIptvChannelFavorite(item.playlist_id, item.channel_id)}
-                        className="p-2 rounded-full bg-bg-tertiary text-text-secondary hover:text-status-error hover:bg-status-error/10"
-                        title="Remove from favorites"
-                      >
-                        <CloseIcon size={16} />
-                      </button>
+                      </div>
                     </div>
                   </div>
                 ))}
