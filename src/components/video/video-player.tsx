@@ -436,7 +436,7 @@ export function VideoPreview({
         fluid: true,
         controlBar: {
           fullscreenToggle: true,
-          pictureInPictureToggle: false,
+          pictureInPictureToggle: true,
           volumePanel: true,
           playToggle: true,
           progressControl: true,
