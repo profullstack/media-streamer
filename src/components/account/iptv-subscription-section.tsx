@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useSupportedCoins } from '@/hooks/use-supported-coins';
 
@@ -52,11 +53,13 @@ interface IPTVSubscriptionResponse {
  */
 interface PaymentResponse {
   success: boolean;
+  payment?: { coinPayId?: string };
   paymentUrl?: string;
   error?: string;
 }
 
 export function IPTVSubscriptionSection(): React.ReactElement {
+  const router = useRouter();
   const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [subscriptionData, setSubscriptionData] = useState<IPTVSubscriptionResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -115,7 +118,9 @@ export function IPTVSubscriptionSection(): React.ReactElement {
         throw new Error(data.error || 'Failed to create payment');
       }
 
-      if (data.paymentUrl) {
+      if (data.payment?.coinPayId) {
+        router.push(`/pay/${data.payment.coinPayId}`);
+      } else if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
       }
     } catch (err) {
@@ -145,7 +150,9 @@ export function IPTVSubscriptionSection(): React.ReactElement {
         throw new Error(data.error || 'Failed to create extension payment');
       }
 
-      if (data.paymentUrl) {
+      if (data.payment?.coinPayId) {
+        router.push(`/pay/${data.payment.coinPayId}`);
+      } else if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
       }
     } catch (err) {

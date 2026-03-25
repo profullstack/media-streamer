@@ -149,8 +149,11 @@ export default function PricingPage(): React.ReactElement {
         throw new Error(data.error || 'Payment failed');
       }
 
-      // Redirect to CoinPayPortal hosted payment page
-      if (data.paymentUrl) {
+      // Redirect to our custom payment page
+      if (data.payment?.coinPayId) {
+        router.push(`/pay/${data.payment.coinPayId}`);
+      } else if (data.paymentUrl) {
+        // Fallback to CoinPayPortal hosted page
         window.location.href = data.paymentUrl;
       }
     } catch (err) {
