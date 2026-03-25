@@ -594,6 +594,28 @@ export function HlsPlayerModal({
                 className="hover:bg-zinc-800"
               /> : null}
 
+            {/* Picture-in-Picture Button */}
+            {document.pictureInPictureEnabled ? <button
+                type="button"
+                onClick={() => {
+                  const video = videoRef.current;
+                  if (!video) return;
+                  if (document.pictureInPictureElement) {
+                    document.exitPictureInPicture().catch(() => {});
+                  } else {
+                    video.requestPictureInPicture().catch(() => {});
+                  }
+                }}
+                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                aria-label="Picture-in-Picture"
+                title="Picture-in-Picture (mini player)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" />
+                  <rect x="12" y="9" width="8" height="6" rx="1" />
+                </svg>
+              </button> : null}
+
             {/* Refresh Button */}
             <button
               type="button"
