@@ -236,7 +236,7 @@ function make429Response(retryAfterSec: number, isJson: boolean): NextResponse {
   });
 }
 
-export function middleware(request: NextRequest): NextResponse | undefined {
+export function proxy(request: NextRequest): NextResponse | undefined {
   const { pathname } = request.nextUrl;
   const userAgent = request.headers.get('user-agent');
   const clientIp = getClientIp(request);
