@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe('Middleware - Token Refresh', () => {
   it('should pass through when no auth cookie', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const request = new NextRequest('http://localhost:3000/live-tv');
     const response = await middleware(request);
 
@@ -60,7 +60,7 @@ describe('Middleware - Token Refresh', () => {
   });
 
   it('should not refresh when token is still fresh (>60s to expiry)', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const freshToken = createJwt(Math.floor(Date.now() / 1000) + 3600); // expires in 1 hour
     const request = createRequestWithToken(freshToken, 'refresh-token');
     const response = await middleware(request);
@@ -71,7 +71,7 @@ describe('Middleware - Token Refresh', () => {
   });
 
   it('should refresh and update cookie when token is about to expire', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const expiringToken = createJwt(Math.floor(Date.now() / 1000) + 30); // expires in 30s
 
     mockFetch.mockResolvedValueOnce({
@@ -95,7 +95,7 @@ describe('Middleware - Token Refresh', () => {
   });
 
   it('should NOT clear cookie on transient refresh failure (500)', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const expiredToken = createJwt(Math.floor(Date.now() / 1000) - 60); // expired 1 min ago
 
     mockFetch.mockResolvedValueOnce({
@@ -116,7 +116,7 @@ describe('Middleware - Token Refresh', () => {
   });
 
   it('should NOT clear cookie on refresh timeout', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const expiredToken = createJwt(Math.floor(Date.now() / 1000) - 60);
 
     mockFetch.mockRejectedValueOnce(new DOMException('The operation was aborted', 'AbortError'));
@@ -133,7 +133,7 @@ describe('Middleware - Token Refresh', () => {
   });
 
   it('should clear cookie on 401 (token truly revoked)', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const expiredToken = createJwt(Math.floor(Date.now() / 1000) - 60);
 
     mockFetch.mockResolvedValueOnce({
@@ -154,7 +154,7 @@ describe('Middleware - Token Refresh', () => {
 
 describe('Middleware - Circuit Breaker', () => {
   it('should skip refresh after multiple consecutive failures', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const expiredToken = createJwt(Math.floor(Date.now() / 1000) - 60);
 
     // Fail 3 times to trip the circuit breaker

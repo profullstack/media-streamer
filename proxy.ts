@@ -96,7 +96,7 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Log real client IP for API requests
   const path = request.nextUrl.pathname;
   if (path.startsWith("/api/")) {
