@@ -26,7 +26,16 @@ function redirectWithError(origin: string, message: string): NextResponse {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const origin = new URL(request.url).origin;
+  // Derive the public origin from the configured redirect URI rather than
+  // `request.url`, which may reflect the internal bind address (e.g.
+  // https://0.0.0.0:3000) when running behind a proxy or bound to all
+  // interfaces. Fall back to the request origin if the env var is missing.
+  let origin: string;
+  try {
+    origin = new URL(getGoogleOAuthConfig().redirectUri).origin;
+  } catch {
+    origin = new URL(request.url).origin;
+  }
 
   const userId = await getUserIdFromRequest(request);
   if (!userId) {
