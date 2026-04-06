@@ -1617,6 +1617,54 @@ export type Database = {
         };
         Relationships: [];
       };
+      bt_youtube_accounts: {
+        Row: {
+          id: string;
+          user_id: string;
+          google_sub: string;
+          email: string | null;
+          display_name: string | null;
+          avatar_url: string | null;
+          access_token: string;
+          refresh_token: string;
+          token_expires_at: string;
+          scopes: string[];
+          is_default: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          google_sub: string;
+          email?: string | null;
+          display_name?: string | null;
+          avatar_url?: string | null;
+          access_token: string;
+          refresh_token: string;
+          token_expires_at: string;
+          scopes?: string[];
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          google_sub?: string;
+          email?: string | null;
+          display_name?: string | null;
+          avatar_url?: string | null;
+          access_token?: string;
+          refresh_token?: string;
+          token_expires_at?: string;
+          scopes?: string[];
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
