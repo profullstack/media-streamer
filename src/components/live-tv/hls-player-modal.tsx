@@ -150,13 +150,58 @@ export function HlsPlayerModal({
   const handleVideoPlay = useCallback((): void => {
     const video = videoRef.current;
     if (!video) return;
-    
-    // Only request fullscreen if not already in fullscreen
-    if (!document.fullscreenElement && video.requestFullscreen) {
-      video.requestFullscreen().catch((err: unknown) => {
-        console.warn('[HLS Player] Could not enter fullscreen:', err);
-      });
-    }
+
+    // Check if already in fullscreen (supports vendor-prefixed variants)
+    const isInFullscreen = !!(
+      document.fullscreenElement ||
+      (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+      (document as Document & { mozFullScreenElement?: Element }).mozFullScreenElement
+    );
+
+    if (isInFullscreen) return;
+
+    // Try multiple fullscreen methods for maximum browser compatibility
+    // Amazon Silk and other Chromium-based TV browsers need vendor-prefixed methods
+    const tryFullscreen = (): void => {
+      // Method 1: Standard API
+      if (video.requestFullscreen) {
+        video.requestFullscreen().catch((err: unknown) => {
+          console.warn('[HLS Player] requestFullscreen failed, trying webkit:', err);
+          tryWebkitFullscreen();
+        });
+        return;
+      }
+      tryWebkitFullscreen();
+    };
+
+    const tryWebkitFullscreen = (): void => {
+      // Method 2: webkit prefix (Silk, older Chrome/Safari)
+      const videoWithWebkit = video as HTMLVideoElement & { webkitRequestFullscreen?: () => Promise<void> };
+      if (videoWithWebkit.webkitRequestFullscreen) {
+        videoWithWebkit.webkitRequestFullscreen().catch((err: unknown) => {
+          console.warn('[HLS Player] webkitRequestFullscreen failed, trying webkitEnterFullscreen:', err);
+          tryWebkitEnterFullscreen();
+        });
+        return;
+      }
+      tryWebkitEnterFullscreen();
+    };
+
+    const tryWebkitEnterFullscreen = (): void => {
+      // Method 3: webkitEnterFullscreen (iOS Safari, some Android browsers)
+      const videoWithWebkitEnter = video as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+      if (videoWithWebkitEnter.webkitEnterFullscreen) {
+        try {
+          videoWithWebkitEnter.webkitEnterFullscreen();
+        } catch (err: unknown) {
+          console.warn('[HLS Player] webkitEnterFullscreen failed:', err);
+        }
+        return;
+      }
+      console.warn('[HLS Player] No fullscreen method available');
+    };
+
+    tryFullscreen();
   }, []);
 
   // Handle refresh button click to reload the stream
@@ -606,11 +651,22 @@ export function HlsPlayerModal({
                     video.requestPictureInPicture().catch(() => {});
                   }
                 }}
-                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                onTouchEnd={(e) => {
+                  // Silk browser touch handling
+                  e.preventDefault();
+                  const video = videoRef.current;
+                  if (!video) return;
+                  if (document.pictureInPictureElement) {
+                    document.exitPictureInPicture().catch(() => {});
+                  } else {
+                    video.requestPictureInPicture().catch(() => {});
+                  }
+                }}
+                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer touch-manipulation"
                 aria-label="Picture-in-Picture"
                 title="Picture-in-Picture (mini player)"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="3" width="20" height="14" rx="2" />
                   <rect x="12" y="9" width="8" height="6" rx="1" />
                 </svg>
@@ -620,11 +676,16 @@ export function HlsPlayerModal({
             <button
               type="button"
               onClick={handleRefresh}
-              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+              onTouchEnd={(e) => {
+                // Silk browser touch handling
+                e.preventDefault();
+                handleRefresh();
+              }}
+              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer touch-manipulation"
               aria-label="Refresh stream"
               title="Refresh stream"
             >
-              <RefreshIcon className="w-5 h-5" />
+              <RefreshIcon className="w-5 h-5 pointer-events-none" />
             </button>
           </div>
 
@@ -633,10 +694,15 @@ export function HlsPlayerModal({
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+            onTouchEnd={(e) => {
+              // Silk browser touch handling
+              e.preventDefault();
+              onClose();
+            }}
+            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer touch-manipulation"
             aria-label="Close"
           >
-            <CloseIcon className="w-5 h-5" />
+            <CloseIcon className="w-5 h-5 pointer-events-none" />
           </button>
         </div>
 
