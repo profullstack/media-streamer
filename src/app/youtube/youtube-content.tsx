@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
+import { LoadingSpinner, SearchIcon } from '@/components/ui/icons';
 
 interface PublicYouTubeAccount {
   id: string;
@@ -106,7 +107,7 @@ export function YouTubeContent(): React.ReactElement {
             {accounts && accounts.length > 1 ? <select
                 value={activeAccountId ?? ''}
                 onChange={(e) => setActiveAccountId(e.target.value)}
-                className="rounded border border-border bg-background px-2 py-1 text-sm"
+                className="rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -117,7 +118,7 @@ export function YouTubeContent(): React.ReactElement {
               </select> : null}
             <Link
               href="/youtube/accounts"
-              className="rounded border border-border px-3 py-1 text-sm hover:bg-accent"
+              className="rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm text-text-primary transition-colors hover:bg-bg-hover"
             >
               Manage accounts
             </Link>
@@ -139,21 +140,32 @@ export function YouTubeContent(): React.ReactElement {
             and accept the YouTube permission prompt.
           </div> : null}
 
-        <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search YouTube…"
-            className="flex-1 rounded border border-border bg-background px-3 py-2"
-            disabled={noAccounts || needsReconnect}
-          />
+        <form onSubmit={handleSearch} className="mb-6 flex flex-col gap-3 md:flex-row">
+          <div className="relative flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+              <SearchIcon className="text-text-muted" size={18} />
+            </div>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search YouTube…"
+              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-11 pr-4 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              disabled={noAccounts || needsReconnect}
+            />
+          </div>
           <button
             type="submit"
             disabled={searching || noAccounts || needsReconnect}
-            className="rounded bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-50 md:min-w-[140px]"
           >
-            {searching ? 'Searching…' : 'Search'}
+            {searching ? <>
+                <LoadingSpinner className="text-white" size={18} />
+                <span>Searching…</span>
+              </> : <>
+                <SearchIcon className="text-white" size={18} />
+                <span>Search</span>
+              </>}
           </button>
         </form>
 
