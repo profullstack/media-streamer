@@ -29,13 +29,25 @@ interface SearchItem {
   thumbnailUrl: string | null;
 }
 
+function formatPublishedAt(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(parsed);
+}
+
 export function YouTubeContent(): React.ReactElement {
   const [accounts, setAccounts] = useState<PublicYouTubeAccount[] | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [activeVideo, setActiveVideo] = useState<SearchItem | null>(null);
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,6 +81,9 @@ export function YouTubeContent(): React.ReactElement {
         }
         const data = (await res.json()) as { items: SearchItem[] };
         setResults(data.items);
+        setActiveVideo((current) =>
+          data.items.find((item) => item.videoId === current?.videoId) ?? current
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Search failed');
       } finally {
@@ -146,15 +161,53 @@ export function YouTubeContent(): React.ReactElement {
             {error}
           </div> : null}
 
-        {activeVideoId ? <div className="mb-6 aspect-video w-full overflow-hidden rounded border border-border bg-black">
-            <iframe
-              key={activeVideoId}
-              src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1`}
-              title="YouTube video player"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              className="h-full w-full"
-            />
+        {activeVideo ? <div className="mb-6 overflow-hidden rounded-xl border border-border bg-card">
+            <div className="aspect-video w-full overflow-hidden bg-black">
+              <iframe
+                key={activeVideo.videoId}
+                src={`https://www.youtube.com/embed/${activeVideo.videoId}?autoplay=1`}
+                title="YouTube video player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="h-full w-full"
+              />
+            </div>
+            <div className="border-t border-border p-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-semibold leading-tight">{activeVideo.title}</h2>
+                  <dl className="mt-3 grid gap-x-3 gap-y-2 text-sm text-muted-foreground sm:grid-cols-[auto_1fr]">
+                    <dt className="font-medium text-foreground">Channel</dt>
+                    <dd>
+                      <a
+                        href={`https://www.youtube.com/channel/${activeVideo.channelId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-foreground hover:underline"
+                      >
+                        {activeVideo.channelTitle}
+                      </a>
+                    </dd>
+                    <dt className="font-medium text-foreground">Published</dt>
+                    <dd>{formatPublishedAt(activeVideo.publishedAt)}</dd>
+                  </dl>
+                </div>
+                <a
+                  href={`https://www.youtube.com/watch?v=${activeVideo.videoId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center rounded border border-border px-3 py-2 text-sm hover:bg-accent"
+                >
+                  Open on YouTube
+                </a>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-sm font-medium">Description</h3>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                  {activeVideo.description || 'No description available.'}
+                </p>
+              </div>
+            </div>
           </div> : null}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -162,7 +215,7 @@ export function YouTubeContent(): React.ReactElement {
             <button
               type="button"
               key={item.videoId}
-              onClick={() => setActiveVideoId(item.videoId)}
+              onClick={() => setActiveVideo(item)}
               className="text-left group"
             >
               <div className="aspect-video w-full overflow-hidden rounded bg-muted">
