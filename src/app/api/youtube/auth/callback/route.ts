@@ -12,6 +12,7 @@ import {
   exchangeCodeForTokens,
   fetchGoogleUserInfo,
   getGoogleOAuthConfig,
+  hasYouTubeSearchScope,
   upsertAccount,
 } from '@/lib/youtube';
 import { getUserIdFromRequest } from '@/lib/youtube/request-auth';
@@ -69,12 +70,16 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const tokens = await exchangeCodeForTokens(config, code);
+    const grantedScopes = tokens.scope ? tokens.scope.split(' ') : [];
 
     if (!tokens.refresh_token) {
       // Without a refresh token we can't keep the connection alive.
       // access_type=offline + prompt=consent in the start route should
       // guarantee one, so treat this as an error.
       return redirectWithError(origin, 'no_refresh_token');
+    }
+    if (!hasYouTubeSearchScope(grantedScopes)) {
+      return redirectWithError(origin, 'missing_youtube_scope');
     }
 
     const userInfo = await fetchGoogleUserInfo(tokens.access_token);
@@ -88,7 +93,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       tokenExpiresAt: computeExpiresAt(tokens.expires_in),
-      scopes: tokens.scope ? tokens.scope.split(' ') : [],
+      scopes: grantedScopes,
     });
 
     const successUrl = new URL('/youtube/accounts', origin);

@@ -15,6 +15,7 @@ interface PublicYouTubeAccount {
   displayName: string | null;
   avatarUrl: string | null;
   isDefault: boolean;
+  hasSearchAccess: boolean;
   createdAt: string;
 }
 
@@ -78,6 +79,8 @@ export function YouTubeContent(): React.ReactElement {
   );
 
   const noAccounts = accounts !== null && accounts.length === 0;
+  const activeAccount = accounts?.find((account) => account.id === activeAccountId) ?? null;
+  const needsReconnect = Boolean(activeAccount && !activeAccount.hasSearchAccess);
 
   return (
     <MainLayout>
@@ -113,6 +116,13 @@ export function YouTubeContent(): React.ReactElement {
             </Link>{' '}
             to start searching and watching.
           </div> : null}
+        {needsReconnect ? <div className="mb-4 rounded border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-200">
+            This account was connected without YouTube search access.{' '}
+            <Link href="/youtube/accounts" className="text-blue-400 hover:underline">
+              Reconnect it from Manage accounts
+            </Link>{' '}
+            and accept the YouTube permission prompt.
+          </div> : null}
 
         <form onSubmit={handleSearch} className="mb-6 flex gap-2">
           <input
@@ -121,11 +131,11 @@ export function YouTubeContent(): React.ReactElement {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search YouTube…"
             className="flex-1 rounded border border-border bg-background px-3 py-2"
-            disabled={noAccounts}
+            disabled={noAccounts || needsReconnect}
           />
           <button
             type="submit"
-            disabled={searching || noAccounts}
+            disabled={searching || noAccounts || needsReconnect}
             className="rounded bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
             {searching ? 'Searching…' : 'Search'}

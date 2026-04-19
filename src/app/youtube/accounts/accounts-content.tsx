@@ -16,7 +16,16 @@ interface PublicYouTubeAccount {
   displayName: string | null;
   avatarUrl: string | null;
   isDefault: boolean;
+  hasSearchAccess: boolean;
   createdAt: string;
+}
+
+function formatOauthError(error: string | null): string | null {
+  if (!error) return null;
+  if (error === 'missing_youtube_scope') {
+    return 'Google did not grant YouTube search access. Reconnect the account and accept the YouTube permission prompt.';
+  }
+  return `OAuth error: ${error}`;
 }
 
 export function AccountsContent(): React.ReactElement {
@@ -27,6 +36,7 @@ export function AccountsContent(): React.ReactElement {
 
   const oauthError = searchParams.get('error');
   const justConnected = searchParams.get('connected') === '1';
+  const oauthErrorMessage = formatOauthError(oauthError);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,8 +103,8 @@ export function AccountsContent(): React.ReactElement {
         {justConnected ? <div className="mb-4 rounded border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm text-green-400">
             Account connected.
           </div> : null}
-        {oauthError ? <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
-            OAuth error: {oauthError}
+        {oauthErrorMessage ? <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+            {oauthErrorMessage}
           </div> : null}
         {actionError ? <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
             {actionError}
@@ -137,9 +147,18 @@ export function AccountsContent(): React.ReactElement {
                         </span> : null}
                     </div>
                     {a.email ? <div className="text-xs text-muted-foreground">{a.email}</div> : null}
+                    {!a.hasSearchAccess ? <div className="text-xs text-yellow-300">
+                        Reconnect required to grant YouTube search access.
+                      </div> : null}
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  {!a.hasSearchAccess ? <a
+                      href="/api/youtube/auth/start"
+                      className="rounded border border-yellow-500/40 px-3 py-1 text-sm text-yellow-200 hover:bg-yellow-500/10"
+                    >
+                      Reconnect
+                    </a> : null}
                   {!a.isDefault && (
                     <button
                       type="button"
