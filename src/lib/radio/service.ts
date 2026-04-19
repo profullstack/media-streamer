@@ -6,13 +6,15 @@
  */
 
 import type { RadioRepository } from './repository';
-import type { TuneInService } from './tunein';
 import type {
   RadioStation,
   RadioStream,
   RadioStationFavorite,
   RadioSearchParams,
 } from './types';
+import { createManualRadioService } from './manual';
+import { createRadioBrowserService } from './radio-browser';
+import { parseCustomStationId, resolveCustomStreamUrl } from './station-utils';
 
 // ============================================================================
 // Service Interface
@@ -34,6 +36,13 @@ export interface RadioService {
   isFavorite(userId: string, stationId: string): Promise<boolean>;
 }
 
+interface RadioProvider {
+  search(params: RadioSearchParams): Promise<RadioStation[]>;
+  getPopularStations(genre?: string): Promise<RadioStation[]>;
+  getStream(stationId: string): Promise<{ streams: RadioStream[]; preferred: RadioStream | null }>;
+  getStationInfo(stationId: string): Promise<RadioStation | null>;
+}
+
 // ============================================================================
 // Service Implementation
 // ============================================================================
@@ -43,35 +52,88 @@ export interface RadioService {
  */
 export function createRadioService(
   repository: RadioRepository,
-  tunein: TuneInService
+  providers: RadioProvider[]
 ): RadioService {
   return {
     /**
      * Search for radio stations
      */
     async searchStations(params: RadioSearchParams): Promise<RadioStation[]> {
-      return tunein.search(params);
+      const results = await Promise.all(providers.map((provider) => provider.search(params)));
+      const merged = results.flat();
+      const deduped = new Map<string, RadioStation>();
+
+      for (const station of merged) {
+        if (!deduped.has(station.id)) {
+          deduped.set(station.id, station);
+        }
+      }
+
+      return Array.from(deduped.values()).slice(0, params.limit ?? 50);
     },
 
     /**
      * Get popular stations
      */
     async getPopularStations(genre?: string): Promise<RadioStation[]> {
-      return tunein.getPopularStations(genre);
+      const results = await Promise.all(providers.map((provider) => provider.getPopularStations(genre)));
+      const merged = results.flat();
+      const deduped = new Map<string, RadioStation>();
+
+      for (const station of merged) {
+        if (!deduped.has(station.id)) {
+          deduped.set(station.id, station);
+        }
+      }
+
+      return Array.from(deduped.values());
     },
 
     /**
      * Get streaming URLs for a station
      */
     async getStream(stationId: string): Promise<{ streams: RadioStream[]; preferred: RadioStream | null }> {
-      return tunein.getStream(stationId);
+      const customStreamUrl = parseCustomStationId(stationId);
+      if (customStreamUrl) {
+        const stream = await resolveCustomStreamUrl(customStreamUrl);
+        return {
+          streams: [stream],
+          preferred: stream,
+        };
+      }
+
+      for (const provider of providers) {
+        const result = await provider.getStream(stationId);
+        if (result.streams.length > 0) {
+          return result;
+        }
+      }
+
+      return { streams: [], preferred: null };
     },
 
     /**
      * Get station info
      */
     async getStationInfo(stationId: string): Promise<RadioStation | null> {
-      return tunein.getStationInfo(stationId);
+      const customStreamUrl = parseCustomStationId(stationId);
+      if (customStreamUrl) {
+        return {
+          id: stationId,
+          name: new URL(customStreamUrl).hostname.replace(/^www\./i, ''),
+          description: 'Custom stream URL',
+          genre: 'Custom',
+        };
+      }
+
+      for (const provider of providers) {
+        const station = await provider.getStationInfo(stationId);
+        if (station) {
+          return station;
+        }
+      }
+
+      return null;
     },
 
     /**
@@ -115,7 +177,6 @@ export function createRadioService(
 // ============================================================================
 
 import { getRadioRepository } from './repository';
-import { getTuneInService } from './tunein';
 
 let serviceInstance: RadioService | null = null;
 
@@ -126,7 +187,10 @@ export function getRadioService(): RadioService {
   if (!serviceInstance) {
     serviceInstance = createRadioService(
       getRadioRepository(),
-      getTuneInService()
+      [
+        createManualRadioService(),
+        createRadioBrowserService(),
+      ]
     );
   }
   return serviceInstance;

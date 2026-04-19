@@ -90,10 +90,10 @@ export interface TuneInSearchResponse {
  * Normalized radio station for our app
  */
 export interface RadioStation {
-  id: string;           // TuneIn GuideId
-  name: string;         // Title
-  description?: string; // Subtitle
-  imageUrl?: string;    // Image
+  id: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
   genre?: string;
   currentTrack?: string;
   reliability?: number;
@@ -116,7 +116,7 @@ export interface RadioStream {
 export interface RadioStationFavorite {
   id: string;
   user_id: string;
-  station_id: string;        // TuneIn GuideId
+  station_id: string;
   station_name: string;
   station_image_url?: string | null;
   station_genre?: string | null;

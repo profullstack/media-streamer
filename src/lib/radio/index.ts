@@ -1,16 +1,21 @@
 /**
  * Radio Library
  *
- * Exports for radio station functionality including TuneIn integration,
+ * Exports for radio station functionality including provider integrations,
  * favorites management, and streaming.
  */
 
 // Types
 export * from './types';
+export * from './station-utils';
 
 // TuneIn API service
 export { createTuneInService, getTuneInService } from './tunein';
 export type { TuneInService } from './tunein';
+
+// Free/open radio providers
+export { createManualRadioService } from './manual';
+export { createRadioBrowserService } from './radio-browser';
 
 // Repository
 export { createRadioRepository, getRadioRepository } from './repository';

@@ -5,7 +5,8 @@
  *
  * Stream radio stations with search and favorites support.
  * Features:
- * - Search radio stations via TuneIn API
+ * - Search radio stations via free/open catalogs and hardcoded stations
+ * - Add a custom direct stream URL
  * - Favorite stations (authenticated users)
  * - Audio player for streaming
  * - Tab switching between favorites and search
@@ -14,7 +15,7 @@
 import { useState, useCallback } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { SearchIcon, LoadingSpinner, HeartFilledIcon } from '@/components/ui/icons';
+import { SearchIcon, LoadingSpinner, HeartFilledIcon, LinkIcon, PlusIcon } from '@/components/ui/icons';
 import { RadioIcon } from '@/components/ui/icons';
 import { StationCard, RadioPlayerModal } from '@/components/radio';
 import { useAuth } from '@/hooks/use-auth';
@@ -24,6 +25,7 @@ import {
   type RadioStation,
   type RadioStationFavorite,
 } from '@/hooks/use-radio';
+import { createCustomRadioStation } from '@/lib/radio/station-utils';
 
 type TabType = 'favorites' | 'search';
 
@@ -35,6 +37,11 @@ export function RadioContent(): React.ReactElement {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [customGenre, setCustomGenre] = useState('');
+  const [customStreamUrl, setCustomStreamUrl] = useState('');
+  const [customError, setCustomError] = useState<string | null>(null);
+  const [customStations, setCustomStations] = useState<RadioStation[]>([]);
   const {
     stations: searchResults,
     isSearching,
@@ -88,6 +95,34 @@ export function RadioContent(): React.ReactElement {
     clearResults();
   }, [clearResults]);
 
+  const handleCustomSubmit = useCallback((e: React.FormEvent): void => {
+    e.preventDefault();
+
+    try {
+      const station = createCustomRadioStation({
+        name: customName,
+        genre: customGenre,
+        streamUrl: customStreamUrl,
+      });
+
+      setCustomStations((prev) => [
+        station,
+        ...prev.filter((entry) => entry.id !== station.id),
+      ]);
+      setCustomName('');
+      setCustomGenre('');
+      setCustomStreamUrl('');
+      setCustomError(null);
+      setSearchQuery('');
+      clearResults();
+      setActiveTab('search');
+      setSelectedStation(station);
+      setIsPlayerOpen(true);
+    } catch (error) {
+      setCustomError(error instanceof Error ? error.message : 'Failed to add custom stream');
+    }
+  }, [clearResults, customGenre, customName, customStreamUrl]);
+
   // Handle tab change
   const handleTabChange = useCallback((tab: TabType): void => {
     setActiveTab(tab);
@@ -120,6 +155,23 @@ export function RadioContent(): React.ReactElement {
     imageUrl: fav.station_image_url ?? undefined,
     genre: fav.station_genre ?? undefined,
   }), []);
+
+  const filteredCustomStations = customStations.filter((station) => {
+    if (!searchQuery.trim()) {
+      return true;
+    }
+
+    const haystack = [station.name, station.description, station.genre]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return searchQuery
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .every((token) => haystack.includes(token));
+  });
 
   // Show loading while checking auth
   if (isAuthLoading) {
@@ -194,6 +246,63 @@ export function RadioContent(): React.ReactElement {
           </button>
         </form>
 
+        <form
+          onSubmit={handleCustomSubmit}
+          className="rounded-xl border border-border-default bg-bg-secondary p-4"
+        >
+          <div className="mb-4 flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg bg-accent-primary/10 text-accent-primary">
+              <LinkIcon size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary">Add Custom Stream</h2>
+              <p className="text-sm text-text-secondary">
+                Paste a direct radio stream URL. Name is optional. Favorite it to keep it.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto]">
+            <input
+              type="text"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              placeholder="Station name (optional)"
+              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            />
+            <input
+              type="text"
+              value={customGenre}
+              onChange={(e) => setCustomGenre(e.target.value)}
+              placeholder="Genre (optional)"
+              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            />
+            <input
+              type="url"
+              value={customStreamUrl}
+              onChange={(e) => setCustomStreamUrl(e.target.value)}
+              placeholder="https://example.com/live.mp3"
+              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              required
+            />
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-secondary"
+            >
+              <PlusIcon size={16} />
+              Add Stream
+            </button>
+          </div>
+
+          {customError ? (
+            <p className="mt-3 text-sm text-red-500">{customError}</p>
+          ) : (
+            <p className="mt-3 text-xs text-text-muted">
+              Direct `http` streams may be blocked by the browser on secure pages. `https` is safest.
+            </p>
+          )}
+        </form>
+
         {/* Tabs */}
         <div className="flex gap-2 border-b border-border-default">
           <button
@@ -224,9 +333,9 @@ export function RadioContent(): React.ReactElement {
           >
             <SearchIcon size={16} />
             Search Results
-            {searchResults.length > 0 ? (
+            {searchResults.length + customStations.length > 0 ? (
               <span className="rounded-full bg-accent-primary/10 px-2 py-0.5 text-xs">
-                {searchResults.length}
+                {searchResults.length + customStations.length}
               </span>
             ) : null}
           </button>
@@ -279,17 +388,17 @@ export function RadioContent(): React.ReactElement {
                 <div className="rounded-lg bg-red-500/10 p-4 text-center text-red-500">
                   {searchError}
                 </div>
-              ) : searchQuery.trim().length === 0 ? (
+              ) : searchQuery.trim().length === 0 && filteredCustomStations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <SearchIcon size={48} className="mb-4 text-text-muted" />
                   <h3 className="mb-2 text-lg font-medium text-text-primary">
                     Search for Radio Stations
                   </h3>
                   <p className="text-sm text-text-secondary">
-                    Enter a station name, genre, or location to find radio stations.
+                    Enter a station name, genre, or location to find radio stations, or add a stream URL above.
                   </p>
                 </div>
-              ) : searchResults.length === 0 ? (
+              ) : searchResults.length === 0 && filteredCustomStations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <RadioIcon size={48} className="mb-4 text-text-muted" />
                   <h3 className="mb-2 text-lg font-medium text-text-primary">
@@ -300,16 +409,53 @@ export function RadioContent(): React.ReactElement {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                  {searchResults.map((station) => (
-                    <StationCard
-                      key={station.id}
-                      station={station}
-                      isFavorited={isFavorited(station.id)}
-                      onPlay={handlePlayStation}
-                      onFavoriteChange={handleFavoriteChange}
-                    />
-                  ))}
+                <div className="space-y-6">
+                  {filteredCustomStations.length > 0 ? (
+                    <section className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-text-primary">Custom Streams</h3>
+                        <p className="text-sm text-text-secondary">
+                          Direct stream URLs you added in this session.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                        {filteredCustomStations.map((station) => (
+                          <StationCard
+                            key={station.id}
+                            station={station}
+                            isFavorited={isFavorited(station.id)}
+                            onPlay={handlePlayStation}
+                            onFavoriteChange={handleFavoriteChange}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {searchResults.length > 0 ? (
+                    <section className="space-y-3">
+                      {filteredCustomStations.length > 0 ? (
+                        <div>
+                          <h3 className="text-sm font-semibold text-text-primary">Directory Results</h3>
+                          <p className="text-sm text-text-secondary">
+                            Search results from the radio catalog and hardcoded sports stations.
+                          </p>
+                        </div>
+                      ) : null}
+
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                        {searchResults.map((station) => (
+                          <StationCard
+                            key={station.id}
+                            station={station}
+                            isFavorited={isFavorited(station.id)}
+                            onPlay={handlePlayStation}
+                            onFavoriteChange={handleFavoriteChange}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
                 </div>
               )}
             </>
