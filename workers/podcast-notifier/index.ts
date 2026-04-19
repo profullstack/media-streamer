@@ -13,8 +13,8 @@
  * Environment variables:
  *   - SUPABASE_URL: Supabase project URL (required)
  *   - SUPABASE_SERVICE_ROLE_KEY: Supabase service role key (required)
- *   - VAPID_PUBLIC_KEY: VAPID public key for web push (required)
- *   - VAPID_PRIVATE_KEY: VAPID private key for web push (required)
+ *   - VAPID_PUBLIC_KEY: VAPID public key for web push (optional)
+ *   - VAPID_PRIVATE_KEY: VAPID private key for web push (optional)
  *   - VAPID_SUBJECT: VAPID subject (optional, defaults to mailto:admin@example.com)
  */
 
@@ -32,7 +32,10 @@ import {
   getUsersToNotify,
 } from './supabase-client';
 import { fetchPodcastFeed } from './podcast-fetcher';
-import { sendNewEpisodeNotifications } from './notification-sender';
+import {
+  arePushNotificationsConfigured,
+  sendNewEpisodeNotifications,
+} from './notification-sender';
 import type { Podcast, PodcastEpisode, PodcastProcessResult } from './types';
 
 /**
@@ -108,29 +111,31 @@ async function processPodcast(podcast: Podcast): Promise<PodcastProcessResult> {
       });
     }
 
-    // Send notifications for new episodes
-    for (const episode of newEpisodes) {
-      // Get users to notify (with active push subscriptions and notifications enabled)
-      const usersToNotify = await getUsersToNotify(podcast.id, episode.id);
+    // Send notifications for new episodes only when push is configured.
+    if (arePushNotificationsConfigured()) {
+      for (const episode of newEpisodes) {
+        // Get users to notify (with active push subscriptions and notifications enabled)
+        const usersToNotify = await getUsersToNotify(podcast.id, episode.id);
 
-      if (usersToNotify.length > 0) {
-        console.log(
-          `${LOG_PREFIX} Notifying ${usersToNotify.length} users about "${episode.title}"`
-        );
-
-        const { sent, failed } = await sendNewEpisodeNotifications(
-          podcast,
-          episode,
-          usersToNotify
-        );
-
-        result.notificationsSent += sent;
-
-        if (sent > 0) {
+        if (usersToNotify.length > 0) {
           console.log(
-            `${LOG_PREFIX} Sent ${sent} notifications for "${episode.title}"` +
-              (failed > 0 ? ` (${failed} failed)` : '')
+            `${LOG_PREFIX} Notifying ${usersToNotify.length} users about "${episode.title}"`
           );
+
+          const { sent, failed } = await sendNewEpisodeNotifications(
+            podcast,
+            episode,
+            usersToNotify
+          );
+
+          result.notificationsSent += sent;
+
+          if (sent > 0) {
+            console.log(
+              `${LOG_PREFIX} Sent ${sent} notifications for "${episode.title}"` +
+                (failed > 0 ? ` (${failed} failed)` : '')
+            );
+          }
         }
       }
     }
@@ -198,11 +203,11 @@ async function refreshAllPodcasts(): Promise<void> {
   console.log(`${LOG_PREFIX} Starting refresh cycle...`);
 
   try {
-    // Fetch all podcasts with subscribers who have notifications enabled
+    // Fetch all podcasts with at least one subscriber
     const podcasts = await fetchSubscribedPodcasts();
 
     if (podcasts.length === 0) {
-      console.log(`${LOG_PREFIX} No podcasts with notification-enabled subscriptions found`);
+      console.log(`${LOG_PREFIX} No podcasts with subscriptions found`);
       return;
     }
 
@@ -296,11 +301,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
-    console.error(
-      `${LOG_PREFIX} ERROR: VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are required`
+  if (arePushNotificationsConfigured()) {
+    console.log(`${LOG_PREFIX} Push notifications enabled`);
+  } else {
+    console.warn(
+      `${LOG_PREFIX} VAPID keys are missing; continuing with episode indexing only`
     );
-    process.exit(1);
   }
 
   // Register shutdown handlers

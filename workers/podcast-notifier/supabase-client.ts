@@ -45,16 +45,16 @@ export function getSupabaseClient(): SupabaseClient<Database> {
 }
 
 /**
- * Fetch all podcasts that have at least one subscription with notifications enabled
+ * Fetch all podcasts that have at least one subscription.
+ * Indexing should continue even when subscribers disable notifications.
  */
 export async function fetchSubscribedPodcasts(): Promise<Podcast[]> {
   const client = getSupabaseClient();
 
-  // Get unique podcast IDs that have subscribers with notifications enabled
+  // Get unique podcast IDs that have at least one subscriber
   const { data: subscriptions, error: subError } = await client
     .from('podcast_subscriptions')
-    .select('podcast_id')
-    .eq('notify_new_episodes', true);
+    .select('podcast_id');
 
   if (subError) {
     throw new Error(`Failed to fetch subscriptions: ${subError.message}`);

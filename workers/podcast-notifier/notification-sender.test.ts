@@ -93,6 +93,23 @@ describe('NotificationSender', () => {
       expect(webPush.sendNotification).not.toHaveBeenCalled();
     });
 
+    it('should skip sending when VAPID keys are missing', async () => {
+      const previousPublicKey = process.env.VAPID_PUBLIC_KEY;
+      const previousPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+      delete process.env.VAPID_PUBLIC_KEY;
+      delete process.env.VAPID_PRIVATE_KEY;
+
+      const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
+
+      expect(result).toEqual({ sent: 0, failed: 0 });
+      expect(webPush.sendNotification).not.toHaveBeenCalled();
+      expect(recordNotification).not.toHaveBeenCalled();
+
+      process.env.VAPID_PUBLIC_KEY = previousPublicKey;
+      process.env.VAPID_PRIVATE_KEY = previousPrivateKey;
+    });
+
     it('should send notifications to all users successfully', async () => {
       vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
       vi.mocked(recordNotification).mockResolvedValue(undefined);

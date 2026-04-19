@@ -10,6 +10,28 @@ import type { UserToNotify, NotificationPayload, PushSubscriptionData, Podcast, 
 import { recordNotification, markPushSubscriptionInactive } from './supabase-client';
 
 let vapidConfigured = false;
+let missingVapidWarningLogged = false;
+
+/**
+ * Return whether push notifications can be sent.
+ */
+export function arePushNotificationsConfigured(): boolean {
+  return Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+}
+
+/**
+ * Warn once when notifications are skipped due to missing VAPID configuration.
+ */
+function warnMissingVapidConfiguration(): void {
+  if (missingVapidWarningLogged) {
+    return;
+  }
+
+  console.warn(
+    `${LOG_PREFIX} VAPID keys are not configured. Skipping push notifications while continuing episode indexing.`
+  );
+  missingVapidWarningLogged = true;
+}
 
 /**
  * Configure VAPID details for web push
@@ -136,6 +158,11 @@ export async function sendNewEpisodeNotifications(
   usersToNotify: UserToNotify[]
 ): Promise<{ sent: number; failed: number }> {
   if (usersToNotify.length === 0) {
+    return { sent: 0, failed: 0 };
+  }
+
+  if (!arePushNotificationsConfigured()) {
+    warnMissingVapidConfiguration();
     return { sent: 0, failed: 0 };
   }
 

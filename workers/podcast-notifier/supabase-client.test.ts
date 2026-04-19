@@ -65,9 +65,9 @@ describe('SupabaseClient', () => {
   });
 
   describe('fetchSubscribedPodcasts', () => {
-    it('should fetch podcasts with notification-enabled subscriptions', async () => {
+    it('should fetch podcasts with subscriptions regardless of notification preference', async () => {
       // First call returns subscriptions
-      mockChain.eq.mockResolvedValueOnce({
+      mockChain.select.mockResolvedValueOnce({
         data: [
           { podcast_id: 'podcast-1' },
           { podcast_id: 'podcast-2' },
@@ -90,10 +90,11 @@ describe('SupabaseClient', () => {
       expect(result).toHaveLength(2);
       expect(mockFrom).toHaveBeenCalledWith('podcast_subscriptions');
       expect(mockFrom).toHaveBeenCalledWith('podcasts');
+      expect(mockChain.eq).not.toHaveBeenCalled();
     });
 
     it('should return empty array when no subscriptions', async () => {
-      mockChain.eq.mockResolvedValueOnce({
+      mockChain.select.mockResolvedValueOnce({
         data: [],
         error: null,
       });
@@ -104,7 +105,7 @@ describe('SupabaseClient', () => {
     });
 
     it('should throw on subscription fetch error', async () => {
-      mockChain.eq.mockResolvedValueOnce({
+      mockChain.select.mockResolvedValueOnce({
         data: null,
         error: { message: 'Database error' },
       });
