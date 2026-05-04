@@ -8,12 +8,15 @@
 import type { RadioRepository } from './repository';
 import type {
   RadioStation,
-  RadioStream,
   RadioStationFavorite,
   RadioSearchParams,
+  RadioProviderResult,
+  SiriusXmCategory,
+  SiriusXmQuality,
 } from './types';
 import { createManualRadioService } from './manual';
 import { createRadioBrowserService } from './radio-browser';
+import { createSiriusXmService, parseSiriusXmId, type SiriusXmService } from './siriusxm';
 import { parseCustomStationId, resolveCustomStreamUrl } from './station-utils';
 
 // ============================================================================
@@ -21,15 +24,13 @@ import { parseCustomStationId, resolveCustomStreamUrl } from './station-utils';
 // ============================================================================
 
 export interface RadioService {
-  // Search operations
   searchStations(params: RadioSearchParams): Promise<RadioStation[]>;
+  getCategoryStations(cat: SiriusXmCategory): Promise<RadioStation[]>;
   getPopularStations(genre?: string): Promise<RadioStation[]>;
 
-  // Stream operations
-  getStream(stationId: string): Promise<{ streams: RadioStream[]; preferred: RadioStream | null }>;
+  getStream(stationId: string, quality?: SiriusXmQuality): Promise<RadioProviderResult>;
   getStationInfo(stationId: string): Promise<RadioStation | null>;
 
-  // Favorites operations (require userId)
   getUserFavorites(userId: string): Promise<RadioStationFavorite[]>;
   addToFavorites(userId: string, station: RadioStation): Promise<RadioStationFavorite>;
   removeFromFavorites(userId: string, stationId: string): Promise<void>;
@@ -39,7 +40,7 @@ export interface RadioService {
 interface RadioProvider {
   search(params: RadioSearchParams): Promise<RadioStation[]>;
   getPopularStations(genre?: string): Promise<RadioStation[]>;
-  getStream(stationId: string): Promise<{ streams: RadioStream[]; preferred: RadioStream | null }>;
+  getStream(stationId: string): Promise<RadioProviderResult>;
   getStationInfo(stationId: string): Promise<RadioStation | null>;
 }
 
@@ -47,74 +48,59 @@ interface RadioProvider {
 // Service Implementation
 // ============================================================================
 
-/**
- * Create a radio service instance
- */
 export function createRadioService(
   repository: RadioRepository,
-  providers: RadioProvider[]
+  siriusxm: SiriusXmService,
+  fallbackProviders: RadioProvider[]
 ): RadioService {
   return {
-    /**
-     * Search for radio stations
-     */
     async searchStations(params: RadioSearchParams): Promise<RadioStation[]> {
-      const results = await Promise.all(providers.map((provider) => provider.search(params)));
-      const merged = results.flat();
+      const limit = params.limit ?? 50;
+
+      const sxmResults = await siriusxm.search(params);
+      const fallbackResults = await Promise.all(
+        fallbackProviders.map((provider) => provider.search(params))
+      );
+
+      const merged = [...sxmResults, ...fallbackResults.flat()];
       const deduped = new Map<string, RadioStation>();
-
       for (const station of merged) {
-        if (!deduped.has(station.id)) {
-          deduped.set(station.id, station);
-        }
+        if (!deduped.has(station.id)) deduped.set(station.id, station);
       }
-
-      return Array.from(deduped.values()).slice(0, params.limit ?? 50);
+      return Array.from(deduped.values()).slice(0, limit);
     },
 
-    /**
-     * Get popular stations
-     */
+    async getCategoryStations(cat: SiriusXmCategory): Promise<RadioStation[]> {
+      return siriusxm.getCategoryStations(cat);
+    },
+
     async getPopularStations(genre?: string): Promise<RadioStation[]> {
-      const results = await Promise.all(providers.map((provider) => provider.getPopularStations(genre)));
-      const merged = results.flat();
-      const deduped = new Map<string, RadioStation>();
-
-      for (const station of merged) {
-        if (!deduped.has(station.id)) {
-          deduped.set(station.id, station);
-        }
-      }
-
-      return Array.from(deduped.values());
+      const cat: SiriusXmCategory = genre?.toLowerCase() === 'news' ? 'news' : 'sports';
+      return siriusxm.getCategoryStations(cat);
     },
 
-    /**
-     * Get streaming URLs for a station
-     */
-    async getStream(stationId: string): Promise<{ streams: RadioStream[]; preferred: RadioStream | null }> {
+    async getStream(
+      stationId: string,
+      quality: SiriusXmQuality = '256'
+    ): Promise<RadioProviderResult> {
       const customStreamUrl = parseCustomStationId(stationId);
       if (customStreamUrl) {
         const stream = await resolveCustomStreamUrl(customStreamUrl);
-        return {
-          streams: [stream],
-          preferred: stream,
-        };
+        return { streams: [stream], preferred: stream };
       }
 
-      for (const provider of providers) {
+      if (parseSiriusXmId(stationId)) {
+        return siriusxm.getStream(stationId, quality);
+      }
+
+      for (const provider of fallbackProviders) {
         const result = await provider.getStream(stationId);
-        if (result.streams.length > 0) {
-          return result;
-        }
+        if (result.streams.length > 0) return result;
       }
 
       return { streams: [], preferred: null };
     },
 
-    /**
-     * Get station info
-     */
     async getStationInfo(stationId: string): Promise<RadioStation | null> {
       const customStreamUrl = parseCustomStationId(stationId);
       if (customStreamUrl) {
@@ -126,26 +112,22 @@ export function createRadioService(
         };
       }
 
-      for (const provider of providers) {
+      if (parseSiriusXmId(stationId)) {
+        return siriusxm.getStationInfo(stationId);
+      }
+
+      for (const provider of fallbackProviders) {
         const station = await provider.getStationInfo(stationId);
-        if (station) {
-          return station;
-        }
+        if (station) return station;
       }
 
       return null;
     },
 
-    /**
-     * Get user's favorite stations
-     */
     async getUserFavorites(userId: string): Promise<RadioStationFavorite[]> {
       return repository.getUserFavorites(userId);
     },
 
-    /**
-     * Add a station to favorites
-     */
     async addToFavorites(userId: string, station: RadioStation): Promise<RadioStationFavorite> {
       return repository.addFavorite({
         user_id: userId,
@@ -156,16 +138,10 @@ export function createRadioService(
       });
     },
 
-    /**
-     * Remove a station from favorites
-     */
     async removeFromFavorites(userId: string, stationId: string): Promise<void> {
       return repository.removeFavorite(userId, stationId);
     },
 
-    /**
-     * Check if a station is favorited
-     */
     async isFavorite(userId: string, stationId: string): Promise<boolean> {
       return repository.isFavorite(userId, stationId);
     },
@@ -180,25 +156,17 @@ import { getRadioRepository } from './repository';
 
 let serviceInstance: RadioService | null = null;
 
-/**
- * Get the singleton radio service instance
- */
 export function getRadioService(): RadioService {
   if (!serviceInstance) {
     serviceInstance = createRadioService(
       getRadioRepository(),
-      [
-        createManualRadioService(),
-        createRadioBrowserService(),
-      ]
+      createSiriusXmService(),
+      [createManualRadioService(), createRadioBrowserService()]
     );
   }
   return serviceInstance;
 }
 
-/**
- * Reset the service instance (for testing)
- */
 export function resetRadioService(): void {
   serviceInstance = null;
 }

@@ -3,10 +3,12 @@
 /**
  * Radio Player Modal
  *
- * Audio player modal for streaming radio stations.
+ * Audio player modal for streaming radio stations. Uses HLS.js for SiriusXM
+ * and other HLS streams, falls back to direct audio playback for MP3/AAC.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Hls from 'hls.js';
 import {
   CloseIcon,
   PlayIcon,
@@ -27,22 +29,24 @@ interface RadioPlayerModalProps {
   station: RadioStation;
   isOpen: boolean;
   onClose: () => void;
+  quality?: '256' | '128' | '64' | '32';
 }
 
 export function RadioPlayerModal({
   station,
   isOpen,
   onClose,
+  quality,
 }: RadioPlayerModalProps): React.ReactElement | null {
   const { preferredStream, isLoading, error, getStream } = useRadioStream();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isBuffering, setIsBuffering] = useState(false);
 
-  // Define togglePlayPause before the useEffect that uses it
   const togglePlayPause = useCallback((): void => {
     if (!audioRef.current) return;
 
@@ -61,35 +65,78 @@ export function RadioPlayerModal({
     if (isOpen && station.id) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset error state when reopening
       setAudioError(null);
-      void getStream(station.id);
+      void getStream(station.id, quality);
     }
-  }, [isOpen, station.id, getStream]);
+  }, [isOpen, station.id, getStream, quality]);
 
-  // Auto-play when stream is ready
+  // Attach stream (HLS or direct)
   useEffect(() => {
-    if (preferredStream && audioRef.current && isOpen) {
-      audioRef.current.src = preferredStream.url;
-      audioRef.current.volume = isMuted ? 0 : volume;
-      audioRef.current.play().catch((err) => {
-        console.error('[RadioPlayer] Play error:', err);
-        setAudioError('Failed to play audio');
+    if (!preferredStream || !audioRef.current || !isOpen) return;
+
+    const audio = audioRef.current;
+    audio.volume = isMuted ? 0 : volume;
+
+    const isHls =
+      preferredStream.mediaType === 'hls' ||
+      preferredStream.url.includes('.m3u8') ||
+      preferredStream.url.includes('m3u8?');
+
+    if (isHls && Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      hlsRef.current = hls;
+      hls.loadSource(preferredStream.url);
+      hls.attachMedia(audio);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        audio.play().catch((err) => {
+          console.error('[RadioPlayer] HLS play error:', err);
+          setAudioError('Failed to play audio');
+        });
       });
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (data.fatal) {
+          console.error('[RadioPlayer] HLS fatal:', data.type, data.details);
+          setAudioError('Stream error. The station may be offline.');
+        }
+      });
+
+      return () => {
+        hls.destroy();
+        hlsRef.current = null;
+      };
     }
+
+    // Direct (MP3/AAC) or native HLS (Safari)
+    audio.src = preferredStream.url;
+    audio.play().catch((err) => {
+      console.error('[RadioPlayer] Play error:', err);
+      setAudioError('Failed to play audio');
+    });
+
+    return () => {
+      audio.removeAttribute('src');
+      audio.load();
+    };
   }, [preferredStream, isOpen, volume, isMuted]);
 
   // Cleanup on close
   useEffect(() => {
-    if (!isOpen && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
+    if (!isOpen) {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      }
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset play state when closing
       setIsPlaying(false);
-      // Clear media session when modal closes
       clearMediaSession();
     }
   }, [isOpen]);
 
-  // Handle keyboard events and overflow
+  // Keyboard / overflow handling
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (!isOpen) return;
@@ -106,7 +153,6 @@ export function RadioPlayerModal({
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // Hide overflow on both html and body to prevent scrolling on large TV screens
     if (isOpen) {
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
@@ -121,11 +167,9 @@ export function RadioPlayerModal({
     };
   }, [isOpen, onClose, togglePlayPause]);
 
-  // Media Session API: Set metadata for lock screen, CarPlay, Android Auto, etc.
+  // Media Session metadata
   useEffect(() => {
-    if (!isOpen || !preferredStream) {
-      return;
-    }
+    if (!isOpen || !preferredStream) return;
 
     setMediaSessionMetadata({
       title: station.name,
@@ -139,13 +183,11 @@ export function RadioPlayerModal({
     };
   }, [isOpen, preferredStream, station.name, station.genre, station.description, station.imageUrl]);
 
-  // Media Session API: Update playback state
   useEffect(() => {
     if (!isOpen) return;
     updateMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
   }, [isPlaying, isOpen]);
 
-  // Media Session API: Set action handlers for lock screen controls
   useEffect(() => {
     if (!isOpen) return;
 
@@ -161,7 +203,7 @@ export function RadioPlayerModal({
       stop: () => {
         if (audio) {
           audio.pause();
-          audio.src = '';
+          audio.removeAttribute('src');
         }
         onClose();
       },
@@ -236,7 +278,6 @@ export function RadioPlayerModal({
         className="relative w-full max-w-md rounded-lg bg-bg-secondary p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-text-muted hover:text-text-primary"
@@ -245,7 +286,6 @@ export function RadioPlayerModal({
           <CloseIcon size={24} />
         </button>
 
-        {/* Station info */}
         <div className="mb-6 flex items-center gap-4">
           {station.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -292,7 +332,6 @@ export function RadioPlayerModal({
           </div>
         </div>
 
-        {/* Audio element (hidden) */}
         <audio
           ref={audioRef}
           onPlay={handleAudioPlay}
@@ -302,7 +341,6 @@ export function RadioPlayerModal({
           onCanPlay={handleAudioCanPlay}
         />
 
-        {/* Loading state */}
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <LoadingSpinner size={32} className="text-accent-primary" />
@@ -310,17 +348,14 @@ export function RadioPlayerModal({
           </div>
         ) : null}
 
-        {/* Error state */}
         {showError ? (
           <div className="rounded-lg bg-red-500/10 p-4 text-center text-red-500">
             {error ?? audioError}
           </div>
         ) : null}
 
-        {/* Player controls */}
         {showControls ? (
           <div className="space-y-4">
-            {/* Play/Pause button */}
             <div className="flex items-center justify-center">
               <button
                 onClick={togglePlayPause}
@@ -337,7 +372,6 @@ export function RadioPlayerModal({
               </button>
             </div>
 
-            {/* Volume control */}
             <div className="flex items-center gap-3">
               <button
                 onClick={toggleMute}
@@ -362,10 +396,10 @@ export function RadioPlayerModal({
               />
             </div>
 
-            {/* Stream info */}
             <div className="text-center text-xs text-text-muted">
               {preferredStream.mediaType.toUpperCase()}
               {preferredStream.bitrate ? ` • ${preferredStream.bitrate} kbps` : null}
+              {quality ? ` • ${quality}k` : null}
             </div>
           </div>
         ) : null}

@@ -1,22 +1,24 @@
 'use client';
 
 /**
- * Live Radio Page
+ * Live Radio Page (SiriusXM)
  *
- * Stream radio stations with search and favorites support.
- * Features:
- * - Search radio stations via free/open catalogs and hardcoded stations
- * - Add a custom direct stream URL
- * - Favorite stations (authenticated users)
- * - Audio player for streaming
- * - Tab switching between favorites and search
+ * Browse SiriusXM Sports / News categories, search by name, mirror the same
+ * features as bin/play-siriusxm.ts (category, search, quality), plus favorites
+ * and custom direct stream URLs.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { SearchIcon, LoadingSpinner, HeartFilledIcon, LinkIcon, PlusIcon } from '@/components/ui/icons';
-import { RadioIcon } from '@/components/ui/icons';
+import {
+  SearchIcon,
+  LoadingSpinner,
+  HeartFilledIcon,
+  LinkIcon,
+  PlusIcon,
+  RadioIcon,
+} from '@/components/ui/icons';
 import { StationCard, RadioPlayerModal } from '@/components/radio';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -24,33 +26,48 @@ import {
   useRadioFavorites,
   type RadioStation,
   type RadioStationFavorite,
+  type RadioCategory,
+  type RadioQuality,
 } from '@/hooks/use-radio';
 import { createCustomRadioStation } from '@/lib/radio/station-utils';
 
-type TabType = 'favorites' | 'search';
+type TabType = 'favorites' | 'browse';
+
+const CATEGORIES: ReadonlyArray<{ value: RadioCategory; label: string }> = [
+  { value: 'sports', label: 'Sports' },
+  { value: 'news', label: 'News' },
+];
+
+const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
+  { value: '256', label: '256 kbps' },
+  { value: '128', label: '128 kbps' },
+  { value: '64', label: '64 kbps' },
+  { value: '32', label: '32 kbps' },
+];
 
 export function RadioContent(): React.ReactElement {
-  const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+  const { isLoading: isAuthLoading, isLoggedIn } = useAuth();
 
-  // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('favorites');
+  const [category, setCategory] = useState<RadioCategory>('sports');
+  const [quality, setQuality] = useState<RadioQuality>('256');
 
-  // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [customName, setCustomName] = useState('');
   const [customGenre, setCustomGenre] = useState('');
   const [customStreamUrl, setCustomStreamUrl] = useState('');
   const [customError, setCustomError] = useState<string | null>(null);
   const [customStations, setCustomStations] = useState<RadioStation[]>([]);
+
   const {
     stations: searchResults,
     isSearching,
     error: searchError,
     search,
+    browseCategory,
     clearResults,
   } = useRadioSearch(300);
 
-  // Favorites state
   const {
     favorites,
     isLoading: isFavoritesLoading,
@@ -58,42 +75,61 @@ export function RadioContent(): React.ReactElement {
     isFavorited,
   } = useRadioFavorites();
 
-  // Player state
   const [selectedStation, setSelectedStation] = useState<RadioStation | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
-  // Handle search input change
+  // Auto-load category browse when tab opens or category changes (and no search query)
+  useEffect(() => {
+    if (activeTab !== 'browse') return;
+    if (searchQuery.trim()) return;
+    void browseCategory(category);
+  }, [activeTab, category, searchQuery, browseCategory]);
+
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>): void => {
       const query = e.target.value;
       setSearchQuery(query);
-      void search(query);
-
-      // Switch to search tab when typing
-      if (query.trim().length > 0 && activeTab !== 'search') {
-        setActiveTab('search');
+      if (query.trim().length > 0) {
+        if (activeTab !== 'browse') setActiveTab('browse');
+        void search(query);
+      } else if (activeTab === 'browse') {
+        void browseCategory(category);
       }
     },
-    [search, activeTab]
+    [search, browseCategory, activeTab, category]
   );
 
-  // Handle explicit search submit (for TV remotes and Enter key)
   const handleSearchSubmit = useCallback(
     (e?: React.FormEvent): void => {
       e?.preventDefault();
-      if (searchQuery.trim()) {
-        setActiveTab('search');
-        void search(searchQuery);
+      const trimmed = searchQuery.trim();
+      setActiveTab('browse');
+      if (trimmed) {
+        void search(trimmed);
+      } else {
+        void browseCategory(category);
       }
     },
-    [search, searchQuery]
+    [search, browseCategory, searchQuery, category]
   );
 
-  // Handle search clear
   const handleSearchClear = useCallback((): void => {
     setSearchQuery('');
     clearResults();
-  }, [clearResults]);
+    if (activeTab === 'browse') {
+      void browseCategory(category);
+    }
+  }, [clearResults, activeTab, browseCategory, category]);
+
+  const handleCategoryChange = useCallback(
+    (next: RadioCategory): void => {
+      setCategory(next);
+      if (!searchQuery.trim() && activeTab === 'browse') {
+        void browseCategory(next);
+      }
+    },
+    [activeTab, browseCategory, searchQuery]
+  );
 
   const handleCustomSubmit = useCallback((e: React.FormEvent): void => {
     e.preventDefault();
@@ -113,17 +149,14 @@ export function RadioContent(): React.ReactElement {
       setCustomGenre('');
       setCustomStreamUrl('');
       setCustomError(null);
-      setSearchQuery('');
-      clearResults();
-      setActiveTab('search');
+      setActiveTab('browse');
       setSelectedStation(station);
       setIsPlayerOpen(true);
     } catch (error) {
       setCustomError(error instanceof Error ? error.message : 'Failed to add custom stream');
     }
-  }, [clearResults, customGenre, customName, customStreamUrl]);
+  }, [customGenre, customName, customStreamUrl]);
 
-  // Handle tab change
   const handleTabChange = useCallback((tab: TabType): void => {
     setActiveTab(tab);
     if (tab === 'favorites') {
@@ -131,24 +164,20 @@ export function RadioContent(): React.ReactElement {
     }
   }, [handleSearchClear]);
 
-  // Handle play station
   const handlePlayStation = useCallback((station: RadioStation): void => {
     setSelectedStation(station);
     setIsPlayerOpen(true);
   }, []);
 
-  // Handle close player
   const handleClosePlayer = useCallback((): void => {
     setIsPlayerOpen(false);
     setSelectedStation(null);
   }, []);
 
-  // Handle favorite change - refetch favorites list
   const handleFavoriteChange = useCallback((): void => {
     void refetchFavorites();
   }, [refetchFavorites]);
 
-  // Convert favorite to RadioStation format
   const favoriteToStation = useCallback((fav: RadioStationFavorite): RadioStation => ({
     id: fav.station_id,
     name: fav.station_name,
@@ -157,15 +186,11 @@ export function RadioContent(): React.ReactElement {
   }), []);
 
   const filteredCustomStations = customStations.filter((station) => {
-    if (!searchQuery.trim()) {
-      return true;
-    }
-
+    if (!searchQuery.trim()) return true;
     const haystack = [station.name, station.description, station.genre]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
-
     return searchQuery
       .trim()
       .toLowerCase()
@@ -173,7 +198,6 @@ export function RadioContent(): React.ReactElement {
       .every((token) => haystack.includes(token));
   });
 
-  // Show loading while checking auth
   if (isAuthLoading) {
     return (
       <MainLayout>
@@ -184,7 +208,6 @@ export function RadioContent(): React.ReactElement {
     );
   }
 
-  // Don't render content if not logged in (redirect will happen)
   if (!isLoggedIn) {
     return (
       <MainLayout>
@@ -198,28 +221,27 @@ export function RadioContent(): React.ReactElement {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent-primary/10 text-accent-primary">
             <RadioIcon size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">Live Radio</h1>
+            <h1 className="text-2xl font-bold text-text-primary">SiriusXM Live Radio</h1>
             <p className="text-sm text-text-secondary">
-              Stream radio stations for sports, news, music, and more
+              Browse Sports and News channels, search by name, or play a custom stream URL.
             </p>
           </div>
         </div>
 
-        {/* Search Bar */}
-        <form onSubmit={handleSearchSubmit} className="flex gap-2">
+        {/* Search + filters */}
+        <form onSubmit={handleSearchSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
               <SearchIcon className="text-text-muted" size={20} />
             </div>
             <input
               type="text"
-              placeholder="Search radio stations..."
+              placeholder='Search SiriusXM (e.g., "ESPN", "CNN")'
               value={searchQuery}
               onChange={handleSearchChange}
               className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-14 pr-10 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
@@ -235,17 +257,49 @@ export function RadioContent(): React.ReactElement {
               </button>
             ) : null}
           </div>
+
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="radio-category">Category</label>
+            <select
+              id="radio-category"
+              value={category}
+              onChange={(e) => handleCategoryChange(e.target.value as RadioCategory)}
+              className="rounded-lg border border-border-default bg-bg-secondary px-3 py-3 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              aria-label="SiriusXM category"
+              title="Category (used when not searching)"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+
+            <label className="sr-only" htmlFor="radio-quality">Quality</label>
+            <select
+              id="radio-quality"
+              value={quality}
+              onChange={(e) => setQuality(e.target.value as RadioQuality)}
+              className="rounded-lg border border-border-default bg-bg-secondary px-3 py-3 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              aria-label="Audio quality"
+              title="Audio quality"
+            >
+              {QUALITIES.map((q) => (
+                <option key={q.value} value={q.value}>{q.label}</option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="submit"
-            disabled={!searchQuery.trim() || isSearching}
-            className="flex items-center gap-2 rounded-lg bg-accent-primary px-6 py-3 font-medium text-white transition-colors hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isSearching}
+            className="flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-6 py-3 font-medium text-white transition-colors hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Search"
           >
             <SearchIcon size={20} />
-            <span className="hidden sm:inline">Search</span>
+            <span className="hidden sm:inline">{searchQuery.trim() ? 'Search' : 'Browse'}</span>
           </button>
         </form>
 
+        {/* Custom stream form */}
         <form
           onSubmit={handleCustomSubmit}
           className="rounded-xl border border-border-default bg-bg-secondary p-4"
@@ -323,16 +377,16 @@ export function RadioContent(): React.ReactElement {
             ) : null}
           </button>
           <button
-            onClick={() => handleTabChange('search')}
+            onClick={() => handleTabChange('browse')}
             className={cn(
               'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-              activeTab === 'search'
+              activeTab === 'browse'
                 ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-text-secondary hover:text-text-primary'
             )}
           >
             <SearchIcon size={16} />
-            Search Results
+            {searchQuery.trim() ? 'Search Results' : `Browse ${category === 'sports' ? 'Sports' : 'News'}`}
             {searchResults.length + customStations.length > 0 ? (
               <span className="rounded-full bg-accent-primary/10 px-2 py-0.5 text-xs">
                 {searchResults.length + customStations.length}
@@ -343,7 +397,6 @@ export function RadioContent(): React.ReactElement {
 
         {/* Content */}
         <div className="min-h-[400px]">
-          {/* Favorites Tab */}
           {activeTab === 'favorites' && (
             <>
               {isFavoritesLoading ? (
@@ -357,7 +410,7 @@ export function RadioContent(): React.ReactElement {
                     No Favorites Yet
                   </h3>
                   <p className="text-sm text-text-secondary">
-                    Search for radio stations and click the heart icon to add them to your favorites.
+                    Browse channels or search SiriusXM and tap the heart to save.
                   </p>
                 </div>
               ) : (
@@ -376,27 +429,16 @@ export function RadioContent(): React.ReactElement {
             </>
           )}
 
-          {/* Search Tab */}
-          {activeTab === 'search' && (
+          {activeTab === 'browse' && (
             <>
               {isSearching ? (
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner size={32} className="text-accent-primary" />
-                  <span className="ml-3 text-text-secondary">Searching...</span>
+                  <span className="ml-3 text-text-secondary">Loading...</span>
                 </div>
               ) : searchError ? (
                 <div className="rounded-lg bg-red-500/10 p-4 text-center text-red-500">
                   {searchError}
-                </div>
-              ) : searchQuery.trim().length === 0 && filteredCustomStations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <SearchIcon size={48} className="mb-4 text-text-muted" />
-                  <h3 className="mb-2 text-lg font-medium text-text-primary">
-                    Search for Radio Stations
-                  </h3>
-                  <p className="text-sm text-text-secondary">
-                    Enter a station name, genre, or location to find radio stations, or add a stream URL above.
-                  </p>
                 </div>
               ) : searchResults.length === 0 && filteredCustomStations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -405,7 +447,7 @@ export function RadioContent(): React.ReactElement {
                     No Stations Found
                   </h3>
                   <p className="text-sm text-text-secondary">
-                    Try a different search term.
+                    Try a different search term or category.
                   </p>
                 </div>
               ) : (
@@ -436,9 +478,13 @@ export function RadioContent(): React.ReactElement {
                     <section className="space-y-3">
                       {filteredCustomStations.length > 0 ? (
                         <div>
-                          <h3 className="text-sm font-semibold text-text-primary">Directory Results</h3>
+                          <h3 className="text-sm font-semibold text-text-primary">
+                            {searchQuery.trim() ? 'Search Results' : `SiriusXM ${category === 'sports' ? 'Sports' : 'News'}`}
+                          </h3>
                           <p className="text-sm text-text-secondary">
-                            Search results from the radio catalog and hardcoded sports stations.
+                            {searchQuery.trim()
+                              ? 'Matching SiriusXM channels and direct stations.'
+                              : 'Channels in the selected SiriusXM category.'}
                           </p>
                         </div>
                       ) : null}
@@ -463,12 +509,12 @@ export function RadioContent(): React.ReactElement {
         </div>
       </div>
 
-      {/* Player Modal */}
       {selectedStation ? (
         <RadioPlayerModal
           station={selectedStation}
           isOpen={isPlayerOpen}
           onClose={handleClosePlayer}
+          quality={quality}
         />
       ) : null}
     </MainLayout>

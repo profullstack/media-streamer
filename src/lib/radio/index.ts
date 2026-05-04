@@ -9,9 +9,20 @@
 export * from './types';
 export * from './station-utils';
 
-// TuneIn API service
-export { createTuneInService, getTuneInService } from './tunein';
-export type { TuneInService } from './tunein';
+// SiriusXM provider
+export {
+  createSiriusXmService,
+  getSiriusXmService,
+  resetSiriusXmService,
+  parseSiriusXmId,
+  getSiriusXmTuneUrl,
+  siriusXmHeaders,
+  rewriteSiriusXmPlaylist,
+  decodeSiriusXmKeyJson,
+  looksLikePlaylist,
+  SIRIUSXM_STATION_ID_PREFIX,
+} from './siriusxm';
+export type { SiriusXmService } from './siriusxm';
 
 // Free/open radio providers
 export { createManualRadioService } from './manual';

@@ -4,20 +4,27 @@
  * GET /api/radio/stream - Get streaming URLs for a station
  *
  * Query parameters:
- * - id: Station ID (TuneIn GuideId, required)
+ * - id: Station ID (required)
+ * - quality: SiriusXM quality preference (optional, '256' | '128' | '64' | '32')
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRadioService } from '@/lib/radio';
+import type { SiriusXmQuality } from '@/lib/radio';
 
-/**
- * GET /api/radio/stream?id=<stationId>
- *
- * Get streaming URLs for a radio station. No authentication required.
- */
+const VALID_QUALITIES: ReadonlyArray<SiriusXmQuality> = ['256', '128', '64', '32'];
+
+function parseQuality(value: string | null): SiriusXmQuality | undefined {
+  if (value && (VALID_QUALITIES as readonly string[]).includes(value)) {
+    return value as SiriusXmQuality;
+  }
+  return undefined;
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const stationId = searchParams.get('id');
+  const quality = parseQuality(searchParams.get('quality'));
 
   if (!stationId || stationId.trim().length === 0) {
     return NextResponse.json(
@@ -27,12 +34,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    console.log('[Radio Stream API] Getting stream for station:', stationId);
     const service = getRadioService();
-
-    // Get stream URLs
-    const { streams, preferred } = await service.getStream(stationId.trim());
-    console.log('[Radio Stream API] Got', streams.length, 'streams, preferred:', preferred?.url);
+    const { streams, preferred } = await service.getStream(stationId.trim(), quality);
 
     if (streams.length === 0) {
       return NextResponse.json(
@@ -41,7 +44,6 @@ export async function GET(request: NextRequest): Promise<Response> {
       );
     }
 
-    // Optionally get station info for additional metadata
     const station = await service.getStationInfo(stationId.trim());
 
     return NextResponse.json({

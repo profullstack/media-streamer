@@ -12,9 +12,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 // Types
 // ============================================================================
 
-/**
- * Radio station from search/API
- */
+export type RadioCategory = 'sports' | 'news';
+export type RadioQuality = '256' | '128' | '64' | '32';
+
 export interface RadioStation {
   id: string;
   name: string;
@@ -26,9 +26,6 @@ export interface RadioStation {
   formats?: string[];
 }
 
-/**
- * Radio stream
- */
 export interface RadioStream {
   url: string;
   mediaType: 'mp3' | 'aac' | 'hls' | 'flash' | 'ogg' | 'html';
@@ -36,9 +33,6 @@ export interface RadioStream {
   isDirect: boolean;
 }
 
-/**
- * Favorite station from DB
- */
 export interface RadioStationFavorite {
   id: string;
   user_id: string;
@@ -57,21 +51,45 @@ interface UseRadioSearchReturn {
   stations: RadioStation[];
   isSearching: boolean;
   error: string | null;
-  search: (query: string) => Promise<void>;
+  search: (query: string, options?: { category?: RadioCategory }) => Promise<void>;
+  browseCategory: (category: RadioCategory) => Promise<void>;
   clearResults: () => void;
 }
 
-/**
- * Hook for searching radio stations
- */
 export function useRadioSearch(debounceMs: number = 300): UseRadioSearchReturn {
   const [stations, setStations] = useState<RadioStation[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const search = useCallback(async (query: string) => {
-    // Clear any pending debounce
+  const runRequest = useCallback(async (url: string): Promise<void> => {
+    setIsSearching(true);
+    setError(null);
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Search failed');
+        setStations([]);
+        return;
+      }
+
+      setStations(data.stations || []);
+    } catch (err) {
+      console.error('[useRadioSearch] Error:', err);
+      setError(err instanceof Error ? err.message : 'Search failed');
+      setStations([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const search = useCallback(async (
+    query: string,
+    options?: { category?: RadioCategory }
+  ) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -82,31 +100,20 @@ export function useRadioSearch(debounceMs: number = 300): UseRadioSearchReturn {
       return;
     }
 
-    // Debounce the search
     debounceTimerRef.current = setTimeout(async () => {
-      setIsSearching(true);
-      setError(null);
-
-      try {
-        const response = await fetch(`/api/radio?q=${encodeURIComponent(query.trim())}`);
-        const data = await response.json();
-
-        if (!response.ok) {
-          setError(data.error || 'Search failed');
-          setStations([]);
-          return;
-        }
-
-        setStations(data.stations || []);
-      } catch (err) {
-        console.error('[useRadioSearch] Error:', err);
-        setError(err instanceof Error ? err.message : 'Search failed');
-        setStations([]);
-      } finally {
-        setIsSearching(false);
-      }
+      const params = new URLSearchParams({ q: query.trim() });
+      if (options?.category) params.set('cat', options.category);
+      await runRequest(`/api/radio?${params.toString()}`);
     }, debounceMs);
-  }, [debounceMs]);
+  }, [debounceMs, runRequest]);
+
+  const browseCategory = useCallback(async (category: RadioCategory): Promise<void> => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    const params = new URLSearchParams({ cat: category });
+    await runRequest(`/api/radio?${params.toString()}`);
+  }, [runRequest]);
 
   const clearResults = useCallback(() => {
     setStations([]);
@@ -116,7 +123,6 @@ export function useRadioSearch(debounceMs: number = 300): UseRadioSearchReturn {
     }
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -125,7 +131,7 @@ export function useRadioSearch(debounceMs: number = 300): UseRadioSearchReturn {
     };
   }, []);
 
-  return { stations, isSearching, error, search, clearResults };
+  return { stations, isSearching, error, search, browseCategory, clearResults };
 }
 
 // ============================================================================
@@ -137,24 +143,24 @@ interface UseRadioStreamReturn {
   preferredStream: RadioStream | null;
   isLoading: boolean;
   error: string | null;
-  getStream: (stationId: string) => Promise<void>;
+  getStream: (stationId: string, quality?: RadioQuality) => Promise<void>;
 }
 
-/**
- * Hook for getting radio station stream URLs
- */
 export function useRadioStream(): UseRadioStreamReturn {
   const [streams, setStreams] = useState<RadioStream[]>([]);
   const [preferredStream, setPreferredStream] = useState<RadioStream | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getStream = useCallback(async (stationId: string) => {
+  const getStream = useCallback(async (stationId: string, quality?: RadioQuality) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/radio/stream?id=${encodeURIComponent(stationId)}`);
+      const params = new URLSearchParams({ id: stationId });
+      if (quality) params.set('quality', quality);
+
+      const response = await fetch(`/api/radio/stream?${params.toString()}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -191,9 +197,6 @@ interface UseRadioFavoritesReturn {
   isFavorited: (stationId: string) => boolean;
 }
 
-/**
- * Hook for managing user's favorite radio stations list
- */
 export function useRadioFavorites(): UseRadioFavoritesReturn {
   const [favorites, setFavorites] = useState<RadioStationFavorite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -209,7 +212,6 @@ export function useRadioFavorites(): UseRadioFavoritesReturn {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Not authenticated - expected for logged out users
           setFavorites([]);
           return;
         }
@@ -228,7 +230,6 @@ export function useRadioFavorites(): UseRadioFavoritesReturn {
     }
   }, []);
 
-  // Fetch on mount
   useEffect(() => {
     void fetchFavorites();
   }, [fetchFavorites]);
@@ -261,9 +262,6 @@ interface UseRadioStationFavoriteReturn {
   clearError: () => void;
 }
 
-/**
- * Hook for managing a single radio station's favorite status
- */
 export function useRadioStationFavorite(
   station: RadioStation,
   initialFavorited: boolean = false
@@ -272,7 +270,6 @@ export function useRadioStationFavorite(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync with initialFavorited prop
   useEffect(() => {
     setIsFavorited(initialFavorited);
   }, [initialFavorited]);
@@ -283,7 +280,6 @@ export function useRadioStationFavorite(
 
     try {
       if (isFavorited) {
-        // Remove from favorites
         const response = await fetch('/api/radio/favorites', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -302,7 +298,6 @@ export function useRadioStationFavorite(
 
         setIsFavorited(false);
       } else {
-        // Add to favorites
         const response = await fetch('/api/radio/favorites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

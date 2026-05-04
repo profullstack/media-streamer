@@ -1,33 +1,40 @@
 /**
  * Radio API Route
  *
- * GET /api/radio - Search radio stations
+ * GET /api/radio - Search radio stations or browse a SiriusXM category.
  *
  * Query parameters:
- * - q: Search query (required)
+ * - q: Search query (optional if cat is provided)
+ * - cat: SiriusXM category ('sports' | 'news') for browse mode
  * - filter: Filter type (optional) - 's' for stations, 't' for topics, 'p' for programs
  * - limit: Maximum results (optional, default 50)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRadioService } from '@/lib/radio';
+import type { SiriusXmCategory } from '@/lib/radio';
 
-/**
- * GET /api/radio?q=<query>
- *
- * Search for radio stations. No authentication required.
- */
+const VALID_CATEGORIES: ReadonlyArray<SiriusXmCategory> = ['sports', 'news'];
+
+function parseCategory(value: string | null): SiriusXmCategory | null {
+  if (value && (VALID_CATEGORIES as readonly string[]).includes(value)) {
+    return value as SiriusXmCategory;
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
+  const cat = parseCategory(searchParams.get('cat'));
   const filter = searchParams.get('filter') as 's' | 't' | 'p' | null;
   const limitStr = searchParams.get('limit');
   const limit = limitStr ? parseInt(limitStr, 10) : 50;
+  const cappedLimit = Math.min(limit, 100);
 
-  console.log('[Radio API] Search request:', { query, filter, limit });
+  const trimmedQuery = query?.trim() ?? '';
 
-  if (!query || query.trim().length === 0) {
-    console.log('[Radio API] Empty query, returning 400');
+  if (!trimmedQuery && !cat) {
     return NextResponse.json(
       { error: 'Search query is required' },
       { status: 400 }
@@ -36,19 +43,21 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const service = getRadioService();
-    console.log('[Radio API] Calling service.searchStations...');
+
+    if (!trimmedQuery && cat) {
+      const stations = await service.getCategoryStations(cat);
+      const sliced = stations.slice(0, cappedLimit);
+      return NextResponse.json({ stations: sliced, total: sliced.length });
+    }
+
     const stations = await service.searchStations({
-      query: query.trim(),
+      query: trimmedQuery,
       filter: filter || undefined,
-      limit: Math.min(limit, 100), // Cap at 100
+      limit: cappedLimit,
+      category: cat ?? undefined,
     });
 
-    console.log('[Radio API] Search returned', stations.length, 'stations');
-
-    return NextResponse.json({
-      stations,
-      total: stations.length,
-    });
+    return NextResponse.json({ stations, total: stations.length });
   } catch (error) {
     console.error('[Radio API] Search error:', error);
     return NextResponse.json(
