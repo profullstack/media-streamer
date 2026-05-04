@@ -1,8 +1,7 @@
 /**
  * Radio Repository
  *
- * Database operations for radio station favorites.
- * Uses Supabase with Row Level Security.
+ * Database operations for radio station favorites. Scoped by profile.
  */
 
 import { createServerClient } from '@/lib/supabase';
@@ -11,37 +10,36 @@ import type {
   RadioStationFavoriteInsert,
 } from '@/lib/supabase/types';
 
-// ============================================================================
-// Repository Interface
-// ============================================================================
-
 export interface RadioRepository {
-  getUserFavorites(userId: string): Promise<RadioStationFavorite[]>;
+  getUserFavorites(profileId: string): Promise<RadioStationFavorite[]>;
   addFavorite(data: RadioStationFavoriteInsert): Promise<RadioStationFavorite>;
-  removeFavorite(userId: string, stationId: string): Promise<void>;
-  isFavorite(userId: string, stationId: string): Promise<boolean>;
-  getFavorite(userId: string, stationId: string): Promise<RadioStationFavorite | null>;
+  removeFavorite(profileId: string, stationId: string): Promise<void>;
+  isFavorite(profileId: string, stationId: string): Promise<boolean>;
+  getFavorite(profileId: string, stationId: string): Promise<RadioStationFavorite | null>;
 }
 
-// ============================================================================
-// Repository Implementation
-// ============================================================================
+function toProfileScopedInsert(data: RadioStationFavoriteInsert): RadioStationFavoriteInsert {
+  // The service layer passes the active profile ID via the user_id field for
+  // historical reasons; map it onto profile_id for the profile-scoped schema.
+  const profileId = data.profile_id ?? data.user_id ?? null;
+  return {
+    profile_id: profileId,
+    station_id: data.station_id,
+    station_name: data.station_name,
+    station_image_url: data.station_image_url ?? null,
+    station_genre: data.station_genre ?? null,
+  };
+}
 
-/**
- * Create a radio repository instance
- */
 export function createRadioRepository(): RadioRepository {
   return {
-    /**
-     * Get all favorite stations for a user
-     */
-    async getUserFavorites(userId: string): Promise<RadioStationFavorite[]> {
+    async getUserFavorites(profileId: string): Promise<RadioStationFavorite[]> {
       const supabase = createServerClient();
 
       const { data, error } = await supabase
         .from('radio_station_favorites')
         .select('*')
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -52,23 +50,24 @@ export function createRadioRepository(): RadioRepository {
       return data || [];
     },
 
-    /**
-     * Add a station to favorites
-     */
     async addFavorite(data: RadioStationFavoriteInsert): Promise<RadioStationFavorite> {
       const supabase = createServerClient();
+      const insert = toProfileScopedInsert(data);
+      const profileId = insert.profile_id;
+
+      if (!profileId) {
+        throw new Error('Cannot add favorite without an active profile');
+      }
 
       const { data: favorite, error } = await supabase
         .from('radio_station_favorites')
-        .insert(data)
+        .insert(insert)
         .select()
         .single();
 
       if (error) {
-        // Check for unique constraint violation (already favorited)
         if (error.code === '23505') {
-          // Return existing favorite instead of error
-          const existing = await this.getFavorite(data.user_id, data.station_id);
+          const existing = await this.getFavorite(profileId, insert.station_id);
           if (existing) return existing;
         }
         console.error('[RadioRepository] addFavorite error:', error);
@@ -78,16 +77,13 @@ export function createRadioRepository(): RadioRepository {
       return favorite;
     },
 
-    /**
-     * Remove a station from favorites
-     */
-    async removeFavorite(userId: string, stationId: string): Promise<void> {
+    async removeFavorite(profileId: string, stationId: string): Promise<void> {
       const supabase = createServerClient();
 
       const { error } = await supabase
         .from('radio_station_favorites')
         .delete()
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .eq('station_id', stationId);
 
       if (error) {
@@ -96,16 +92,13 @@ export function createRadioRepository(): RadioRepository {
       }
     },
 
-    /**
-     * Check if a station is favorited by user
-     */
-    async isFavorite(userId: string, stationId: string): Promise<boolean> {
+    async isFavorite(profileId: string, stationId: string): Promise<boolean> {
       const supabase = createServerClient();
 
       const { data, error } = await supabase
         .from('radio_station_favorites')
         .select('id')
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .eq('station_id', stationId)
         .maybeSingle();
 
@@ -117,16 +110,13 @@ export function createRadioRepository(): RadioRepository {
       return data !== null;
     },
 
-    /**
-     * Get a specific favorite
-     */
-    async getFavorite(userId: string, stationId: string): Promise<RadioStationFavorite | null> {
+    async getFavorite(profileId: string, stationId: string): Promise<RadioStationFavorite | null> {
       const supabase = createServerClient();
 
       const { data, error } = await supabase
         .from('radio_station_favorites')
         .select('*')
-        .eq('user_id', userId)
+        .eq('profile_id', profileId)
         .eq('station_id', stationId)
         .maybeSingle();
 
@@ -140,15 +130,8 @@ export function createRadioRepository(): RadioRepository {
   };
 }
 
-// ============================================================================
-// Singleton Instance
-// ============================================================================
-
 let repositoryInstance: RadioRepository | null = null;
 
-/**
- * Get the singleton radio repository instance
- */
 export function getRadioRepository(): RadioRepository {
   if (!repositoryInstance) {
     repositoryInstance = createRadioRepository();

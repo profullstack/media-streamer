@@ -9,27 +9,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 import { getRadioService } from '@/lib/radio';
 import { getActiveProfileId } from '@/lib/profiles';
 import type { RadioStation } from '@/lib/radio';
 
-/**
- * Cookie name for auth token
- */
-const AUTH_COOKIE_NAME = 'sb-auth-token';
-
-/**
- * Session token structure stored in cookie
- */
-interface SessionToken {
-  access_token: string;
-  refresh_token: string;
-}
-
-/**
- * Request body for adding a favorite
- */
 interface AddFavoriteRequest {
   stationId: string;
   stationName: string;
@@ -37,9 +21,6 @@ interface AddFavoriteRequest {
   stationGenre?: string | null;
 }
 
-/**
- * Type guard for AddFavoriteRequest
- */
 function isAddFavoriteRequest(body: unknown): body is AddFavoriteRequest {
   if (typeof body !== 'object' || body === null) {
     return false;
@@ -54,93 +35,6 @@ function isAddFavoriteRequest(body: unknown): body is AddFavoriteRequest {
 }
 
 /**
- * Parse session token from cookie
- */
-function parseSessionCookie(cookieValue: string | undefined): SessionToken | null {
-  if (!cookieValue) return null;
-
-  try {
-    const decoded = decodeURIComponent(cookieValue);
-    const parsed = JSON.parse(decoded) as unknown;
-
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      'access_token' in parsed &&
-      'refresh_token' in parsed &&
-      typeof (parsed as SessionToken).access_token === 'string' &&
-      typeof (parsed as SessionToken).refresh_token === 'string'
-    ) {
-      return parsed as SessionToken;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Extract user ID from session cookie or Authorization header
- */
-async function getUserIdFromRequest(request: NextRequest): Promise<string | null> {
-  // First try cookie-based auth (browser)
-  const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  const sessionToken = parseSessionCookie(cookieValue);
-
-  if (sessionToken) {
-    const supabase = createServerClient();
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: sessionToken.access_token,
-      refresh_token: sessionToken.refresh_token,
-    });
-
-    if (!sessionError) {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (!userError && user) {
-        return user.id;
-      }
-    }
-  }
-
-  // Fall back to Authorization header (for tests and API clients)
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-
-  try {
-    const sessionData = JSON.parse(token) as { access_token?: string };
-    if (!sessionData.access_token) {
-      return null;
-    }
-
-    const supabase = createServerClient();
-    const { data: { user }, error } = await supabase.auth.getUser(sessionData.access_token);
-
-    if (error || !user) {
-      return null;
-    }
-
-    return user.id;
-  } catch {
-    try {
-      const supabase = createServerClient();
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-
-      if (error || !user) {
-        return null;
-      }
-
-      return user.id;
-    } catch {
-      return null;
-    }
-  }
-}
-
-/**
  * GET /api/radio/favorites
  *
  * Get user's favorite radio stations. Requires authentication.
@@ -149,9 +43,9 @@ async function getUserIdFromRequest(request: NextRequest): Promise<string | null
  * - stationId: Optional station ID to check if favorited
  */
 export async function GET(request: NextRequest): Promise<Response> {
-  const userId = await getUserIdFromRequest(request);
+  const user = await getCurrentUser();
 
-  if (!userId) {
+  if (!user) {
     return NextResponse.json(
       { error: 'Authentication required' },
       { status: 401 }
@@ -206,9 +100,9 @@ export async function GET(request: NextRequest): Promise<Response> {
  * - stationGenre: Station genre (optional)
  */
 export async function POST(request: NextRequest): Promise<Response> {
-  const userId = await getUserIdFromRequest(request);
+  const user = await getCurrentUser();
 
-  if (!userId) {
+  if (!user) {
     return NextResponse.json(
       { error: 'Authentication required' },
       { status: 401 }
@@ -275,9 +169,9 @@ export async function POST(request: NextRequest): Promise<Response> {
  * - stationId: Station ID to remove (required)
  */
 export async function DELETE(request: NextRequest): Promise<Response> {
-  const userId = await getUserIdFromRequest(request);
+  const user = await getCurrentUser();
 
-  if (!userId) {
+  if (!user) {
     return NextResponse.json(
       { error: 'Authentication required' },
       { status: 401 }

@@ -5,16 +5,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-// Mock Supabase auth
-const mockGetUser = vi.fn();
-const mockSetSession = vi.fn();
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: () => ({
-    auth: {
-      setSession: mockSetSession,
-      getUser: mockGetUser,
-    },
-  }),
+// Mock auth
+const mockGetCurrentUser = vi.fn();
+vi.mock('@/lib/auth', () => ({
+  getCurrentUser: () => mockGetCurrentUser(),
 }));
 
 // Mock the radio service
@@ -39,19 +33,18 @@ vi.mock('@/lib/profiles', () => ({
 
 function createRequest(
   url: string,
-  options: { method?: string; body?: string; headers?: HeadersInit; authenticated?: boolean } = {}
+  options: { method?: string; body?: string; headers?: HeadersInit } = {}
 ): NextRequest {
-  const { authenticated = false, method, body, headers: optHeaders } = options;
-  const headers = new Headers(optHeaders);
+  const { method, body, headers: optHeaders } = options;
+  return new NextRequest(url, { method, body, headers: optHeaders });
+}
 
-  if (authenticated) {
-    headers.set('Cookie', 'sb-auth-token=' + encodeURIComponent(JSON.stringify({
-      access_token: 'test-token',
-      refresh_token: 'test-refresh',
-    })));
-  }
+function mockAuthenticated(): void {
+  mockGetCurrentUser.mockResolvedValue({ id: 'user-123', email: 'test@example.com' });
+}
 
-  return new NextRequest(url, { method, body, headers });
+function mockUnauthenticated(): void {
+  mockGetCurrentUser.mockResolvedValue(null);
 }
 
 describe('GET /api/radio/favorites', () => {
@@ -60,8 +53,7 @@ describe('GET /api/radio/favorites', () => {
   });
 
   it('returns 401 when not authenticated', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    mockUnauthenticated();
 
     const { GET } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites');
@@ -73,12 +65,11 @@ describe('GET /api/radio/favorites', () => {
   });
 
   it('returns user favorites when authenticated', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
     mockGetUserFavorites.mockResolvedValue([
       {
         id: 'fav-1',
-        user_id: 'user-123',
+        profile_id: 'profile-123',
         station_id: 's123',
         station_name: 'NPR News',
         created_at: '2024-01-15T00:00:00Z',
@@ -86,7 +77,7 @@ describe('GET /api/radio/favorites', () => {
     ]);
 
     const { GET } = await import('./route');
-    const request = createRequest('http://localhost/api/radio/favorites', { authenticated: true });
+    const request = createRequest('http://localhost/api/radio/favorites');
     const response = await GET(request);
     const data = await response.json();
 
@@ -97,12 +88,11 @@ describe('GET /api/radio/favorites', () => {
   });
 
   it('checks if station is favorited when stationId provided', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
     mockIsFavorite.mockResolvedValue(true);
 
     const { GET } = await import('./route');
-    const request = createRequest('http://localhost/api/radio/favorites?stationId=s123', { authenticated: true });
+    const request = createRequest('http://localhost/api/radio/favorites?stationId=s123');
     const response = await GET(request);
     const data = await response.json();
 
@@ -112,12 +102,11 @@ describe('GET /api/radio/favorites', () => {
   });
 
   it('returns 500 on service error', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
     mockGetUserFavorites.mockRejectedValue(new Error('Database error'));
 
     const { GET } = await import('./route');
-    const request = createRequest('http://localhost/api/radio/favorites', { authenticated: true });
+    const request = createRequest('http://localhost/api/radio/favorites');
     const response = await GET(request);
     const data = await response.json();
 
@@ -139,8 +128,7 @@ describe('POST /api/radio/favorites', () => {
   };
 
   it('returns 401 when not authenticated', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    mockUnauthenticated();
 
     const { POST } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites', {
@@ -155,14 +143,12 @@ describe('POST /api/radio/favorites', () => {
   });
 
   it('returns 400 when stationId is missing', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
 
     const { POST } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites', {
       method: 'POST',
       body: JSON.stringify({ stationName: 'Test' }),
-      authenticated: true,
     });
     const response = await POST(request);
     const data = await response.json();
@@ -172,11 +158,10 @@ describe('POST /api/radio/favorites', () => {
   });
 
   it('adds station to favorites', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
     mockAddToFavorites.mockResolvedValue({
       id: 'fav-new',
-      user_id: 'user-123',
+      profile_id: 'profile-123',
       station_id: 's123',
       station_name: 'NPR News',
       created_at: '2024-01-15T00:00:00Z',
@@ -186,7 +171,6 @@ describe('POST /api/radio/favorites', () => {
     const request = createRequest('http://localhost/api/radio/favorites', {
       method: 'POST',
       body: JSON.stringify(validInput),
-      authenticated: true,
     });
     const response = await POST(request);
     const data = await response.json();
@@ -202,15 +186,13 @@ describe('POST /api/radio/favorites', () => {
   });
 
   it('returns 500 on service error', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
     mockAddToFavorites.mockRejectedValue(new Error('Database error'));
 
     const { POST } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites', {
       method: 'POST',
       body: JSON.stringify(validInput),
-      authenticated: true,
     });
     const response = await POST(request);
     const data = await response.json();
@@ -226,8 +208,7 @@ describe('DELETE /api/radio/favorites', () => {
   });
 
   it('returns 401 when not authenticated', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    mockUnauthenticated();
 
     const { DELETE } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites', {
@@ -242,14 +223,12 @@ describe('DELETE /api/radio/favorites', () => {
   });
 
   it('returns 400 when stationId is missing', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
 
     const { DELETE } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites', {
       method: 'DELETE',
       body: JSON.stringify({}),
-      authenticated: true,
     });
     const response = await DELETE(request);
     const data = await response.json();
@@ -259,15 +238,13 @@ describe('DELETE /api/radio/favorites', () => {
   });
 
   it('removes station from favorites', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
     mockRemoveFromFavorites.mockResolvedValue(undefined);
 
     const { DELETE } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites', {
       method: 'DELETE',
       body: JSON.stringify({ stationId: 's123' }),
-      authenticated: true,
     });
     const response = await DELETE(request);
     const data = await response.json();
@@ -278,15 +255,13 @@ describe('DELETE /api/radio/favorites', () => {
   });
 
   it('returns 500 on service error', async () => {
-    mockSetSession.mockResolvedValue({ error: null });
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+    mockAuthenticated();
     mockRemoveFromFavorites.mockRejectedValue(new Error('Database error'));
 
     const { DELETE } = await import('./route');
     const request = createRequest('http://localhost/api/radio/favorites', {
       method: 'DELETE',
       body: JSON.stringify({ stationId: 's123' }),
-      authenticated: true,
     });
     const response = await DELETE(request);
     const data = await response.json();

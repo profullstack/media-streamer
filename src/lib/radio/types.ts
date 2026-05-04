@@ -30,11 +30,12 @@ export interface RadioStream {
 }
 
 /**
- * User's favorite radio station (stored in DB)
+ * User's favorite radio station (stored in DB). Scoped by profile.
  */
 export interface RadioStationFavorite {
   id: string;
-  user_id: string;
+  user_id?: string | null;
+  profile_id?: string | null;
   station_id: string;
   station_name: string;
   station_image_url?: string | null;

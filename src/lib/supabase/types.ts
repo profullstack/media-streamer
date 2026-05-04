@@ -1590,7 +1590,8 @@ export type Database = {
       radio_station_favorites: {
         Row: {
           id: string;
-          user_id: string;
+          user_id: string | null;
+          profile_id: string | null;
           station_id: string;
           station_name: string;
           station_image_url: string | null;
@@ -1599,7 +1600,8 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          user_id: string;
+          user_id?: string | null;
+          profile_id?: string | null;
           station_id: string;
           station_name: string;
           station_image_url?: string | null;
@@ -1608,7 +1610,8 @@ export type Database = {
         };
         Update: {
           id?: string;
-          user_id?: string;
+          user_id?: string | null;
+          profile_id?: string | null;
           station_id?: string;
           station_name?: string;
           station_image_url?: string | null;

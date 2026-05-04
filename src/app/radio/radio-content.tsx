@@ -3,9 +3,9 @@
 /**
  * Live Radio Page (SiriusXM)
  *
- * Browse SiriusXM Sports / News categories, search by name, mirror the same
- * features as bin/play-siriusxm.ts (category, search, quality), plus favorites
- * and custom direct stream URLs.
+ * Mirrors bin/play-siriusxm.ts: browse SiriusXM Sports / News, search by name,
+ * pick audio quality. Favorites and direct custom stream URLs are also
+ * supported.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -31,12 +31,7 @@ import {
 } from '@/hooks/use-radio';
 import { createCustomRadioStation } from '@/lib/radio/station-utils';
 
-type TabType = 'favorites' | 'browse';
-
-const CATEGORIES: ReadonlyArray<{ value: RadioCategory; label: string }> = [
-  { value: 'sports', label: 'Sports' },
-  { value: 'news', label: 'News' },
-];
+type TabType = 'favorites' | 'sports' | 'news';
 
 const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
   { value: '256', label: '256 kbps' },
@@ -45,11 +40,16 @@ const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
   { value: '32', label: '32 kbps' },
 ];
 
+function tabToCategory(tab: TabType): RadioCategory | null {
+  if (tab === 'sports') return 'sports';
+  if (tab === 'news') return 'news';
+  return null;
+}
+
 export function RadioContent(): React.ReactElement {
   const { isLoading: isAuthLoading, isLoggedIn } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<TabType>('favorites');
-  const [category, setCategory] = useState<RadioCategory>('sports');
+  const [activeTab, setActiveTab] = useState<TabType>('sports');
   const [quality, setQuality] = useState<RadioQuality>('256');
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,9 +60,9 @@ export function RadioContent(): React.ReactElement {
   const [customStations, setCustomStations] = useState<RadioStation[]>([]);
 
   const {
-    stations: searchResults,
+    stations,
     isSearching,
-    error: searchError,
+    error: stationsError,
     search,
     browseCategory,
     clearResults,
@@ -78,58 +78,51 @@ export function RadioContent(): React.ReactElement {
   const [selectedStation, setSelectedStation] = useState<RadioStation | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
-  // Auto-load category browse when tab opens or category changes (and no search query)
+  // Auto-load category list when the active tab changes (and no search query)
   useEffect(() => {
-    if (activeTab !== 'browse') return;
     if (searchQuery.trim()) return;
-    void browseCategory(category);
-  }, [activeTab, category, searchQuery, browseCategory]);
+    const cat = tabToCategory(activeTab);
+    if (cat) {
+      void browseCategory(cat);
+    } else {
+      clearResults();
+    }
+  }, [activeTab, searchQuery, browseCategory, clearResults]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>): void => {
       const query = e.target.value;
       setSearchQuery(query);
       if (query.trim().length > 0) {
-        if (activeTab !== 'browse') setActiveTab('browse');
         void search(query);
-      } else if (activeTab === 'browse') {
-        void browseCategory(category);
+      } else {
+        // Reverting to the active category list will be handled by the useEffect
+        clearResults();
       }
     },
-    [search, browseCategory, activeTab, category]
+    [search, clearResults]
   );
 
   const handleSearchSubmit = useCallback(
     (e?: React.FormEvent): void => {
       e?.preventDefault();
       const trimmed = searchQuery.trim();
-      setActiveTab('browse');
       if (trimmed) {
         void search(trimmed);
       } else {
-        void browseCategory(category);
+        const cat = tabToCategory(activeTab);
+        if (cat) void browseCategory(cat);
       }
     },
-    [search, browseCategory, searchQuery, category]
+    [search, browseCategory, searchQuery, activeTab]
   );
 
   const handleSearchClear = useCallback((): void => {
     setSearchQuery('');
     clearResults();
-    if (activeTab === 'browse') {
-      void browseCategory(category);
-    }
-  }, [clearResults, activeTab, browseCategory, category]);
-
-  const handleCategoryChange = useCallback(
-    (next: RadioCategory): void => {
-      setCategory(next);
-      if (!searchQuery.trim() && activeTab === 'browse') {
-        void browseCategory(next);
-      }
-    },
-    [activeTab, browseCategory, searchQuery]
-  );
+    const cat = tabToCategory(activeTab);
+    if (cat) void browseCategory(cat);
+  }, [clearResults, browseCategory, activeTab]);
 
   const handleCustomSubmit = useCallback((e: React.FormEvent): void => {
     e.preventDefault();
@@ -149,20 +142,12 @@ export function RadioContent(): React.ReactElement {
       setCustomGenre('');
       setCustomStreamUrl('');
       setCustomError(null);
-      setActiveTab('browse');
       setSelectedStation(station);
       setIsPlayerOpen(true);
     } catch (error) {
       setCustomError(error instanceof Error ? error.message : 'Failed to add custom stream');
     }
   }, [customGenre, customName, customStreamUrl]);
-
-  const handleTabChange = useCallback((tab: TabType): void => {
-    setActiveTab(tab);
-    if (tab === 'favorites') {
-      handleSearchClear();
-    }
-  }, [handleSearchClear]);
 
   const handlePlayStation = useCallback((station: RadioStation): void => {
     setSelectedStation(station);
@@ -218,6 +203,16 @@ export function RadioContent(): React.ReactElement {
     );
   }
 
+  const isSearchActive = searchQuery.trim().length > 0;
+
+  const tabHeading = isSearchActive
+    ? `Search Results for "${searchQuery.trim()}"`
+    : activeTab === 'favorites'
+    ? 'My Favorites'
+    : activeTab === 'sports'
+    ? 'SiriusXM Sports'
+    : 'SiriusXM News';
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -233,7 +228,7 @@ export function RadioContent(): React.ReactElement {
           </div>
         </div>
 
-        {/* Search + filters */}
+        {/* Search + quality */}
         <form onSubmit={handleSearchSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
@@ -241,7 +236,7 @@ export function RadioContent(): React.ReactElement {
             </div>
             <input
               type="text"
-              placeholder='Search SiriusXM (e.g., "ESPN", "CNN")'
+              placeholder='Search SiriusXM (e.g., "ESPN", "CNBC")'
               value={searchQuery}
               onChange={handleSearchChange}
               className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-14 pr-10 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
@@ -259,20 +254,6 @@ export function RadioContent(): React.ReactElement {
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="sr-only" htmlFor="radio-category">Category</label>
-            <select
-              id="radio-category"
-              value={category}
-              onChange={(e) => handleCategoryChange(e.target.value as RadioCategory)}
-              className="rounded-lg border border-border-default bg-bg-secondary px-3 py-3 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
-              aria-label="SiriusXM category"
-              title="Category (used when not searching)"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-
             <label className="sr-only" htmlFor="radio-quality">Quality</label>
             <select
               id="radio-quality"
@@ -287,19 +268,153 @@ export function RadioContent(): React.ReactElement {
               ))}
             </select>
           </div>
-
-          <button
-            type="submit"
-            disabled={isSearching}
-            className="flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-6 py-3 font-medium text-white transition-colors hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Search"
-          >
-            <SearchIcon size={20} />
-            <span className="hidden sm:inline">{searchQuery.trim() ? 'Search' : 'Browse'}</span>
-          </button>
         </form>
 
-        {/* Custom stream form */}
+        {/* Tabs: Favorites | Sports | News */}
+        <div className="flex flex-wrap gap-2 border-b border-border-default">
+          <button
+            onClick={() => setActiveTab('favorites')}
+            className={cn(
+              'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'favorites'
+                ? 'border-accent-primary text-accent-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            )}
+          >
+            <HeartFilledIcon size={16} />
+            Favorites
+            {favorites.length > 0 ? (
+              <span className="rounded-full bg-accent-primary/10 px-2 py-0.5 text-xs">
+                {favorites.length}
+              </span>
+            ) : null}
+          </button>
+          <button
+            onClick={() => setActiveTab('sports')}
+            className={cn(
+              'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'sports'
+                ? 'border-accent-primary text-accent-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            )}
+          >
+            Sports
+          </button>
+          <button
+            onClick={() => setActiveTab('news')}
+            className={cn(
+              'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'news'
+                ? 'border-accent-primary text-accent-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            )}
+          >
+            News
+          </button>
+        </div>
+
+        {/* Header for the current view */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-text-primary">{tabHeading}</h2>
+          {!isSearchActive && (activeTab === 'sports' || activeTab === 'news') && stations.length > 0 ? (
+            <span className="text-xs text-text-muted">{stations.length} channels</span>
+          ) : null}
+        </div>
+
+        {/* Content */}
+        <div className="min-h-[400px]">
+          {/* Favorites tab content */}
+          {activeTab === 'favorites' && !isSearchActive && (
+            <>
+              {isFavoritesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size={32} className="text-accent-primary" />
+                </div>
+              ) : favorites.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <HeartFilledIcon size={48} className="mb-4 text-text-muted" />
+                  <h3 className="mb-2 text-lg font-medium text-text-primary">No Favorites Yet</h3>
+                  <p className="text-sm text-text-secondary">
+                    Open Sports or News and tap the heart on any station to save it.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  {favorites.map((fav) => (
+                    <StationCard
+                      key={fav.id}
+                      station={favoriteToStation(fav)}
+                      isFavorited={true}
+                      onPlay={handlePlayStation}
+                      onFavoriteChange={handleFavoriteChange}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Sports / News / Search content */}
+          {(activeTab !== 'favorites' || isSearchActive) ? <>
+              {isSearching ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size={32} className="text-accent-primary" />
+                  <span className="ml-3 text-text-secondary">Loading...</span>
+                </div>
+              ) : stationsError ? (
+                <div className="rounded-lg bg-red-500/10 p-4 text-center text-red-500">
+                  {stationsError}
+                </div>
+              ) : stations.length === 0 && filteredCustomStations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <RadioIcon size={48} className="mb-4 text-text-muted" />
+                  <h3 className="mb-2 text-lg font-medium text-text-primary">No stations found</h3>
+                  <p className="text-sm text-text-secondary">
+                    {isSearchActive
+                      ? 'Try a different search term.'
+                      : 'No SiriusXM channels in this category.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {filteredCustomStations.length > 0 ? (
+                    <section className="space-y-3">
+                      <h3 className="text-sm font-semibold text-text-primary">Custom Streams</h3>
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                        {filteredCustomStations.map((station) => (
+                          <StationCard
+                            key={station.id}
+                            station={station}
+                            isFavorited={isFavorited(station.id)}
+                            onPlay={handlePlayStation}
+                            onFavoriteChange={handleFavoriteChange}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {stations.length > 0 ? (
+                    <section className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                        {stations.map((station) => (
+                          <StationCard
+                            key={station.id}
+                            station={station}
+                            isFavorited={isFavorited(station.id)}
+                            onPlay={handlePlayStation}
+                            onFavoriteChange={handleFavoriteChange}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
+              )}
+            </> : null}
+        </div>
+
+        {/* Custom stream form (kept at bottom) */}
         <form
           onSubmit={handleCustomSubmit}
           className="rounded-xl border border-border-default bg-bg-secondary p-4"
@@ -356,157 +471,6 @@ export function RadioContent(): React.ReactElement {
             </p>
           )}
         </form>
-
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-border-default">
-          <button
-            onClick={() => handleTabChange('favorites')}
-            className={cn(
-              'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-              activeTab === 'favorites'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            )}
-          >
-            <HeartFilledIcon size={16} />
-            My Favorites
-            {favorites.length > 0 ? (
-              <span className="rounded-full bg-accent-primary/10 px-2 py-0.5 text-xs">
-                {favorites.length}
-              </span>
-            ) : null}
-          </button>
-          <button
-            onClick={() => handleTabChange('browse')}
-            className={cn(
-              'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-              activeTab === 'browse'
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            )}
-          >
-            <SearchIcon size={16} />
-            {searchQuery.trim() ? 'Search Results' : `Browse ${category === 'sports' ? 'Sports' : 'News'}`}
-            {searchResults.length + customStations.length > 0 ? (
-              <span className="rounded-full bg-accent-primary/10 px-2 py-0.5 text-xs">
-                {searchResults.length + customStations.length}
-              </span>
-            ) : null}
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="min-h-[400px]">
-          {activeTab === 'favorites' && (
-            <>
-              {isFavoritesLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <LoadingSpinner size={32} className="text-accent-primary" />
-                </div>
-              ) : favorites.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <HeartFilledIcon size={48} className="mb-4 text-text-muted" />
-                  <h3 className="mb-2 text-lg font-medium text-text-primary">
-                    No Favorites Yet
-                  </h3>
-                  <p className="text-sm text-text-secondary">
-                    Browse channels or search SiriusXM and tap the heart to save.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                  {favorites.map((fav) => (
-                    <StationCard
-                      key={fav.id}
-                      station={favoriteToStation(fav)}
-                      isFavorited={true}
-                      onPlay={handlePlayStation}
-                      onFavoriteChange={handleFavoriteChange}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {activeTab === 'browse' && (
-            <>
-              {isSearching ? (
-                <div className="flex items-center justify-center py-12">
-                  <LoadingSpinner size={32} className="text-accent-primary" />
-                  <span className="ml-3 text-text-secondary">Loading...</span>
-                </div>
-              ) : searchError ? (
-                <div className="rounded-lg bg-red-500/10 p-4 text-center text-red-500">
-                  {searchError}
-                </div>
-              ) : searchResults.length === 0 && filteredCustomStations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <RadioIcon size={48} className="mb-4 text-text-muted" />
-                  <h3 className="mb-2 text-lg font-medium text-text-primary">
-                    No Stations Found
-                  </h3>
-                  <p className="text-sm text-text-secondary">
-                    Try a different search term or category.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {filteredCustomStations.length > 0 ? (
-                    <section className="space-y-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-text-primary">Custom Streams</h3>
-                        <p className="text-sm text-text-secondary">
-                          Direct stream URLs you added in this session.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                        {filteredCustomStations.map((station) => (
-                          <StationCard
-                            key={station.id}
-                            station={station}
-                            isFavorited={isFavorited(station.id)}
-                            onPlay={handlePlayStation}
-                            onFavoriteChange={handleFavoriteChange}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {searchResults.length > 0 ? (
-                    <section className="space-y-3">
-                      {filteredCustomStations.length > 0 ? (
-                        <div>
-                          <h3 className="text-sm font-semibold text-text-primary">
-                            {searchQuery.trim() ? 'Search Results' : `SiriusXM ${category === 'sports' ? 'Sports' : 'News'}`}
-                          </h3>
-                          <p className="text-sm text-text-secondary">
-                            {searchQuery.trim()
-                              ? 'Matching SiriusXM channels and direct stations.'
-                              : 'Channels in the selected SiriusXM category.'}
-                          </p>
-                        </div>
-                      ) : null}
-
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                        {searchResults.map((station) => (
-                          <StationCard
-                            key={station.id}
-                            station={station}
-                            isFavorited={isFavorited(station.id)}
-                            onPlay={handlePlayStation}
-                            onFavoriteChange={handleFavoriteChange}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
-                </div>
-              )}
-            </>
-          )}
-        </div>
       </div>
 
       {selectedStation ? (
