@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getRadioService } from '@/lib/radio';
+import { getRadioService, SiriusXmAuthError } from '@/lib/radio';
 import type { SiriusXmQuality } from '@/lib/radio';
 
 const VALID_QUALITIES: ReadonlyArray<SiriusXmQuality> = ['256', '128', '64', '32'];
@@ -53,6 +53,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   } catch (error) {
     console.error('[Radio API] Stream error:', error);
+    if (error instanceof SiriusXmAuthError) {
+      return NextResponse.json(
+        { error: error.message, code: 'SIRIUSXM_AUTH' },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to get station stream' },
       { status: 500 }

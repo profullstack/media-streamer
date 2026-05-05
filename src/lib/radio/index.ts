@@ -19,6 +19,7 @@ export {
   rewriteSiriusXmPlaylist,
   decodeSiriusXmKeyJson,
   looksLikePlaylist,
+  SiriusXmAuthError,
   SIRIUSXM_STATION_ID_PREFIX,
 } from './siriusxm';
 export type { SiriusXmService } from './siriusxm';

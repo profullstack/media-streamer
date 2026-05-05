@@ -48,10 +48,22 @@ interface SiriusXmChannel {
   imageUrl?: string;
 }
 
+export class SiriusXmAuthError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'SiriusXmAuthError';
+    this.status = status;
+  }
+}
+
 export function getSiriusXmBearer(): string {
   const token = process.env.SIRIUSXM_TOKEN?.trim();
   if (!token) {
-    throw new Error('SIRIUSXM_TOKEN env var is not set');
+    throw new SiriusXmAuthError(
+      'SIRIUSXM_TOKEN env var is not set. Capture a fresh bearer from siriusxm.com and set it.',
+      401
+    );
   }
   return token;
 }
@@ -152,6 +164,13 @@ async function sxmFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
   });
 
   const text = await response.text();
+
+  if (response.status === 401 || response.status === 403) {
+    throw new SiriusXmAuthError(
+      `SiriusXM rejected the bearer token (HTTP ${response.status}). Refresh SIRIUSXM_TOKEN.`,
+      response.status
+    );
+  }
 
   if (!response.ok) {
     throw new Error(`SiriusXM HTTP ${response.status}: ${text.slice(0, 500)}`);
@@ -342,6 +361,7 @@ export function createSiriusXmService(): SiriusXmService {
         return channels.slice(0, params.limit ?? 50).map(toRadioStation);
       } catch (error) {
         console.error('[SiriusXM] Search error:', error);
+        if (error instanceof SiriusXmAuthError) throw error;
         return [];
       }
     },
@@ -352,6 +372,7 @@ export function createSiriusXmService(): SiriusXmService {
         return channels.map(toRadioStation);
       } catch (error) {
         console.error('[SiriusXM] Category browse error:', error);
+        if (error instanceof SiriusXmAuthError) throw error;
         return [];
       }
     },

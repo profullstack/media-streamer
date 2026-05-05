@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getRadioService } from '@/lib/radio';
+import { getRadioService, SiriusXmAuthError } from '@/lib/radio';
 import type { SiriusXmCategory } from '@/lib/radio';
 
 const VALID_CATEGORIES: ReadonlyArray<SiriusXmCategory> = ['sports', 'news'];
@@ -60,6 +60,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ stations, total: stations.length });
   } catch (error) {
     console.error('[Radio API] Search error:', error);
+    if (error instanceof SiriusXmAuthError) {
+      return NextResponse.json(
+        { error: error.message, code: 'SIRIUSXM_AUTH' },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to search radio stations' },
       { status: 500 }

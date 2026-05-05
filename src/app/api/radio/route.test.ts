@@ -6,10 +6,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the radio service
 const mockSearchStations = vi.fn();
+const mockGetCategoryStations = vi.fn();
+class MockSiriusXmAuthError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'SiriusXmAuthError';
+    this.status = status;
+  }
+}
 vi.mock('@/lib/radio', () => ({
   getRadioService: () => ({
     searchStations: mockSearchStations,
+    getCategoryStations: mockGetCategoryStations,
   }),
+  SiriusXmAuthError: MockSiriusXmAuthError,
 }));
 
 describe('GET /api/radio', () => {
