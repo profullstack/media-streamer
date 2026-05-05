@@ -92,3 +92,18 @@ export async function deleteCredentials(userId: string): Promise<void> {
   const { error } = await supabase.from(TABLE).delete().eq('user_id', userId);
   if (error) throw new Error(`deleteCredentials: ${error.message}`);
 }
+
+/**
+ * List every stored session. Used by the periodic refresh scheduler.
+ * Skips rows with empty session_cookies (nothing to replay against /refresh).
+ */
+export async function listAllCredentials(): Promise<SiriusXmCredentials[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('user_id, email, access_token, session_cookies, access_token_expires_at, refresh_token_expires_at, updated_at')
+    .neq('session_cookies', '');
+
+  if (error) throw new Error(`listAllCredentials: ${error.message}`);
+  return (data as DbRow[] | null)?.map(rowToCredentials) ?? [];
+}

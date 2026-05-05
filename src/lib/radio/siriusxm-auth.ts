@@ -199,27 +199,43 @@ export interface SessionResult {
   cookies: string;
 }
 
-function loadDeviceGrantFromEnv(): DeviceGrant {
-  const raw = process.env.SIRIUSXM_DEVICE_GRANT?.trim();
-  if (!raw) {
-    throw new SiriusXmAuthError(
-      'SIRIUSXM_DEVICE_GRANT env is not set. Set it to the DEVICE_GRANT JSON from siriusxm.com cookies.',
-      500
-    );
+/**
+ * Mint a fresh DEVICE_GRANT by hitting siriusxm.com's homepage — same thing
+ * a browser does on first visit. Returns the parsed grant from the Set-Cookie
+ * header. No env var, no per-user state, no global shared device id.
+ */
+async function bootstrapDeviceGrant(): Promise<DeviceGrant> {
+  const res = await fetch('https://www.siriusxm.com/', {
+    method: 'GET',
+    headers: {
+      'User-Agent': COMMON_HEADERS['User-Agent'],
+      Accept: 'text/html,application/xhtml+xml',
+      'Accept-Language': COMMON_HEADERS['Accept-Language'],
+    },
+    redirect: 'follow',
+  });
+
+  for (const cookie of getSetCookieArray(res.headers)) {
+    const m = cookie.match(/^DEVICE_GRANT=([^;]+)/);
+    if (!m) continue;
+    let raw: string;
+    try {
+      raw = decodeURIComponent(m[1]);
+    } catch {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(raw) as DeviceGrant;
+      if (parsed?.grant) return parsed;
+    } catch {
+      // try next Set-Cookie
+    }
   }
-  let parsed: DeviceGrant;
-  try {
-    parsed = JSON.parse(raw) as DeviceGrant;
-  } catch (err) {
-    throw new SiriusXmAuthError(
-      `SIRIUSXM_DEVICE_GRANT is not valid JSON: ${(err as Error).message}`,
-      500
-    );
-  }
-  if (!parsed.grant) {
-    throw new SiriusXmAuthError('SIRIUSXM_DEVICE_GRANT JSON has no .grant field', 500);
-  }
-  return parsed;
+
+  throw new SiriusXmAuthError(
+    `failed to bootstrap DEVICE_GRANT from siriusxm.com homepage (HTTP ${res.status})`,
+    502
+  );
 }
 
 function extractSession(reply: SxmReply<unknown>, jar: string): SessionResult {
@@ -254,7 +270,7 @@ export async function startOtpLogin(email: string): Promise<{
   anonAccessToken: string;
   cookies: string;
 }> {
-  const deviceGrant = loadDeviceGrantFromEnv();
+  const deviceGrant = await bootstrapDeviceGrant();
   let jar = '';
 
   const anon = await sxmCall<{ session?: Record<string, unknown> }>(
@@ -357,7 +373,7 @@ export async function completeOtpLogin(
   return extractSession(authed, jar);
 }
 
-async function refreshSessionWithCookies(cookies: string): Promise<SessionResult> {
+export async function refreshSessionWithCookies(cookies: string): Promise<SessionResult> {
   const reply = await sxmCall<unknown>('session/v1/sessions/refresh', {
     method: 'POST',
     cookies,
