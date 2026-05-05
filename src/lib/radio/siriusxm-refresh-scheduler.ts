@@ -9,7 +9,7 @@
  * a failure on one user's refresh is logged and skipped; the on-demand path
  * (ensureSiriusXmBearer) will retry the next time that user hits the radio.
  *
- * Disable with SIRIUSXM_REFRESH_SCHEDULER=off (e.g. in tests).
+ * Off by default. Enable with SIRIUSXM_REFRESH_SCHEDULER=on.
  */
 
 import { listAllCredentials, saveCredentials } from './siriusxm-credentials';
@@ -21,7 +21,7 @@ let timer: NodeJS.Timeout | null = null;
 
 export function startSiriusXmRefreshScheduler(): void {
   if (timer) return;
-  if (process.env.SIRIUSXM_REFRESH_SCHEDULER === 'off') return;
+  if (process.env.SIRIUSXM_REFRESH_SCHEDULER !== 'on') return;
 
   timer = setInterval(refreshAllSessions, INTERVAL_MS);
   // Don't pin the event loop on a deploy/restart.
