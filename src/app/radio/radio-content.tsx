@@ -19,7 +19,7 @@ import {
   PlusIcon,
   RadioIcon,
 } from '@/components/ui/icons';
-import { StationCard, RadioPlayerModal } from '@/components/radio';
+import { StationCard, RadioPlayerModal, ConnectSiriusXm } from '@/components/radio';
 import { useAuth } from '@/hooks/use-auth';
 import {
   useRadioSearch,
@@ -216,16 +216,19 @@ export function RadioContent(): React.ReactElement {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent-primary/10 text-accent-primary">
-            <RadioIcon size={24} />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent-primary/10 text-accent-primary">
+              <RadioIcon size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-text-primary">SiriusXM Live Radio</h1>
+              <p className="text-sm text-text-secondary">
+                Browse Sports and News channels, search by name, or play a custom stream URL.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary">SiriusXM Live Radio</h1>
-            <p className="text-sm text-text-secondary">
-              Browse Sports and News channels, search by name, or play a custom stream URL.
-            </p>
-          </div>
+          <ConnectSiriusXm />
         </div>
 
         {/* Search + quality */}

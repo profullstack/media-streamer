@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock the radio service
 const mockSearchStations = vi.fn();
 const mockGetCategoryStations = vi.fn();
+const mockGetCurrentUser = vi.fn();
 class MockSiriusXmAuthError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {
@@ -15,6 +16,12 @@ class MockSiriusXmAuthError extends Error {
     this.status = status;
   }
 }
+vi.mock('@/lib/auth', () => ({
+  getCurrentUser: () => mockGetCurrentUser(),
+}));
+vi.mock('@/lib/radio/siriusxm-auth', () => ({
+  withSiriusXmUser: <T>(_userId: string, fn: () => Promise<T>) => fn(),
+}));
 vi.mock('@/lib/radio', () => ({
   getRadioService: () => ({
     searchStations: mockSearchStations,
@@ -26,6 +33,7 @@ vi.mock('@/lib/radio', () => ({
 describe('GET /api/radio', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1', email: 'u@example.com' });
   });
 
   it('returns 400 when search query is missing', async () => {
@@ -66,6 +74,7 @@ describe('GET /api/radio', () => {
       query: 'news',
       filter: undefined,
       limit: 50,
+      category: undefined,
     });
   });
 
@@ -81,6 +90,7 @@ describe('GET /api/radio', () => {
       query: 'test',
       filter: 's',
       limit: 50,
+      category: undefined,
     });
   });
 
@@ -96,6 +106,7 @@ describe('GET /api/radio', () => {
       query: 'test',
       filter: undefined,
       limit: 100, // Capped at 100
+      category: undefined,
     });
   });
 

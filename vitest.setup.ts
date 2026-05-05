@@ -24,6 +24,49 @@ if (typeof window !== 'undefined') {
       dispatchEvent: vi.fn(),
     })),
   });
+
+  // jsdom does not always provide a working localStorage in this setup; install
+  // a Map-backed polyfill so components that read default-profile-id etc. don't
+  // throw. Reset between tests via afterEach below.
+  const memoryStorage = (): Storage => {
+    const store = new Map<string, string>();
+    return {
+      get length(): number {
+        return store.size;
+      },
+      clear(): void {
+        store.clear();
+      },
+      getItem(key: string): string | null {
+        return store.has(key) ? (store.get(key) as string) : null;
+      },
+      setItem(key: string, value: string): void {
+        store.set(key, String(value));
+      },
+      removeItem(key: string): void {
+        store.delete(key);
+      },
+      key(index: number): string | null {
+        return Array.from(store.keys())[index] ?? null;
+      },
+    };
+  };
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    writable: true,
+    value: memoryStorage(),
+  });
+  Object.defineProperty(window, 'sessionStorage', {
+    configurable: true,
+    writable: true,
+    value: memoryStorage(),
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
 }
 
 // Mock ResizeObserver

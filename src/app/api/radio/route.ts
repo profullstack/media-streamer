@@ -11,7 +11,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getRadioService, SiriusXmAuthError } from '@/lib/radio';
+import { withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import type { SiriusXmCategory } from '@/lib/radio';
 
 const VALID_CATEGORIES: ReadonlyArray<SiriusXmCategory> = ['sports', 'news'];
@@ -24,6 +26,11 @@ function parseCategory(value: string | null): SiriusXmCategory | null {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
   const cat = parseCategory(searchParams.get('cat'));
@@ -42,22 +49,24 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const service = getRadioService();
+    return await withSiriusXmUser(user.id, async () => {
+      const service = getRadioService();
 
-    if (!trimmedQuery && cat) {
-      const stations = await service.getCategoryStations(cat);
-      const sliced = stations.slice(0, cappedLimit);
-      return NextResponse.json({ stations: sliced, total: sliced.length });
-    }
+      if (!trimmedQuery && cat) {
+        const stations = await service.getCategoryStations(cat);
+        const sliced = stations.slice(0, cappedLimit);
+        return NextResponse.json({ stations: sliced, total: sliced.length });
+      }
 
-    const stations = await service.searchStations({
-      query: trimmedQuery,
-      filter: filter || undefined,
-      limit: cappedLimit,
-      category: cat ?? undefined,
+      const stations = await service.searchStations({
+        query: trimmedQuery,
+        filter: filter || undefined,
+        limit: cappedLimit,
+        category: cat ?? undefined,
+      });
+
+      return NextResponse.json({ stations, total: stations.length });
     });
-
-    return NextResponse.json({ stations, total: stations.length });
   } catch (error) {
     console.error('[Radio API] Search error:', error);
     if (error instanceof SiriusXmAuthError) {

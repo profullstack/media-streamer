@@ -6,3 +6,4 @@
 
 export { StationCard } from './station-card';
 export { RadioPlayerModal } from './radio-player-modal';
+export { ConnectSiriusXm } from './connect-siriusxm';

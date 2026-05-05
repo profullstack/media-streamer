@@ -9,7 +9,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getRadioService, SiriusXmAuthError } from '@/lib/radio';
+import { withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import type { SiriusXmQuality } from '@/lib/radio';
 
 const VALID_QUALITIES: ReadonlyArray<SiriusXmQuality> = ['256', '128', '64', '32'];
@@ -22,6 +24,11 @@ function parseQuality(value: string | null): SiriusXmQuality | undefined {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const stationId = searchParams.get('id');
   const quality = parseQuality(searchParams.get('quality'));
@@ -34,22 +41,24 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const service = getRadioService();
-    const { streams, preferred } = await service.getStream(stationId.trim(), quality);
+    return await withSiriusXmUser(user.id, async () => {
+      const service = getRadioService();
+      const { streams, preferred } = await service.getStream(stationId.trim(), quality);
 
-    if (streams.length === 0) {
-      return NextResponse.json(
-        { error: 'No streams available for this station' },
-        { status: 404 }
-      );
-    }
+      if (streams.length === 0) {
+        return NextResponse.json(
+          { error: 'No streams available for this station' },
+          { status: 404 }
+        );
+      }
 
-    const station = await service.getStationInfo(stationId.trim());
+      const station = await service.getStationInfo(stationId.trim());
 
-    return NextResponse.json({
-      station,
-      streams,
-      preferredStream: preferred,
+      return NextResponse.json({
+        station,
+        streams,
+        preferredStream: preferred,
+      });
     });
   } catch (error) {
     console.error('[Radio API] Stream error:', error);

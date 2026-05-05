@@ -1668,6 +1668,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      bt_siriusxm_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string | null;
+          access_token: string;
+          session_cookies: string;
+          access_token_expires_at: string | null;
+          refresh_token_expires_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email?: string | null;
+          access_token: string;
+          session_cookies?: string;
+          access_token_expires_at?: string | null;
+          refresh_token_expires_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email?: string | null;
+          access_token?: string;
+          session_cookies?: string;
+          access_token_expires_at?: string | null;
+          refresh_token_expires_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

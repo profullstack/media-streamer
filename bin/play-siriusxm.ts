@@ -4,12 +4,20 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import {
+  emailOtpLogin,
+  loadDeviceGrantFromEnv,
+  loadDotenv,
+  refreshAuthSession,
+  type SessionResult,
+} from "./sxm-auth";
 
 type Cat = "sports" | "news";
 type Player = "mpv" | "vlc" | "ffplay" | "print";
 
 type Args = {
   bearer: string;
+  email?: string;
   cat: Cat;
   search?: string;
   player: Player;
@@ -36,13 +44,16 @@ const TUNE_SOURCE_URL = "https://api.edge-gateway.siriusxm.com/playback/play/v1/
 
 function usage(exitCode = 0): never {
   console.log(`Usage:
-  ./play-siriusxm.ts --bearer TOKEN [--cat sports|news] [--search "CNN"] [--player mpv|vlc|ffplay|print] [--yes] [--debug] [--quality 256|128|64|32]
+  ./play-siriusxm.ts (--bearer TOKEN | --email you@example.com) [--cat sports|news] [--search "CNN"] [--player mpv|vlc|ffplay|print] [--yes] [--debug] [--quality 256|128|64|32]
+
+Auth (one of):
+  --bearer TOKEN     Use an already-captured AUTH_TOKEN.session.accessToken.
+                     Falls back to SIRIUSXM_TOKEN from .env if unset.
+  --email ADDRESS    Walk the email-OTP login chain (requires SIRIUSXM_DEVICE_GRANT in .env).
 
 Examples:
-  ./play-siriusxm.ts --bearer "$TOKEN" --cat sports
-  ./play-siriusxm.ts --bearer "$TOKEN" --cat news
+  ./play-siriusxm.ts --email you@example.com --cat sports
   ./play-siriusxm.ts --bearer "$TOKEN" --search "CNN" --yes
-  ./play-siriusxm.ts --bearer "$TOKEN" --search "ESPN Radio" --player mpv
 `);
   process.exit(exitCode);
 }
@@ -64,6 +75,11 @@ function parseArgs(argv: string[]): Args {
 
     if (arg === "--bearer") {
       args.bearer = argv[++i] || "";
+      continue;
+    }
+
+    if (arg === "--email") {
+      args.email = argv[++i] || "";
       continue;
     }
 
@@ -112,11 +128,33 @@ function parseArgs(argv: string[]): Args {
     throw new Error(`Unknown arg: ${arg}`);
   }
 
-  if (!args.bearer) {
-    usage(1);
+  return args;
+}
+
+async function resolveSession(args: Args): Promise<SessionResult> {
+  if (args.email) {
+    const deviceGrant = loadDeviceGrantFromEnv();
+    return emailOtpLogin(args.email, deviceGrant, { debug: args.debug });
   }
 
-  return args;
+  if (args.bearer) {
+    const env = loadDotenv();
+    return {
+      accessToken: args.bearer,
+      cookies: env.SIRIUSXM_SESSION_COOKIES?.trim() ?? "",
+    };
+  }
+
+  const env = loadDotenv();
+  if (env.SIRIUSXM_TOKEN) {
+    return {
+      accessToken: env.SIRIUSXM_TOKEN,
+      cookies: env.SIRIUSXM_SESSION_COOKIES?.trim() ?? "",
+    };
+  }
+
+  console.error("No auth: pass --bearer or --email, or set SIRIUSXM_TOKEN in .env.");
+  usage(1);
 }
 
 function b64urlJson(obj: unknown): string {
@@ -127,12 +165,17 @@ function b64urlJson(obj: unknown): string {
     .replaceAll("=", "");
 }
 
-function commonHeaders(bearer: string): Record<string, string> {
+type SessionRef = {
+  bearer(): string;
+  refresh(): Promise<void>;
+};
+
+function commonHeaders(ref: SessionRef): Record<string, string> {
   return {
     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0",
     Accept: "application/json; charset=utf-8",
     "Accept-Language": "en-US,en;q=0.9",
-    Authorization: `Bearer ${bearer}`,
+    Authorization: `Bearer ${ref.bearer()}`,
     "x-sxm-clock": "[0,1]",
     Origin: "https://www.siriusxm.com",
     Referer: "https://www.siriusxm.com/",
@@ -147,19 +190,28 @@ function commonHeaders(bearer: string): Record<string, string> {
 
 async function sxmFetch(
   url: string,
-  bearer: string,
+  ref: SessionRef,
   opts: RequestInit = {},
   debug = false
 ): Promise<any> {
   if (debug) console.error(`[sxm] ${opts.method || "GET"} ${url}`);
 
-  const res = await fetch(url, {
-    ...opts,
-    headers: {
-      ...commonHeaders(bearer),
-      ...(opts.headers || {}),
-    },
-  });
+  const send = () =>
+    fetch(url, {
+      ...opts,
+      headers: {
+        ...commonHeaders(ref),
+        ...(opts.headers || {}),
+      },
+    });
+
+  let res = await send();
+
+  if (res.status === 401 || res.status === 403) {
+    if (debug) console.error(`[sxm] ${res.status} -> refreshing session and retrying`);
+    await ref.refresh();
+    res = await send();
+  }
 
   const text = await res.text();
 
@@ -297,9 +349,9 @@ function dedupeChannels(channels: Channel[]): Channel[] {
   });
 }
 
-async function fetchCategoryChannels(args: Args): Promise<Channel[]> {
+async function fetchCategoryChannels(ref: SessionRef, args: Args): Promise<Channel[]> {
   const url = `${BROWSE_URL}?q=${encodeURIComponent(categoryQuery(args.cat))}`;
-  const json = await sxmFetch(url, args.bearer, {}, args.debug);
+  const json = await sxmFetch(url, ref, {}, args.debug);
 
   const channels: Channel[] = [];
 
@@ -315,10 +367,10 @@ async function fetchCategoryChannels(args: Args): Promise<Channel[]> {
   return dedupeChannels(channels);
 }
 
-async function searchChannels(args: Args): Promise<Channel[]> {
+async function searchChannels(ref: SessionRef, args: Args): Promise<Channel[]> {
   const json = await sxmFetch(
     SEARCH_URL,
-    args.bearer,
+    ref,
     {
       method: "POST",
       headers: {
@@ -388,10 +440,10 @@ async function pickChannel(channels: Channel[], args: Args): Promise<Channel> {
   }
 }
 
-async function getPlaybackUrl(channel: Channel, args: Args): Promise<{ url: string; validUntil?: string }> {
+async function getPlaybackUrl(ref: SessionRef, channel: Channel, args: Args): Promise<{ url: string; validUntil?: string }> {
   const json = await sxmFetch(
     TUNE_SOURCE_URL,
-    args.bearer,
+    ref,
     {
       method: "POST",
       headers: {
@@ -569,11 +621,32 @@ function decodeSxmKeyJson(json: any): Buffer {
 }
 
 async function startHlsProxy(
-  bearer: string,
+  ref: SessionRef,
   quality: Args["quality"],
   debug = false
 ): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   let baseUrl = "";
+
+  const upstreamFetch = async (target: string): Promise<Response> => {
+    const send = () =>
+      fetch(target, {
+        headers: {
+          ...commonHeaders(ref),
+          Accept: "application/vnd.apple.mpegurl, application/x-mpegURL, */*",
+        },
+      });
+    let response = await send();
+    if (response.status === 401 || response.status === 403) {
+      if (debug) console.error(`[proxy] ${response.status} -> refreshing session and retrying`);
+      try {
+        await ref.refresh();
+        response = await send();
+      } catch (err) {
+        if (debug) console.error(`[proxy] refresh failed: ${(err as Error).message}`);
+      }
+    }
+    return response;
+  };
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -596,12 +669,7 @@ async function startHlsProxy(
 
       if (debug) console.error(`[proxy] GET ${target}`);
 
-      const upstream = await fetch(target, {
-        headers: {
-          ...commonHeaders(bearer),
-          Accept: "application/vnd.apple.mpegurl, application/x-mpegURL, */*",
-        },
-      });
+      const upstream = await upstreamFetch(target);
 
       const contentType = upstream.headers.get("content-type") || "";
       const contentLength = upstream.headers.get("content-length") || "";
@@ -778,9 +846,25 @@ async function playUrl(url: string, args: Args): Promise<void> {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
+  let session = await resolveSession(args);
+  args.bearer = session.accessToken;
+  const ref: SessionRef = {
+    bearer: () => session.accessToken,
+    refresh: async () => {
+      if (!session.cookies) {
+        throw new Error(
+          "session expired and no cookies cached — re-run with --email to log in again"
+        );
+      }
+      console.error("[auth] refreshing session via cookie jar");
+      session = await refreshAuthSession(session.cookies, args.debug);
+      args.bearer = session.accessToken;
+    },
+  };
+
   const channels = args.search
-    ? await searchChannels(args)
-    : await fetchCategoryChannels(args);
+    ? await searchChannels(ref, args)
+    : await fetchCategoryChannels(ref, args);
 
   const selected = await pickChannel(channels, args);
 
@@ -788,13 +872,13 @@ async function main(): Promise<void> {
   console.log(`ID: ${selected.id}`);
   if (selected.description) console.log(`Description: ${selected.description}`);
 
-  const playback = await getPlaybackUrl(selected, args);
+  const playback = await getPlaybackUrl(ref, selected, args);
 
   if (playback.validUntil) {
     console.log(`Stream valid until: ${playback.validUntil}`);
   }
 
-  const proxy = await startHlsProxy(args.bearer, args.quality, args.debug);
+  const proxy = await startHlsProxy(ref, args.quality, args.debug);
 
   try {
     const proxiedUrl = `${proxy.baseUrl}/proxy?u=${encodeURIComponent(playback.url)}`;

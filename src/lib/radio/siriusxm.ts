@@ -2,9 +2,15 @@
  * SiriusXM Service
  *
  * Server-side SiriusXM integration mirroring bin/play-siriusxm.ts.
- * Auth bearer is read from SIRIUSXM_TOKEN.
+ * Bearer comes from siriusxm-auth (device grant -> anonymous session -> accessToken),
+ * with SIRIUSXM_TOKEN as a manual override.
  */
 
+import {
+  ensureSiriusXmBearer,
+  invalidateSiriusXmSession,
+  SiriusXmAuthError,
+} from './siriusxm-auth';
 import type {
   RadioProviderResult,
   RadioSearchParams,
@@ -13,6 +19,8 @@ import type {
   SiriusXmCategory,
   SiriusXmQuality,
 } from './types';
+
+export { SiriusXmAuthError } from './siriusxm-auth';
 
 export const SIRIUSXM_STATION_ID_PREFIX = 'sxm:';
 
@@ -48,30 +56,13 @@ interface SiriusXmChannel {
   imageUrl?: string;
 }
 
-export class SiriusXmAuthError extends Error {
-  readonly status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = 'SiriusXmAuthError';
-    this.status = status;
-  }
-}
-
-export function getSiriusXmBearer(): string {
-  const token = process.env.SIRIUSXM_TOKEN?.trim();
-  if (!token) {
-    throw new SiriusXmAuthError(
-      'SIRIUSXM_TOKEN env var is not set. Capture a fresh bearer from siriusxm.com and set it.',
-      401
-    );
-  }
-  return token;
-}
-
-export function siriusXmHeaders(extra?: Record<string, string>): Record<string, string> {
+export async function siriusXmHeaders(
+  extra?: Record<string, string>
+): Promise<Record<string, string>> {
+  const bearer = await ensureSiriusXmBearer();
   return {
     ...SIRIUSXM_HEADERS_BASE,
-    Authorization: `Bearer ${getSiriusXmBearer()}`,
+    Authorization: `Bearer ${bearer}`,
     ...(extra ?? {}),
   };
 }
@@ -154,20 +145,31 @@ function categoryQuery(cat: SiriusXmCategory): string {
   return `1.${b64urlJson(q)}`;
 }
 
-async function sxmFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(url, {
+async function sxmFetchOnce(url: string, init: RequestInit): Promise<Response> {
+  const headers = await siriusXmHeaders();
+  return fetch(url, {
     ...init,
     headers: {
-      ...siriusXmHeaders(),
+      ...headers,
       ...(init.headers as Record<string, string> | undefined),
     },
   });
+}
+
+async function sxmFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
+  let response = await sxmFetchOnce(url, init);
+
+  // If the bearer was rejected, drop the cache (forces a refresh) and retry once.
+  if (response.status === 401 || response.status === 403) {
+    invalidateSiriusXmSession();
+    response = await sxmFetchOnce(url, init);
+  }
 
   const text = await response.text();
 
   if (response.status === 401 || response.status === 403) {
     throw new SiriusXmAuthError(
-      `SiriusXM rejected the bearer token (HTTP ${response.status}). Refresh SIRIUSXM_TOKEN.`,
+      `SiriusXM rejected the bearer (HTTP ${response.status}). Re-run bin/sxm-login.ts to refresh SIRIUSXM_TOKEN/SIRIUSXM_SESSION_COOKIES.`,
       response.status
     );
   }
