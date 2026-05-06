@@ -222,10 +222,20 @@ function pickText(t?: { default?: string; short?: string; medium?: string; long?
   return t?.default || t?.short || t?.medium || t?.long || '';
 }
 
+/** SXM image CDN base — `images.url` fields are paths relative to this. */
+const SXM_IMAGE_BASE = 'https://images.siriusxm.com/';
+
+function absolutizeImage(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  if (/^https?:\/\//.test(raw)) return raw;
+  if (raw.startsWith('//')) return `https:${raw}`;
+  return `${SXM_IMAGE_BASE}${raw.replace(/^\/+/, '')}`;
+}
+
 function findUrl(node: unknown): string | undefined {
   if (!node) return undefined;
   if (typeof node === 'string') {
-    return /^https?:\/\//.test(node) ? node : undefined;
+    return absolutizeImage(node);
   }
   if (Array.isArray(node)) {
     for (const item of node) {
@@ -236,10 +246,12 @@ function findUrl(node: unknown): string | undefined {
   }
   if (typeof node === 'object') {
     const obj = node as Record<string, unknown>;
-    // Prefer explicit url-ish keys before recursing arbitrarily.
+    // Prefer explicit url-ish keys before recursing.
     for (const key of ['url', 'src', 'href']) {
-      if (typeof obj[key] === 'string' && /^https?:\/\//.test(obj[key] as string)) {
-        return obj[key] as string;
+      const v = obj[key];
+      if (typeof v === 'string') {
+        const abs = absolutizeImage(v);
+        if (abs) return abs;
       }
     }
     for (const value of Object.values(obj)) {
@@ -250,20 +262,29 @@ function findUrl(node: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * SXM nests channel images under multiple top-level keys (`tile`, `logo`,
+ * `tile_background`, `hero_tile`, `background`) and aspect-ratio branches
+ * (`aspect_1x1`, `aspect_16x9`, etc.). Each leaf has `default.url` and
+ * `preferred.url`. Always prefer aspect_1x1 from `tile` for square thumbs.
+ */
 function pickImage(entity?: RawEntity): string | undefined {
-  // SXM ships images under varying keys (aspect1x1, tile, background, default,
-  // tile_aspect_1x1, etc.) and varying nesting depths. Walk anything that
-  // contains a URL rather than hard-coding the first two paths.
   const images = entity?.images as Record<string, unknown> | undefined;
   if (!images) return undefined;
 
-  // Try common preference order first so we don't accidentally pick a tiny
-  // background image when an aspect-1:1 thumbnail is available.
-  const preferred = ['aspect1x1', 'aspect_1x1', 'tile_aspect_1x1', 'tile', 'thumbnail', 'default'];
-  for (const key of preferred) {
-    const branch = images[key];
-    const url = findUrl(branch);
-    if (url) return url;
+  // Prefer square thumbs from typical channel-card branches before
+  // falling back to background/hero (which are widescreen).
+  const branchOrder = ['tile', 'tile_background', 'logo', 'hero_tile', 'background'];
+  const aspectOrder = ['aspect_1x1', 'aspect_5x4', 'aspect_16x9', 'aspect_4x3', 'aspect_15x7'];
+
+  for (const branchKey of branchOrder) {
+    const branch = images[branchKey];
+    if (!branch || typeof branch !== 'object') continue;
+    const branchObj = branch as Record<string, unknown>;
+    for (const aspectKey of aspectOrder) {
+      const url = findUrl(branchObj[aspectKey]);
+      if (url) return url;
+    }
   }
   return findUrl(images);
 }
