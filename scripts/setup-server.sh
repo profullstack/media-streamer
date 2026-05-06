@@ -108,6 +108,37 @@ else
     echo "All essential packages already installed"
 fi
 
+# Chromium runtime libraries for headless Puppeteer (used by news article
+# extractor and SiriusXM device-grant minter). Puppeteer ships its own
+# Chromium binary; this just makes sure the system shared libs it needs
+# are present. Package names differ between Ubuntu 22.04 and 24.04, so
+# probe before adding to the install list.
+echo "=== Checking Puppeteer / Chromium runtime libraries ==="
+PUPPETEER_CANDIDATES="ca-certificates fonts-liberation libatk-bridge2.0-0 libatk1.0-0 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxtst6 lsb-release wget xdg-utils"
+
+# libasound2 was renamed to libasound2t64 in Ubuntu 24.04.
+if apt-cache show libasound2t64 >/dev/null 2>&1; then
+    PUPPETEER_CANDIDATES="$PUPPETEER_CANDIDATES libasound2t64"
+elif apt-cache show libasound2 >/dev/null 2>&1; then
+    PUPPETEER_CANDIDATES="$PUPPETEER_CANDIDATES libasound2"
+fi
+
+PUPPETEER_PACKAGES_TO_INSTALL=""
+for pkg in $PUPPETEER_CANDIDATES; do
+    if ! dpkg -l | grep -q "^ii  $pkg "; then
+        if apt-cache show "$pkg" >/dev/null 2>&1; then
+            PUPPETEER_PACKAGES_TO_INSTALL="$PUPPETEER_PACKAGES_TO_INSTALL $pkg"
+        fi
+    fi
+done
+
+if [ -n "$PUPPETEER_PACKAGES_TO_INSTALL" ]; then
+    echo "Installing Puppeteer runtime libraries:$PUPPETEER_PACKAGES_TO_INSTALL"
+    sudo apt-get install -y $PUPPETEER_PACKAGES_TO_INSTALL
+else
+    echo "Puppeteer runtime libraries already present"
+fi
+
 # Enable and start Redis (for IPTV playlist caching)
 echo "=== Configuring Redis ==="
 sudo systemctl enable redis-server 2>/dev/null || true
