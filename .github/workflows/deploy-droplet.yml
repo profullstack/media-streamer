@@ -23,6 +23,8 @@ env:
   # Deploy path: /home/ubuntu/www/:domain/:repo
   DEPLOY_PATH: /home/ubuntu/www/bittorrented.com/media-streamer
   SERVICE_NAME: bittorrented
+  # Run actions/checkout etc. on Node 24 instead of their bundled Node 20.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   # Deploy to Droplet (only if CI passed)

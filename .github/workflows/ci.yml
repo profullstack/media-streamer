@@ -12,6 +12,10 @@ on:
 
 env:
   NODE_VERSION: '24'
+  # Run the action SDKs themselves (actions/checkout, actions/setup-node, etc.)
+  # on Node 24 instead of their bundled Node 20. Silences the deprecation
+  # warnings until those actions ship v5 releases.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   # Job 1: Lint and Type Check
