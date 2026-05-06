@@ -123,22 +123,22 @@ function TheTVDBItemCard({ item, onFindTorrent }: { item: TheTVDBItem; onFindTor
     <div className="group relative overflow-hidden rounded-lg bg-bg-secondary border border-border-primary hover:border-accent-primary transition-all">
       <div className="flex flex-col sm:flex-row">
         {/* Poster */}
-        <div className="relative w-full sm:w-40 flex-shrink-0">
+        <div className="relative w-full sm:w-40 shrink-0">
           <MediaThumbnail
             src={item.posterUrl}
             alt={item.title}
             contentType={item.mediaType === 'movie' ? 'movie' : 'tvshow'}
-            className="aspect-[2/3] w-full sm:h-60"
+            className="aspect-2/3 w-full sm:h-60"
           />
           {/* Rating badge */}
           {item.rating !== undefined && (
-            <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-yellow-400">
+            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-sm bg-black/80 px-1.5 py-0.5 text-xs font-medium text-yellow-400">
               <StarIcon size={12} />
               {formatRating(item.rating)}
             </div>
           )}
           {/* Media type badge */}
-          <div className="absolute bottom-2 left-2 rounded bg-accent-primary/90 px-1.5 py-0.5 text-xs font-medium text-white uppercase">
+          <div className="absolute bottom-2 left-2 rounded-sm bg-accent-primary/90 px-1.5 py-0.5 text-xs font-medium text-white uppercase">
             {item.mediaType}
           </div>
         </div>
@@ -232,18 +232,18 @@ function TorrentItemCard({ item }: { item: TorrentItem }): React.ReactElement {
     >
       <div className="flex flex-col sm:flex-row">
         {/* Poster */}
-        <div className="relative w-full sm:w-32 flex-shrink-0">
+        <div className="relative w-full sm:w-32 shrink-0">
           <MediaThumbnail
             src={item.posterUrl ?? undefined}
             alt={item.cleanTitle ?? item.title}
             contentType={item.mediaType === 'movie' ? 'movie' : item.mediaType === 'tv' ? 'tvshow' : item.mediaType === 'music' ? 'music' : 'other'}
-            className="aspect-[2/3] w-full sm:h-48"
+            className="aspect-2/3 w-full sm:h-48"
           />
           {/* Seeder badge */}
           {item.seeders !== null && item.seeders > 0 && (
             <div
               className={cn(
-                'absolute top-2 right-2 rounded px-1.5 py-0.5 text-xs font-medium',
+                'absolute top-2 right-2 rounded-sm px-1.5 py-0.5 text-xs font-medium',
                 item.seeders > 100
                   ? 'bg-green-500/90 text-white'
                   : item.seeders > 10
@@ -313,12 +313,12 @@ function LoadingSkeleton(): React.ReactElement {
     <div className="space-y-4">
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="animate-pulse flex gap-4 rounded-lg bg-bg-secondary p-4">
-          <div className="w-32 h-48 rounded bg-bg-tertiary flex-shrink-0" />
+          <div className="w-32 h-48 rounded-sm bg-bg-tertiary shrink-0" />
           <div className="flex-1 space-y-3">
-            <div className="h-6 w-3/4 rounded bg-bg-tertiary" />
-            <div className="h-4 w-1/2 rounded bg-bg-tertiary" />
-            <div className="h-16 w-full rounded bg-bg-tertiary" />
-            <div className="h-4 w-2/3 rounded bg-bg-tertiary" />
+            <div className="h-6 w-3/4 rounded-sm bg-bg-tertiary" />
+            <div className="h-4 w-1/2 rounded-sm bg-bg-tertiary" />
+            <div className="h-16 w-full rounded-sm bg-bg-tertiary" />
+            <div className="h-4 w-2/3 rounded-sm bg-bg-tertiary" />
           </div>
         </div>
       ))}

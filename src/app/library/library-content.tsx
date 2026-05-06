@@ -445,7 +445,7 @@ export function LibraryContent({
                     >
                       {/* Poster/Cover */}
                       {item.bt_torrents?.poster_url || item.bt_torrents?.cover_url ? (
-                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={item.bt_torrents?.poster_url ?? item.bt_torrents?.cover_url ?? ''}
@@ -457,7 +457,7 @@ export function LibraryContent({
                           />
                         </div>
                       ) : (
-                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center shrink-0">
                           <FolderIcon size={24} className="text-text-muted" />
                         </div>
                       )}
@@ -468,7 +468,7 @@ export function LibraryContent({
                           {item.bt_torrents?.name ?? 'Unknown Torrent'}
                         </h3>
                         <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
-                          {item.bt_torrents?.content_type ? <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                          {item.bt_torrents?.content_type ? <span className="px-2 py-0.5 rounded-sm bg-bg-tertiary">
                               {item.bt_torrents.content_type}
                             </span> : null}
                           {item.bt_torrents?.year ? <span>{item.bt_torrents.year}</span> : null}
@@ -524,7 +524,7 @@ export function LibraryContent({
                     >
                       {/* Poster */}
                       {item.poster_path ? (
-                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary overflow-hidden shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={`https://image.tmdb.org/t/p/w154${item.poster_path}`}
@@ -536,7 +536,7 @@ export function LibraryContent({
                           />
                         </div>
                       ) : (
-                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                        <div className="w-16 h-20 rounded-lg bg-bg-tertiary flex items-center justify-center shrink-0">
                           <VideoIcon size={24} className="text-text-muted" />
                         </div>
                       )}
@@ -547,7 +547,7 @@ export function LibraryContent({
                           {item.title}
                         </h3>
                         <div className="flex flex-wrap gap-2 mt-1 text-xs text-text-muted">
-                          <span className="px-2 py-0.5 rounded bg-bg-tertiary">
+                          <span className="px-2 py-0.5 rounded-sm bg-bg-tertiary">
                             {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
                           </span>
                           {item.release_date ? (
@@ -667,7 +667,7 @@ export function LibraryContent({
                     >
                       {/* Channel Logo */}
                       {item.channel_logo ? (
-                        <div className="w-12 h-12 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg bg-bg-tertiary overflow-hidden shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={item.channel_logo}
@@ -679,7 +679,7 @@ export function LibraryContent({
                           />
                         </div>
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center shrink-0">
                           <TvIcon size={24} className="text-text-muted" />
                         </div>
                       )}

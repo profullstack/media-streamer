@@ -160,7 +160,7 @@ describe('ProfileAvatar', () => {
     expect(screen.queryByText('JD')).not.toBeInTheDocument();
   });
 
-  it('should show ring for default profile', () => {
+  it('should show ring-3 for default profile', () => {
     render(<ProfileAvatar {...defaultProps} isDefault />);
     
     // Find the avatar circle div - it's the parent of the initials/image/emoji
@@ -169,7 +169,7 @@ describe('ProfileAvatar', () => {
     expect(avatarCircle).toHaveClass('ring-2', 'ring-blue-400');
   });
 
-  it('should not show ring for non-default profile', () => {
+  it('should not show ring-3 for non-default profile', () => {
     render(<ProfileAvatar {...defaultProps} />);
     
     const initialsDiv = screen.getByText('TP');

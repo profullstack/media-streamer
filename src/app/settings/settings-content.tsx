@@ -270,7 +270,7 @@ export function SettingsContent(): React.ReactElement {
                       className={cn(
                         'rounded-lg border border-border-default bg-bg-tertiary px-4 py-2',
                         'text-text-primary',
-                        'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                        'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                       )}
                     >
                       <option value="auto">Auto</option>

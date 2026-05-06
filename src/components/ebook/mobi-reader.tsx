@@ -236,7 +236,7 @@ export function MobiReader({
         ) : null}
         <button
           onClick={handleRetry}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-sm transition-colors"
         >
           Try Again
         </button>
@@ -286,7 +286,7 @@ export function MobiReader({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowToc((prev) => !prev)}
-            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-sm"
             aria-label="Toggle table of contents"
           >
             ☰
@@ -294,7 +294,7 @@ export function MobiReader({
 
           <button
             onClick={goToPreviousPage}
-            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-sm"
             aria-label="Previous page"
           >
             ←
@@ -302,7 +302,7 @@ export function MobiReader({
 
           <button
             onClick={goToNextPage}
-            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-sm"
             aria-label="Next page"
           >
             →
@@ -334,7 +334,7 @@ export function MobiReader({
                     <li key={index}>
                       <button
                         onClick={() => goToLocation(item.href)}
-                        className="text-left w-full px-2 py-1 hover:bg-gray-800 rounded text-sm text-gray-300 hover:text-white"
+                        className="text-left w-full px-2 py-1 hover:bg-gray-800 rounded-sm text-sm text-gray-300 hover:text-white"
                       >
                         {item.label}
                       </button>
@@ -344,7 +344,7 @@ export function MobiReader({
                             <li key={subindex}>
                               <button
                                 onClick={() => goToLocation(subitem.href)}
-                                className="text-left w-full px-2 py-1 hover:bg-gray-800 rounded text-xs text-gray-400 hover:text-white"
+                                className="text-left w-full px-2 py-1 hover:bg-gray-800 rounded-sm text-xs text-gray-400 hover:text-white"
                               >
                                 {subitem.label}
                               </button>

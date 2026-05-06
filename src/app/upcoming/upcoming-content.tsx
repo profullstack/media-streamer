@@ -115,22 +115,22 @@ function UpcomingItemCard({
     <div className="group relative overflow-hidden rounded-lg bg-bg-secondary border border-border-primary hover:border-accent-primary transition-all">
       <div className="flex flex-col sm:flex-row">
         {/* Poster */}
-        <div className="relative w-full sm:w-40 flex-shrink-0">
+        <div className="relative w-full sm:w-40 shrink-0">
           <MediaThumbnail
             src={item.posterUrl ?? undefined}
             alt={item.title}
             contentType={item.mediaType === 'movie' ? 'movie' : 'tvshow'}
-            className="aspect-[2/3] w-full sm:h-60"
+            className="aspect-2/3 w-full sm:h-60"
           />
           {/* Rating badge */}
           {item.voteAverage !== null && item.voteAverage > 0 && (
-            <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-yellow-400">
+            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-sm bg-black/80 px-1.5 py-0.5 text-xs font-medium text-yellow-400">
               <StarIcon size={12} />
               {formatRating(item.voteAverage)}
             </div>
           )}
           {/* Media type badge */}
-          <div className="absolute bottom-2 left-2 rounded bg-accent-primary/90 px-1.5 py-0.5 text-xs font-medium text-white uppercase">
+          <div className="absolute bottom-2 left-2 rounded-sm bg-accent-primary/90 px-1.5 py-0.5 text-xs font-medium text-white uppercase">
             {item.mediaType}
           </div>
         </div>
@@ -477,7 +477,7 @@ export function UpcomingContent(): React.ReactElement {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search movies & TV series..."
-            className="w-full rounded-lg border border-border-primary bg-bg-secondary pl-10 pr-10 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            className="w-full rounded-lg border border-border-primary bg-bg-secondary pl-10 pr-10 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
           />
           {searchQuery ? (
             <button

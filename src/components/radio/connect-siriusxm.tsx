@@ -165,7 +165,7 @@ function ConnectFlow({ onSuccess }: ConnectFlowProps): React.ReactElement {
             onChange={(e) => setEmail(e.target.value)}
             autoFocus
             disabled={isSubmitting}
-            className="w-full rounded-lg border border-border-default bg-bg-secondary px-3 py-2 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            className="w-full rounded-lg border border-border-default bg-bg-secondary px-3 py-2 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
             placeholder="you@example.com"
           />
         </label>
@@ -198,7 +198,7 @@ function ConnectFlow({ onSuccess }: ConnectFlowProps): React.ReactElement {
           onChange={(e) => setOtp(e.target.value)}
           autoFocus
           disabled={isSubmitting}
-          className="w-full rounded-lg border border-border-default bg-bg-secondary px-3 py-2 text-2xl tracking-[0.4em] text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+          className="w-full rounded-lg border border-border-default bg-bg-secondary px-3 py-2 text-2xl tracking-[0.4em] text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
           placeholder="000000"
         />
       </label>

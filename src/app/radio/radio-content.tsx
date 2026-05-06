@@ -242,7 +242,7 @@ export function RadioContent(): React.ReactElement {
               placeholder='Search SiriusXM (e.g., "ESPN", "CNBC")'
               value={searchQuery}
               onChange={handleSearchChange}
-              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-14 pr-10 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-14 pr-10 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
             />
             {searchQuery ? (
               <button
@@ -262,7 +262,7 @@ export function RadioContent(): React.ReactElement {
               id="radio-quality"
               value={quality}
               onChange={(e) => setQuality(e.target.value as RadioQuality)}
-              className="rounded-lg border border-border-default bg-bg-secondary px-3 py-3 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              className="rounded-lg border border-border-default bg-bg-secondary px-3 py-3 text-sm text-text-primary focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
               aria-label="Audio quality"
               title="Audio quality"
             >
@@ -440,26 +440,26 @@ export function RadioContent(): React.ReactElement {
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
               placeholder="Station name (optional)"
-              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
             />
             <input
               type="text"
               value={customGenre}
               onChange={(e) => setCustomGenre(e.target.value)}
               placeholder="Genre (optional)"
-              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
             />
             <input
               type="url"
               value={customStreamUrl}
               onChange={(e) => setCustomStreamUrl(e.target.value)}
               placeholder="https://example.com/live.mp3"
-              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              className="w-full rounded-lg border border-border-default bg-bg-primary px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
               required
             />
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-secondary"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90 focus:outline-hidden focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-secondary"
             >
               <PlusIcon size={16} />
               Add Stream

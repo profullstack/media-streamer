@@ -126,7 +126,7 @@ export function IptvChannelFavoriteButton({
       title={error ?? buttonLabel}
       className={cn(
         'inline-flex items-center gap-2 rounded-full transition-all duration-200',
-        'focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
+        'focus:outline-hidden focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         sizeConfig.button,
         isFavorited
@@ -175,7 +175,7 @@ export function IptvChannelFavoriteButtonWithBackground({
     <IptvChannelFavoriteButton
       {...props}
       className={cn(
-        'bg-bg-primary/80 backdrop-blur-sm hover:bg-bg-primary',
+        'bg-bg-primary/80 backdrop-blur-xs hover:bg-bg-primary',
         className
       )}
     />

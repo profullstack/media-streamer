@@ -88,13 +88,13 @@ export function Modal({
 
   return (
     <div className={cn(
-      'fixed inset-0 z-50 flex items-center justify-center min-w-[100vw] min-h-[100vh]',
+      'fixed inset-0 z-50 flex items-center justify-center min-w-screen min-h-screen',
       // Smaller padding on TV to maximize usable space
       isTv ? 'p-1' : 'p-2 sm:p-4 md:p-6 lg:p-8'
     )}>
       {/* Backdrop - use fixed with explicit sizing for large TV screens */}
       <div
-        className="fixed inset-0 min-w-[100vw] min-h-[100vh] bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 min-w-screen min-h-screen bg-black/60 backdrop-blur-xs"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -122,7 +122,7 @@ export function Modal({
         {title ? <div
             data-testid="modal-header"
             className={cn(
-              'flex items-center justify-between border-b border-border-subtle flex-shrink-0',
+              'flex items-center justify-between border-b border-border-subtle shrink-0',
               // Smaller padding on TV
               isTv ? 'px-2 py-1' : 'px-3 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4'
             )}
@@ -141,7 +141,7 @@ export function Modal({
               type="button"
               onClick={onClose}
               className={cn(
-                'rounded-lg text-text-secondary hover:bg-bg-hover hover:text-text-primary flex-shrink-0 focus:ring-2 focus:ring-accent-primary focus:outline-none',
+                'rounded-lg text-text-secondary hover:bg-bg-hover hover:text-text-primary shrink-0 focus:ring-2 focus:ring-accent-primary focus:outline-hidden',
                 // Smaller button on TV
                 isTv ? 'p-0.5' : 'p-1 sm:p-1.5'
               )}

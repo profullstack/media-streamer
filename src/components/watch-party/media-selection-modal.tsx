@@ -162,7 +162,7 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
     )}>
       {/* Backdrop - use fixed inset-0 to cover full viewport regardless of parent padding */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs"
         onClick={handleClose}
       />
       
@@ -324,7 +324,7 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
                       </p>
                     </div>
                     <span className={cn(
-                      'rounded font-medium',
+                      'rounded-sm font-medium',
                       isTv ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs',
                       file.media_type === 'video'
                         ? 'bg-blue-500/10 text-blue-500'

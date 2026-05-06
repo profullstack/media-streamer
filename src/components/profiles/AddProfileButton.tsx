@@ -48,7 +48,7 @@ export function AddProfileButton({
         className={cn(
           'rounded-full border-2 border-dashed border-gray-500 bg-gray-900/50 flex items-center justify-center transition-all duration-200',
           'hover:border-white hover:bg-gray-800 hover:scale-105',
-          'focus:outline-none focus:ring-2 focus:ring-white/50',
+          'focus:outline-hidden focus:ring-2 focus:ring-white/50',
           'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:border-gray-500 disabled:hover:bg-gray-900/50',
           sizeClasses[size]
         )}

@@ -266,7 +266,7 @@ function FocusableNavItem({ href, isActive, needsLogin, icon: Icon, label, badge
       onClick={onItemClick}
       title={needsLogin ? 'Login required' : undefined}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all outline-none',
+        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all outline-hidden',
         isActive
           ? 'bg-accent-primary/10 text-accent-primary'
           : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',

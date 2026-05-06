@@ -260,7 +260,7 @@ export default function VideosPage(): React.ReactElement {
               className={cn(
                 'w-full rounded-lg border border-border-subtle bg-bg-secondary py-2 pl-11 pr-4',
                 'text-text-primary placeholder:text-text-muted',
-                'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
               )}
             />
           </form>
@@ -276,7 +276,7 @@ export default function VideosPage(): React.ReactElement {
                   type="button"
                   onClick={() => handleSort(option)}
                   className={cn(
-                    'flex items-center gap-1 rounded px-2 py-1 text-sm transition-colors',
+                    'flex items-center gap-1 rounded-sm px-2 py-1 text-sm transition-colors',
                     sortBy === option
                       ? 'bg-accent-primary/20 text-accent-primary'
                       : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
@@ -306,10 +306,10 @@ export default function VideosPage(): React.ReactElement {
         {isLoading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="card animate-pulse">
-                <div className="aspect-[2/3] bg-bg-tertiary rounded-t-lg" />
+                <div className="aspect-2/3 bg-bg-tertiary rounded-t-lg" />
                 <div className="p-4 space-y-2">
-                  <div className="h-4 bg-bg-tertiary rounded w-3/4" />
-                  <div className="h-3 bg-bg-tertiary rounded w-1/2" />
+                  <div className="h-4 bg-bg-tertiary rounded-sm w-3/4" />
+                  <div className="h-3 bg-bg-tertiary rounded-sm w-1/2" />
                 </div>
               </div>
             ))}
@@ -339,7 +339,7 @@ export default function VideosPage(): React.ReactElement {
               onClick={handlePrevPage}
               disabled={currentPage === 1}
               className={cn(
-                'rounded px-4 py-2 text-sm transition-colors',
+                'rounded-sm px-4 py-2 text-sm transition-colors',
                 currentPage === 1
                   ? 'cursor-not-allowed text-text-muted'
                   : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
@@ -355,7 +355,7 @@ export default function VideosPage(): React.ReactElement {
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
               className={cn(
-                'rounded px-4 py-2 text-sm transition-colors',
+                'rounded-sm px-4 py-2 text-sm transition-colors',
                 currentPage === totalPages
                   ? 'cursor-not-allowed text-text-muted'
                   : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
@@ -391,7 +391,7 @@ function HealthIndicator({ seeders, leechers }: HealthIndicatorProps): React.Rea
       {colors.map((color, index) => (
         <div
           key={index}
-          className={cn('h-3 w-1 rounded-sm', color)}
+          className={cn('h-3 w-1 rounded-xs', color)}
         />
       ))}
     </div>
@@ -414,7 +414,7 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
       className="card-hover group overflow-hidden transition-transform hover:scale-[1.02]"
     >
       {/* Image */}
-      <div className="aspect-[2/3] bg-bg-tertiary relative overflow-hidden">
+      <div className="aspect-2/3 bg-bg-tertiary relative overflow-hidden">
         {imageUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element -- External torrent poster/cover images */
           <img
@@ -431,11 +431,11 @@ function TorrentCard({ torrent }: TorrentCardProps): React.ReactElement {
           </div>
         )}
         {/* Type badge */}
-        <div className="absolute top-2 left-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+        <div className="absolute top-2 left-2 rounded-sm bg-black/70 px-2 py-1 text-xs text-white">
           {torrent.contentType === 'tvshow' ? 'TV Show' : 'Movie'}
         </div>
         {/* Overlay with health indicator and seeders */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-2 rounded bg-black/70 px-2 py-1">
+        <div className="absolute bottom-2 right-2 flex items-center gap-2 rounded-sm bg-black/70 px-2 py-1">
           <HealthIndicator seeders={torrent.seeders} leechers={torrent.leechers} />
           {torrent.seeders !== null && (
             <span className="text-xs text-white">{torrent.seeders}</span>

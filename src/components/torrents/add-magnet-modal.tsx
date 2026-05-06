@@ -283,7 +283,7 @@ export function AddMagnetModal({
               className={cn(
                 'w-full resize-none rounded-lg border bg-bg-tertiary py-3 pl-10 pr-4',
                 'text-sm text-text-primary placeholder:text-text-muted',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary',
+                'focus:outline-hidden focus:ring-2 focus:ring-accent-primary',
                 error ? 'border-red-500' : 'border-border-default'
               )}
               disabled={isSubmitting}

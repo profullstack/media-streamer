@@ -339,7 +339,7 @@ export function VideoPlayer({
       {showTranscodingNotice && videoSource?.requiresTranscoding ? <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
           <div className="flex items-center gap-2">
             <svg
-              className="h-4 w-4 flex-shrink-0 text-blue-500"
+              className="h-4 w-4 shrink-0 text-blue-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -369,7 +369,7 @@ export function VideoPlayer({
       {error ? <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <div className="flex items-start gap-3">
             <svg
-              className="h-5 w-5 flex-shrink-0 text-destructive"
+              className="h-5 w-5 shrink-0 text-destructive"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

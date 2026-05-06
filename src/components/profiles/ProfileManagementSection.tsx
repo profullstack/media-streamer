@@ -182,7 +182,7 @@ export function ProfileManagementSection(): React.ReactElement {
                 avatarEmoji={profile.avatar_emoji}
                 isDefault={profile.is_default}
                 size="sm"
-                className="flex-shrink-0"
+                className="shrink-0"
               />
 
               {/* Profile Info */}
@@ -191,11 +191,9 @@ export function ProfileManagementSection(): React.ReactElement {
                   <h3 className="font-medium text-text-primary truncate">
                     {profile.name}
                   </h3>
-                  {profile.is_default && (
-                    <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded">
+                  {profile.is_default ? <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-sm">
                       Default
-                    </span>
-                  )}
+                    </span> : null}
                 </div>
                 <p className="text-sm text-text-muted">
                   Created {new Date(profile.created_at).toLocaleDateString()}
@@ -209,7 +207,7 @@ export function ProfileManagementSection(): React.ReactElement {
                   className={cn(
                     'p-2 text-text-secondary hover:text-text-primary hover:bg-bg-hover',
                     'rounded-lg transition-colors',
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500'
+                    'focus:outline-hidden focus:ring-2 focus:ring-blue-500'
                   )}
                   title="Edit profile"
                 >
@@ -223,7 +221,7 @@ export function ProfileManagementSection(): React.ReactElement {
                     className={cn(
                       'p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20',
                       'rounded-lg transition-colors',
-                      'focus:outline-none focus:ring-2 focus:ring-red-500',
+                      'focus:outline-hidden focus:ring-2 focus:ring-red-500',
                       'disabled:opacity-50 disabled:cursor-not-allowed'
                     )}
                     title="Delete profile"
@@ -240,22 +238,18 @@ export function ProfileManagementSection(): React.ReactElement {
           ))}
 
           {/* Add Profile Button - only for family plan users */}
-          {hasFamilyPlan && profiles.length < 10 && (
-            <div className="flex items-center justify-center p-8 border-2 border-dashed border-border-subtle rounded-lg">
+          {hasFamilyPlan && profiles.length < 10 ? <div className="flex items-center justify-center p-8 border-2 border-dashed border-border-subtle rounded-lg">
               <AddProfileButton
                 size="sm"
                 onClick={handleCreateProfile}
                 className="scale-75"
               />
-            </div>
-          )}
+            </div> : null}
         </div>
 
-        {hasFamilyPlan && profiles.length >= 10 && (
-          <p className="text-sm text-text-muted text-center py-4">
+        {hasFamilyPlan && profiles.length >= 10 ? <p className="text-sm text-text-muted text-center py-4">
             You have reached the maximum of 10 profiles per account.
-          </p>
-        )}
+          </p> : null}
 
         {!hasFamilyPlan && (
           <div className="text-center py-8">
@@ -277,14 +271,12 @@ export function ProfileManagementSection(): React.ReactElement {
       />
 
       {/* Edit Profile Dialog */}
-      {editingProfile && (
-        <EditProfileDialog
+      {editingProfile ? <EditProfileDialog
           open={!!editingProfile}
           profile={editingProfile}
           onClose={() => setEditingProfile(null)}
           onProfileUpdated={handleProfileUpdated}
-        />
-      )}
+        /> : null}
     </>
   );
 }

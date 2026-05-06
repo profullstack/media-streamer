@@ -37,7 +37,7 @@ export function NewsContent(): React.ReactElement {
             value={customSearch}
             onChange={(e) => setCustomSearch(e.target.value)}
             placeholder="Search news..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-hidden focus:border-blue-500"
           />
         </div>
         <button

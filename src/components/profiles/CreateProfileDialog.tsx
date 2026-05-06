@@ -117,7 +117,7 @@ export function CreateProfileDialog({
             className={cn(
               'w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg',
               'text-white placeholder-gray-400',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+              'focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent',
               'disabled:opacity-50 disabled:cursor-not-allowed'
             )}
             disabled={isCreating}
@@ -143,7 +143,7 @@ export function CreateProfileDialog({
                 className={cn(
                   'w-8 h-8 rounded-lg flex items-center justify-center text-lg',
                   'hover:bg-gray-700 transition-colors duration-200',
-                  'focus:outline-none focus:ring-2 focus:ring-blue-500',
+                  'focus:outline-hidden focus:ring-2 focus:ring-blue-500',
                   selectedEmoji === emoji
                     ? 'bg-blue-600 ring-2 ring-blue-500'
                     : 'bg-gray-900'
@@ -154,8 +154,7 @@ export function CreateProfileDialog({
               </button>
             ))}
           </div>
-          {selectedEmoji && (
-            <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
+          {selectedEmoji ? <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
               <span>Selected:</span>
               <span className="text-2xl">{selectedEmoji}</span>
               <button
@@ -166,16 +165,13 @@ export function CreateProfileDialog({
               >
                 Clear
               </button>
-            </div>
-          )}
+            </div> : null}
         </div>
 
         {/* Error Message */}
-        {error && (
-          <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-3">
+        {error ? <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-3">
             {error}
-          </div>
-        )}
+          </div> : null}
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-4">
@@ -193,11 +189,11 @@ export function CreateProfileDialog({
             className={cn(
               'px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg',
               'transition-colors duration-200 flex items-center gap-2',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500',
+              'focus:outline-hidden focus:ring-2 focus:ring-blue-500',
               'disabled:opacity-50 disabled:cursor-not-allowed'
             )}
           >
-            {isCreating && <LoadingSpinner size={16} />}
+            {isCreating ? <LoadingSpinner size={16} /> : null}
             {isCreating ? 'Creating...' : 'Create Profile'}
           </button>
         </div>

@@ -538,7 +538,7 @@ export function PlaylistPlayerModal({
           <button
             type="button"
             onClick={handleRefresh}
-            className="p-2 text-text-muted hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors flex-shrink-0"
+            className="p-2 text-text-muted hover:text-text-primary hover:bg-bg-secondary rounded-lg transition-colors shrink-0"
             aria-label="Refresh stream"
             title="Refresh stream"
           >
@@ -577,7 +577,7 @@ export function PlaylistPlayerModal({
           <div className="rounded-lg border border-error/50 bg-error/10 p-4">
             <div className="flex items-start gap-3">
               <svg
-                className="h-5 w-5 flex-shrink-0 text-error"
+                className="h-5 w-5 shrink-0 text-error"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -741,7 +741,7 @@ export function PlaylistPlayerModal({
                       /> : null}
 
                     {/* Track number / play icon */}
-                    <span className="relative z-10 w-6 text-center text-xs flex-shrink-0">
+                    <span className="relative z-10 w-6 text-center text-xs shrink-0">
                       {isCurrentTrack ? (
                         <PlayIcon size={14} className="inline" />
                       ) : (
@@ -758,7 +758,7 @@ export function PlaylistPlayerModal({
                     </div>
 
                     {/* Download status indicator */}
-                    {downloadStatus ? <span className="relative z-10 flex items-center gap-1 text-xs flex-shrink-0">
+                    {downloadStatus ? <span className="relative z-10 flex items-center gap-1 text-xs shrink-0">
                         {isDownloading ? (
                           <>
                             <DownloadIcon size={12} className="text-accent-primary animate-pulse" />

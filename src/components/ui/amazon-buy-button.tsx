@@ -87,7 +87,7 @@ export function AmazonBuyButton({ title, contentType, year, hasMetadata }: Amazo
       href={result.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#FF9900] px-4 py-2 text-sm font-semibold text-black shadow-sm transition-colors hover:bg-[#FFB84D]"
+      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#FF9900] px-4 py-2 text-sm font-semibold text-black shadow-xs transition-colors hover:bg-[#FFB84D]"
       title={`Buy "${result.title}" on Amazon`}
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">

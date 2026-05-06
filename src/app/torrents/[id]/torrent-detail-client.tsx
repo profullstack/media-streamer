@@ -471,8 +471,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
         </nav>
 
         {/* Backdrop hero */}
-        {(torrent as any).backdropUrl && (
-          <div className="relative -mx-4 -mt-2 h-48 sm:h-64 overflow-hidden rounded-lg sm:mx-0">
+        {(torrent as any).backdropUrl ? <div className="relative -mx-4 -mt-2 h-48 sm:h-64 overflow-hidden rounded-lg sm:mx-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={(torrent as any).backdropUrl}
@@ -480,9 +479,8 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
               className="h-full w-full object-cover"
               loading="eager"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/60 to-transparent" />
-          </div>
-        )}
+            <div className="absolute inset-0 bg-linear-to-t from-bg-primary via-bg-primary/60 to-transparent" />
+          </div> : null}
 
         {/* Header */}
         <div className={`card p-6 ${(torrent as any).backdropUrl ? '-mt-24 relative z-10' : ''}`}>
@@ -514,37 +512,26 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
               )}
 
               {/* Tagline */}
-              {(torrent as any).tagline && (
-                <p className="mt-1 text-sm italic text-text-muted">&ldquo;{(torrent as any).tagline}&rdquo;</p>
-              )}
+              {(torrent as any).tagline ? <p className="mt-1 text-sm italic text-text-muted">&ldquo;{(torrent as any).tagline}&rdquo;</p> : null}
 
               {/* Meta badges row */}
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {torrent.year && (
-                  <span className="rounded bg-bg-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary">
+                {torrent.year ? <span className="rounded-sm bg-bg-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary">
                     {torrent.year}
-                  </span>
-                )}
-                {(torrent as any).contentRating && (
-                  <span className="rounded border border-text-muted/30 px-2 py-0.5 text-xs font-medium text-text-secondary">
+                  </span> : null}
+                {(torrent as any).contentRating ? <span className="rounded-sm border border-text-muted/30 px-2 py-0.5 text-xs font-medium text-text-secondary">
                     {(torrent as any).contentRating}
-                  </span>
-                )}
-                {(torrent as any).runtimeMinutes && (
-                  <span className="text-xs text-text-muted">
+                  </span> : null}
+                {(torrent as any).runtimeMinutes ? <span className="text-xs text-text-muted">
                     {Math.floor((torrent as any).runtimeMinutes / 60)}h {(torrent as any).runtimeMinutes % 60}m
-                  </span>
-                )}
-                {torrent.contentType && (
-                  <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize text-text-secondary">
+                  </span> : null}
+                {torrent.contentType ? <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-xs capitalize text-text-secondary">
                     {torrent.contentType}
-                  </span>
-                )}
+                  </span> : null}
               </div>
 
               {/* IMDB rating */}
-              {(torrent as any).imdbRating && (
-                <div className="mt-3 flex items-center gap-3">
+              {(torrent as any).imdbRating ? <div className="mt-3 flex items-center gap-3">
                   <a
                     href={`https://www.imdb.com/title/${(torrent as any).externalId || torrent.externalId}/`}
                     target="_blank"
@@ -557,12 +544,10 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                   <span className="text-xs text-text-muted">
                     {((torrent as any).imdbVotes ?? 0).toLocaleString()} votes
                   </span>
-                </div>
-              )}
+                </div> : null}
 
               {/* Genres */}
-              {torrent.genre && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
+              {torrent.genre ? <div className="mt-3 flex flex-wrap gap-1.5">
                   {torrent.genre.split(', ').map((g: string) => (
                     <span
                       key={g}
@@ -571,8 +556,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                       {g}
                     </span>
                   ))}
-                </div>
-              )}
+                </div> : null}
 
               {/* Infohash */}
               <p className="mt-3 font-mono text-[10px] text-text-muted/60 hidden sm:block">{torrent.infohash}</p>
@@ -580,36 +564,26 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           </div>
 
           {/* Synopsis */}
-          {((torrent as any).overview || torrent.description) && (
-            <div className="mt-6">
+          {((torrent as any).overview || torrent.description) ? <div className="mt-6">
               <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-2">Synopsis</h2>
               <p className="text-sm leading-relaxed text-text-primary">{(torrent as any).overview || torrent.description}</p>
-            </div>
-          )}
+            </div> : null}
 
           {/* Credits row */}
-          {(torrent.director || torrent.actors || (torrent as any).cast || (torrent as any).writers) && (
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              {torrent.director && (
-                <div>
+          {(torrent.director || torrent.actors || (torrent as any).cast || (torrent as any).writers) ? <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              {torrent.director ? <div>
                   <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Director</h3>
                   <p className="mt-1 text-sm text-text-primary">{torrent.director}</p>
-                </div>
-              )}
-              {(torrent as any).writers && (
-                <div>
+                </div> : null}
+              {(torrent as any).writers ? <div>
                   <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Writers</h3>
                   <p className="mt-1 text-sm text-text-primary">{(torrent as any).writers}</p>
-                </div>
-              )}
-              {(torrent.actors || (torrent as any).cast) && (
-                <div className="sm:col-span-2">
+                </div> : null}
+              {(torrent.actors || (torrent as any).cast) ? <div className="sm:col-span-2">
                   <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Cast</h3>
                   <p className="mt-1 text-sm text-text-primary">{torrent.actors || (torrent as any).cast}</p>
-                </div>
-              )}
-            </div>
-          )}
+                </div> : null}
+            </div> : null}
 
           {/* Buy on Amazon */}
           <AmazonBuyButton
@@ -661,7 +635,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                 {getHealthBarColors(calculateHealthBars(torrent.seeders, torrent.leechers)).map((color, index) => (
                   <div
                     key={index}
-                    className={`w-2 rounded-sm ${color}`}
+                    className={`w-2 rounded-xs ${color}`}
                     style={{ height: `${12 + index * 3}px` }}
                   />
                 ))}
@@ -884,7 +858,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
               }}
               placeholder="Additional details (optional)"
               rows={4}
-              className="mt-3 w-full rounded-md border border-border-primary bg-bg-secondary px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none"
+              className="mt-3 w-full rounded-md border border-border-primary bg-bg-secondary px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden"
             />
             <div className="mt-3 flex items-center justify-end gap-2">
               <button

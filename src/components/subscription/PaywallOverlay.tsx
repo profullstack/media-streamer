@@ -13,17 +13,15 @@ interface PaywallOverlayProps {
 
 export function PaywallOverlay({ onClose }: PaywallOverlayProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs">
       <div className="relative mx-4 max-w-md w-full rounded-xl bg-bg-secondary p-8 shadow-2xl text-center">
-        {onClose && (
-          <button
+        {onClose ? <button
             onClick={onClose}
             className="absolute top-4 right-4 text-text-secondary hover:text-text-primary"
             aria-label="Close"
           >
             ✕
-          </button>
-        )}
+          </button> : null}
 
         <div className="text-5xl mb-4">🔒</div>
 

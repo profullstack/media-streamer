@@ -414,7 +414,7 @@ function FindTorrentsPageInner(): React.ReactElement {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search for torrents..."
-                  className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary py-3 pl-11 pr-4 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                  className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary py-3 pl-11 pr-4 text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
                 />
               </div>
             </div>
@@ -427,7 +427,7 @@ function FindTorrentsPageInner(): React.ReactElement {
                 aria-label="Sort by"
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary px-4 py-3 text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary px-4 py-3 text-text-primary focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
               >
                 {SORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -445,7 +445,7 @@ function FindTorrentsPageInner(): React.ReactElement {
                 aria-label="Provider"
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
-                className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary px-4 py-3 text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                className="w-full rounded-lg border border-bg-tertiary bg-bg-secondary px-4 py-3 text-text-primary focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
               >
                 {PROVIDERS.map((p) => (
                   <option key={p.value} value={p.value}>

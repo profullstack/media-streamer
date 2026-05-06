@@ -236,9 +236,9 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   minSeeders: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
-                  'w-full rounded border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
+                  'w-full rounded-sm border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none'
+                  'focus:border-accent-primary focus:outline-hidden'
                 )}
               />
             </div>
@@ -256,9 +256,9 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   maxSeeders: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
-                  'w-full rounded border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
+                  'w-full rounded-sm border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none'
+                  'focus:border-accent-primary focus:outline-hidden'
                 )}
               />
             </div>
@@ -276,9 +276,9 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   minLeechers: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
-                  'w-full rounded border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
+                  'w-full rounded-sm border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none'
+                  'focus:border-accent-primary focus:outline-hidden'
                 )}
               />
             </div>
@@ -296,9 +296,9 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   maxLeechers: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 })}
                 className={cn(
-                  'w-full rounded border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
+                  'w-full rounded-sm border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none'
+                  'focus:border-accent-primary focus:outline-hidden'
                 )}
               />
             </div>
@@ -321,7 +321,7 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                     setDraft({ ...draft, minSize: preset.minSize, maxSize: preset.maxSize });
                   }}
                   className={cn(
-                    'rounded px-2.5 py-1 text-xs transition-colors',
+                    'rounded-sm px-2.5 py-1 text-xs transition-colors',
                     activeSizePreset === preset.label
                       ? 'bg-accent-primary/20 text-accent-primary'
                       : 'bg-bg-hover text-text-secondary hover:text-text-primary'
@@ -343,9 +343,9 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   value={customSizeMin}
                   onChange={(e) => setCustomSizeMin(e.target.value)}
                   className={cn(
-                    'w-20 rounded border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
+                    'w-20 rounded-sm border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
                     'text-text-primary placeholder:text-text-muted',
-                    'focus:border-accent-primary focus:outline-none'
+                    'focus:border-accent-primary focus:outline-hidden'
                   )}
                 />
                 <span className="text-xs text-text-muted">to</span>
@@ -357,17 +357,17 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                   value={customSizeMax}
                   onChange={(e) => setCustomSizeMax(e.target.value)}
                   className={cn(
-                    'w-20 rounded border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
+                    'w-20 rounded-sm border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
                     'text-text-primary placeholder:text-text-muted',
-                    'focus:border-accent-primary focus:outline-none'
+                    'focus:border-accent-primary focus:outline-hidden'
                   )}
                 />
                 <select
                   value={customSizeUnit}
                   onChange={(e) => setCustomSizeUnit(e.target.value as SizeUnit)}
                   className={cn(
-                    'rounded border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
-                    'text-text-primary focus:border-accent-primary focus:outline-none'
+                    'rounded-sm border border-border-subtle bg-bg-hover px-2 py-1.5 text-sm',
+                    'text-text-primary focus:border-accent-primary focus:outline-hidden'
                   )}
                 >
                   <option value="MB">MB</option>
@@ -392,7 +392,7 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
                     dateTo: undefined,
                   })}
                   className={cn(
-                    'rounded px-2.5 py-1 text-xs transition-colors',
+                    'rounded-sm px-2.5 py-1 text-xs transition-colors',
                     activeDatePreset === preset.key
                       ? 'bg-accent-primary/20 text-accent-primary'
                       : 'bg-bg-hover text-text-secondary hover:text-text-primary'
@@ -410,7 +410,7 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
               <button
                 type="button"
                 onClick={handleClear}
-                className="rounded px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                className="rounded-sm px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
               >
                 Clear all
               </button>
@@ -420,7 +420,7 @@ export function TorrentFilterPanel({ filters, onChange, className }: TorrentFilt
               onClick={handleApply}
               disabled={!hasDraftChanges}
               className={cn(
-                'rounded px-4 py-1.5 text-xs font-medium transition-colors',
+                'rounded-sm px-4 py-1.5 text-xs font-medium transition-colors',
                 hasDraftChanges
                   ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
                   : 'bg-bg-hover text-text-muted cursor-not-allowed'

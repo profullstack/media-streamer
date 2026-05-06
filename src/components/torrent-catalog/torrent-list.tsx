@@ -176,7 +176,7 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
           >
             <div className="flex items-start gap-4">
               {/* Poster/Cover Image - square for music, portrait for movies/tv */}
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 {imageUrl ? (
                   <div className={`relative overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800 ${
                     isMusic ? 'h-16 w-16' : 'h-20 w-14'
@@ -240,7 +240,7 @@ export function TorrentList({ torrents, onSelect, selectedId, onExpand }: Torren
                   onExpand?.(torrent);
                 }}
                 aria-label="Expand torrent"
-                className="ml-2 flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                className="ml-2 shrink-0 rounded-sm p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

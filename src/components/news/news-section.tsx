@@ -381,7 +381,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           <p className="text-red-500 mb-4">Failed to load news: {error}</p>
           <button
             onClick={() => void fetchNews()}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-2 mx-auto"
+            className="px-4 py-2 bg-blue-500 text-white rounded-sm hover:bg-blue-600 transition-colors flex items-center gap-2 mx-auto"
           >
             <RefreshCw className="w-4 h-4" />
             Retry
@@ -441,7 +441,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
             onClick={() => setSelectedArticle(article)}
           >
             {article.imageUrl ? (
-              <div className="w-16 h-16 flex-shrink-0 bg-gray-900 rounded overflow-hidden">
+              <div className="w-16 h-16 shrink-0 bg-gray-900 rounded-sm overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element -- External news article images from TheNewsAPI */}
                 <img
                   src={article.imageUrl}
@@ -451,7 +451,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                 />
               </div>
             ) : (
-              <div className="w-16 h-16 flex-shrink-0 bg-gray-900 rounded flex items-center justify-center">
+              <div className="w-16 h-16 shrink-0 bg-gray-900 rounded-sm flex items-center justify-center">
                 <Newspaper className="w-6 h-6 text-gray-600" />
               </div>
             )}
@@ -470,7 +470,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                     {article.categories.slice(0, 2).map((category) => (
                       <span
                         key={category}
-                        className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs"
+                        className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-sm text-xs"
                       >
                         {category}
                       </span>
@@ -510,7 +510,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                 {/* View Toggle (when summary exists) */}
                 {summary ? <button
                     onClick={() => setShowSummary(!showSummary)}
-                    className={`p-2 rounded transition-colors ${showSummary ? 'bg-purple-600 hover:bg-purple-700' : 'hover:bg-gray-700'}`}
+                    className={`p-2 rounded-sm transition-colors ${showSummary ? 'bg-purple-600 hover:bg-purple-700' : 'hover:bg-gray-700'}`}
                     title={showSummary ? 'Show original article' : 'Show AI summary'}
                   >
                     <FileText className="w-5 h-5" />
@@ -519,7 +519,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                 {isPremium && !summary ? <button
                     onClick={() => void handleSummarize()}
                     disabled={isSummarizing}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors text-sm"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-sm transition-colors text-sm"
                     title="Summarize with AI"
                   >
                     {isSummarizing ? (
@@ -534,7 +534,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                   href={selectedArticle.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 hover:bg-gray-700 rounded transition-colors"
+                  className="p-2 hover:bg-gray-700 rounded-sm transition-colors"
                   title="Open in new tab"
                 >
                   <ExternalLink className="w-5 h-5" />
@@ -542,7 +542,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                 <button
                   data-testid="modal-close-button"
                   onClick={handleCloseModal}
-                  className="p-2 hover:bg-gray-700 rounded transition-colors"
+                  className="p-2 hover:bg-gray-700 rounded-sm transition-colors"
                   title="Close"
                 >
                   <X className="w-5 h-5" />
@@ -576,7 +576,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                     <h2 className="text-2xl font-bold mb-2">{summary.title}</h2>
                     {/* TTS Audio Controls */}
                     {isPremium ? (
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         {audioUrl ? (
                           <button
                             onClick={handleTogglePlayback}
@@ -718,7 +718,7 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
                       <span>{extractedContent.siteName || selectedArticle.source}</span>
                       {extractedContent.byline ? <span>By {extractedContent.byline}</span> : null}
                       <span>{formatDate(selectedArticle.publishedAt)}</span>
-                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
+                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-sm text-xs">
                         via {extractedContent.fetchMethod === 'puppeteer' ? 'Browser' : 'Direct'}
                       </span>
                     </div>
@@ -791,17 +791,17 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
           </div>
 
           {/* Scroll Buttons for TV - shown for both summary and iframe views */}
-          {((showSummary && summary) || (iframeBlocked && extractedContent) || (!showSummary && !iframeBlocked)) ? <div className="fixed bottom-8 right-8 flex flex-col gap-2 z-[60]">
+          {((showSummary && summary) || (iframeBlocked && extractedContent) || (!showSummary && !iframeBlocked)) ? <div className="fixed bottom-8 right-8 flex flex-col gap-2 z-60">
               <button
                 onClick={() => scrollContent('up')}
-                className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-hidden focus:ring-2 focus:ring-purple-500"
                 aria-label="Scroll up"
               >
                 <ChevronUp className="w-6 h-6" />
               </button>
               <button
                 onClick={() => scrollContent('down')}
-                className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="p-3 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 rounded-full shadow-lg transition-colors focus:outline-hidden focus:ring-2 focus:ring-purple-500"
                 aria-label="Scroll down"
               >
                 <ChevronDown className="w-6 h-6" />

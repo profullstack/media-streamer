@@ -555,12 +555,12 @@ export function HlsPlayerModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="hls-player-title"
-      className="fixed inset-0 z-50 flex items-center justify-center min-w-[100vw] min-h-[100vh]"
+      className="fixed inset-0 z-50 flex items-center justify-center min-w-screen min-h-screen"
     >
       {/* Backdrop - use fixed with explicit sizing for large TV screens */}
       <div
         data-testid="modal-backdrop"
-        className="fixed inset-0 min-w-[100vw] min-h-[100vh] bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 min-w-screen min-h-screen bg-black/80 backdrop-blur-xs"
         onClick={handleBackdropClick}
       />
 
@@ -616,7 +616,7 @@ export function HlsPlayerModal({
                 {providerName ? <span className="text-xs text-zinc-500">{providerName}</span> : null}
                 {channel.group ? <span
                     data-testid="group-badge"
-                    className="inline-block px-2 py-0.5 text-xs font-medium bg-zinc-800 text-zinc-400 rounded"
+                    className="inline-block px-2 py-0.5 text-xs font-medium bg-zinc-800 text-zinc-400 rounded-sm"
                   >
                     {channel.group}
                   </span> : null}

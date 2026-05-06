@@ -320,7 +320,7 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none"
+                className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden"
                 rows={3}
               />
               <div className="mt-2 flex gap-2">
@@ -396,7 +396,7 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 placeholder="Write a reply..."
-                className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none"
+                className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden"
                 rows={2}
               />
               <div className="mt-2 flex gap-2">
@@ -462,7 +462,7 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Write a comment..."
-                  className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-none"
+                  className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden"
                   rows={3}
                 />
                 <div className="mt-2 flex justify-end">

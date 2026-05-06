@@ -87,7 +87,7 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
   return (
     <header
       className={cn(
-        'sticky top-0 z-30 flex h-16 items-center border-b border-border-subtle bg-bg-primary/80 backdrop-blur-sm',
+        'sticky top-0 z-30 flex h-16 items-center border-b border-border-subtle bg-bg-primary/80 backdrop-blur-xs',
         'px-4 md:px-6',
         className
       )}
@@ -107,7 +107,7 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
                 'flex h-10 items-center gap-1 rounded-l-full border border-r-0 border-border-default bg-bg-secondary px-3',
                 'text-sm text-text-secondary',
                 'hover:bg-bg-hover hover:text-text-primary',
-                'focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                'focus:outline-hidden focus:ring-1 focus:ring-accent-primary',
                 'transition-colors'
               )}
             >
@@ -160,7 +160,7 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
               className={cn(
                 'h-10 w-full border border-r-0 border-border-default bg-bg-secondary pl-10 pr-4',
                 'text-sm text-text-primary placeholder:text-text-muted',
-                'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary',
                 'transition-colors'
               )}
             />
@@ -174,7 +174,7 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
               'flex h-10 items-center justify-center rounded-r-full border border-l-0 border-border-default bg-accent-primary px-4',
               'text-sm font-medium text-white',
               'hover:bg-accent-primary/90',
-              'focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
+              'focus:outline-hidden focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
               'disabled:cursor-not-allowed disabled:opacity-50',
               'transition-colors'
             )}

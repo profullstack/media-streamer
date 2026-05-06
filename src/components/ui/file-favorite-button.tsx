@@ -96,7 +96,7 @@ export function FileFavoriteButton({
         title={label}
         className={cn(
           'inline-flex items-center justify-center rounded-full transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
+          'focus:outline-hidden focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-bg-primary',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           sizeConfig.button,
           error
