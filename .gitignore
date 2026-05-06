@@ -45,3 +45,7 @@ public/workbox-*.js.map
 .turbo
 firetv/.gradle/
 firetv/app/build/
+
+# SiriusXM upstream proxy list (host:port:user:pass per line)
+proxies.txt
+

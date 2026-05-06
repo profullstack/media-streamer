@@ -14,6 +14,9 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
 import { ProxyAgent } from 'undici';
 import {
   getCredentials,
@@ -34,21 +37,77 @@ interface ResolvedProxy {
 /**
  * Outbound HTTP proxy for SXM calls (PROXY_URL env). When set, every
  * api.edge-gateway request and the headless-browser navigation route
- * through it. Webshare's residential rotate endpoint sits at this URL.
+ * through it.
  *
- * Username is used verbatim — Webshare's residential-rotate account
- * rejects sticky-session suffixes (returns 407). If we ever need
- * sticky sessions we'll need a Webshare plan that supports them.
+ * Webshare's static-residential-rotate endpoint keeps the same upstream
+ * IP for the duration of a single TCP/TLS connection. To get that
+ * stickiness we must reuse the same ProxyAgent across calls so undici's
+ * connection pool keeps a warm channel. Building a fresh agent per call
+ * gave us a different IP every time.
  */
-function buildProxy(rawUrl: string): ResolvedProxy {
+function buildProxy(rawUrl: string, agent: ProxyAgent): ResolvedProxy {
   const url = new URL(rawUrl);
   return {
     url,
-    agent: new ProxyAgent(rawUrl),
+    agent,
     puppeteerArg: `--proxy-server=${url.protocol}//${url.host}`,
     username: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
   };
+}
+
+// One ProxyAgent per upstream URL — undici reuses the connection pool, which
+// is what gives us a stable upstream IP per user (single-IP static residential
+// entries) and keeps a warm channel for sequential calls.
+const agentCache = new Map<string, ProxyAgent>();
+
+function getOrCreateAgent(rawUrl: string): ProxyAgent {
+  let agent = agentCache.get(rawUrl);
+  if (!agent) {
+    agent = new ProxyAgent(rawUrl);
+    agentCache.set(rawUrl, agent);
+  }
+  return agent;
+}
+
+/**
+ * Pinned per-user upstream IPs. Each line of proxies.txt is
+ * `host:port:user:pass` (the standard webshare export format). On startup
+ * we parse the list once; each userId hashes to a fixed entry, so the
+ * same user always exits via the same residential IP — important because
+ * SXM ties session continuity (especially the playback key endpoint) to
+ * the issuing IP.
+ *
+ * Falls back to PROXY_URL when proxies.txt is absent or empty.
+ */
+let proxyListCache: string[] | null = null;
+
+function loadProxyList(): string[] {
+  if (proxyListCache !== null) return proxyListCache;
+  try {
+    const raw = readFileSync(resolve(process.cwd(), 'proxies.txt'), 'utf8');
+    proxyListCache = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+      .map((line) => {
+        const parts = line.split(':');
+        if (parts.length !== 4) return '';
+        const [host, port, user, pass] = parts;
+        return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+      })
+      .filter(Boolean);
+  } catch {
+    proxyListCache = [];
+  }
+  return proxyListCache;
+}
+
+function pickProxyForUser(userId: string, list: string[]): string {
+  // Stable hash so the same user always lands on the same proxy.
+  const digest = createHash('sha256').update(userId).digest();
+  const idx = digest.readUInt32BE(0) % list.length;
+  return list[idx];
 }
 
 function newProxySessionId(): string {
@@ -61,9 +120,17 @@ function withProxySession<T>(_sessionId: string, fn: () => Promise<T>): Promise<
 }
 
 function getProxy(): ResolvedProxy | null {
-  const raw = process.env.PROXY_URL?.trim();
-  if (!raw) return null;
-  return buildProxy(raw);
+  // Prefer the per-user pinned proxy from proxies.txt when a user is
+  // in scope; fall back to PROXY_URL (rotating) otherwise.
+  const list = loadProxyList();
+  const userId = getCurrentSiriusXmUserId();
+  if (list.length && userId) {
+    const url = pickProxyForUser(userId, list);
+    return buildProxy(url, getOrCreateAgent(url));
+  }
+  const envUrl = process.env.PROXY_URL?.trim();
+  if (!envUrl) return null;
+  return buildProxy(envUrl, getOrCreateAgent(envUrl));
 }
 
 /**
