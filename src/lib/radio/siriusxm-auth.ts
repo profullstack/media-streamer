@@ -14,6 +14,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { ProxyAgent } from 'undici';
 import {
   getCredentials,
   saveCredentials,
@@ -21,6 +22,39 @@ import {
 } from './siriusxm-credentials';
 
 const SXM_API_BASE = 'https://api.edge-gateway.siriusxm.com';
+
+interface ResolvedProxy {
+  url: URL;
+  agent: ProxyAgent;
+  puppeteerArg: string;
+  username: string;
+  password: string;
+}
+
+let proxyCache: ResolvedProxy | null | undefined;
+
+/**
+ * Outbound HTTP proxy for SXM calls (PROXY_URL env). When set, every
+ * api.edge-gateway request and the headless-browser navigation route
+ * through it. Webshare's residential rotate endpoint sits at this URL.
+ */
+function getProxy(): ResolvedProxy | null {
+  if (proxyCache !== undefined) return proxyCache;
+  const raw = process.env.PROXY_URL?.trim();
+  if (!raw) {
+    proxyCache = null;
+    return null;
+  }
+  const url = new URL(raw);
+  proxyCache = {
+    url,
+    agent: new ProxyAgent(raw),
+    puppeteerArg: `--proxy-server=${url.protocol}//${url.host}`,
+    username: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+  };
+  return proxyCache;
+}
 
 const COMMON_HEADERS: Record<string, string> = {
   'User-Agent':
@@ -114,11 +148,13 @@ async function sxmCall<T>(path: string, opts: SxmRequestOpts = {}): Promise<SxmR
   if (opts.bearer) headers.Authorization = `Bearer ${opts.bearer}`;
   if (opts.cookies) headers.Cookie = opts.cookies;
 
+  const proxy = getProxy();
   const res = await fetch(url, {
     method,
     headers,
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
-  });
+    ...(proxy ? { dispatcher: proxy.agent } : {}),
+  } as RequestInit);
 
   const raw = await res.text();
   let data: unknown = null;
@@ -239,12 +275,22 @@ function setCookieNames(setCookie: string[]): string[] {
  */
 async function mintDeviceGrantViaBrowser(): Promise<DeviceGrant> {
   const { default: puppeteer } = await import('puppeteer');
+  const proxy = getProxy();
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      ...(proxy ? [proxy.puppeteerArg] : []),
+    ],
   });
   try {
     const page = await browser.newPage();
+    if (proxy) {
+      await page.authenticate({ username: proxy.username, password: proxy.password });
+    }
     await page.setUserAgent(COMMON_HEADERS['User-Agent']);
     await page.setViewport({ width: 1280, height: 800 });
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
@@ -408,10 +454,15 @@ async function bootstrapDeviceGrantViaFetch(browserErr: Error): Promise<DeviceGr
 
   const failureLog: string[] = [];
 
+  const proxy = getProxy();
+
   for (const attempt of attempts) {
     let res: Response;
     try {
-      res = await fetch(attempt.url, attempt.init);
+      res = await fetch(attempt.url, {
+        ...attempt.init,
+        ...(proxy ? { dispatcher: proxy.agent } : {}),
+      } as RequestInit);
     } catch (err) {
       failureLog.push(`${attempt.label}: fetch threw ${(err as Error).message}`);
       continue;

@@ -6,8 +6,35 @@ import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { ProxyAgent } from 'undici';
 
 export const SXM_API_BASE = 'https://api.edge-gateway.siriusxm.com';
+
+interface ResolvedProxy {
+  agent: ProxyAgent;
+  puppeteerArg: string;
+  username: string;
+  password: string;
+}
+
+let proxyCache: ResolvedProxy | null | undefined;
+
+function getProxy(): ResolvedProxy | null {
+  if (proxyCache !== undefined) return proxyCache;
+  const raw = process.env.PROXY_URL?.trim() || loadDotenv()['PROXY_URL']?.trim();
+  if (!raw) {
+    proxyCache = null;
+    return null;
+  }
+  const url = new URL(raw);
+  proxyCache = {
+    agent: new ProxyAgent(raw),
+    puppeteerArg: `--proxy-server=${url.protocol}//${url.host}`,
+    username: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+  };
+  return proxyCache;
+}
 
 export const SXM_COMMON_HEADERS: Record<string, string> = {
   'User-Agent':
@@ -141,13 +168,27 @@ export function loadDeviceGrantFromEnv(envPath?: string): DeviceGrant {
  */
 export async function mintDeviceGrantViaBrowser(opts: { debug?: boolean } = {}): Promise<DeviceGrant> {
   const { default: puppeteer } = await import('puppeteer');
-  if (opts.debug) console.error('[sxm-auth] launching headless browser to mint DEVICE_GRANT');
+  const proxy = getProxy();
+  if (opts.debug) {
+    console.error(
+      `[sxm-auth] launching headless browser to mint DEVICE_GRANT ${proxy ? '(via proxy)' : '(direct)'}`
+    );
+  }
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      ...(proxy ? [proxy.puppeteerArg] : []),
+    ],
   });
   try {
     const page = await browser.newPage();
+    if (proxy) {
+      await page.authenticate({ username: proxy.username, password: proxy.password });
+    }
     await page.setUserAgent(SXM_COMMON_HEADERS['User-Agent']);
     await page.setViewport({ width: 1280, height: 800 });
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
@@ -237,11 +278,13 @@ async function sxmRequest(
   if (opts.bearer) headers.Authorization = `Bearer ${opts.bearer}`;
   if (opts.cookies) headers.Cookie = opts.cookies;
 
+  const proxy = getProxy();
   const res = await fetch(url, {
     method: opts.method,
     headers,
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
-  });
+    ...(proxy ? { dispatcher: proxy.agent } : {}),
+  } as RequestInit);
 
   const raw = await res.text();
   let data: unknown = null;
