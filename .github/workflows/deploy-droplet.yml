@@ -46,6 +46,20 @@ jobs:
         run: |
           printf '%s\n' "$ENV_FILE_CONTENT" > .env
 
+      - name: Write proxies.txt
+        env:
+          PROXIES_LIST: ${{ secrets.PROXIES_LIST }}
+        run: |
+          # Static residential proxy list (host:port:user:pass per line) used
+          # by the SiriusXM client to pin one upstream IP per user. File is
+          # gitignored locally; rsync ships it to the droplet alongside .env.
+          if [ -n "$PROXIES_LIST" ]; then
+            printf '%s\n' "$PROXIES_LIST" > proxies.txt
+            echo "wrote proxies.txt ($(wc -l < proxies.txt) lines)"
+          else
+            echo "PROXIES_LIST secret is empty; skipping proxies.txt"
+          fi
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh

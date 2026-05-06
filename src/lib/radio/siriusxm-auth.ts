@@ -84,22 +84,39 @@ let proxyListCache: string[] | null = null;
 
 function loadProxyList(): string[] {
   if (proxyListCache !== null) return proxyListCache;
-  try {
-    const raw = readFileSync(resolve(process.cwd(), 'proxies.txt'), 'utf8');
-    proxyListCache = raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'))
-      .map((line) => {
-        const parts = line.split(':');
-        if (parts.length !== 4) return '';
-        const [host, port, user, pass] = parts;
-        return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
-      })
-      .filter(Boolean);
-  } catch {
-    proxyListCache = [];
+  // The runtime cwd in production is .next/standalone, but the deploy
+  // ships proxies.txt to the project root. Try both, plus an explicit
+  // override env var.
+  const candidates = [
+    process.env.PROXIES_FILE,
+    resolve(process.cwd(), 'proxies.txt'),
+    resolve(process.cwd(), '..', '..', 'proxies.txt'),
+  ].filter((p): p is string => Boolean(p));
+
+  let raw: string | null = null;
+  for (const path of candidates) {
+    try {
+      raw = readFileSync(path, 'utf8');
+      break;
+    } catch {
+      // try next candidate
+    }
   }
+  if (!raw) {
+    proxyListCache = [];
+    return proxyListCache;
+  }
+  proxyListCache = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .map((line) => {
+      const parts = line.split(':');
+      if (parts.length !== 4) return '';
+      const [host, port, user, pass] = parts;
+      return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+    })
+    .filter(Boolean);
   return proxyListCache;
 }
 
