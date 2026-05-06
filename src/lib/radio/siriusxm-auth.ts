@@ -350,12 +350,99 @@ function extractSession(reply: SxmReply<unknown>, jar: string): SessionResult {
  * Stage 1 of OTP login: anonymous session -> identity status -> otp/initiate.
  * Returns the in-flight state callers must keep until the user types the OTP.
  */
-export async function startOtpLogin(email: string): Promise<{
+function parseDeviceGrantString(raw: string): DeviceGrant {
+  let str = raw.trim();
+  if (str.startsWith('%')) {
+    try {
+      str = decodeURIComponent(str);
+    } catch {
+      // fall through
+    }
+  }
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.slice(1, -1);
+  }
+  let parsed: DeviceGrant;
+  try {
+    parsed = JSON.parse(str) as DeviceGrant;
+  } catch (err) {
+    throw new SiriusXmAuthError(
+      `DEVICE_GRANT is not valid JSON: ${(err as Error).message}`,
+      400
+    );
+  }
+  if (!parsed?.grant) {
+    throw new SiriusXmAuthError('DEVICE_GRANT JSON has no .grant field', 400);
+  }
+  return parsed;
+}
+
+/**
+ * Try identity-status and otp-initiate without any bearer. SXM's API may
+ * not strictly require auth on these "is this email registered / send me a
+ * code" calls — only the browser ships a bearer because it has one.
+ *
+ * Returns null if SXM does require auth (so the caller falls back to the
+ * device-grant + anonymous-session bootstrap).
+ */
+async function tryUnauthenticatedOtpStart(
+  email: string
+): Promise<{ identityId: string; cookies: string } | null> {
+  let jar = '';
+
+  const status = await sxmCall<{ identityId?: string }>('identity/v1/identities/status', {
+    method: 'GET',
+    query: { handle: email },
+    cookies: jar,
+  });
+  if (status.status === 401 || status.status === 403) return null;
+  if (status.status >= 400) {
+    throw new SiriusXmAuthError(`identity status failed: ${status.status}`, status.status);
+  }
+  jar = mergeCookies(jar, status.setCookie);
+  const identityId = status.data?.identityId;
+  if (!identityId) {
+    throw new SiriusXmAuthError('email not recognized by SiriusXM', 404);
+  }
+
+  const initiate = await sxmCall('otp/v1/otp/initiate', {
+    method: 'POST',
+    cookies: jar,
+    body: {
+      identityId,
+      otpOption: 'EMAIL',
+      otpContext: 'sign-in',
+      language: 'en-US',
+    },
+  });
+  if (initiate.status === 401 || initiate.status === 403) return null;
+  if (initiate.status >= 400) {
+    throw new SiriusXmAuthError(`otp initiate failed: ${initiate.status}`, initiate.status);
+  }
+  jar = mergeCookies(jar, initiate.setCookie);
+
+  return { identityId, cookies: jar };
+}
+
+export async function startOtpLogin(
+  email: string,
+  pastedDeviceGrant?: string
+): Promise<{
   identityId: string;
   anonAccessToken: string;
   cookies: string;
 }> {
-  const deviceGrant = await bootstrapDeviceGrant();
+  // Optimistic: maybe the email-lookup + send-code steps don't need auth.
+  if (!pastedDeviceGrant) {
+    const unauth = await tryUnauthenticatedOtpStart(email);
+    if (unauth) {
+      return { identityId: unauth.identityId, anonAccessToken: '', cookies: unauth.cookies };
+    }
+  }
+
+  const deviceGrant = pastedDeviceGrant
+    ? parseDeviceGrantString(pastedDeviceGrant)
+    : await bootstrapDeviceGrant();
   let jar = '';
 
   const anon = await sxmCall<{ session?: Record<string, unknown> }>(
@@ -414,9 +501,13 @@ export async function completeOtpLogin(
 ): Promise<SessionResult> {
   let jar = state.cookies;
 
+  // Empty string means startOtpLogin succeeded on the unauthenticated path;
+  // pass undefined (no Authorization header) instead of "Bearer ".
+  const bearer = state.anonAccessToken || undefined;
+
   const redeem = await sxmCall<{ grant?: string }>('otp/v1/otp/redeem', {
     method: 'PUT',
-    bearer: state.anonAccessToken,
+    bearer,
     cookies: jar,
     body: { identityId: state.identityId, otp },
   });

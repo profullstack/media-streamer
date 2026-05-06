@@ -15,6 +15,7 @@ import { putPendingLogin } from './pending-store';
 
 interface Body {
   email?: string;
+  deviceGrant?: string;
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -35,8 +36,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
   }
 
+  const pastedDeviceGrant = body.deviceGrant?.trim() || undefined;
+
   try {
-    const state = await startOtpLogin(email);
+    const state = await startOtpLogin(email, pastedDeviceGrant);
     putPendingLogin(user.id, { ...state, email });
     return NextResponse.json({ ok: true });
   } catch (error) {
