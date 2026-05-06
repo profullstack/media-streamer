@@ -197,10 +197,18 @@ export async function mintDeviceGrantViaBrowser(opts: { debug?: boolean } = {}):
     await page.setViewport({ width: 1280, height: 800 });
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
-    await page.goto('https://www.siriusxm.com/', {
-      waitUntil: 'networkidle2',
-      timeout: 45_000,
-    });
+    // Don't wait for full network idle — SXM trackers/ads never settle,
+    // especially over a residential proxy. domcontentloaded is enough for
+    // the bootstrap script to run and set DEVICE_GRANT. Fall through to
+    // cookie polling even if nav times out.
+    try {
+      await page.goto('https://www.siriusxm.com/', {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+    } catch {
+      // continue to cookie poll regardless
+    }
 
     const deadline = Date.now() + 30_000;
     let lastSnapshot: Array<{ name: string; domain?: string }> = [];

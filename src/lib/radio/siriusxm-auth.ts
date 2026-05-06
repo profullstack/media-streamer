@@ -369,13 +369,19 @@ async function mintDeviceGrantViaBrowserInner(): Promise<DeviceGrant> {
     ];
 
     for (const url of candidates) {
+      // Don't wait for full page idle — SXM has trackers/ads that never
+      // settle, especially through a residential proxy. domcontentloaded
+      // fires once the bootstrap scripts can run, which is all we need.
+      // Even on timeout, fall through to cookie polling — the cookie may
+      // have been set during the partial load.
       try {
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 45_000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       } catch {
-        continue;
+        // navigation may have timed out or aborted; try the cookie poll
+        // anyway in case JS already wrote DEVICE_GRANT
       }
 
-      const deadline = Date.now() + 15_000;
+      const deadline = Date.now() + 25_000;
       while (Date.now() < deadline) {
         const cookies = await page.cookies(
           'https://www.siriusxm.com',
