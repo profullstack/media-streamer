@@ -31,29 +31,58 @@ interface ResolvedProxy {
   password: string;
 }
 
-let proxyCache: ResolvedProxy | null | undefined;
-
 /**
  * Outbound HTTP proxy for SXM calls (PROXY_URL env). When set, every
  * api.edge-gateway request and the headless-browser navigation route
  * through it. Webshare's residential rotate endpoint sits at this URL.
+ *
+ * A short random sessionId is appended to the username so all calls within
+ * a single mint or login attempt share the same upstream IP — SXM's flow
+ * spans 6 sequential calls, and rotating IPs mid-flow gets the request
+ * flagged as fraudulent.
  */
-function getProxy(): ResolvedProxy | null {
-  if (proxyCache !== undefined) return proxyCache;
-  const raw = process.env.PROXY_URL?.trim();
-  if (!raw) {
-    proxyCache = null;
-    return null;
-  }
-  const url = new URL(raw);
-  proxyCache = {
+function buildProxy(rawUrl: string, sessionId: string): ResolvedProxy {
+  const url = new URL(rawUrl);
+  const baseUser = decodeURIComponent(url.username);
+  const sessionUser = `${baseUser}-${sessionId}`;
+  url.username = encodeURIComponent(sessionUser);
+  const sessionUrl = url.toString();
+  return {
     url,
-    agent: new ProxyAgent(raw),
+    agent: new ProxyAgent(sessionUrl),
     puppeteerArg: `--proxy-server=${url.protocol}//${url.host}`,
-    username: decodeURIComponent(url.username),
+    username: sessionUser,
     password: decodeURIComponent(url.password),
   };
-  return proxyCache;
+}
+
+const proxySessionStorage = new AsyncLocalStorage<string>();
+
+function newProxySessionId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Run `fn` with a sticky proxy session. Every getProxy() call inside the
+ * function (including across awaited deep calls) returns a ProxyAgent
+ * pinned to the same Webshare upstream IP. Use this across the full OTP
+ * flow or device-grant mint, where sequential calls must look like one
+ * coherent client to SXM.
+ */
+function withProxySession<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+  return proxySessionStorage.run(sessionId, fn);
+}
+
+function getProxy(): ResolvedProxy | null {
+  const raw = process.env.PROXY_URL?.trim();
+  if (!raw) return null;
+  const sid = proxySessionStorage.getStore();
+  if (!sid) {
+    // No session in scope — give a one-shot session so each lone call
+    // still goes through the proxy, just not pinned to a peer.
+    return buildProxy(raw, newProxySessionId());
+  }
+  return buildProxy(raw, sid);
 }
 
 const COMMON_HEADERS: Record<string, string> = {
@@ -274,6 +303,10 @@ function setCookieNames(setCookie: string[]): string[] {
  * logins reuse the same grant until ~10min before its expiry.
  */
 async function mintDeviceGrantViaBrowser(): Promise<DeviceGrant> {
+  return withProxySession(newProxySessionId(), () => mintDeviceGrantViaBrowserInner());
+}
+
+async function mintDeviceGrantViaBrowserInner(): Promise<DeviceGrant> {
   const { default: puppeteer } = await import('puppeteer');
   const proxy = getProxy();
   const browser = await puppeteer.launch({
@@ -296,14 +329,24 @@ async function mintDeviceGrantViaBrowser(): Promise<DeviceGrant> {
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
     // Capture every api.edge-gateway request/response so we can tell whether
-    // the device-grant XHR is firing and how SXM responds.
+    // the device-grant XHR is firing and how SXM responds. Capture the body
+    // on /device/v1/* failures so the 403 reason is visible.
     const apiLog: string[] = [];
-    page.on('response', (res) => {
+    page.on('response', async (res) => {
       const url = res.url();
-      if (url.includes('api.edge-gateway.siriusxm.com')) {
-        const path = url.replace(/^https:\/\/api\.edge-gateway\.siriusxm\.com/, '');
-        apiLog.push(`${res.status()} ${path.slice(0, 120)}`);
+      if (!url.includes('api.edge-gateway.siriusxm.com')) return;
+      const path = url.replace(/^https:\/\/api\.edge-gateway\.siriusxm\.com/, '');
+      const status = res.status();
+      let extra = '';
+      if (status >= 400 && path.startsWith('/device/')) {
+        try {
+          const body = await res.text();
+          extra = ` body=${body.slice(0, 200)}`;
+        } catch {
+          // ignore
+        }
       }
+      apiLog.push(`${status} ${path.slice(0, 120)}${extra}`);
     });
 
     // The web player is the surface that actually requires DEVICE_GRANT;
@@ -607,12 +650,34 @@ export async function startOtpLogin(
   identityId: string;
   anonAccessToken: string;
   cookies: string;
+  proxySessionId: string;
+}> {
+  const proxySessionId = newProxySessionId();
+  return withProxySession(proxySessionId, () =>
+    startOtpLoginInner(email, pastedDeviceGrant, proxySessionId)
+  );
+}
+
+async function startOtpLoginInner(
+  email: string,
+  pastedDeviceGrant: string | undefined,
+  proxySessionId: string
+): Promise<{
+  identityId: string;
+  anonAccessToken: string;
+  cookies: string;
+  proxySessionId: string;
 }> {
   // Optimistic: maybe the email-lookup + send-code steps don't need auth.
   if (!pastedDeviceGrant) {
     const unauth = await tryUnauthenticatedOtpStart(email);
     if (unauth) {
-      return { identityId: unauth.identityId, anonAccessToken: '', cookies: unauth.cookies };
+      return {
+        identityId: unauth.identityId,
+        anonAccessToken: '',
+        cookies: unauth.cookies,
+        proxySessionId,
+      };
     }
   }
 
@@ -665,13 +730,22 @@ export async function startOtpLogin(
   }
   jar = mergeCookies(jar, initiate.setCookie);
 
-  return { identityId, anonAccessToken, cookies: jar };
+  return { identityId, anonAccessToken, cookies: jar, proxySessionId };
 }
 
 /**
  * Stage 2 of OTP login: redeem OTP -> identity grant -> authenticated session.
  */
 export async function completeOtpLogin(
+  state: { identityId: string; anonAccessToken: string; cookies: string; proxySessionId?: string },
+  otp: string
+): Promise<SessionResult> {
+  return withProxySession(state.proxySessionId ?? newProxySessionId(), () =>
+    completeOtpLoginInner(state, otp)
+  );
+}
+
+async function completeOtpLoginInner(
   state: { identityId: string; anonAccessToken: string; cookies: string },
   otp: string
 ): Promise<SessionResult> {

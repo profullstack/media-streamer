@@ -49,6 +49,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         identityId: pending.identityId,
         anonAccessToken: pending.anonAccessToken,
         cookies: pending.cookies,
+        proxySessionId: pending.proxySessionId,
       },
       otp
     );

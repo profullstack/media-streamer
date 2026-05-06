@@ -10,6 +10,7 @@ interface PendingLogin {
   identityId: string;
   anonAccessToken: string;
   cookies: string;
+  proxySessionId?: string;
   /** Unix ms */
   expiresAt: number;
 }
@@ -27,7 +28,13 @@ function purgeExpired(): void {
 
 export function putPendingLogin(
   userId: string,
-  data: { email: string; identityId: string; anonAccessToken: string; cookies: string }
+  data: {
+    email: string;
+    identityId: string;
+    anonAccessToken: string;
+    cookies: string;
+    proxySessionId?: string;
+  }
 ): void {
   purgeExpired();
   store.set(userId, { ...data, expiresAt: Date.now() + TTL_MS });
