@@ -10,6 +10,7 @@ import {
   loadDotenv,
   refreshAuthSession,
   resolveDeviceGrant,
+  updateDotenv,
   type SessionResult,
 } from "./sxm-auth";
 
@@ -135,7 +136,14 @@ function parseArgs(argv: string[]): Args {
 async function resolveSession(args: Args): Promise<SessionResult> {
   if (args.email) {
     const deviceGrant = await resolveDeviceGrant({ debug: args.debug });
-    return emailOtpLogin(args.email, deviceGrant, { debug: args.debug });
+    const session = await emailOtpLogin(args.email, deviceGrant, { debug: args.debug });
+    // Persist so future runs without --email reuse the session.
+    updateDotenv({
+      SIRIUSXM_TOKEN: session.accessToken,
+      SIRIUSXM_SESSION_COOKIES: session.cookies,
+    });
+    console.log("(saved SIRIUSXM_TOKEN + SIRIUSXM_SESSION_COOKIES to .env)");
+    return session;
   }
 
   if (args.bearer) {
