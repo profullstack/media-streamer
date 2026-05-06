@@ -1,7 +1,7 @@
 # IPTV Cache Worker Dockerfile
 # Lightweight container for background IPTV playlist caching
 
-FROM node:22-alpine
+FROM node:24-alpine
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
