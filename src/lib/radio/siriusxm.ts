@@ -222,14 +222,35 @@ function pickText(t?: { default?: string; short?: string; medium?: string; long?
   return t?.default || t?.short || t?.medium || t?.long || '';
 }
 
-/** SXM image CDN base — `images.url` fields are paths relative to this. */
-const SXM_IMAGE_BASE = 'https://images.siriusxm.com/';
+/**
+ * SXM image CDN. Each rendered URL is base64(JSON{key, edits}) appended to
+ * the base — the CDN reads the relative `key` and applies the `edits`
+ * (format + resize). Without this transformation, the relative paths
+ * returned by the API have no public origin we can hit.
+ */
+const SXM_IMAGE_CDN = 'https://imgsrv-sxm-prod-device.streaming.siriusxm.com/';
+const SXM_IMAGE_SIZE = 300;
+
+function imageFormatFromKey(key: string): 'jpeg' | 'png' {
+  return /\.png(\?|$)/i.test(key) ? 'png' : 'jpeg';
+}
 
 function absolutizeImage(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
+  // Already-absolute URLs (rare in this API but possible) pass through.
   if (/^https?:\/\//.test(raw)) return raw;
   if (raw.startsWith('//')) return `https:${raw}`;
-  return `${SXM_IMAGE_BASE}${raw.replace(/^\/+/, '')}`;
+
+  const key = raw.replace(/^\/+/, '');
+  const payload = JSON.stringify({
+    key,
+    edits: [
+      { format: { type: imageFormatFromKey(key) } },
+      { resize: { width: SXM_IMAGE_SIZE, height: SXM_IMAGE_SIZE } },
+    ],
+  });
+  const encoded = Buffer.from(payload, 'utf8').toString('base64');
+  return `${SXM_IMAGE_CDN}${encoded}`;
 }
 
 function findUrl(node: unknown): string | undefined {
