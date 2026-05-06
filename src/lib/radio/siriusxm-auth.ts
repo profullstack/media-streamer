@@ -36,53 +36,34 @@ interface ResolvedProxy {
  * api.edge-gateway request and the headless-browser navigation route
  * through it. Webshare's residential rotate endpoint sits at this URL.
  *
- * A short random sessionId is appended to the username so all calls within
- * a single mint or login attempt share the same upstream IP — SXM's flow
- * spans 6 sequential calls, and rotating IPs mid-flow gets the request
- * flagged as fraudulent.
+ * Username is used verbatim — Webshare's residential-rotate account
+ * rejects sticky-session suffixes (returns 407). If we ever need
+ * sticky sessions we'll need a Webshare plan that supports them.
  */
-function buildProxy(rawUrl: string, sessionId: string): ResolvedProxy {
+function buildProxy(rawUrl: string): ResolvedProxy {
   const url = new URL(rawUrl);
-  const baseUser = decodeURIComponent(url.username);
-  const sessionUser = `${baseUser}-${sessionId}`;
-  url.username = encodeURIComponent(sessionUser);
-  const sessionUrl = url.toString();
   return {
     url,
-    agent: new ProxyAgent(sessionUrl),
+    agent: new ProxyAgent(rawUrl),
     puppeteerArg: `--proxy-server=${url.protocol}//${url.host}`,
-    username: sessionUser,
+    username: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
   };
 }
-
-const proxySessionStorage = new AsyncLocalStorage<string>();
 
 function newProxySessionId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-/**
- * Run `fn` with a sticky proxy session. Every getProxy() call inside the
- * function (including across awaited deep calls) returns a ProxyAgent
- * pinned to the same Webshare upstream IP. Use this across the full OTP
- * flow or device-grant mint, where sequential calls must look like one
- * coherent client to SXM.
- */
-function withProxySession<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
-  return proxySessionStorage.run(sessionId, fn);
+/** No-op while sticky sessions are disabled. Kept so callers don't have to change. */
+function withProxySession<T>(_sessionId: string, fn: () => Promise<T>): Promise<T> {
+  return fn();
 }
 
 function getProxy(): ResolvedProxy | null {
   const raw = process.env.PROXY_URL?.trim();
   if (!raw) return null;
-  const sid = proxySessionStorage.getStore();
-  if (!sid) {
-    // No session in scope — give a one-shot session so each lone call
-    // still goes through the proxy, just not pinned to a peer.
-    return buildProxy(raw, newProxySessionId());
-  }
-  return buildProxy(raw, sid);
+  return buildProxy(raw);
 }
 
 /**
