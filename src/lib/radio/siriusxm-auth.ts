@@ -199,23 +199,8 @@ export interface SessionResult {
   cookies: string;
 }
 
-/**
- * Mint a fresh DEVICE_GRANT by hitting siriusxm.com's homepage — same thing
- * a browser does on first visit. Returns the parsed grant from the Set-Cookie
- * header. No env var, no per-user state, no global shared device id.
- */
-async function bootstrapDeviceGrant(): Promise<DeviceGrant> {
-  const res = await fetch('https://www.siriusxm.com/', {
-    method: 'GET',
-    headers: {
-      'User-Agent': COMMON_HEADERS['User-Agent'],
-      Accept: 'text/html,application/xhtml+xml',
-      'Accept-Language': COMMON_HEADERS['Accept-Language'],
-    },
-    redirect: 'follow',
-  });
-
-  for (const cookie of getSetCookieArray(res.headers)) {
+function parseDeviceGrantCookie(setCookie: string[]): DeviceGrant | null {
+  for (const cookie of setCookie) {
     const m = cookie.match(/^DEVICE_GRANT=([^;]+)/);
     if (!m) continue;
     let raw: string;
@@ -228,12 +213,112 @@ async function bootstrapDeviceGrant(): Promise<DeviceGrant> {
       const parsed = JSON.parse(raw) as DeviceGrant;
       if (parsed?.grant) return parsed;
     } catch {
-      // try next Set-Cookie
+      // continue
     }
+  }
+  return null;
+}
+
+function setCookieNames(setCookie: string[]): string[] {
+  return setCookie
+    .map((c) => {
+      const eq = c.indexOf('=');
+      return eq > 0 ? c.slice(0, eq) : c;
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Mint a fresh DEVICE_GRANT.
+ *
+ * Strategy (in order):
+ *   1. GET https://www.siriusxm.com/  — what a browser does on first visit;
+ *      may set DEVICE_GRANT via Set-Cookie.
+ *   2. POST /device/v1/grants  — common REST convention for "create".
+ *   3. POST /device/v1/grant   — singular variant.
+ *
+ * On total failure, surfaces what cookies were returned so we can see the
+ * actual bootstrap endpoint name and fix this.
+ */
+async function bootstrapDeviceGrant(): Promise<DeviceGrant> {
+  const attempts: Array<{ label: string; url: string; init: RequestInit }> = [
+    {
+      label: 'GET siriusxm.com',
+      url: 'https://www.siriusxm.com/',
+      init: {
+        method: 'GET',
+        headers: {
+          'User-Agent': COMMON_HEADERS['User-Agent'],
+          Accept: 'text/html,application/xhtml+xml',
+          'Accept-Language': COMMON_HEADERS['Accept-Language'],
+        },
+        redirect: 'follow',
+      },
+    },
+    {
+      label: 'POST /device/v1/grants',
+      url: `${SXM_API_BASE}/device/v1/grants`,
+      init: {
+        method: 'POST',
+        headers: {
+          ...COMMON_HEADERS,
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: '{}',
+      },
+    },
+    {
+      label: 'POST /device/v1/grant',
+      url: `${SXM_API_BASE}/device/v1/grant`,
+      init: {
+        method: 'POST',
+        headers: {
+          ...COMMON_HEADERS,
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: '{}',
+      },
+    },
+  ];
+
+  const failureLog: string[] = [];
+
+  for (const attempt of attempts) {
+    let res: Response;
+    try {
+      res = await fetch(attempt.url, attempt.init);
+    } catch (err) {
+      failureLog.push(`${attempt.label}: fetch threw ${(err as Error).message}`);
+      continue;
+    }
+
+    const setCookie = getSetCookieArray(res.headers);
+    const fromCookie = parseDeviceGrantCookie(setCookie);
+    if (fromCookie) return fromCookie;
+
+    // Some endpoints may return the grant in the JSON body.
+    let parsedFromBody: DeviceGrant | null = null;
+    try {
+      const text = await res.clone().text();
+      if (text.startsWith('{')) {
+        const json = JSON.parse(text) as Record<string, unknown>;
+        const top = json as unknown as DeviceGrant;
+        const nested = json.deviceGrant as DeviceGrant | undefined;
+        const candidate = top.grant && top.refreshGrant ? top : (nested ?? null);
+        if (candidate?.grant) parsedFromBody = candidate;
+      }
+    } catch {
+      // ignore
+    }
+    if (parsedFromBody) return parsedFromBody;
+
+    failureLog.push(
+      `${attempt.label}: HTTP ${res.status}, cookies=[${setCookieNames(setCookie).join(', ')}]`
+    );
   }
 
   throw new SiriusXmAuthError(
-    `failed to bootstrap DEVICE_GRANT from siriusxm.com homepage (HTTP ${res.status})`,
+    `failed to bootstrap DEVICE_GRANT. Tried: ${failureLog.join(' | ')}`,
     502
   );
 }

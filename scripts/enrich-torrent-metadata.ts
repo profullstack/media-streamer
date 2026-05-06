@@ -32,7 +32,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Load environment variables from .env file
 config();
-import type { Database } from '../src/lib/supabase/types';
+import type { Database, UpdateTables } from '../src/lib/supabase/types';
 import {
   enrichTorrentMetadata,
   detectContentType,
@@ -346,7 +346,7 @@ async function updateTorrentMetadata(
   result: EnrichmentResult,
   dryRun: boolean
 ): Promise<boolean> {
-  const updateData: Record<string, unknown> = {
+  const updateData: UpdateTables<'bt_torrents'> = {
     content_type: result.contentType,
     metadata_fetched_at: new Date().toISOString(),
   };
@@ -373,7 +373,7 @@ async function updateTorrentMetadata(
     updateData.director = result.director;
   }
   if (result.actors) {
-    updateData.actors = result.actors;
+    updateData.actors = result.actors.split(',').map((s) => s.trim()).filter(Boolean);
   }
 
   if (dryRun) {
