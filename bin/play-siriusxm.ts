@@ -262,7 +262,7 @@ function categoryQuery(cat: Cat): string {
       offset: {
         containerLimit: 6,
         containerOffset: 0,
-        setItemsLimit: 50,
+        setItemsLimit: 500,
       },
     },
     deviceCapabilities: {

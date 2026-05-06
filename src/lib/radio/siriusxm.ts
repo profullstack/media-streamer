@@ -113,7 +113,7 @@ function categoryQuery(cat: SiriusXmCategory): string {
       },
     },
     pagination: {
-      offset: { containerLimit: 6, containerOffset: 0, setItemsLimit: 50 },
+      offset: { containerLimit: 6, containerOffset: 0, setItemsLimit: 500 },
     },
     deviceCapabilities: { supportsDownloads: false },
     constraints: {
