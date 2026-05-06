@@ -249,34 +249,59 @@ async function mintDeviceGrantViaBrowser(): Promise<DeviceGrant> {
     await page.setViewport({ width: 1280, height: 800 });
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
-    // Don't block resources — some bootstrap scripts wait on assets/fonts.
-    // The mint is a one-shot at login time; latency is acceptable.
-    await page.goto('https://www.siriusxm.com/', {
-      waitUntil: 'networkidle2',
-      timeout: 45_000,
+    // Capture every api.edge-gateway request/response so we can tell whether
+    // the device-grant XHR is firing and how SXM responds.
+    const apiLog: string[] = [];
+    page.on('response', (res) => {
+      const url = res.url();
+      if (url.includes('api.edge-gateway.siriusxm.com')) {
+        const path = url.replace(/^https:\/\/api\.edge-gateway\.siriusxm\.com/, '');
+        apiLog.push(`${res.status()} ${path.slice(0, 120)}`);
+      }
     });
 
-    // Poll the CDP-level cookie store (sees HttpOnly cookies too) for up to
-    // 30s in case the bootstrap XHR hasn't returned yet.
-    const deadline = Date.now() + 30_000;
-    let lastSnapshot: Array<{ name: string; domain?: string }> = [];
-    while (Date.now() < deadline) {
-      const cookies = await page.cookies(
-        'https://www.siriusxm.com',
-        'https://siriusxm.com',
-        'https://api.edge-gateway.siriusxm.com'
-      );
-      lastSnapshot = cookies.map((c) => ({ name: c.name, domain: c.domain }));
-      const dg = cookies.find((c) => c.name === 'DEVICE_GRANT' && c.value);
-      if (dg) return parseDeviceGrantString(dg.value);
-      await new Promise((r) => setTimeout(r, 500));
+    // The web player is the surface that actually requires DEVICE_GRANT;
+    // the marketing homepage may not even bootstrap one.
+    const candidates = [
+      'https://www.siriusxm.com/player/',
+      'https://player.siriusxm.com/',
+      'https://www.siriusxm.com/listen',
+      'https://www.siriusxm.com/',
+    ];
+
+    for (const url of candidates) {
+      try {
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 45_000 });
+      } catch {
+        continue;
+      }
+
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        const cookies = await page.cookies(
+          'https://www.siriusxm.com',
+          'https://siriusxm.com',
+          'https://player.siriusxm.com',
+          'https://api.edge-gateway.siriusxm.com'
+        );
+        const dg = cookies.find((c) => c.name === 'DEVICE_GRANT' && c.value);
+        if (dg) return parseDeviceGrantString(dg.value);
+        await new Promise((r) => setTimeout(r, 500));
+      }
     }
 
-    const summary = lastSnapshot
+    const cookies = await page.cookies(
+      'https://www.siriusxm.com',
+      'https://siriusxm.com',
+      'https://player.siriusxm.com'
+    );
+    const cookieSummary = cookies
       .map((c) => `${c.name}@${c.domain ?? '?'}`)
       .join(', ');
+    const apiSummary = apiLog.length ? apiLog.slice(0, 12).join(' | ') : 'none';
     throw new SiriusXmAuthError(
-      `puppeteer: DEVICE_GRANT cookie not set within 30s. Cookies seen: [${summary || 'none'}]`,
+      `puppeteer: DEVICE_GRANT not minted across ${candidates.length} pages. ` +
+        `api.edge-gateway responses: [${apiSummary}]. Cookies: [${cookieSummary || 'none'}]`,
       502
     );
   } finally {
