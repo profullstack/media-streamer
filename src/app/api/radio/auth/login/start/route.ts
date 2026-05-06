@@ -50,11 +50,24 @@ export async function POST(request: NextRequest): Promise<Response> {
       );
     }
     console.error('[radio/auth/start]', error);
-    const detail =
-      error instanceof Error ? error.message : String(error);
+    const detail = describeError(error);
     return NextResponse.json(
       { error: `Failed to start SiriusXM login: ${detail.slice(0, 500)}` },
       { status: 500 }
     );
   }
+}
+
+function describeError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const parts = [err.message];
+  // undici/fetch wraps the real reason (DNS/refused/timeout) in `cause`.
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    const code = (cause as { code?: string }).code;
+    parts.push(`(cause: ${code ?? cause.name}: ${cause.message})`);
+  } else if (cause) {
+    parts.push(`(cause: ${String(cause)})`);
+  }
+  return parts.join(' ');
 }
