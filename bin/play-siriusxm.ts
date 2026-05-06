@@ -25,6 +25,7 @@ type Args = {
   player: Player;
   yes: boolean;
   debug: boolean;
+  dumpRaw: boolean;
   quality: "256" | "128" | "64" | "32";
 };
 
@@ -67,6 +68,7 @@ function parseArgs(argv: string[]): Args {
     player: "mpv",
     yes: false,
     debug: false,
+    dumpRaw: false,
     quality: "256",
   };
 
@@ -119,6 +121,11 @@ function parseArgs(argv: string[]): Args {
 
     if (arg === "--yes" || arg === "-y") {
       args.yes = true;
+      continue;
+    }
+
+    if (arg === "--dump-raw") {
+      args.dumpRaw = true;
       continue;
     }
 
@@ -363,6 +370,20 @@ function dedupeChannels(channels: Channel[]): Channel[] {
 async function fetchCategoryChannels(ref: SessionRef, args: Args): Promise<Channel[]> {
   const url = `${BROWSE_URL}?q=${encodeURIComponent(categoryQuery(args.cat))}`;
   const json = await sxmFetch(url, ref, {}, args.debug);
+
+  if (args.dumpRaw) {
+    const firstItem =
+      json?.page?.containers?.[0]?.sets?.[0]?.items?.[0] ??
+      json?.page?.containers?.find((c: any) => c?.sets?.[0]?.items?.[0])?.sets?.[0]?.items?.[0];
+    if (firstItem) {
+      console.error("=== first browse item (raw) ===");
+      console.error(JSON.stringify(firstItem, null, 2));
+      console.error("=== end raw ===");
+    } else {
+      console.error("[--dump-raw] no items found in browse response");
+    }
+    process.exit(0);
+  }
 
   const channels: Channel[] = [];
 
