@@ -694,9 +694,15 @@ async function startOtpLoginInner(
     throw new SiriusXmAuthError(`anonymous session failed: ${anon.status}`, anon.status);
   }
   jar = mergeCookies(jar, anon.setCookie);
-  const anonAccessToken = anon.data?.session?.accessToken as string | undefined;
+  // Flat or nested under .session — try both.
+  const anonRoot = anon.data as Record<string, unknown> | null;
+  const anonNested =
+    (anonRoot?.session as Record<string, unknown> | undefined) ?? anonRoot ?? {};
+  const anonAccessToken =
+    (anonNested.accessToken as string | undefined) ??
+    (anonNested.access_token as string | undefined);
   if (!anonAccessToken) {
-    throw new SiriusXmAuthError('no session.accessToken in anonymous response', 500);
+    throw new SiriusXmAuthError('no accessToken in anonymous response', 500);
   }
 
   const status = await sxmCall<{ identityId?: string }>('identity/v1/identities/status', {

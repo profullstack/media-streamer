@@ -377,10 +377,15 @@ export async function emailOtpLogin(
   );
   if (anon.status >= 400) throw new StepError('anonymous session', anon);
   jar = mergeCookies(jar, anon.setCookie);
-  const anonSession = (anon.data as { session?: Record<string, unknown> } | null)?.session;
-  const anonAccessToken = anonSession?.accessToken as string | undefined;
+  // Response may be flat ({accessToken: "..."}) or nested ({session: {accessToken: "..."}}).
+  const anonRoot = anon.data as Record<string, unknown> | null;
+  const anonNested =
+    (anonRoot?.session as Record<string, unknown> | undefined) ?? anonRoot ?? {};
+  const anonAccessToken =
+    (anonNested.accessToken as string | undefined) ??
+    (anonNested.access_token as string | undefined);
   if (!anonAccessToken) {
-    throw new Error(`no session.accessToken in anonymous response: ${anon.raw.slice(0, 500)}`);
+    throw new Error(`no accessToken in anonymous response: ${anon.raw.slice(0, 500)}`);
   }
 
   onProgress('[2/6] looking up identity by email');
