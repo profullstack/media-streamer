@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getRadioService } from '@/lib/radio';
+import { withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import { getActiveProfileId } from '@/lib/profiles';
 import type { RadioStation } from '@/lib/radio';
 
@@ -72,8 +73,13 @@ export async function GET(request: NextRequest): Promise<Response> {
       return NextResponse.json({ isFavorited });
     }
 
-    // Otherwise, return all favorites
-    const favorites = await service.getUserFavorites(profileId);
+    // Otherwise, return all favorites. Wrap in the SiriusXM user context
+    // so the lazy image backfill (inside getUserFavorites) can hit
+    // api.edge-gateway with the user's bearer when it needs to look up
+    // missing station_image_url values.
+    const favorites = await withSiriusXmUser(user.id, () =>
+      service.getUserFavorites(profileId)
+    );
 
     return NextResponse.json({
       favorites,
