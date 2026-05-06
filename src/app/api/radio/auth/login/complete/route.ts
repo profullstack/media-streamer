@@ -76,8 +76,10 @@ export async function POST(request: NextRequest): Promise<Response> {
       );
     }
     console.error('[radio/auth/complete]', error);
+    const detail =
+      error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Failed to complete SiriusXM login' },
+      { error: `Failed to complete SiriusXM login: ${detail.slice(0, 500)}` },
       { status: 500 }
     );
   }

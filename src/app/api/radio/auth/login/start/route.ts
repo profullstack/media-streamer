@@ -50,8 +50,10 @@ export async function POST(request: NextRequest): Promise<Response> {
       );
     }
     console.error('[radio/auth/start]', error);
+    const detail =
+      error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Failed to start SiriusXM login' },
+      { error: `Failed to start SiriusXM login: ${detail.slice(0, 500)}` },
       { status: 500 }
     );
   }
