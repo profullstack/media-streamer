@@ -24,6 +24,7 @@ const eslintConfig = [
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/static-components': 'warn',
       'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
 
       // General rules - allow console.log for debugging
       'no-console': 'off',
