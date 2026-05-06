@@ -160,15 +160,23 @@ async function sxmFetchOnce(url: string, init: RequestInit): Promise<Response> {
   } as RequestInit;
 
   // Webshare residential rotates IPs per request; some land on peers SXM
-  // RST's at TLS time. Retry transient network failures up to 3x.
+  // RST's at TLS time. Retry transient network failures up to 6x with
+  // increasing backoff so we have decent odds of hitting a clean IP.
+  const MAX_ATTEMPTS = 6;
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       return await fetch(url, fetchInit);
     } catch (err) {
       lastErr = err;
       if (!isRetryableNetworkError(err)) throw err;
-      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      const code =
+        (err as { cause?: { code?: string } }).cause?.code ??
+        (err instanceof Error ? err.name : 'unknown');
+      console.warn(
+        `[SiriusXM] retry ${attempt + 1}/${MAX_ATTEMPTS} after ${code} on ${url.toString().slice(0, 80)}`
+      );
+      await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
     }
   }
   throw lastErr;

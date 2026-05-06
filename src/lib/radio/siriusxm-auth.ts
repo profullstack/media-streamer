@@ -178,11 +178,12 @@ async function sxmCall<T>(path: string, opts: SxmRequestOpts = {}): Promise<SxmR
 
   // Webshare's residential-rotate gives a different upstream IP per request.
   // Some IPs get RST'd by SXM at TLS handshake time. Retry network failures
-  // (NOT HTTP failures) up to 3 times so we don't fail the whole flow on a
-  // single bad IP.
+  // (NOT HTTP failures) up to 6 times with increasing backoff so we have
+  // decent odds of hitting a clean IP.
+  const MAX_ATTEMPTS = 6;
   let res: Response;
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       res = await fetch(url, fetchInit);
       lastErr = null;
@@ -190,8 +191,13 @@ async function sxmCall<T>(path: string, opts: SxmRequestOpts = {}): Promise<SxmR
     } catch (err) {
       lastErr = err;
       if (!isRetryableNetworkError(err)) throw err;
-      // brief backoff so we're not hammering on the same bad IP
-      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      const code =
+        (err as { cause?: { code?: string } }).cause?.code ??
+        (err instanceof Error ? err.name : 'unknown');
+      console.warn(
+        `[SiriusXM] retry ${attempt + 1}/${MAX_ATTEMPTS} after ${code} on ${path}`
+      );
+      await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
     }
   }
   if (lastErr) throw lastErr;
