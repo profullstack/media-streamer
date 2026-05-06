@@ -123,7 +123,10 @@ function ConnectFlow({ onSuccess }: ConnectFlowProps): React.ReactElement {
   const handleVerifyOtp = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     setError(null);
-    if (!otp.trim()) {
+    // Strip all whitespace — pasted OTPs often arrive as "1 2 3 4 5 6" or
+    // wrapped onto two lines from an email; SXM rejects anything non-digit.
+    const cleanOtp = otp.replace(/\s+/g, '');
+    if (!cleanOtp) {
       setError('Enter the code from your email');
       return;
     }
@@ -133,7 +136,7 @@ function ConnectFlow({ onSuccess }: ConnectFlowProps): React.ReactElement {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: otp.trim() }),
+        body: JSON.stringify({ otp: cleanOtp }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {

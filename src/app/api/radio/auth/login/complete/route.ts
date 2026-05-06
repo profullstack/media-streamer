@@ -30,7 +30,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const otp = body.otp?.trim();
+  const otp = body.otp?.replace(/\s+/g, '');
   if (!otp) {
     return NextResponse.json({ error: 'OTP required' }, { status: 400 });
   }

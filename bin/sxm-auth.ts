@@ -339,7 +339,8 @@ export interface EmailOtpLoginOptions {
 async function defaultPromptOtp(): Promise<string> {
   const rl = readline.createInterface({ input, output });
   try {
-    return (await rl.question('Enter the OTP from your email: ')).trim();
+    const raw = await rl.question('Enter the OTP from your email: ');
+    return raw.replace(/\s+/g, '');
   } finally {
     rl.close();
   }
