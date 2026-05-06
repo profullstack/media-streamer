@@ -103,22 +103,90 @@ export function updateDotenv(
   writeFileSync(envPath, text, 'utf8');
 }
 
+function parseDeviceGrantString(raw: string): DeviceGrant {
+  let str = raw.trim();
+  if (str.startsWith('%')) {
+    try {
+      str = decodeURIComponent(str);
+    } catch {
+      // continue
+    }
+  }
+  if (
+    (str.startsWith('"') && str.endsWith('"')) ||
+    (str.startsWith("'") && str.endsWith("'"))
+  ) {
+    str = str.slice(1, -1);
+  }
+  const parsed = JSON.parse(str) as DeviceGrant;
+  if (!parsed.grant) throw new Error('DEVICE_GRANT JSON has no .grant field');
+  return parsed;
+}
+
 export function loadDeviceGrantFromEnv(envPath?: string): DeviceGrant {
   const env = loadDotenv(envPath);
   const raw = env.SIRIUSXM_DEVICE_GRANT;
   if (!raw) {
     throw new Error(
-      'SIRIUSXM_DEVICE_GRANT is not set in .env. Capture the DEVICE_GRANT cookie from siriusxm.com.'
+      'SIRIUSXM_DEVICE_GRANT is not set in .env. Use mintDeviceGrantViaBrowser() or capture the DEVICE_GRANT cookie from siriusxm.com.'
     );
   }
-  let parsed: DeviceGrant;
+  return parseDeviceGrantString(raw);
+}
+
+/**
+ * Headless-browser mint: load siriusxm.com, wait for the JS-set DEVICE_GRANT
+ * cookie, return the parsed value. Disables CSS / images / fonts / media for
+ * speed. Used as the default bootstrap for both the CLI and the web app.
+ */
+export async function mintDeviceGrantViaBrowser(opts: { debug?: boolean } = {}): Promise<DeviceGrant> {
+  const { default: puppeteer } = await import('puppeteer');
+  if (opts.debug) console.error('[sxm-auth] launching headless browser to mint DEVICE_GRANT');
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  });
   try {
-    parsed = JSON.parse(raw) as DeviceGrant;
-  } catch (err) {
-    throw new Error(`SIRIUSXM_DEVICE_GRANT is not valid JSON: ${(err as Error).message}`);
+    const page = await browser.newPage();
+    await page.setUserAgent(SXM_COMMON_HEADERS['User-Agent']);
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+        void req.abort();
+      } else {
+        void req.continue();
+      }
+    });
+    await page.goto('https://www.siriusxm.com/', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30_000,
+    });
+    await page.waitForFunction(() => document.cookie.includes('DEVICE_GRANT='), {
+      timeout: 20_000,
+    });
+    const cookies = await page.cookies('https://www.siriusxm.com');
+    const dg = cookies.find((c) => c.name === 'DEVICE_GRANT');
+    if (!dg?.value) throw new Error('puppeteer: DEVICE_GRANT cookie not found after page load');
+    return parseDeviceGrantString(dg.value);
+  } finally {
+    await browser.close();
   }
-  if (!parsed.grant) throw new Error('SIRIUSXM_DEVICE_GRANT JSON has no .grant field');
-  return parsed;
+}
+
+/**
+ * Resolve a device grant: prefer SIRIUSXM_DEVICE_GRANT in .env if set, else
+ * mint a fresh one via headless browser.
+ */
+export async function resolveDeviceGrant(opts: {
+  debug?: boolean;
+  envPath?: string;
+}): Promise<DeviceGrant> {
+  const env = loadDotenv(opts.envPath);
+  if (env.SIRIUSXM_DEVICE_GRANT) {
+    return parseDeviceGrantString(env.SIRIUSXM_DEVICE_GRANT);
+  }
+  return mintDeviceGrantViaBrowser({ debug: opts.debug });
 }
 
 function getSetCookieArray(headers: Headers): string[] {

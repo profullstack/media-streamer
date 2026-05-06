@@ -229,18 +229,115 @@ function setCookieNames(setCookie: string[]): string[] {
 }
 
 /**
+ * Use a real headless browser to load siriusxm.com and read the DEVICE_GRANT
+ * cookie set by client-side JS. Plain `fetch` doesn't run JS, so the cookie
+ * never appears on the response.
+ *
+ * Resources (CSS, images, fonts, media) are blocked to keep the launch fast.
+ * Result is cached at the call site (mintedDeviceGrantCache) so consecutive
+ * logins reuse the same grant until ~10min before its expiry.
+ */
+async function mintDeviceGrantViaBrowser(): Promise<DeviceGrant> {
+  const { default: puppeteer } = await import('puppeteer');
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent(COMMON_HEADERS['User-Agent']);
+    await page.setViewport({ width: 1280, height: 800 });
+
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+        void req.abort();
+      } else {
+        void req.continue();
+      }
+    });
+
+    await page.goto('https://www.siriusxm.com/', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30_000,
+    });
+
+    // Wait for the JS to set the DEVICE_GRANT cookie.
+    await page.waitForFunction(() => document.cookie.includes('DEVICE_GRANT='), {
+      timeout: 20_000,
+    });
+
+    const cookies = await page.cookies('https://www.siriusxm.com');
+    const dg = cookies.find((c) => c.name === 'DEVICE_GRANT');
+    if (!dg?.value) {
+      throw new SiriusXmAuthError(
+        'puppeteer: DEVICE_GRANT cookie missing after page load',
+        502
+      );
+    }
+    return parseDeviceGrantString(dg.value);
+  } finally {
+    await browser.close();
+  }
+}
+
+interface CachedGrant {
+  value: DeviceGrant;
+  expiresAtMs: number;
+}
+
+const GRANT_REFRESH_BUFFER_MS = 10 * 60 * 1000;
+
+let mintedDeviceGrantCache: CachedGrant | null = null;
+let inflightMint: Promise<DeviceGrant> | null = null;
+
+function cachedGrantStillValid(c: CachedGrant): boolean {
+  return Date.now() + GRANT_REFRESH_BUFFER_MS < c.expiresAtMs;
+}
+
+/**
  * Mint a fresh DEVICE_GRANT.
  *
  * Strategy (in order):
- *   1. GET https://www.siriusxm.com/  — what a browser does on first visit;
- *      may set DEVICE_GRANT via Set-Cookie.
- *   2. POST /device/v1/grants  — common REST convention for "create".
- *   3. POST /device/v1/grant   — singular variant.
+ *   1. Cached grant from a prior browser-mint, if still well within its TTL.
+ *   2. Headless browser load of siriusxm.com (JS sets the cookie).
+ *   3. Plain GET https://www.siriusxm.com/ as a sanity check (rarely works,
+ *      since the cookie comes from JS).
+ *   4. POST /device/v1/grants  — REST convention; usually 403 from datacenter.
+ *   5. POST /device/v1/grant   — singular variant.
  *
  * On total failure, surfaces what cookies were returned so we can see the
  * actual bootstrap endpoint name and fix this.
  */
 async function bootstrapDeviceGrant(): Promise<DeviceGrant> {
+  if (mintedDeviceGrantCache && cachedGrantStillValid(mintedDeviceGrantCache)) {
+    return mintedDeviceGrantCache.value;
+  }
+
+  if (!inflightMint) {
+    inflightMint = mintDeviceGrantViaBrowser()
+      .then((grant) => {
+        const expMs = grant.grantExpiresAt
+          ? Date.parse(grant.grantExpiresAt)
+          : Date.now() + 24 * 60 * 60 * 1000;
+        mintedDeviceGrantCache = { value: grant, expiresAtMs: expMs };
+        return grant;
+      })
+      .finally(() => {
+        inflightMint = null;
+      });
+  }
+
+  try {
+    return await inflightMint;
+  } catch (browserErr) {
+    // Fall back to the original fetch-based attempts so we still surface
+    // diagnostic info if puppeteer isn't available.
+    return await bootstrapDeviceGrantViaFetch(browserErr as Error);
+  }
+}
+
+async function bootstrapDeviceGrantViaFetch(browserErr: Error): Promise<DeviceGrant> {
   const attempts: Array<{ label: string; url: string; init: RequestInit }> = [
     {
       label: 'GET siriusxm.com',
@@ -318,7 +415,7 @@ async function bootstrapDeviceGrant(): Promise<DeviceGrant> {
   }
 
   throw new SiriusXmAuthError(
-    `failed to bootstrap DEVICE_GRANT. Tried: ${failureLog.join(' | ')}`,
+    `failed to bootstrap DEVICE_GRANT. Browser mint: ${browserErr.message} | Fetch attempts: ${failureLog.join(' | ')}`,
     502
   );
 }

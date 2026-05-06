@@ -6,9 +6,9 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import {
   emailOtpLogin,
-  loadDeviceGrantFromEnv,
   loadDotenv,
   refreshAuthSession,
+  resolveDeviceGrant,
   type SessionResult,
 } from "./sxm-auth";
 
@@ -133,7 +133,7 @@ function parseArgs(argv: string[]): Args {
 
 async function resolveSession(args: Args): Promise<SessionResult> {
   if (args.email) {
-    const deviceGrant = loadDeviceGrantFromEnv();
+    const deviceGrant = await resolveDeviceGrant({ debug: args.debug });
     return emailOtpLogin(args.email, deviceGrant, { debug: args.debug });
   }
 

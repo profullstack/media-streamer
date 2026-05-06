@@ -7,7 +7,7 @@
  * Usage: ./bin/sxm-login.ts --email you@example.com [--debug]
  */
 
-import { emailOtpLogin, loadDeviceGrantFromEnv, updateDotenv } from './sxm-auth';
+import { emailOtpLogin, resolveDeviceGrant, updateDotenv } from './sxm-auth';
 
 interface Args {
   email: string;
@@ -38,7 +38,7 @@ function parseArgs(argv: string[]): Args {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
-  const deviceGrant = loadDeviceGrantFromEnv();
+  const deviceGrant = await resolveDeviceGrant({ debug: args.debug });
 
   const session = await emailOtpLogin(args.email, deviceGrant, { debug: args.debug });
 
