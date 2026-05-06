@@ -8,6 +8,7 @@
 
 import {
   ensureSiriusXmBearer,
+  getSiriusXmProxyAgent,
   invalidateSiriusXmSession,
   SiriusXmAuthError,
 } from './siriusxm-auth';
@@ -147,13 +148,15 @@ function categoryQuery(cat: SiriusXmCategory): string {
 
 async function sxmFetchOnce(url: string, init: RequestInit): Promise<Response> {
   const headers = await siriusXmHeaders();
+  const proxyAgent = getSiriusXmProxyAgent();
   return fetch(url, {
     ...init,
     headers: {
       ...headers,
       ...(init.headers as Record<string, string> | undefined),
     },
-  });
+    ...(proxyAgent ? { dispatcher: proxyAgent } : {}),
+  } as RequestInit);
 }
 
 async function sxmFetch<T>(url: string, init: RequestInit = {}): Promise<T> {

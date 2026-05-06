@@ -85,6 +85,16 @@ function getProxy(): ResolvedProxy | null {
   return buildProxy(raw, sid);
 }
 
+/**
+ * Public proxy-agent accessor for siriusxm.ts to route browse/search/tune
+ * calls through the same residential proxy used by auth. Stream resources
+ * (HLS playlists/segments) intentionally skip this — they hit SXM's CDN
+ * and routing audio bytes through residential IPs would burn budget.
+ */
+export function getSiriusXmProxyAgent(): ProxyAgent | null {
+  return getProxy()?.agent ?? null;
+}
+
 const COMMON_HEADERS: Record<string, string> = {
   'User-Agent':
     'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0',

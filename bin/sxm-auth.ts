@@ -19,6 +19,10 @@ interface ResolvedProxy {
 
 let proxyCache: ResolvedProxy | null | undefined;
 
+export function getProxyAgent(): ProxyAgent | null {
+  return getProxy()?.agent ?? null;
+}
+
 function getProxy(): ResolvedProxy | null {
   if (proxyCache !== undefined) return proxyCache;
   const raw = process.env.PROXY_URL?.trim() || loadDotenv()['PROXY_URL']?.trim();

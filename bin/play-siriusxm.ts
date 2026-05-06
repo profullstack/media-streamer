@@ -6,6 +6,7 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import {
   emailOtpLogin,
+  getProxyAgent,
   loadDotenv,
   refreshAuthSession,
   resolveDeviceGrant,
@@ -196,6 +197,7 @@ async function sxmFetch(
 ): Promise<any> {
   if (debug) console.error(`[sxm] ${opts.method || "GET"} ${url}`);
 
+  const proxyAgent = getProxyAgent();
   const send = () =>
     fetch(url, {
       ...opts,
@@ -203,7 +205,8 @@ async function sxmFetch(
         ...commonHeaders(ref),
         ...(opts.headers || {}),
       },
-    });
+      ...(proxyAgent ? { dispatcher: proxyAgent } : {}),
+    } as RequestInit);
 
   let res = await send();
 
@@ -628,6 +631,9 @@ async function startHlsProxy(
   let baseUrl = "";
 
   const upstreamFetch = async (target: string): Promise<Response> => {
+    // Stream resources (m3u8 playlists + segments) skip the proxy — they
+    // come from SXM's CDN, not the auth gateway, and routing audio through
+    // residential proxies is expensive.
     const send = () =>
       fetch(target, {
         headers: {
