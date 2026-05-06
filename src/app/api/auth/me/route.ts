@@ -70,9 +70,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { user: null },
       {
         status: 200,
-        headers: {
-          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
-        },
+        // Never cache "logged out" — otherwise a browser cache hit after login
+        // shows the user as still logged out and we redirect them back to /login
+        // until the cache TTL expires.
+        headers: { 'Cache-Control': 'no-store, must-revalidate' },
       }
     );
   }
@@ -121,9 +122,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { user: null },
       {
         status: 200,
-        headers: {
-          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
-        },
+        // Never cache "logged out" — otherwise a browser cache hit after login
+        // shows the user as still logged out and we redirect them back to /login
+        // until the cache TTL expires.
+        headers: { 'Cache-Control': 'no-store, must-revalidate' },
       }
     );
   }

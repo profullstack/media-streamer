@@ -300,13 +300,15 @@ describe('GET /api/auth/me', () => {
   });
 
   describe('caching', () => {
-    it('should set cache-control headers', async () => {
+    it('should not cache the unauthenticated response', async () => {
+      // A cached null user after login was making the browser think the
+      // user was still logged out until the cache TTL expired.
       const { GET } = await import('./route');
       const request = new NextRequest('http://localhost:3000/api/auth/me');
       const response = await GET(request);
 
       expect(response.headers.get('Cache-Control')).toBe(
-        'private, max-age=30, stale-while-revalidate=300'
+        'no-store, must-revalidate'
       );
     });
   });
