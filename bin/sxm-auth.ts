@@ -150,25 +150,31 @@ export async function mintDeviceGrantViaBrowser(opts: { debug?: boolean } = {}):
     const page = await browser.newPage();
     await page.setUserAgent(SXM_COMMON_HEADERS['User-Agent']);
     await page.setViewport({ width: 1280, height: 800 });
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-        void req.abort();
-      } else {
-        void req.continue();
-      }
-    });
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+
     await page.goto('https://www.siriusxm.com/', {
-      waitUntil: 'domcontentloaded',
-      timeout: 30_000,
+      waitUntil: 'networkidle2',
+      timeout: 45_000,
     });
-    await page.waitForFunction(() => document.cookie.includes('DEVICE_GRANT='), {
-      timeout: 20_000,
-    });
-    const cookies = await page.cookies('https://www.siriusxm.com');
-    const dg = cookies.find((c) => c.name === 'DEVICE_GRANT');
-    if (!dg?.value) throw new Error('puppeteer: DEVICE_GRANT cookie not found after page load');
-    return parseDeviceGrantString(dg.value);
+
+    const deadline = Date.now() + 30_000;
+    let lastSnapshot: Array<{ name: string; domain?: string }> = [];
+    while (Date.now() < deadline) {
+      const cookies = await page.cookies(
+        'https://www.siriusxm.com',
+        'https://siriusxm.com',
+        'https://api.edge-gateway.siriusxm.com'
+      );
+      lastSnapshot = cookies.map((c) => ({ name: c.name, domain: c.domain }));
+      const dg = cookies.find((c) => c.name === 'DEVICE_GRANT' && c.value);
+      if (dg) return parseDeviceGrantString(dg.value);
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    const summary = lastSnapshot.map((c) => `${c.name}@${c.domain ?? '?'}`).join(', ');
+    throw new Error(
+      `puppeteer: DEVICE_GRANT cookie not set within 30s. Cookies seen: [${summary || 'none'}]`
+    );
   } finally {
     await browser.close();
   }

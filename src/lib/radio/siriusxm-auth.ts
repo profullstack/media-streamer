@@ -247,35 +247,38 @@ async function mintDeviceGrantViaBrowser(): Promise<DeviceGrant> {
     const page = await browser.newPage();
     await page.setUserAgent(COMMON_HEADERS['User-Agent']);
     await page.setViewport({ width: 1280, height: 800 });
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-        void req.abort();
-      } else {
-        void req.continue();
-      }
-    });
-
+    // Don't block resources — some bootstrap scripts wait on assets/fonts.
+    // The mint is a one-shot at login time; latency is acceptable.
     await page.goto('https://www.siriusxm.com/', {
-      waitUntil: 'domcontentloaded',
-      timeout: 30_000,
+      waitUntil: 'networkidle2',
+      timeout: 45_000,
     });
 
-    // Wait for the JS to set the DEVICE_GRANT cookie.
-    await page.waitForFunction(() => document.cookie.includes('DEVICE_GRANT='), {
-      timeout: 20_000,
-    });
-
-    const cookies = await page.cookies('https://www.siriusxm.com');
-    const dg = cookies.find((c) => c.name === 'DEVICE_GRANT');
-    if (!dg?.value) {
-      throw new SiriusXmAuthError(
-        'puppeteer: DEVICE_GRANT cookie missing after page load',
-        502
+    // Poll the CDP-level cookie store (sees HttpOnly cookies too) for up to
+    // 30s in case the bootstrap XHR hasn't returned yet.
+    const deadline = Date.now() + 30_000;
+    let lastSnapshot: Array<{ name: string; domain?: string }> = [];
+    while (Date.now() < deadline) {
+      const cookies = await page.cookies(
+        'https://www.siriusxm.com',
+        'https://siriusxm.com',
+        'https://api.edge-gateway.siriusxm.com'
       );
+      lastSnapshot = cookies.map((c) => ({ name: c.name, domain: c.domain }));
+      const dg = cookies.find((c) => c.name === 'DEVICE_GRANT' && c.value);
+      if (dg) return parseDeviceGrantString(dg.value);
+      await new Promise((r) => setTimeout(r, 500));
     }
-    return parseDeviceGrantString(dg.value);
+
+    const summary = lastSnapshot
+      .map((c) => `${c.name}@${c.domain ?? '?'}`)
+      .join(', ');
+    throw new SiriusXmAuthError(
+      `puppeteer: DEVICE_GRANT cookie not set within 30s. Cookies seen: [${summary || 'none'}]`,
+      502
+    );
   } finally {
     await browser.close();
   }
