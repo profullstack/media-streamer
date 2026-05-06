@@ -16,6 +16,11 @@ export interface RadioRepository {
   removeFavorite(profileId: string, stationId: string): Promise<void>;
   isFavorite(profileId: string, stationId: string): Promise<boolean>;
   getFavorite(profileId: string, stationId: string): Promise<RadioStationFavorite | null>;
+  updateFavoriteImage(
+    profileId: string,
+    stationId: string,
+    imageUrl: string | null
+  ): Promise<void>;
 }
 
 function toProfileScopedInsert(data: RadioStationFavoriteInsert): RadioStationFavoriteInsert {
@@ -108,6 +113,22 @@ export function createRadioRepository(): RadioRepository {
       }
 
       return data !== null;
+    },
+
+    async updateFavoriteImage(
+      profileId: string,
+      stationId: string,
+      imageUrl: string | null
+    ): Promise<void> {
+      const supabase = createServerClient();
+      const { error } = await supabase
+        .from('radio_station_favorites')
+        .update({ station_image_url: imageUrl })
+        .eq('profile_id', profileId)
+        .eq('station_id', stationId);
+      if (error) {
+        console.error('[RadioRepository] updateFavoriteImage error:', error);
+      }
     },
 
     async getFavorite(profileId: string, stationId: string): Promise<RadioStationFavorite | null> {

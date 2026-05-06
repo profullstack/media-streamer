@@ -14,7 +14,12 @@ import type {
   SiriusXmCategory,
   SiriusXmQuality,
 } from './types';
-import { createSiriusXmService, parseSiriusXmId, type SiriusXmService } from './siriusxm';
+import {
+  createSiriusXmService,
+  parseSiriusXmId,
+  SIRIUSXM_STATION_ID_PREFIX,
+  type SiriusXmService,
+} from './siriusxm';
 import { parseCustomStationId, resolveCustomStreamUrl } from './station-utils';
 
 export interface RadioService {
@@ -87,7 +92,9 @@ export function createRadioService(
     },
 
     async getUserFavorites(profileId: string): Promise<RadioStationFavorite[]> {
-      return repository.getUserFavorites(profileId);
+      const favorites = await repository.getUserFavorites(profileId);
+      await backfillSxmImages(favorites, profileId, siriusxm, repository);
+      return favorites;
     },
 
     async addToFavorites(profileId: string, station: RadioStation): Promise<RadioStationFavorite> {
@@ -111,6 +118,69 @@ export function createRadioService(
 }
 
 import { getRadioRepository } from './repository';
+
+// In-memory cache of the SXM channel catalog so concurrent favorites loads
+// share one fetch. 15-min TTL — channel images change rarely.
+const CHANNEL_CATALOG_TTL_MS = 15 * 60 * 1000;
+let cachedCatalog: { at: number; byStationId: Map<string, RadioStation> } | null = null;
+let inflightCatalog: Promise<Map<string, RadioStation>> | null = null;
+
+async function loadChannelCatalog(siriusxm: SiriusXmService): Promise<Map<string, RadioStation>> {
+  const now = Date.now();
+  if (cachedCatalog && now - cachedCatalog.at < CHANNEL_CATALOG_TTL_MS) {
+    return cachedCatalog.byStationId;
+  }
+  if (inflightCatalog) return inflightCatalog;
+
+  inflightCatalog = (async () => {
+    const map = new Map<string, RadioStation>();
+    for (const cat of ['sports', 'news'] as const) {
+      try {
+        const stations = await siriusxm.getCategoryStations(cat);
+        for (const s of stations) map.set(s.id, s);
+      } catch (err) {
+        console.error('[RadioService] catalog load failed for', cat, err);
+      }
+    }
+    cachedCatalog = { at: Date.now(), byStationId: map };
+    return map;
+  })().finally(() => {
+    inflightCatalog = null;
+  });
+
+  return inflightCatalog;
+}
+
+/**
+ * Backfill missing station_image_url on SXM favorites. Old rows (added
+ * before the image-CDN URL transformation landed) have null image. Look
+ * each one up in the channel catalog and persist if found. Mutates the
+ * input array in place so the caller returns enriched favorites without
+ * re-querying.
+ */
+async function backfillSxmImages(
+  favorites: RadioStationFavorite[],
+  profileId: string,
+  siriusxm: SiriusXmService,
+  repository: RadioRepository
+): Promise<void> {
+  const stale = favorites.filter(
+    (f) =>
+      f.station_id.startsWith(SIRIUSXM_STATION_ID_PREFIX) &&
+      (!f.station_image_url || !/^https?:\/\//.test(f.station_image_url))
+  );
+  if (!stale.length) return;
+
+  const catalog = await loadChannelCatalog(siriusxm);
+  if (!catalog.size) return;
+
+  for (const fav of stale) {
+    const fresh = catalog.get(fav.station_id);
+    if (!fresh?.imageUrl) continue;
+    fav.station_image_url = fresh.imageUrl;
+    void repository.updateFavoriteImage(profileId, fav.station_id, fresh.imageUrl);
+  }
+}
 
 let serviceInstance: RadioService | null = null;
 
