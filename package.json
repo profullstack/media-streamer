@@ -54,7 +54,7 @@
     "ioredis": "^5.10.1",
     "isomorphic-dompurify": "^3.12.0",
     "linkedom": "^0.18.12",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.0.1",
     "mpegts.js": "^1.8.0",
     "next": "16.2.4",
     "node-datachannel": "^0.32.3",
