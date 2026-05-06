@@ -39,13 +39,32 @@ function isAllowedTarget(url: string): boolean {
   }
 }
 
+/**
+ * Public origin for rewriting URLs in HLS playlists. The standalone Next.js
+ * server binds to 0.0.0.0:3000 and `new URL(request.url)` reflects that bind
+ * address — wrong for client-facing playlist entries. Trust the reverse-proxy
+ * forwarded headers, then fall back to NEXT_PUBLIC_APP_URL env, then to the
+ * raw request origin (only correct in dev).
+ */
+function publicOriginFor(request: NextRequest): string {
+  const fwdProto = request.headers.get('x-forwarded-proto');
+  const fwdHost = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
+  if (fwdHost && !fwdHost.startsWith('0.0.0.0') && !fwdHost.startsWith('127.0.0.1')) {
+    const proto = fwdProto?.split(',')[0]?.trim() ?? 'https';
+    return `${proto}://${fwdHost.split(',')[0]?.trim()}`;
+  }
+  const envOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (envOrigin) return envOrigin.replace(/\/$/, '');
+  return new URL(request.url).origin;
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const target = searchParams.get('u');
   const quality = parseQuality(searchParams.get('quality'));
 
@@ -57,6 +76,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     return new Response('forbidden target', { status: 403 });
   }
 
+  const origin = publicOriginFor(request);
   return withSiriusXmUser(user.id, () => handleProxy(target, quality, origin));
 }
 
