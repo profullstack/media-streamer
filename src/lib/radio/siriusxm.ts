@@ -377,7 +377,11 @@ export async function getSiriusXmTuneUrl(
   const primary = urls.find((u) => u?.isPrimary) ?? urls[0];
 
   if (!primary?.url) {
-    throw new Error('No SiriusXM playback URL in tuneSource response');
+    // Surface SXM's actual response so we can see WHY no stream came back —
+    // typical reasons are entitlement (channel not in plan), geo, or a
+    // session/IP mismatch error.
+    const dump = JSON.stringify(json ?? {}).slice(0, 500);
+    throw new Error(`No SiriusXM playback URL in tuneSource response: ${dump}`);
   }
 
   return { url: primary.url, validUntil: primary.validUntil };
