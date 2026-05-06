@@ -169,14 +169,34 @@ async function sxmCall<T>(path: string, opts: SxmRequestOpts = {}): Promise<SxmR
   if (opts.cookies) headers.Cookie = opts.cookies;
 
   const proxy = getProxy();
-  const res = await fetch(url, {
+  const fetchInit = {
     method,
     headers,
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
     ...(proxy ? { dispatcher: proxy.agent } : {}),
-  } as RequestInit);
+  } as RequestInit;
 
-  const raw = await res.text();
+  // Webshare's residential-rotate gives a different upstream IP per request.
+  // Some IPs get RST'd by SXM at TLS handshake time. Retry network failures
+  // (NOT HTTP failures) up to 3 times so we don't fail the whole flow on a
+  // single bad IP.
+  let res: Response;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await fetch(url, fetchInit);
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryableNetworkError(err)) throw err;
+      // brief backoff so we're not hammering on the same bad IP
+      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+    }
+  }
+  if (lastErr) throw lastErr;
+
+  const raw = await res!.text();
   let data: unknown = null;
   if (raw) {
     try {
@@ -186,11 +206,40 @@ async function sxmCall<T>(path: string, opts: SxmRequestOpts = {}): Promise<SxmR
     }
   }
   return {
-    status: res.status,
+    status: res!.status,
     data: data as T,
     raw,
-    setCookie: getSetCookieArray(res.headers),
+    setCookie: getSetCookieArray(res!.headers),
   };
+}
+
+const RETRYABLE_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+function isRetryableNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  // undici wraps the real reason in cause; walk both.
+  const candidates: unknown[] = [err];
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause) candidates.push(cause);
+  for (const c of candidates) {
+    if (c && typeof c === 'object') {
+      const code = (c as { code?: string }).code;
+      if (code && RETRYABLE_CODES.has(code)) return true;
+      const msg = (c as { message?: string }).message ?? '';
+      if (/ECONNRESET|socket disconnected|TLS connection|Client network/i.test(msg)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 async function sxmRequest<T>(path: string, opts: SxmRequestOpts = {}): Promise<T> {
