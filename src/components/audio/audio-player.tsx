@@ -390,7 +390,7 @@ export function AudioPlayer({
       {showTranscodingNotice && audioSource?.requiresTranscoding ? <div className="mb-4 rounded-lg border border-accent-secondary/50 bg-accent-secondary/10 p-3">
           <div className="flex items-start gap-2">
             <svg
-              className="h-4 w-4 flex-shrink-0 text-accent-secondary"
+              className="h-4 w-4 shrink-0 text-accent-secondary"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -414,7 +414,7 @@ export function AudioPlayer({
       {error ? <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 p-3">
           <div className="flex items-start gap-2">
             <svg
-              className="h-4 w-4 flex-shrink-0 text-red-500"
+              className="h-4 w-4 shrink-0 text-red-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -434,7 +434,7 @@ export function AudioPlayer({
       <div className="flex items-center gap-4">
         {/* Cover Art - using img because coverArt URL is dynamic/external */}
         {coverArt ? (
-          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={coverArt}
@@ -454,7 +454,7 @@ export function AudioPlayer({
             />
           </div>
         ) : (
-          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-bg-tertiary">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-bg-tertiary">
             <svg
               className="h-8 w-8 text-text-muted"
               fill="none"
@@ -640,11 +640,11 @@ export function AudioPlayer({
             {/* Status indicator and message */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {connectionStatus.stage === 'ready' ? (
-                <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="Streaming" />
+                <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse shrink-0" title="Streaming" />
               ) : connectionStatus.stage === 'error' ? (
-                <div className="h-2.5 w-2.5 rounded-full bg-red-500 flex-shrink-0" title="Error" />
+                <div className="h-2.5 w-2.5 rounded-full bg-red-500 shrink-0" title="Error" />
               ) : (
-                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-accent-primary border-t-transparent flex-shrink-0" />
+                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-accent-primary border-t-transparent shrink-0" />
               )}
               <span className="text-xs text-text-secondary truncate">
                 {connectionStatus.stage === 'ready' ? 'Streaming' : connectionStatus.message}
@@ -652,7 +652,7 @@ export function AudioPlayer({
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-2 text-xs text-text-muted flex-shrink-0">
+            <div className="flex items-center gap-2 text-xs text-text-muted shrink-0">
               {/* Peers */}
               <span title="Connected peers" className="flex items-center gap-1">
                 <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
@@ -831,7 +831,7 @@ export function AudioPlayerCompact({
         </div>
       </div>
 
-      <span className="flex-shrink-0 text-xs text-text-muted">
+      <span className="shrink-0 text-xs text-text-muted">
         {formatDuration(currentTime)} / {duration > 0 ? formatDuration(duration) : '--:--'}
       </span>
 

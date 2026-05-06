@@ -40,7 +40,7 @@ const ChannelCard = memo(function ChannelCard({
      
       onClick={() => onClick(channel)}
       className={cn(
-        'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-4 outline-none transition-all',
+        'group cursor-pointer rounded-lg border border-border-subtle bg-bg-secondary p-4 outline-hidden transition-all',
         'hover:border-accent-primary/50 hover:bg-bg-hover'
       )}
     >
@@ -593,7 +593,7 @@ export function LiveTvContent(): React.ReactElement {
               className={cn(
                 'rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
                 'text-sm text-text-primary',
-                'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
+                'focus:border-accent-primary focus:outline-hidden focus:ring-2 focus:ring-accent-primary/50'
               )}
             >
               {playlists.map((playlist) => (
@@ -610,7 +610,7 @@ export function LiveTvContent(): React.ReactElement {
                   className={cn(
                     'p-2 rounded-lg transition-colors',
                     'text-text-muted hover:text-text-primary hover:bg-bg-hover',
-                    'focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
+                    'focus:outline-hidden focus:ring-2 focus:ring-accent-primary/50'
                   )}
                   title="Edit playlist"
                   aria-label="Edit playlist"
@@ -622,7 +622,7 @@ export function LiveTvContent(): React.ReactElement {
                   className={cn(
                     'p-2 rounded-lg transition-colors',
                     'text-text-muted hover:text-red-400 hover:bg-red-500/10',
-                    'focus:outline-none focus:ring-2 focus:ring-red-500/50'
+                    'focus:outline-hidden focus:ring-2 focus:ring-red-500/50'
                   )}
                   title="Delete playlist"
                   aria-label="Delete playlist"
@@ -765,7 +765,7 @@ export function LiveTvContent(): React.ReactElement {
               className={cn(
                 'w-full rounded-xl border border-border-default bg-bg-secondary py-4 pl-14 pr-12',
                 'text-base text-text-primary placeholder:text-text-muted',
-                'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
+                'focus:border-accent-primary focus:outline-hidden focus:ring-2 focus:ring-accent-primary/50'
               )}
             />
             {/* Loading indicator while searching */}
@@ -803,7 +803,7 @@ export function LiveTvContent(): React.ReactElement {
                 className={cn(
                   'rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
                   'text-sm text-text-primary',
-                  'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50',
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-2 focus:ring-accent-primary/50',
                   // Highlight when pending change
                   pendingGroup !== selectedGroup && 'border-yellow-500/50 ring-1 ring-yellow-500/30'
                 )}
@@ -827,7 +827,7 @@ export function LiveTvContent(): React.ReactElement {
                   'flex items-center gap-2 rounded-lg px-6 py-3',
                   'text-sm font-medium transition-colors',
                   'bg-accent-primary text-white hover:bg-accent-primary/90',
-                  'focus:outline-none focus:ring-2 focus:ring-accent-primary/50',
+                  'focus:outline-hidden focus:ring-2 focus:ring-accent-primary/50',
                   'disabled:opacity-50'
                 )}
                 aria-label="Apply search and group filters"

@@ -123,7 +123,7 @@ export function ProfileSelector({
                   : handleSetDefault(profile.id)
                 }
                 className={cn(
-                  'text-xs px-2 py-1 rounded transition-colors',
+                  'text-xs px-2 py-1 rounded-sm transition-colors',
                   deviceDefault === profile.id
                     ? 'text-blue-400 hover:text-blue-300'
                     : 'text-gray-500 hover:text-gray-300'
@@ -137,12 +137,10 @@ export function ProfileSelector({
           ))}
 
           {/* Add Profile Button */}
-          {canAddProfile && (
-            <AddProfileButton
+          {canAddProfile ? <AddProfileButton
               onClick={handleCreateProfile}
               disabled={isSelectingProfile}
-            />
-          )}
+            /> : null}
         </div>
 
         {/* Footer */}

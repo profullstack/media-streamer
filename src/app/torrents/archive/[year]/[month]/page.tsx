@@ -21,7 +21,7 @@ function TorrentListItem({ t }: { t: TorrentRow }) {
   return (
     <Link
       href={`/torrents/${t.info_hash}`}
-      className="flex items-center gap-3 rounded border border-transparent px-3 py-2 hover:border-accent-primary/30 hover:bg-bg-hover transition-colors"
+      className="flex items-center gap-3 rounded-sm border border-transparent px-3 py-2 hover:border-accent-primary/30 hover:bg-bg-hover transition-colors"
     >
       <div className="min-w-0 flex-1">
         <span className="truncate text-sm text-text-primary block" title={t.name}>

@@ -207,7 +207,7 @@ export default function TorrentsPage(): React.ReactElement {
                 onClick={() => handleSort(option.key)}
                 title={sortBy === option.key ? 'Click to reverse order' : `Sort by ${option.label}`}
                 className={cn(
-                  'flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors',
+                  'flex items-center gap-1 rounded-sm px-2 py-1 text-xs transition-colors',
                   sortBy === option.key
                     ? 'bg-accent-primary/20 text-accent-primary'
                     : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
@@ -229,10 +229,10 @@ export default function TorrentsPage(): React.ReactElement {
         {isLoading ? <div className="space-y-2">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2 animate-pulse">
-                <div className="w-12 h-16 bg-bg-tertiary rounded shrink-0" />
-                <div className="flex-1 h-4 bg-bg-tertiary rounded" />
-                <div className="w-16 h-4 bg-bg-tertiary rounded" />
-                <div className="w-12 h-4 bg-bg-tertiary rounded" />
+                <div className="w-12 h-16 bg-bg-tertiary rounded-sm shrink-0" />
+                <div className="flex-1 h-4 bg-bg-tertiary rounded-sm" />
+                <div className="w-16 h-4 bg-bg-tertiary rounded-sm" />
+                <div className="w-12 h-4 bg-bg-tertiary rounded-sm" />
               </div>
             ))}
           </div> : null}
@@ -245,7 +245,7 @@ export default function TorrentsPage(): React.ReactElement {
                   key={torrent.id}
                   href={`/torrents/${torrent.id}`}
                   className={cn(
-                    'flex items-center gap-3 rounded border border-transparent px-3 py-2',
+                    'flex items-center gap-3 rounded-sm border border-transparent px-3 py-2',
                     'hover:border-accent-primary/30 hover:bg-bg-hover',
                     'transition-colors'
                   )}

@@ -245,11 +245,11 @@ export default function WatchPartyPage(): React.ReactElement {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setIsMediaModalOpen(true)}
-                      className="px-4 py-2 rounded bg-accent-primary text-white text-sm hover:bg-accent-primary/90 transition-colors"
+                      className="px-4 py-2 rounded-sm bg-accent-primary text-white text-sm hover:bg-accent-primary/90 transition-colors"
                     >
                       Select Media
                     </button>
-                    <button className="px-4 py-2 rounded bg-bg-tertiary text-text-primary text-sm">
+                    <button className="px-4 py-2 rounded-sm bg-bg-tertiary text-text-primary text-sm">
                       Sync All
                     </button>
                   </div>
@@ -274,7 +274,7 @@ export default function WatchPartyPage(): React.ReactElement {
                         'bg-green-500'
                       )} />
                       <span className="text-text-primary">{member.name}</span>
-                      {member.isHost ? <span className="text-xs px-1.5 py-0.5 rounded bg-accent-primary/20 text-accent-primary">
+                      {member.isHost ? <span className="text-xs px-1.5 py-0.5 rounded-sm bg-accent-primary/20 text-accent-primary">
                           Host
                         </span> : null}
                     </div>
@@ -298,7 +298,7 @@ export default function WatchPartyPage(): React.ReactElement {
                         'flex-1 rounded-lg border border-border-default bg-bg-tertiary px-3 py-2',
                         'text-sm text-text-primary',
                         'placeholder:text-text-muted',
-                        'focus:border-accent-primary focus:outline-none'
+                        'focus:border-accent-primary focus:outline-hidden'
                       )}
                     />
                     <button className="px-4 py-2 rounded-lg bg-accent-primary text-white text-sm">
@@ -358,7 +358,7 @@ export default function WatchPartyPage(): React.ReactElement {
                   'w-full rounded-lg border border-border-default bg-bg-tertiary px-4 py-3',
                   'text-text-primary',
                   'placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
               />
             </div>
@@ -471,7 +471,7 @@ export default function WatchPartyPage(): React.ReactElement {
                   'w-full rounded-lg border border-border-default bg-bg-tertiary px-4 py-2',
                   'text-sm text-text-primary',
                   'placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
               />
               <input
@@ -484,7 +484,7 @@ export default function WatchPartyPage(): React.ReactElement {
                   'w-full rounded-lg border border-border-default bg-bg-tertiary px-4 py-3',
                   'text-center text-lg font-mono tracking-widest text-text-primary',
                   'placeholder:text-text-muted placeholder:tracking-normal placeholder:font-sans',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
               />
               <button

@@ -126,9 +126,9 @@ export function TorrentVoting({ torrentId, user, size = 'md' }: TorrentVotingPro
   if (isLoading) {
     return (
       <div className="flex items-center gap-4 opacity-50">
-        <div className="h-6 w-12 animate-pulse rounded bg-bg-tertiary" />
-        <div className="h-6 w-12 animate-pulse rounded bg-bg-tertiary" />
-        <div className="h-6 w-12 animate-pulse rounded bg-bg-tertiary" />
+        <div className="h-6 w-12 animate-pulse rounded-sm bg-bg-tertiary" />
+        <div className="h-6 w-12 animate-pulse rounded-sm bg-bg-tertiary" />
+        <div className="h-6 w-12 animate-pulse rounded-sm bg-bg-tertiary" />
       </div>
     );
   }

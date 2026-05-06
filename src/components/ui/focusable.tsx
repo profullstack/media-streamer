@@ -46,7 +46,7 @@ export function Focusable({
     <Component
       ref={ref}
       className={cn(
-        'outline-none transition-shadow duration-150',
+        'outline-hidden transition-shadow duration-150',
         focused && focusClassName,
         className,
       )}

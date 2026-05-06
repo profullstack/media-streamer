@@ -270,7 +270,7 @@ const EpisodeItem = memo(function EpisodeItem({
         <button
           onClick={() => onPlay(episode)}
           className={cn(
-            'flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0 transition-colors',
+            'flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors',
             isCompleted
               ? 'bg-green-500 text-white hover:bg-green-600'
               : 'bg-accent-primary text-white hover:bg-accent-primary/90'
@@ -319,7 +319,7 @@ const EpisodeItem = memo(function EpisodeItem({
               {isExpanded ? <div
                   className={cn(
                     'text-sm text-text-secondary prose prose-sm prose-invert max-w-none',
-                    '[&_a]:text-accent-primary [&_a]:hover:underline',
+                    '[&_a]:text-accent-primary hover:[&_a]:underline',
                     '[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1',
                   )}
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(episode.description) }}
@@ -955,7 +955,7 @@ export function PodcastsContent(): React.ReactElement {
                 className={cn(
                   'w-full rounded-xl border border-border-default bg-bg-secondary py-4 pl-14 pr-12',
                   'text-base text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-2 focus:ring-accent-primary/50'
                 )}
               />
               {isSearching ? <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -982,7 +982,7 @@ export function PodcastsContent(): React.ReactElement {
                     )}
                   >
                     <div className="flex gap-4">
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         {podcast.imageUrl ? (
                           /* eslint-disable-next-line @next/next/no-img-element -- External podcast images from search API */
                           <img
@@ -1002,7 +1002,7 @@ export function PodcastsContent(): React.ReactElement {
                         <h3 className="font-medium text-text-primary truncate">{decodeHtmlEntities(podcast.title)}</h3>
                         <p className="text-sm text-text-muted truncate">{podcast.author}</p>
                         {podcast.description ? <div
-                          className="text-xs text-text-muted mt-1 line-clamp-2 prose prose-xs prose-invert max-w-none [&_*]:text-text-muted [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
+                          className="text-xs text-text-muted mt-1 line-clamp-2 prose prose-xs prose-invert max-w-none **:text-text-muted [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(podcast.description) }}
                         /> : null}
                       </div>
@@ -1056,7 +1056,7 @@ export function PodcastsContent(): React.ReactElement {
         {activeTab === 'subscriptions' && (
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Subscriptions List */}
-            <div className="lg:w-80 flex-shrink-0 space-y-2">
+            <div className="lg:w-80 shrink-0 space-y-2">
               {isLoadingSubscriptions ? (
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner size={32} className="text-accent-primary" />
@@ -1098,12 +1098,12 @@ export function PodcastsContent(): React.ReactElement {
                       <img
                         src={podcast.imageUrl}
                         alt={decodeHtmlEntities(podcast.title)}
-                        className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                        className="h-12 w-12 rounded-lg object-cover shrink-0"
                         loading="lazy"
                         decoding="async"
                       />
                     ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary flex-shrink-0">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-bg-tertiary shrink-0">
                         <PodcastIcon size={20} className="text-text-muted" />
                       </div>
                     )}
@@ -1127,12 +1127,12 @@ export function PodcastsContent(): React.ReactElement {
                       <img
                         src={selectedPodcast.imageUrl}
                         alt={decodeHtmlEntities(selectedPodcast.title)}
-                        className="h-24 w-24 rounded-lg object-cover flex-shrink-0"
+                        className="h-24 w-24 rounded-lg object-cover shrink-0"
                         loading="lazy"
                         decoding="async"
                       />
                     ) : (
-                      <div className="flex h-24 w-24 items-center justify-center rounded-lg bg-bg-tertiary flex-shrink-0">
+                      <div className="flex h-24 w-24 items-center justify-center rounded-lg bg-bg-tertiary shrink-0">
                         <PodcastIcon size={40} className="text-text-muted" />
                       </div>
                     )}
@@ -1140,7 +1140,7 @@ export function PodcastsContent(): React.ReactElement {
                       <h2 className="text-xl font-bold text-text-primary">{decodeHtmlEntities(selectedPodcast.title)}</h2>
                       <p className="text-sm text-text-muted">{selectedPodcast.author}</p>
                       {selectedPodcast.description ? <div
-                          className="text-sm text-text-secondary mt-2 line-clamp-2 prose prose-sm prose-invert max-w-none [&_a]:text-accent-primary [&_a]:hover:underline [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
+                          className="text-sm text-text-secondary mt-2 line-clamp-2 prose prose-sm prose-invert max-w-none [&_a]:text-accent-primary hover:[&_a]:underline [&_p]:my-0 [&_div]:my-0 [&_br]:hidden"
                           dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedPodcast.description) }}
                         /> : null}
                       {/* Unsubscribe button with confirmation */}
@@ -1151,7 +1151,7 @@ export function PodcastsContent(): React.ReactElement {
                             onClick={() => void handleUnsubscribe(selectedPodcast.id)}
                             disabled={unsubscribingPodcastId === selectedPodcast.id}
                             className={cn(
-                              'flex items-center gap-1 rounded px-3 py-1 text-sm',
+                              'flex items-center gap-1 rounded-sm px-3 py-1 text-sm',
                               'bg-red-500 text-white hover:bg-red-600 transition-colors',
                               'disabled:opacity-50'
                             )}
@@ -1165,7 +1165,7 @@ export function PodcastsContent(): React.ReactElement {
                           </button>
                           <button
                             onClick={cancelUnsubscribe}
-                            className="rounded px-3 py-1 text-sm bg-bg-tertiary text-text-secondary hover:bg-bg-hover transition-colors"
+                            className="rounded-sm px-3 py-1 text-sm bg-bg-tertiary text-text-secondary hover:bg-bg-hover transition-colors"
                           >
                             Cancel
                           </button>

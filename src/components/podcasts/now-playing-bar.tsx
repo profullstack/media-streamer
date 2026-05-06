@@ -98,7 +98,7 @@ export function NowPlayingBar(): React.ReactElement | null {
       <div className="max-w-7xl mx-auto px-4 py-3">
         <div className="flex items-center gap-4">
           {/* Cover Image */}
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             {coverImage ? (
               /* eslint-disable-next-line @next/next/no-img-element -- External podcast cover images */
               <img
@@ -124,7 +124,7 @@ export function NowPlayingBar(): React.ReactElement | null {
           </div>
           
           {/* Playback Controls */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             {/* Skip Back 30s */}
             <button
               onClick={skipBackward}
@@ -185,7 +185,7 @@ export function NowPlayingBar(): React.ReactElement | null {
           <button
             onClick={stop}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0',
+              'flex h-8 w-8 items-center justify-center rounded-full shrink-0',
               'text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors'
             )}
             aria-label="Stop"

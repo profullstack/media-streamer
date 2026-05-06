@@ -268,7 +268,7 @@ export function RadioPlayerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center min-w-[100vw] min-h-[100vh] bg-black/80"
+      className="fixed inset-0 z-50 flex items-center justify-center min-w-screen min-h-screen bg-black/80"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

@@ -132,7 +132,7 @@ export default function SignupPage(): React.ReactElement {
                 className={cn(
                   'w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
                 placeholder="you@example.com"
               />
@@ -152,7 +152,7 @@ export default function SignupPage(): React.ReactElement {
                 className={cn(
                   'w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
                 placeholder="••••••••"
               />
@@ -173,7 +173,7 @@ export default function SignupPage(): React.ReactElement {
                 className={cn(
                   'w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
                 placeholder="••••••••"
               />
@@ -184,7 +184,7 @@ export default function SignupPage(): React.ReactElement {
                 id="terms"
                 type="checkbox"
                 required
-                className="mt-1 h-4 w-4 rounded border-border-default bg-bg-secondary text-accent-primary focus:ring-accent-primary"
+                className="mt-1 h-4 w-4 rounded-sm border-border-default bg-bg-secondary text-accent-primary focus:ring-accent-primary"
               />
               <label htmlFor="terms" className="text-sm text-text-secondary">
                 I agree to the{' '}

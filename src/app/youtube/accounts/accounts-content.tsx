@@ -100,19 +100,19 @@ export function AccountsContent(): React.ReactElement {
           </Link>
         </div>
 
-        {justConnected ? <div className="mb-4 rounded border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm text-green-400">
+        {justConnected ? <div className="mb-4 rounded-sm border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm text-green-400">
             Account connected.
           </div> : null}
-        {oauthErrorMessage ? <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+        {oauthErrorMessage ? <div className="mb-4 rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
             {oauthErrorMessage}
           </div> : null}
-        {actionError ? <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+        {actionError ? <div className="mb-4 rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
             {actionError}
           </div> : null}
 
         <a
           href="/api/youtube/auth/start"
-          className="mb-6 inline-block rounded bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
+          className="mb-6 inline-block rounded-sm bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
         >
           + Connect a YouTube account
         </a>
@@ -126,7 +126,7 @@ export function AccountsContent(): React.ReactElement {
             {accounts.map((a) => (
               <li
                 key={a.id}
-                className="flex items-center justify-between rounded border border-border bg-card p-3"
+                className="flex items-center justify-between rounded-sm border border-border bg-card p-3"
               >
                 <div className="flex items-center gap-3">
                   {a.avatarUrl ? (
@@ -142,7 +142,7 @@ export function AccountsContent(): React.ReactElement {
                   <div>
                     <div className="font-medium">
                       {a.displayName ?? a.email ?? a.id}
-                      {a.isDefault ? <span className="ml-2 rounded bg-blue-600/20 px-2 py-0.5 text-xs text-blue-400">
+                      {a.isDefault ? <span className="ml-2 rounded-sm bg-blue-600/20 px-2 py-0.5 text-xs text-blue-400">
                           default
                         </span> : null}
                     </div>
@@ -155,7 +155,7 @@ export function AccountsContent(): React.ReactElement {
                 <div className="flex gap-2">
                   {!a.hasSearchAccess ? <a
                       href="/api/youtube/auth/start"
-                      className="rounded border border-yellow-500/40 px-3 py-1 text-sm text-yellow-200 hover:bg-yellow-500/10"
+                      className="rounded-sm border border-yellow-500/40 px-3 py-1 text-sm text-yellow-200 hover:bg-yellow-500/10"
                     >
                       Reconnect
                     </a> : null}
@@ -163,7 +163,7 @@ export function AccountsContent(): React.ReactElement {
                     <button
                       type="button"
                       onClick={() => handleSetDefault(a.id)}
-                      className="rounded border border-border px-3 py-1 text-sm hover:bg-accent"
+                      className="rounded-sm border border-border px-3 py-1 text-sm hover:bg-accent"
                     >
                       Set default
                     </button>
@@ -171,7 +171,7 @@ export function AccountsContent(): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => handleDisconnect(a.id)}
-                    className="rounded border border-red-500/40 px-3 py-1 text-sm text-red-400 hover:bg-red-500/10"
+                    className="rounded-sm border border-red-500/40 px-3 py-1 text-sm text-red-400 hover:bg-red-500/10"
                   >
                     Disconnect
                   </button>

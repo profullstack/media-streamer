@@ -191,7 +191,7 @@ export function EditPlaylistModal({
               className={cn(
                 'w-full rounded-lg border bg-bg-tertiary py-3 pl-10 pr-4',
                 'text-sm text-text-primary placeholder:text-text-muted',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary',
+                'focus:outline-hidden focus:ring-2 focus:ring-accent-primary',
                 error && error.toLowerCase().includes('name') ? 'border-red-500' : 'border-border-default'
               )}
               disabled={isSubmitting}
@@ -217,7 +217,7 @@ export function EditPlaylistModal({
               className={cn(
                 'w-full rounded-lg border bg-bg-tertiary py-3 pl-10 pr-4',
                 'text-sm text-text-primary placeholder:text-text-muted',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary',
+                'focus:outline-hidden focus:ring-2 focus:ring-accent-primary',
                 error && error.toLowerCase().includes('m3u') ? 'border-red-500' : 'border-border-default'
               )}
               disabled={isSubmitting}
@@ -243,7 +243,7 @@ export function EditPlaylistModal({
               className={cn(
                 'w-full rounded-lg border bg-bg-tertiary py-3 pl-10 pr-4',
                 'text-sm text-text-primary placeholder:text-text-muted',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary',
+                'focus:outline-hidden focus:ring-2 focus:ring-accent-primary',
                 error && error.toLowerCase().includes('epg') ? 'border-red-500' : 'border-border-default'
               )}
               disabled={isSubmitting}
@@ -259,7 +259,7 @@ export function EditPlaylistModal({
             checked={isDefault}
             onChange={(e) => setIsDefault(e.target.checked)}
             className={cn(
-              'h-5 w-5 rounded border-border-default bg-bg-tertiary',
+              'h-5 w-5 rounded-sm border-border-default bg-bg-tertiary',
               'text-accent-primary focus:ring-2 focus:ring-accent-primary focus:ring-offset-0',
               'cursor-pointer'
             )}

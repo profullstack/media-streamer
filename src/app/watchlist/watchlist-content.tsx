@@ -97,22 +97,22 @@ function WatchlistItemCard({
     <div className="group relative overflow-hidden rounded-lg bg-bg-secondary border border-border-primary hover:border-accent-primary transition-all">
       <div className="flex flex-col sm:flex-row">
         {/* Poster */}
-        <div className="relative w-full sm:w-40 flex-shrink-0">
+        <div className="relative w-full sm:w-40 shrink-0">
           <MediaThumbnail
             src={item.poster_path ?? undefined}
             alt={item.title}
             contentType={item.media_type === 'movie' ? 'movie' : 'tvshow'}
-            className="aspect-[2/3] w-full sm:h-60"
+            className="aspect-2/3 w-full sm:h-60"
           />
           {/* Rating badge */}
           {item.vote_average !== null && Number(item.vote_average) > 0 && (
-            <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-yellow-400">
+            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-sm bg-black/80 px-1.5 py-0.5 text-xs font-medium text-yellow-400">
               <StarIcon size={12} />
               {formatRating(item.vote_average)}
             </div>
           )}
           {/* Media type badge */}
-          <div className="absolute bottom-2 left-2 rounded bg-accent-primary/90 px-1.5 py-0.5 text-xs font-medium text-white uppercase">
+          <div className="absolute bottom-2 left-2 rounded-sm bg-accent-primary/90 px-1.5 py-0.5 text-xs font-medium text-white uppercase">
             {item.media_type}
           </div>
         </div>
@@ -456,7 +456,7 @@ export function WatchlistContent({
                         type="button"
                         onClick={() => switchWatchlist(wl.id)}
                         className={cn(
-                          'flex-1 px-3 py-2 text-sm text-left transition-colors rounded',
+                          'flex-1 px-3 py-2 text-sm text-left transition-colors rounded-sm',
                           wl.id === activeWatchlistId
                             ? 'text-accent-primary bg-accent-primary/10'
                             : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
@@ -477,7 +477,7 @@ export function WatchlistContent({
                           setRenamingId(wl.id);
                           setRenameValue(wl.name);
                         }}
-                        className="rounded p-1 text-text-muted hover:text-text-primary hover:bg-bg-hover"
+                        className="rounded-sm p-1 text-text-muted hover:text-text-primary hover:bg-bg-hover"
                         title="Rename"
                       >
                         <EditIcon size={12} />
@@ -489,7 +489,7 @@ export function WatchlistContent({
                             e.stopPropagation();
                             handleDelete(wl.id);
                           }}
-                          className="rounded p-1 text-text-muted hover:text-red-400 hover:bg-red-500/10"
+                          className="rounded-sm p-1 text-text-muted hover:text-red-400 hover:bg-red-500/10"
                           title="Delete"
                         >
                           <TrashIcon size={12} />

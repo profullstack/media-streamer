@@ -264,7 +264,7 @@ export function BrowseGrid({
             className={cn(
               'w-full rounded-lg border border-border-subtle bg-bg-secondary py-2 pl-11 pr-4',
               'text-text-primary placeholder:text-text-muted',
-              'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+              'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
             )}
           />
         </form>
@@ -281,7 +281,7 @@ export function BrowseGrid({
                 onClick={() => handleSort(option.key)}
                 title={sortBy === option.key ? 'Click to reverse order' : `Sort by ${option.label}`}
                 className={cn(
-                  'flex items-center gap-1 rounded px-2 py-1 text-sm transition-colors',
+                  'flex items-center gap-1 rounded-sm px-2 py-1 text-sm transition-colors',
                   sortBy === option.key
                     ? 'bg-accent-primary/20 text-accent-primary'
                     : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
@@ -304,10 +304,10 @@ export function BrowseGrid({
       {isLoading ? <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="card animate-pulse">
-              <div className="aspect-[3/4] bg-bg-tertiary rounded-t-lg" />
+              <div className="aspect-3/4 bg-bg-tertiary rounded-t-lg" />
               <div className="p-2 space-y-1">
-                <div className="h-3 bg-bg-tertiary rounded w-3/4" />
-                <div className="h-2 bg-bg-tertiary rounded w-1/2" />
+                <div className="h-3 bg-bg-tertiary rounded-sm w-3/4" />
+                <div className="h-2 bg-bg-tertiary rounded-sm w-1/2" />
               </div>
             </div>
           ))}
@@ -394,7 +394,7 @@ function HealthIndicator({ seeders, leechers }: HealthIndicatorProps): React.Rea
       {colors.map((color, index) => (
         <div
           key={index}
-          className={cn('h-2 w-0.5 rounded-sm', color)}
+          className={cn('h-2 w-0.5 rounded-xs', color)}
         />
       ))}
     </div>
@@ -419,7 +419,7 @@ const TorrentCard = memo(function TorrentCard({ torrent }: TorrentCardProps): Re
       className="card-hover group overflow-hidden transition-transform hover:scale-[1.01]"
     >
       {/* Image - more compact aspect ratio */}
-      <div className="aspect-[3/4] bg-bg-tertiary relative overflow-hidden rounded-t-lg">
+      <div className="aspect-3/4 bg-bg-tertiary relative overflow-hidden rounded-t-lg">
         {imageUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element -- External torrent poster/cover images */
           <img
@@ -435,11 +435,11 @@ const TorrentCard = memo(function TorrentCard({ torrent }: TorrentCardProps): Re
             alt={torrent.cleanTitle ?? torrent.name}
             contentType={mediaContentType}
             aspectRatio="poster"
-            className="h-full w-full !rounded-none"
+            className="h-full w-full rounded-none!"
           />
         )}
         {/* Overlay with health indicator and seeders - smaller */}
-        <div className="absolute bottom-1 right-1 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5">
+        <div className="absolute bottom-1 right-1 flex items-center gap-1 rounded-sm bg-black/70 px-1.5 py-0.5">
           <HealthIndicator seeders={torrent.seeders} leechers={torrent.leechers} />
           {torrent.seeders !== null && (
             <span className="text-[10px] text-white">{torrent.seeders}</span>

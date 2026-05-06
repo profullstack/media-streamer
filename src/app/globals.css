@@ -1,6 +1,220 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-bg-primary: #0a0a0b;
+  --color-bg-secondary: #141416;
+  --color-bg-tertiary: #1c1c1f;
+  --color-bg-hover: #252528;
+  --color-accent-primary: #8b5cf6;
+  --color-accent-secondary: #06b6d4;
+  --color-accent-audio: #22c55e;
+  --color-accent-video: #ef4444;
+  --color-accent-ebook: #f59e0b;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-border-subtle: #27272a;
+  --color-border-default: #3f3f46;
+
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+
+  --animate-fade-in: fadeIn 0.2s ease-out;
+  --animate-fade-out: fadeOut 0.2s ease-out;
+  --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-slide-down: slideDown 0.3s ease-out;
+  --animate-scale-in: scaleIn 0.2s ease-out;
+  --animate-shimmer: shimmer 1.5s infinite;
+
+  --background-image-gradient-accent: linear-gradient(
+    135deg,
+    #8b5cf6 0%,
+    #06b6d4 100%
+  );
+  --background-image-shimmer: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes fadeOut {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  @keyframes slideUp {
+    0% {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes slideDown {
+    0% {
+      transform: translateY(-10px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes scaleIn {
+    0% {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility card {
+  /* Card component */
+  @apply bg-bg-secondary rounded-lg border border-border-subtle;
+}
+
+@utility card-hover {
+  @apply card transition-all duration-200 hover:bg-bg-tertiary hover:border-border-default;
+}
+
+@utility btn {
+  /* Button variants */
+  @apply inline-flex items-center justify-center rounded-lg font-medium transition-colors;
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-primary;
+  @apply disabled:pointer-events-none disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply btn bg-accent-primary text-white hover:bg-accent-primary/90;
+}
+
+@utility btn-secondary {
+  @apply btn bg-bg-tertiary text-text-primary hover:bg-bg-hover;
+}
+
+@utility btn-ghost {
+  @apply btn bg-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary;
+}
+
+@utility input {
+  /* Input styles */
+  @apply w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-2;
+  @apply text-text-primary placeholder:text-text-muted;
+  @apply focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary;
+}
+
+@utility badge-audio {
+  /* Media type badges */
+  @apply inline-flex items-center rounded-full bg-accent-audio/20 px-2 py-0.5 text-xs font-medium text-accent-audio;
+}
+
+@utility badge-video {
+  @apply inline-flex items-center rounded-full bg-accent-video/20 px-2 py-0.5 text-xs font-medium text-accent-video;
+}
+
+@utility badge-ebook {
+  @apply inline-flex items-center rounded-full bg-accent-ebook/20 px-2 py-0.5 text-xs font-medium text-accent-ebook;
+}
+
+@utility skeleton {
+  /* Skeleton loader */
+  @apply animate-pulse rounded-sm bg-bg-tertiary;
+}
+
+@utility gradient-text {
+  /* Gradient text */
+  @apply bg-gradient-accent bg-clip-text text-transparent;
+}
+
+@utility scrollbar-hide {
+  /* Hide scrollbar but keep functionality */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility safe-bottom {
+  /* Safe area padding for mobile */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility touch-pan-y {
+  /* Touch action for better mobile experience */
+  touch-action: pan-y;
+}
+
+@utility touch-pan-x {
+  touch-action: pan-x;
+}
 
 @layer base {
   :root {
@@ -63,102 +277,12 @@
 
   /* Focus styles */
   :focus-visible {
-    @apply outline-none ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-primary;
+    @apply outline-hidden ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-primary;
   }
 
   /* Selection */
   ::selection {
     @apply bg-accent-primary/30 text-text-primary;
-  }
-}
-
-@layer components {
-  /* Card component */
-  .card {
-    @apply bg-bg-secondary rounded-lg border border-border-subtle;
-  }
-
-  .card-hover {
-    @apply card transition-all duration-200 hover:bg-bg-tertiary hover:border-border-default;
-  }
-
-  /* Button variants */
-  .btn {
-    @apply inline-flex items-center justify-center rounded-lg font-medium transition-colors;
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary;
-    @apply disabled:pointer-events-none disabled:opacity-50;
-  }
-
-  .btn-primary {
-    @apply btn bg-accent-primary text-white hover:bg-accent-primary/90;
-  }
-
-  .btn-secondary {
-    @apply btn bg-bg-tertiary text-text-primary hover:bg-bg-hover;
-  }
-
-  .btn-ghost {
-    @apply btn bg-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary;
-  }
-
-  /* Input styles */
-  .input {
-    @apply w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-2;
-    @apply text-text-primary placeholder:text-text-muted;
-    @apply focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary;
-  }
-
-  /* Media type badges */
-  .badge-audio {
-    @apply inline-flex items-center rounded-full bg-accent-audio/20 px-2 py-0.5 text-xs font-medium text-accent-audio;
-  }
-
-  .badge-video {
-    @apply inline-flex items-center rounded-full bg-accent-video/20 px-2 py-0.5 text-xs font-medium text-accent-video;
-  }
-
-  .badge-ebook {
-    @apply inline-flex items-center rounded-full bg-accent-ebook/20 px-2 py-0.5 text-xs font-medium text-accent-ebook;
-  }
-
-  /* Skeleton loader */
-  .skeleton {
-    @apply animate-pulse rounded bg-bg-tertiary;
-  }
-
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-gradient-accent bg-clip-text text-transparent;
-  }
-}
-
-@layer utilities {
-  /* Hide scrollbar but keep functionality */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Safe area padding for mobile */
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .safe-top {
-    padding-top: env(safe-area-inset-top);
-  }
-
-  /* Touch action for better mobile experience */
-  .touch-pan-y {
-    touch-action: pan-y;
-  }
-
-  .touch-pan-x {
-    touch-action: pan-x;
   }
 }
 

@@ -133,7 +133,7 @@ export function SearchBar({
           className={cn(
             'w-full rounded-lg border border-border-subtle bg-bg-secondary py-2.5 pl-11 pr-20',
             'text-text-primary placeholder:text-text-muted',
-            'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+            'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary',
             'transition-colors'
           )}
         />
@@ -154,7 +154,7 @@ export function SearchBar({
               type="button"
               onClick={() => setShowFilterMenu(!showFilterMenu)}
               className={cn(
-                'relative rounded p-1.5 transition-colors',
+                'relative rounded-sm p-1.5 transition-colors',
                 showFilterMenu || activeFilterCount > 0
                   ? 'bg-accent-primary/20 text-accent-primary'
                   : 'text-text-muted hover:text-text-primary'
@@ -177,13 +177,13 @@ export function SearchBar({
                 {MEDIA_TYPE_OPTIONS.map((option) => (
                   <label
                     key={option.value}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-bg-hover"
+                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-bg-hover"
                   >
                     <input
                       type="checkbox"
                       checked={filters.mediaTypes.includes(option.value)}
                       onChange={() => handleFilterToggle(option.value)}
-                      className="h-4 w-4 rounded border-border-default bg-bg-tertiary text-accent-primary focus:ring-accent-primary"
+                      className="h-4 w-4 rounded-sm border-border-default bg-bg-tertiary text-accent-primary focus:ring-accent-primary"
                     />
                     <span className="text-sm text-text-primary">{option.label}</span>
                   </label>

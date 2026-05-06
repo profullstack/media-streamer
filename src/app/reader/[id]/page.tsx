@@ -139,7 +139,7 @@ export default function ReaderPage(): React.ReactElement {
           </div>
           <button
             onClick={handleBack}
-            className="mt-4 px-4 py-2 bg-accent-primary text-white rounded hover:bg-accent-primary/90 transition-colors"
+            className="mt-4 px-4 py-2 bg-accent-primary text-white rounded-sm hover:bg-accent-primary/90 transition-colors"
           >
             Go Back
           </button>
@@ -185,7 +185,7 @@ export default function ReaderPage(): React.ReactElement {
           <FileFavoriteButton
             fileId={fileInfo.id}
             size="md"
-            className="flex-shrink-0 hover:bg-bg-tertiary rounded-full"
+            className="shrink-0 hover:bg-bg-tertiary rounded-full"
           />
         </div>
 

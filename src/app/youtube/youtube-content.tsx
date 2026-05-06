@@ -107,7 +107,7 @@ export function YouTubeContent(): React.ReactElement {
             {accounts && accounts.length > 1 ? <select
                 value={activeAccountId ?? ''}
                 onChange={(e) => setActiveAccountId(e.target.value)}
-                className="rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                className="rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -125,14 +125,14 @@ export function YouTubeContent(): React.ReactElement {
           </div>
         </div>
 
-        {noAccounts ? <div className="mb-4 rounded border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm">
+        {noAccounts ? <div className="mb-4 rounded-sm border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm">
             No YouTube account connected yet.{' '}
             <Link href="/youtube/accounts" className="text-blue-400 hover:underline">
               Connect one
             </Link>{' '}
             to start searching and watching.
           </div> : null}
-        {needsReconnect ? <div className="mb-4 rounded border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-200">
+        {needsReconnect ? <div className="mb-4 rounded-sm border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-200">
             This account was connected without YouTube search access.{' '}
             <Link href="/youtube/accounts" className="text-blue-400 hover:underline">
               Reconnect it from Manage accounts
@@ -150,7 +150,7 @@ export function YouTubeContent(): React.ReactElement {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search YouTube…"
-              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-11 pr-4 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+              className="w-full rounded-lg border border-border-default bg-bg-secondary py-3 pl-11 pr-4 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary"
               disabled={noAccounts || needsReconnect}
             />
           </div>
@@ -169,7 +169,7 @@ export function YouTubeContent(): React.ReactElement {
           </button>
         </form>
 
-        {error ? <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+        {error ? <div className="mb-4 rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
             {error}
           </div> : null}
 
@@ -208,7 +208,7 @@ export function YouTubeContent(): React.ReactElement {
                   href={`https://www.youtube.com/watch?v=${activeVideo.videoId}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex shrink-0 items-center rounded border border-border px-3 py-2 text-sm hover:bg-accent"
+                  className="inline-flex shrink-0 items-center rounded-sm border border-border px-3 py-2 text-sm hover:bg-accent"
                 >
                   Open on YouTube
                 </a>
@@ -230,7 +230,7 @@ export function YouTubeContent(): React.ReactElement {
               onClick={() => setActiveVideo(item)}
               className="text-left group"
             >
-              <div className="aspect-video w-full overflow-hidden rounded bg-muted">
+              <div className="aspect-video w-full overflow-hidden rounded-sm bg-muted">
                 {item.thumbnailUrl ? <img
                     src={item.thumbnailUrl}
                     alt={item.title}

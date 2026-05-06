@@ -120,7 +120,7 @@ export default function ForgotPasswordPage(): React.ReactElement {
                 className={cn(
                   'w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
                 placeholder="you@example.com"
               />

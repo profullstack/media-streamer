@@ -365,7 +365,7 @@ function FileTreeNodeComponent({
         }}
       >
         {/* Action buttons and expand/collapse - LEFT of filename */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {node.isDirectory ? (
             <>
               {/* Expand/collapse arrow for directories */}
@@ -445,7 +445,7 @@ function FileTreeNodeComponent({
 
         {/* Album cover thumbnail for folders with cover art - rectangular poster format */}
         {node.isDirectory && folderMetadata?.coverUrl ? (
-          <div className="relative w-10 h-14 flex-shrink-0 rounded overflow-hidden bg-bg-tertiary">
+          <div className="relative w-10 h-14 shrink-0 rounded-sm overflow-hidden bg-bg-tertiary">
             <Image
               src={folderMetadata.coverUrl}
               alt={folderMetadata.album ?? node.name}
@@ -458,7 +458,7 @@ function FileTreeNodeComponent({
         ) : (
           /* Icon (only show if no cover art) */
           /* eslint-disable-next-line react-hooks/static-components -- Dynamic icon selection */
-          <Icon className={cn(iconColor, 'flex-shrink-0')} size={18} />
+          <Icon className={cn(iconColor, 'shrink-0')} size={18} />
         )}
 
         {/* Name and album info - min-w-0 and overflow-hidden are required for truncate to work in flex container */}
@@ -493,14 +493,14 @@ function FileTreeNodeComponent({
               </span>
               {/* Completed checkmark */}
               {fileProgress.completed ? (
-                <CheckIcon className="h-3 w-3 text-green-500 flex-shrink-0" />
+                <CheckIcon className="h-3 w-3 text-green-500 shrink-0" />
               ) : null}
             </div>
           ) : null}
         </div>
 
         {/* File size */}
-        {node.file ? <span className="text-xs text-text-muted flex-shrink-0 ml-2">{formatBytes(node.file.size)}</span> : null}
+        {node.file ? <span className="text-xs text-text-muted shrink-0 ml-2">{formatBytes(node.file.size)}</span> : null}
       </div>
 
       {/* Children */}

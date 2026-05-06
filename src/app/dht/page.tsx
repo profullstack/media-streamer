@@ -132,7 +132,7 @@ const DhtResultsList = memo(function DhtResultsList({
           key={result.infohash}
           href={`/dht/${result.infohash}`}
           className={cn(
-            'block rounded border border-transparent px-3 py-2',
+            'block rounded-sm border border-transparent px-3 py-2',
             'hover:border-accent-primary/30 hover:bg-bg-hover',
             'transition-colors'
           )}
@@ -147,7 +147,7 @@ const DhtResultsList = memo(function DhtResultsList({
                 onAddToLibrary(result);
               }}
               className={cn(
-                'flex items-center gap-1 rounded px-2 py-1 text-xs',
+                'flex items-center gap-1 rounded-sm px-2 py-1 text-xs',
                 'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30',
                 'transition-colors shrink-0'
               )}
@@ -164,7 +164,7 @@ const DhtResultsList = memo(function DhtResultsList({
                 </span>
                 {result.content_type ? (
                   <span className={cn(
-                    'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+                    'shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase',
                     getCategoryColor(result.content_type)
                   )}>
                     {formatContentType(result.content_type)}
@@ -424,7 +424,7 @@ function DhtPageInner(): React.ReactElement {
                   onClick={() => handleSort(option.key)}
                   title={sortBy === option.key ? 'Click to reverse order' : `Sort by ${option.label}`}
                   className={cn(
-                    'flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors',
+                    'flex items-center gap-1 rounded-sm px-2 py-1 text-xs transition-colors',
                     sortBy === option.key
                       ? 'bg-accent-primary/20 text-accent-primary'
                       : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'

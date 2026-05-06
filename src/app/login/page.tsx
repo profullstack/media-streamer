@@ -102,7 +102,7 @@ export default function LoginPage(): React.ReactElement {
                 className={cn(
                   'w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
                 placeholder="you@example.com"
               />
@@ -122,7 +122,7 @@ export default function LoginPage(): React.ReactElement {
                 className={cn(
                   'w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3',
                   'text-text-primary placeholder:text-text-muted',
-                  'focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary'
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
                 )}
                 placeholder="••••••••"
               />
@@ -132,7 +132,7 @@ export default function LoginPage(): React.ReactElement {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border-border-default bg-bg-secondary text-accent-primary focus:ring-accent-primary"
+                  className="h-4 w-4 rounded-sm border-border-default bg-bg-secondary text-accent-primary focus:ring-accent-primary"
                 />
                 <span className="text-sm text-text-secondary">Remember me</span>
               </label>

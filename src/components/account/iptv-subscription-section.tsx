@@ -207,7 +207,7 @@ export function IPTVSubscriptionSection(): React.ReactElement {
           <div className="flex items-center justify-between">
             <h3 className="font-medium text-text-primary">Current IPTV Subscription</h3>
             <span className={cn(
-              'text-xs px-2 py-0.5 rounded',
+              'text-xs px-2 py-0.5 rounded-sm',
               isActive
                 ? 'bg-status-success/10 text-status-success'
                 : 'bg-status-error/10 text-status-error'
@@ -327,7 +327,7 @@ export function IPTVSubscriptionSection(): React.ReactElement {
               onChange={(e) => setSelectedCrypto(e.target.value)}
               className={cn(
                 'w-full max-w-xs rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
-                'text-text-primary focus:border-accent-primary focus:outline-none'
+                'text-text-primary focus:border-accent-primary focus:outline-hidden'
               )}
             >
               {coins.map((coin) => (

@@ -102,7 +102,7 @@ function HealthIndicator({ seeders, leechers }: HealthIndicatorProps): React.Rea
       {colors.map((color, index) => (
         <div
           key={index}
-          className={`h-3 w-1 rounded-sm ${color}`}
+          className={`h-3 w-1 rounded-xs ${color}`}
           style={{ height: `${8 + index * 2}px` }}
         />
       ))}
@@ -174,8 +174,8 @@ function TorrentSkeleton(): React.ReactElement {
     <div className="card flex items-center gap-4 p-4">
       <div className="skeleton h-12 w-12 rounded-lg" />
       <div className="flex-1 space-y-2">
-        <div className="skeleton h-5 w-3/4 rounded" />
-        <div className="skeleton h-4 w-1/2 rounded" />
+        <div className="skeleton h-5 w-3/4 rounded-sm" />
+        <div className="skeleton h-4 w-1/2 rounded-sm" />
       </div>
     </div>
   );

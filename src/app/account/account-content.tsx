@@ -488,7 +488,7 @@ function AccountPageContent(): React.ReactElement {
                             {subscriptionLabel}
                           </span>
                           {subscriptionStatus?.status ? <span className={cn(
-                              'text-xs px-2 py-0.5 rounded',
+                              'text-xs px-2 py-0.5 rounded-sm',
                               subscriptionStatus.status === 'active' 
                                 ? 'bg-status-success/10 text-status-success'
                                 : subscriptionStatus.status === 'cancelled'
@@ -733,7 +733,7 @@ function AccountPageContent(): React.ReactElement {
                                   {formatCurrency(payment.amountUsd)}
                                 </p>
                                 <span className={cn(
-                                  'text-xs px-2 py-0.5 rounded',
+                                  'text-xs px-2 py-0.5 rounded-sm',
                                   payment.status === 'confirmed' || payment.status === 'forwarded'
                                     ? 'bg-status-success/10 text-status-success'
                                     : payment.status === 'pending' || payment.status === 'detected'
