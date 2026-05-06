@@ -10,6 +10,7 @@ import {
   ensureSiriusXmBearer,
   getSiriusXmProxyAgent,
   invalidateSiriusXmSession,
+  isRetryableNetworkError,
   SiriusXmAuthError,
 } from './siriusxm-auth';
 import type {
@@ -149,14 +150,28 @@ function categoryQuery(cat: SiriusXmCategory): string {
 async function sxmFetchOnce(url: string, init: RequestInit): Promise<Response> {
   const headers = await siriusXmHeaders();
   const proxyAgent = getSiriusXmProxyAgent();
-  return fetch(url, {
+  const fetchInit = {
     ...init,
     headers: {
       ...headers,
       ...(init.headers as Record<string, string> | undefined),
     },
     ...(proxyAgent ? { dispatcher: proxyAgent } : {}),
-  } as RequestInit);
+  } as RequestInit;
+
+  // Webshare residential rotates IPs per request; some land on peers SXM
+  // RST's at TLS time. Retry transient network failures up to 3x.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await fetch(url, fetchInit);
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryableNetworkError(err)) throw err;
+      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 async function sxmFetch<T>(url: string, init: RequestInit = {}): Promise<T> {

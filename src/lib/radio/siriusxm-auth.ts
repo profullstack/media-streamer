@@ -223,7 +223,7 @@ const RETRYABLE_CODES = new Set([
   'UND_ERR_CONNECT_TIMEOUT',
 ]);
 
-function isRetryableNetworkError(err: unknown): boolean {
+export function isRetryableNetworkError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   // undici wraps the real reason in cause; walk both.
   const candidates: unknown[] = [err];
