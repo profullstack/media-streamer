@@ -195,10 +195,7 @@ interface RawEntity {
     title?: { default?: string; short?: string; medium?: string; long?: string };
     description?: { default?: string; short?: string; medium?: string; long?: string };
   };
-  images?: {
-    aspect1x1?: { default?: { url?: string } };
-    default?: { url?: string };
-  };
+  images?: Record<string, unknown>;
 }
 
 interface RawItem {
@@ -210,12 +207,50 @@ function pickText(t?: { default?: string; short?: string; medium?: string; long?
   return t?.default || t?.short || t?.medium || t?.long || '';
 }
 
+function findUrl(node: unknown): string | undefined {
+  if (!node) return undefined;
+  if (typeof node === 'string') {
+    return /^https?:\/\//.test(node) ? node : undefined;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findUrl(item);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (typeof node === 'object') {
+    const obj = node as Record<string, unknown>;
+    // Prefer explicit url-ish keys before recursing arbitrarily.
+    for (const key of ['url', 'src', 'href']) {
+      if (typeof obj[key] === 'string' && /^https?:\/\//.test(obj[key] as string)) {
+        return obj[key] as string;
+      }
+    }
+    for (const value of Object.values(obj)) {
+      const found = findUrl(value);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
 function pickImage(entity?: RawEntity): string | undefined {
-  return (
-    entity?.images?.aspect1x1?.default?.url ||
-    entity?.images?.default?.url ||
-    undefined
-  );
+  // SXM ships images under varying keys (aspect1x1, tile, background, default,
+  // tile_aspect_1x1, etc.) and varying nesting depths. Walk anything that
+  // contains a URL rather than hard-coding the first two paths.
+  const images = entity?.images as Record<string, unknown> | undefined;
+  if (!images) return undefined;
+
+  // Try common preference order first so we don't accidentally pick a tiny
+  // background image when an aspect-1:1 thumbnail is available.
+  const preferred = ['aspect1x1', 'aspect_1x1', 'tile_aspect_1x1', 'tile', 'thumbnail', 'default'];
+  for (const key of preferred) {
+    const branch = images[key];
+    const url = findUrl(branch);
+    if (url) return url;
+  }
+  return findUrl(images);
 }
 
 function itemToChannel(item: RawItem): SiriusXmChannel | null {

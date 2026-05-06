@@ -16,7 +16,7 @@ import {
   rewriteSiriusXmPlaylist,
   siriusXmHeaders,
 } from '@/lib/radio';
-import { withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
+import { getSiriusXmProxyAgent, withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import type { SiriusXmQuality } from '@/lib/radio';
 
 export const dynamic = 'force-dynamic';
@@ -66,7 +66,14 @@ async function handleProxy(target: string, quality: SiriusXmQuality, origin: str
     const headers = await siriusXmHeaders({
       Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
     });
-    upstream = await fetch(target, { headers });
+    // Route stream traffic through the residential proxy too — SXM ties
+    // playback to the auth IP, and our datacenter IP gets 403 on the
+    // playback/key endpoint regardless of bearer.
+    const proxyAgent = getSiriusXmProxyAgent();
+    upstream = await fetch(target, {
+      headers,
+      ...(proxyAgent ? { dispatcher: proxyAgent } : {}),
+    } as RequestInit);
   } catch (error) {
     return new Response(`proxy fetch failed: ${error instanceof Error ? error.message : String(error)}`, {
       status: 502,
