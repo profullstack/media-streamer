@@ -66,7 +66,7 @@
     "resend": "^6.12.2",
     "sax": "^1.6.0",
     "tailwind-merge": "^3.5.0",
-    "undici": "^7.24.4",
+    "undici": "^8.2.0",
     "video.js": "^8.23.7",
     "web-push": "^3.6.7",
     "webtorrent": "^2.8.5"
