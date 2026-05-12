@@ -27,7 +27,9 @@
     "iptv-worker": "tsx --env-file=.env workers/iptv-cache/index.ts",
     "iptv-worker:dev": "tsx --watch --env-file=.env workers/iptv-cache/index.ts",
     "podcast-worker": "tsx --env-file=.env workers/podcast-notifier/index.ts",
-    "podcast-worker:dev": "tsx --watch --env-file=.env workers/podcast-notifier/index.ts"
+    "podcast-worker:dev": "tsx --watch --env-file=.env workers/podcast-notifier/index.ts",
+    "postinstall": "pnpm dlx @socketsecurity/socket-patch apply --silent --ecosystems npm",
+    "dependencies": "pnpm dlx @socketsecurity/socket-patch apply --silent --ecosystems npm"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
