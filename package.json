@@ -93,7 +93,7 @@
     "postcss": "^8.5.14",
     "tailwindcss": "^4.2.4",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "vitest": "^3.2.4"
   },
   "engines": {
