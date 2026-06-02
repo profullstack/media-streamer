@@ -229,6 +229,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // Don't break the request — let getCurrentUser() handle the stale token
   }
 
+  const ref = request.nextUrl.searchParams.get('ref');
+  if (ref) {
+    response.cookies.set('referral_code', ref, { httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 30, path: '/' });
+  }
   return response;
 }
 
