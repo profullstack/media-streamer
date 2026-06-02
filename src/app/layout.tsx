@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { ReferralProvider } from '@profullstack/referrals/react';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
@@ -111,7 +112,7 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
         <Providers>
           <TvLayoutProvider>
-            {children}
+            <ReferralProvider>{children}</ReferralProvider>
           </TvLayoutProvider>
         </Providers>
         

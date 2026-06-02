@@ -116,7 +116,7 @@ describe('TMDBService', () => {
     mockCache = createMockCache();
     service = new TMDBService(apiKey, mockCache);
     fetchSpy = vi.fn();
-    global.fetch = fetchSpy;
+    global.fetch = fetchSpy as unknown as typeof fetch;
   });
 
   afterEach(() => {
