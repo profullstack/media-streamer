@@ -131,6 +131,7 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
           data-key="fpLXhgbOcWxpK8y1xzpbAQ"
           strategy="afterInteractive"
         />
+              <Script data-site="dbe5c461-626d-4359-afc7-aea1c79e89bf" src="https://crawlproof.com/stats.js" strategy="afterInteractive" />
       </body>
     </html>
   );
