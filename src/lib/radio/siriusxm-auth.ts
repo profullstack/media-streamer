@@ -84,6 +84,10 @@ let proxyListCache: string[] | null = null;
 
 function loadProxyList(): string[] {
   if (proxyListCache !== null) return proxyListCache;
+  if (process.env.SKIP_PROXY_LIST === '1') {
+    proxyListCache = [];
+    return proxyListCache;
+  }
   // The runtime cwd in production is .next/standalone, but the deploy
   // ships proxies.txt to the project root. Try both, plus an explicit
   // override env var.
