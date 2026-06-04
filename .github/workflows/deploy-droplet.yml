@@ -148,6 +148,7 @@ jobs:
             
             echo ""
             echo "=== Installing dependencies ==="
+            rm -rf node_modules
             pnpm install --frozen-lockfile
             echo "✓ Dependencies installed"
             
