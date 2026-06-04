@@ -3,6 +3,7 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  transpilePackages: ['@profullstack/referrals'],
   
   // Enable standalone output for Docker deployment
   output: 'standalone',
