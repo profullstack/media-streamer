@@ -1,6 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getCurrentUser } from '@/lib/auth';
 import { getServerClient } from '@/lib/supabase';
+import { IntegrationsManager } from './integrations-form';
+import type { IntegrationKind } from '@/app/actions/integrations';
 
 export const metadata = {
   title: 'Admin | BitTorrented',
@@ -12,7 +15,7 @@ export const dynamic = 'force-dynamic';
 type Integration = {
   id: string;
   name: string;
-  kind: string;
+  kind: IntegrationKind;
   access_token: string;
   request_count: number;
   last_used_at: string | null;
@@ -32,21 +35,19 @@ export default async function AdminPage() {
   if (!user) redirect('/login?redirect=/admin');
 
   const svc = getServerClient();
-
-  const { data: adminRow } = await svc
+  const { data: adminRow } = await (svc as any)
     .from('admin_users')
     .select('user_id')
     .eq('user_id', user.id)
     .maybeSingle();
-  // 404 so a non-admin who guesses the URL gets no confirmation it exists.
   if (!adminRow) notFound();
 
   const [{ data: integrationsRaw }, { data: postsRaw }] = await Promise.all([
-    svc
+    (svc as any)
       .from('autoblog_integrations')
       .select('id, name, kind, access_token, request_count, last_used_at, created_at')
       .order('created_at', { ascending: false }),
-    svc
+    (svc as any)
       .from('blog_posts')
       .select('id, slug, title, source, published_at')
       .order('published_at', { ascending: false })
@@ -63,39 +64,16 @@ export default async function AdminPage() {
         <p className="mt-1 text-sm text-muted-foreground">Logged in as {user.email}</p>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-5 space-y-3">
-        <h2 className="text-lg font-semibold">Autoblog integrations</h2>
-        <p className="text-sm text-muted-foreground">
-          Bearer tokens for inbound autoblog webhooks. Each token is also the HMAC
-          secret for Standard Webhooks signature verification. Add tokens via
-          database insert into <code>autoblog_integrations</code>.
-        </p>
-        {integrations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No integrations configured.</p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="py-2 pr-4">Name</th>
-                <th className="py-2 pr-4">Kind</th>
-                <th className="py-2 pr-4 text-right">Requests</th>
-                <th className="py-2">Last used</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {integrations.map((i) => (
-                <tr key={i.id}>
-                  <td className="py-2 pr-4 font-medium">{i.name}</td>
-                  <td className="py-2 pr-4 text-muted-foreground">{i.kind}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{i.request_count}</td>
-                  <td className="py-2 text-muted-foreground">
-                    {i.last_used_at ? new Date(i.last_used_at).toLocaleString() : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <section className="rounded-lg border border-border bg-card p-5 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Autoblog integrations</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Generate a bearer token, then paste it into{' '}
+            <a href="https://crawlproof.com" className="underline">CrawlProof</a>{' '}
+            or Outrank as the webhook secret. The token doubles as the HMAC signing secret.
+          </p>
+        </div>
+        <IntegrationsManager initial={integrations} />
       </section>
 
       <section className="rounded-lg border border-border bg-card p-5 space-y-3">
@@ -115,14 +93,10 @@ export default async function AdminPage() {
               {posts.map((p) => (
                 <tr key={p.id}>
                   <td className="py-2 pr-4">
-                    <a href={`/blog/${p.slug}`} className="underline hover:opacity-80">
-                      {p.title}
-                    </a>
+                    <Link href={`/blog/${p.slug}`} className="underline hover:opacity-80">{p.title}</Link>
                   </td>
                   <td className="py-2 pr-4 text-muted-foreground">{p.source}</td>
-                  <td className="py-2 text-muted-foreground">
-                    {p.published_at.slice(0, 10)}
-                  </td>
+                  <td className="py-2 text-muted-foreground">{p.published_at.slice(0, 10)}</td>
                 </tr>
               ))}
             </tbody>
