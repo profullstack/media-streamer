@@ -20,8 +20,8 @@ importers:
         specifier: ^3.0.0
         version: 3.1.0(react@19.2.5)
       '@profullstack/referrals':
-        specifier: file:../referrals
-        version: file:../referrals(react@19.2.5)
+        specifier: ^0.1.0
+        version: 0.1.0(react@19.2.5)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -928,8 +928,8 @@ packages:
   '@noriginmedia/norigin-spatial-navigation@3.1.0':
     resolution: {integrity: sha512-KPge4ocpDFde7cpZ2aqrPrKmxOxkue983NsfpmE/vX4k2l+Ik8UkucCWGqkcy81TXkEyRhdsYwFTRePNB5qUCg==}
 
-  '@profullstack/referrals@file:../referrals':
-    resolution: {directory: ../referrals, type: directory}
+  '@profullstack/referrals@0.1.0':
+    resolution: {integrity: sha512-u66SdBVpsv3kc0N+NWISPoYD5vjCERyv5wfD07iSkZwQeC2IA+ihX5jNA4e7Xr+Y4AUvxLycG+3b4VaROqzgRg==}
     engines: {node: '>=18'}
     peerDependencies:
       react: '>=18'
@@ -5479,7 +5479,7 @@ snapshots:
     transitivePeerDependencies:
       - react
 
-  '@profullstack/referrals@file:../referrals(react@19.2.5)':
+  '@profullstack/referrals@0.1.0(react@19.2.5)':
     optionalDependencies:
       react: 19.2.5
 
