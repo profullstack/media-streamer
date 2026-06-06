@@ -63,6 +63,7 @@
     "next": "16.2.4",
     "node-datachannel": "^0.32.3",
     "openai": "^6.36.0",
+    "posthog-js": "^1.381.0",
     "puppeteer": "^24.42.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
