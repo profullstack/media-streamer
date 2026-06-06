@@ -27,6 +27,23 @@ function account(overrides: Partial<EmailAccount>): EmailAccount {
 }
 
 describe('resolveImapSettings', () => {
+  it.each(['gmail', 'google'])(
+    'maps %s to Gmail IMAP settings',
+    (provider) => {
+      expect(resolveImapSettings(account({
+        provider,
+        label: 'Gmail',
+        smtpHost: 'smtp.gmail.com',
+      }))).toEqual({
+        host: 'imap.gmail.com',
+        port: 993,
+        secure: true,
+        username: 'me@example.com',
+        password: 'password',
+      });
+    }
+  );
+
   it.each(['forwardemail', 'forwardemail.net', 'forwardedemail', 'forwardedemail.net'])(
     'maps %s to Forward Email IMAP settings',
     (provider) => {
