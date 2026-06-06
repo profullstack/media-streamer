@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { EmailAccount } from '@/lib/email-accounts';
 import { listInboxMessages, getInboxMessage } from './imap';
 import type { EmailMessage } from './types';
@@ -7,47 +6,18 @@ const MAX_FEED_MESSAGES = 20;
 const SCAN_LIMIT = 50;
 
 export interface PrivateSenderFeedInput {
-  userId: string;
   accountId: string;
   senderEmail: string;
-}
-
-function secret(): string {
-  const value = [
-    process.env.ENCRYPTION_KEY,
-    process.env.ENCYRPTION_KEY,
-    process.env.EMAIL_ACCOUNTS_ENCRYPTION_KEY,
-  ].find((candidate) => candidate?.trim());
-  if (!value) {
-    throw new Error('ENCRYPTION_KEY is required for private email feeds');
-  }
-  return value;
-}
-
-function canonical(input: PrivateSenderFeedInput): string {
-  return [input.userId, input.accountId, input.senderEmail.trim().toLowerCase()].join(':');
 }
 
 export function extractEmailAddress(value: string | null | undefined): string | null {
   return value?.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase() ?? null;
 }
 
-export function signPrivateSenderFeed(input: PrivateSenderFeedInput): string {
-  return createHmac('sha256', secret()).update(canonical(input)).digest('base64url');
-}
-
-export function verifyPrivateSenderFeed(input: PrivateSenderFeedInput, token: string): boolean {
-  const expected = Buffer.from(signPrivateSenderFeed(input));
-  const actual = Buffer.from(token);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
 export function buildPrivateSenderFeedUrl(origin: string, input: PrivateSenderFeedInput): string {
   const url = new URL('/api/email/sender-feed', origin);
-  url.searchParams.set('userId', input.userId);
   url.searchParams.set('accountId', input.accountId);
   url.searchParams.set('sender', input.senderEmail.trim().toLowerCase());
-  url.searchParams.set('token', signPrivateSenderFeed(input));
   return url.toString();
 }
 
@@ -107,7 +77,6 @@ export async function buildPrivateSenderFeedXml(
 
   const feedTitle = `Email from ${normalizedSender}`;
   const selfUrl = buildPrivateSenderFeedUrl(origin, {
-    userId: account.userId,
     accountId: account.id,
     senderEmail: normalizedSender,
   });

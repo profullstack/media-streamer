@@ -56,8 +56,7 @@ interface MessageResponse {
 
 interface SenderFeedResponse {
   feedUrl?: string;
-  subscription?: unknown;
-  subscriptionError?: string | null;
+  auth?: 'basic';
   warning?: string;
   error?: string;
 }
@@ -217,16 +216,14 @@ export function EmailContent(): React.ReactElement {
         body: JSON.stringify({
           accountId: selectedAccountId,
           sender: visibleMessage.fromEmail,
-          subscribe: true,
+          subscribe: false,
         }),
       });
       const data = await response.json() as SenderFeedResponse;
       if (!response.ok || !data.feedUrl) throw new Error(data.error ?? 'Failed to create sender RSS feed');
 
       await navigator.clipboard?.writeText(data.feedUrl).catch(() => undefined);
-      setActionMessage(data.subscriptionError
-        ? `Private feed URL copied. RSS Reader add failed: ${data.subscriptionError}`
-        : 'Private sender feed added to RSS Reader and URL copied.');
+      setActionMessage('Authenticated sender feed URL copied. Add it to an RSS reader with your BitTorrented email and password.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create sender RSS feed');
     } finally {

@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getEmailAccount } from '@/lib/email-accounts';
+import { createServerClient } from '@/lib/supabase';
 import {
   buildPrivateSenderFeedUrl,
   buildPrivateSenderFeedXml,
   extractEmailAddress,
-  verifyPrivateSenderFeed,
 } from '@/lib/email-reader';
-import { getActiveProfileId } from '@/lib/profiles';
-import { subscribeToRssFeed } from '@/lib/rss-reader';
 import { isPaidSubscriptionActive } from '@/lib/subscription/check';
 
 interface CreateSenderFeedRequest {
@@ -28,7 +26,7 @@ function isCreateSenderFeedRequest(body: unknown): body is CreateSenderFeedReque
 }
 
 function requestOrigin(request: NextRequest): string {
-  return request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin || 'http://localhost:3000';
 }
 
 function privateRssResponse(xml: string): Response {
@@ -39,6 +37,48 @@ function privateRssResponse(xml: string): Response {
       'Cache-Control': 'private, no-store',
     },
   });
+}
+
+function unauthorizedFeedResponse(): Response {
+  return NextResponse.json(
+    { error: 'Authentication required' },
+    {
+      status: 401,
+      headers: {
+        'WWW-Authenticate': 'Basic realm="BitTorrented RSS", charset="UTF-8"',
+      },
+    }
+  );
+}
+
+function parseBasicAuth(request: NextRequest): { email: string; password: string } | null {
+  const authorization = request.headers.get('authorization');
+  if (!authorization?.toLowerCase().startsWith('basic ')) return null;
+
+  try {
+    const decoded = Buffer.from(authorization.slice(6), 'base64').toString('utf8');
+    const separator = decoded.indexOf(':');
+    if (separator <= 0) return null;
+    const email = decoded.slice(0, separator).trim().toLowerCase();
+    const password = decoded.slice(separator + 1);
+    if (!email || !password) return null;
+    return { email, password };
+  } catch {
+    return null;
+  }
+}
+
+async function authenticateFeedRequest(request: NextRequest): Promise<string | null> {
+  const cookieUser = await getAuthenticatedUser(request);
+  if (cookieUser) return cookieUser.id;
+
+  const credentials = parseBasicAuth(request);
+  if (!credentials) return null;
+
+  const supabase = createServerClient();
+  const { data, error } = await supabase.auth.signInWithPassword(credentials);
+  if (error || !data.user) return null;
+  return data.user.id;
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -78,35 +118,14 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     const feedUrl = buildPrivateSenderFeedUrl(requestOrigin(request), {
-      userId: user.id,
       accountId: account.id,
       senderEmail,
     });
 
-    let subscription: Awaited<ReturnType<typeof subscribeToRssFeed>> | null = null;
-    let subscriptionError: string | null = null;
-
-    if (body.subscribe !== false) {
-      const profileId = await getActiveProfileId();
-      if (profileId) {
-        try {
-          subscription = await subscribeToRssFeed(profileId, feedUrl, false, {
-            customTitle: `Email from ${senderEmail}`,
-            folder: 'Email',
-          });
-        } catch (error) {
-          subscriptionError = error instanceof Error ? error.message : 'Failed to add feed to RSS Reader';
-        }
-      } else {
-        subscriptionError = 'No active profile selected';
-      }
-    }
-
     return NextResponse.json({
       feedUrl,
-      subscription,
-      subscriptionError,
-      warning: 'Keep this private feed URL secret. Anyone with the full URL can read matching email messages while your paid subscription is active.',
+      auth: 'basic',
+      warning: 'Add this feed URL to an RSS reader using your BitTorrented email and password.',
     });
   } catch (error) {
     console.error('[EmailSenderFeed] Failed to create sender feed:', error);
@@ -117,18 +136,17 @@ export async function POST(request: NextRequest): Promise<Response> {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const userId = request.nextUrl.searchParams.get('userId');
   const accountId = request.nextUrl.searchParams.get('accountId');
   const sender = request.nextUrl.searchParams.get('sender');
-  const token = request.nextUrl.searchParams.get('token');
   const senderEmail = extractEmailAddress(sender);
 
-  if (!userId || !accountId || !senderEmail || !token) {
+  if (!accountId || !senderEmail) {
     return NextResponse.json({ error: 'Invalid private feed URL' }, { status: 400 });
   }
 
-  if (!verifyPrivateSenderFeed({ userId, accountId, senderEmail }, token)) {
-    return NextResponse.json({ error: 'Invalid private feed token' }, { status: 403 });
+  const userId = await authenticateFeedRequest(request);
+  if (!userId) {
+    return unauthorizedFeedResponse();
   }
 
   const paid = await isPaidSubscriptionActive(userId);
