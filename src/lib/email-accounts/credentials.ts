@@ -2,10 +2,12 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 
 const ENCRYPTED_PREFIX = 'enc:v1';
 const IV_BYTES = 12;
-const KEY_ENV = 'EMAIL_ACCOUNTS_ENCRYPTION_KEY';
+const KEY_ENV = 'ENCRYPTION_KEY';
+const TYPO_KEY_ENV = 'ENCYRPTION_KEY';
+const LEGACY_KEY_ENV = 'EMAIL_ACCOUNTS_ENCRYPTION_KEY';
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env[KEY_ENV];
+  const secret = process.env[KEY_ENV] ?? process.env[TYPO_KEY_ENV] ?? process.env[LEGACY_KEY_ENV];
   if (!secret) {
     throw new Error(`${KEY_ENV} is required to store SMTP credentials`);
   }

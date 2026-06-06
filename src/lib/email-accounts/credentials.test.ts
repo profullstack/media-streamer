@@ -12,7 +12,7 @@ describe('SMTP credential encryption', () => {
   });
 
   it('encrypts and decrypts credentials', () => {
-    vi.stubEnv('EMAIL_ACCOUNTS_ENCRYPTION_KEY', 'test-encryption-key');
+    vi.stubEnv('ENCRYPTION_KEY', 'test-encryption-key');
 
     const encrypted = encryptCredential('smtp-secret');
 
@@ -22,7 +22,7 @@ describe('SMTP credential encryption', () => {
   });
 
   it('encrypts nullable credentials', () => {
-    vi.stubEnv('EMAIL_ACCOUNTS_ENCRYPTION_KEY', 'test-encryption-key');
+    vi.stubEnv('ENCRYPTION_KEY', 'test-encryption-key');
 
     const encrypted = encryptNullableCredential('me@example.com');
 
@@ -37,9 +37,27 @@ describe('SMTP credential encryption', () => {
     expect(decryptNullableCredential('legacy-username')).toBe('legacy-username');
   });
 
+  it('can read the legacy key name during rollout', () => {
+    vi.stubEnv('EMAIL_ACCOUNTS_ENCRYPTION_KEY', 'legacy-test-encryption-key');
+
+    const encrypted = encryptCredential('smtp-secret');
+
+    expect(decryptCredential(encrypted)).toBe('smtp-secret');
+  });
+
+  it('can read the typo key name during rollout', () => {
+    vi.stubEnv('ENCYRPTION_KEY', 'typo-test-encryption-key');
+
+    const encrypted = encryptCredential('smtp-secret');
+
+    expect(decryptCredential(encrypted)).toBe('smtp-secret');
+  });
+
   it('requires an encryption key for new encrypted writes', () => {
+    vi.stubEnv('ENCRYPTION_KEY', '');
+    vi.stubEnv('ENCYRPTION_KEY', '');
     vi.stubEnv('EMAIL_ACCOUNTS_ENCRYPTION_KEY', '');
 
-    expect(() => encryptCredential('secret')).toThrow(/EMAIL_ACCOUNTS_ENCRYPTION_KEY/);
+    expect(() => encryptCredential('secret')).toThrow(/ENCRYPTION_KEY/);
   });
 });
