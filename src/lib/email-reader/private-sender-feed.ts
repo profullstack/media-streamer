@@ -6,6 +6,7 @@ const MAX_FEED_MESSAGES = 20;
 const SCAN_LIMIT = 50;
 
 export interface PrivateSenderFeedInput {
+  profileId: string;
   accountId: string;
   senderEmail: string;
 }
@@ -16,6 +17,7 @@ export function extractEmailAddress(value: string | null | undefined): string | 
 
 export function buildPrivateSenderFeedUrl(origin: string, input: PrivateSenderFeedInput): string {
   const url = new URL('/api/email/sender-feed', origin);
+  url.searchParams.set('profileId', input.profileId);
   url.searchParams.set('accountId', input.accountId);
   url.searchParams.set('sender', input.senderEmail.trim().toLowerCase());
   return url.toString();
@@ -61,6 +63,7 @@ function renderItem(origin: string, account: EmailAccount, message: EmailMessage
 export async function buildPrivateSenderFeedXml(
   origin: string,
   account: EmailAccount,
+  profileId: string,
   senderEmail: string
 ): Promise<string> {
   const normalizedSender = senderEmail.trim().toLowerCase();
@@ -77,6 +80,7 @@ export async function buildPrivateSenderFeedXml(
 
   const feedTitle = `Email from ${normalizedSender}`;
   const selfUrl = buildPrivateSenderFeedUrl(origin, {
+    profileId,
     accountId: account.id,
     senderEmail: normalizedSender,
   });

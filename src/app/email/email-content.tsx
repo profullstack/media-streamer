@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/use-auth';
 import {
   ExternalLinkIcon,
   LinkIcon,
@@ -78,6 +79,7 @@ function previewText(message: EmailMessage | null): string {
 
 export function EmailContent(): React.ReactElement {
   const searchParams = useSearchParams();
+  const { profiles, activeProfileId } = useAuth();
   const requestedAccountId = searchParams.get('accountId') ?? '';
   const requestedUid = Number(searchParams.get('uid'));
   const [accounts, setAccounts] = useState<EmailAccountOption[]>([]);
@@ -91,6 +93,7 @@ export function EmailContent(): React.ReactElement {
   const [isCreatingFeed, setIsCreatingFeed] = useState(false);
   const [showReply, setShowReply] = useState(false);
   const [replyBody, setReplyBody] = useState('');
+  const [feedProfileId, setFeedProfileId] = useState<string>('');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -204,7 +207,7 @@ export function EmailContent(): React.ReactElement {
   };
 
   const createSenderFeed = async (): Promise<void> => {
-    if (!visibleMessage || !selectedAccountId || !visibleMessage.fromEmail) return;
+    if (!visibleMessage || !selectedAccountId || !visibleMessage.fromEmail || !selectedFeedProfileId) return;
     setIsCreatingFeed(true);
     setError(null);
     setActionMessage(null);
@@ -216,6 +219,7 @@ export function EmailContent(): React.ReactElement {
         body: JSON.stringify({
           accountId: selectedAccountId,
           sender: visibleMessage.fromEmail,
+          profileId: selectedFeedProfileId,
           subscribe: false,
         }),
       });
@@ -234,6 +238,12 @@ export function EmailContent(): React.ReactElement {
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
   const visibleMessage = selectedUid ? selectedMessage : null;
   const bodyText = previewText(visibleMessage);
+  const defaultFeedProfileId = activeProfileId && profiles.some((profile) => profile.id === activeProfileId)
+    ? activeProfileId
+    : profiles[0]?.id ?? '';
+  const selectedFeedProfileId = feedProfileId && profiles.some((profile) => profile.id === feedProfileId)
+    ? feedProfileId
+    : defaultFeedProfileId;
 
   return (
     <MainLayout>
@@ -355,6 +365,18 @@ export function EmailContent(): React.ReactElement {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <h2 className="min-w-0 text-xl font-semibold text-text-primary">{visibleMessage.subject}</h2>
                     <div className="flex shrink-0 flex-wrap gap-2">
+                      {profiles.length > 1 ? (
+                        <select
+                          value={selectedFeedProfileId}
+                          onChange={(event) => setFeedProfileId(event.target.value)}
+                          aria-label="RSS feed profile"
+                          className="rounded-lg border border-border-default bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary focus:border-accent-primary focus:outline-hidden"
+                        >
+                          {profiles.map((profile) => (
+                            <option key={profile.id} value={profile.id}>{profile.name}</option>
+                          ))}
+                        </select>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => setShowReply((value) => !value)}
@@ -366,7 +388,7 @@ export function EmailContent(): React.ReactElement {
                       <button
                         type="button"
                         onClick={() => void createSenderFeed()}
-                        disabled={isCreatingFeed || !visibleMessage.fromEmail}
+                        disabled={isCreatingFeed || !visibleMessage.fromEmail || !selectedFeedProfileId}
                         title="Create a private RSS feed for this sender"
                         className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                       >

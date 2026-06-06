@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getEmailAccount } from '@/lib/email-accounts';
+import { getActiveProfileId, getProfilesService } from '@/lib/profiles';
 import { createServerClient } from '@/lib/supabase';
 import {
   buildPrivateSenderFeedUrl,
@@ -12,6 +13,7 @@ import { isPaidSubscriptionActive } from '@/lib/subscription/check';
 interface CreateSenderFeedRequest {
   accountId: string;
   sender: string;
+  profileId?: string;
   subscribe?: boolean;
 }
 
@@ -21,6 +23,7 @@ function isCreateSenderFeedRequest(body: unknown): body is CreateSenderFeedReque
   return (
     typeof obj.accountId === 'string' &&
     typeof obj.sender === 'string' &&
+    (obj.profileId === undefined || typeof obj.profileId === 'string') &&
     (obj.subscribe === undefined || typeof obj.subscribe === 'boolean')
   );
 }
@@ -81,6 +84,14 @@ async function authenticateFeedRequest(request: NextRequest): Promise<string | n
   return data.user.id;
 }
 
+async function requireOwnedProfile(userId: string, profileId: string): Promise<Response | null> {
+  const profile = await getProfilesService().getProfileById(userId, profileId);
+  if (!profile) {
+    return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
@@ -112,12 +123,21 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
+    const profileId = body.profileId?.trim() || await getActiveProfileId();
+    if (!profileId) {
+      return NextResponse.json({ error: 'Profile selection required' }, { status: 400 });
+    }
+
+    const profileError = await requireOwnedProfile(user.id, profileId);
+    if (profileError) return profileError;
+
     const account = await getEmailAccount(user.id, body.accountId);
     if (!account) {
       return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
     }
 
     const feedUrl = buildPrivateSenderFeedUrl(requestOrigin(request), {
+      profileId,
       accountId: account.id,
       senderEmail,
     });
@@ -136,11 +156,12 @@ export async function POST(request: NextRequest): Promise<Response> {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
+  const profileId = request.nextUrl.searchParams.get('profileId');
   const accountId = request.nextUrl.searchParams.get('accountId');
   const sender = request.nextUrl.searchParams.get('sender');
   const senderEmail = extractEmailAddress(sender);
 
-  if (!accountId || !senderEmail) {
+  if (!profileId || !accountId || !senderEmail) {
     return NextResponse.json({ error: 'Invalid private feed URL' }, { status: 400 });
   }
 
@@ -155,12 +176,15 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
+    const profileError = await requireOwnedProfile(userId, profileId);
+    if (profileError) return profileError;
+
     const account = await getEmailAccount(userId, accountId);
     if (!account) {
       return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
     }
 
-    const xml = await buildPrivateSenderFeedXml(requestOrigin(request), account, senderEmail);
+    const xml = await buildPrivateSenderFeedXml(requestOrigin(request), account, profileId, senderEmail);
     return privateRssResponse(xml);
   } catch (error) {
     console.error('[EmailSenderFeed] Failed to render sender feed:', error);
