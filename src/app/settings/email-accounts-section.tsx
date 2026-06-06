@@ -454,7 +454,9 @@ export function EmailAccountsSection(): React.ReactElement {
             <Field label="Username" value={form.smtpUsername} onChange={(value) => setForm((prev) => ({ ...prev, smtpUsername: value }))} />
           </div>
           <Field
-            label={editingId ? 'New password' : 'Password'}
+            label={selectedPreset?.key === 'forwardemail'
+              ? editingId ? 'New alias password' : 'Alias password'
+              : editingId ? 'New password' : 'Password'}
             type="password"
             value={form.smtpPassword}
             onChange={(value) => setForm((prev) => ({ ...prev, smtpPassword: value }))}
@@ -468,7 +470,7 @@ export function EmailAccountsSection(): React.ReactElement {
                 Outgoing: SMTP, {selectedPreset.smtpHost}, ports {selectedPreset.smtpPorts.join(', ')}, SSL/TLS or STARTTLS
               </p>
               {selectedPreset.key === 'forwardemail' ? (
-                <p className="mt-1">Username is the full alias email address; password is the generated alias password from Forward Email.</p>
+                <p className="mt-1">Username is the full alias email address; password is the alias-specific generated password from Forward Email.</p>
               ) : null}
             </div>
           ) : null}

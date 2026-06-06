@@ -11,6 +11,7 @@ import {
   encryptCredential,
   encryptNullableCredential,
 } from './credentials';
+import { normalizeEmailAccountSmtp, normalizeSmtpSecurity, normalizeSmtpUsername } from './provider-settings';
 
 const TABLE = 'email_accounts';
 const PUBLIC_COLUMNS = [
@@ -58,7 +59,7 @@ function db() {
 }
 
 function rowToAccount(row: EmailAccountRow): EmailAccount {
-  return {
+  return normalizeEmailAccountSmtp({
     id: row.id,
     userId: row.user_id,
     label: row.label,
@@ -77,7 +78,7 @@ function rowToAccount(row: EmailAccountRow): EmailAccount {
     lastCheckError: row.last_check_error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  };
+  });
 }
 
 function decryptPublicUsername(value: string | null): string | null {
@@ -89,6 +90,19 @@ function decryptPublicUsername(value: string | null): string | null {
 }
 
 function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_password'>): PublicEmailAccount {
+  const smtpUsername = normalizeSmtpUsername(
+    row.provider,
+    row.smtp_host,
+    row.from_email,
+    decryptPublicUsername(row.smtp_username)
+  );
+  const smtpSecurity = normalizeSmtpSecurity(
+    row.provider,
+    row.smtp_host,
+    row.smtp_port,
+    row.smtp_security
+  );
+
   return {
     id: row.id,
     label: row.label,
@@ -98,8 +112,8 @@ function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_pa
     replyToEmail: row.reply_to_email,
     smtpHost: row.smtp_host,
     smtpPort: row.smtp_port,
-    smtpSecurity: row.smtp_security,
-    smtpUsername: decryptPublicUsername(row.smtp_username),
+    smtpSecurity,
+    smtpUsername,
     isDefault: row.is_default,
     lastCheckedAt: row.last_checked_at,
     lastCheckStatus: row.last_check_status,
