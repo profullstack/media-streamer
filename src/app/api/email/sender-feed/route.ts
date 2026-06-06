@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { extractBearerToken, getCoinPayOAuthUserInfo } from '@/lib/coinpayportal';
 import { getEmailAccount } from '@/lib/email-accounts';
 import { getActiveProfileId, getProfilesService } from '@/lib/profiles';
 import {
@@ -8,6 +9,7 @@ import {
   extractEmailAddress,
 } from '@/lib/email-reader';
 import { subscribeToRssFeed } from '@/lib/rss-reader';
+import { createServerClient } from '@/lib/supabase';
 import { isPaidSubscriptionActive } from '@/lib/subscription/check';
 
 interface CreateSenderFeedRequest {
@@ -26,6 +28,28 @@ function isCreateSenderFeedRequest(body: unknown): body is CreateSenderFeedReque
     (obj.profileId === undefined || typeof obj.profileId === 'string') &&
     (obj.subscribe === undefined || typeof obj.subscribe === 'boolean')
   );
+}
+
+interface ProfileOwner {
+  userId: string;
+  email: string;
+}
+
+interface ProfileOwnerRow {
+  account_id: string | null;
+}
+
+interface ProfileOwnerClient {
+  from(table: 'profiles'): {
+    select(columns: 'account_id'): {
+      eq(column: 'id', value: string): {
+        maybeSingle(): Promise<{
+          data: ProfileOwnerRow | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+  };
 }
 
 function requestOrigin(request: NextRequest): string {
@@ -48,6 +72,66 @@ async function requireOwnedProfile(userId: string, profileId: string): Promise<R
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   }
   return null;
+}
+
+async function getProfileOwner(profileId: string): Promise<ProfileOwner | null> {
+  const supabase = createServerClient();
+  const profileClient = supabase as unknown as ProfileOwnerClient;
+  const { data: profile, error } = await profileClient
+    .from('profiles')
+    .select('account_id')
+    .eq('id', profileId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to resolve profile owner: ${error.message}`);
+  }
+
+  if (!profile?.account_id) return null;
+
+  const { data: userData, error: userError } = await supabase.auth.admin.getUserById(profile.account_id);
+  if (userError || !userData.user?.email) {
+    throw new Error(`Failed to resolve profile owner email: ${userError?.message ?? 'missing email'}`);
+  }
+
+  return {
+    userId: profile.account_id,
+    email: userData.user.email.trim().toLowerCase(),
+  };
+}
+
+async function authenticateFeedOwner(request: NextRequest, owner: ProfileOwner): Promise<{
+  userId: string;
+  email: string;
+  did: string | null;
+  method: 'session' | 'coinpay_oauth';
+} | null> {
+  const sessionUser = await getAuthenticatedUser(request);
+  if (sessionUser?.id === owner.userId) {
+    return {
+      userId: sessionUser.id,
+      email: sessionUser.email.trim().toLowerCase(),
+      did: null,
+      method: 'session',
+    };
+  }
+
+  const token = extractBearerToken(request.headers.get('authorization'));
+  if (!token) return null;
+
+  const coinpayUser = await getCoinPayOAuthUserInfo(token);
+  if (!coinpayUser?.email || coinpayUser.emailVerified === false) return null;
+
+  if (coinpayUser.email.trim().toLowerCase() !== owner.email) {
+    return null;
+  }
+
+  return {
+    userId: owner.userId,
+    email: owner.email,
+    did: coinpayUser.did,
+    method: 'coinpay_oauth',
+  };
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -129,21 +213,23 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid private feed URL' }, { status: 400 });
   }
 
-  const user = await getAuthenticatedUser(request);
+  const owner = await getProfileOwner(profileId);
+  if (!owner) {
+    return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+  }
+
+  const user = await authenticateFeedOwner(request, owner);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const paid = await isPaidSubscriptionActive(user.id);
+  const paid = await isPaidSubscriptionActive(user.userId);
   if (!paid.active) {
     return NextResponse.json({ error: 'Paid subscription required' }, { status: 403 });
   }
 
   try {
-    const profileError = await requireOwnedProfile(user.id, profileId);
-    if (profileError) return profileError;
-
-    const account = await getEmailAccount(user.id, accountId);
+    const account = await getEmailAccount(user.userId, accountId);
     if (!account) {
       return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
     }

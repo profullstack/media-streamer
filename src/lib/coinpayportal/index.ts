@@ -5,6 +5,11 @@
  */
 
 export { CoinPayPortalClient, getCoinPayPortalClient, resetCoinPayPortalClient } from './client';
+export {
+  extractBearerToken,
+  getCoinPayOAuthUserInfo,
+  type CoinPayOAuthUserInfo,
+} from './oauth';
 export type {
   CoinPayPortalConfig,
   CryptoBlockchain,
