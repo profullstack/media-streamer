@@ -31,11 +31,18 @@ interface EmailAccount {
 
 interface AccountsResponse {
   accounts: EmailAccount[];
+  error?: string;
+  details?: string;
+  solution?: string;
+  docsUrl?: string;
 }
 
 interface AccountResponse {
   account: EmailAccount;
   error?: string;
+  details?: string;
+  solution?: string;
+  docsUrl?: string;
 }
 
 interface FormState {
@@ -50,6 +57,13 @@ interface FormState {
   smtpUsername: string;
   smtpPassword: string;
   isDefault: boolean;
+}
+
+interface ErrorInfo {
+  message: string;
+  details?: string;
+  solution?: string;
+  docsUrl?: string;
 }
 
 type ProviderPresetKey = 'custom' | 'gmail' | 'protonmail' | 'resend' | 'forwardemail';
@@ -139,25 +153,44 @@ function statusLabel(account: EmailAccount): string {
   return 'Unchecked';
 }
 
+function errorInfoFromResponse(data: { error?: string; details?: string; solution?: string; docsUrl?: string }, fallback: string): ErrorInfo {
+  return {
+    message: data.error ?? fallback,
+    details: data.details,
+    solution: data.solution,
+    docsUrl: data.docsUrl,
+  };
+}
+
+function errorInfoFromUnknown(error: unknown, fallback: string): ErrorInfo {
+  return {
+    message: error instanceof Error ? error.message : fallback,
+  };
+}
+
 export function EmailAccountsSection(): React.ReactElement {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorInfo | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const loadAccounts = useCallback(async (): Promise<void> => {
+  const loadAccounts = useCallback(async (clearExistingError = true): Promise<void> => {
     setIsLoading(true);
-    setError(null);
+    if (clearExistingError) setError(null);
     try {
       const response = await fetch('/api/email/accounts');
-      if (!response.ok) throw new Error('Failed to load email accounts');
       const data = await response.json() as AccountsResponse;
+      if (!response.ok) {
+        setError(errorInfoFromResponse(data, 'Failed to load email accounts'));
+        setAccounts([]);
+        return;
+      }
       setAccounts(data.accounts);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load email accounts');
+      setError(errorInfoFromUnknown(err, 'Failed to load email accounts'));
     } finally {
       setIsLoading(false);
     }
@@ -248,12 +281,15 @@ export function EmailAccountsSection(): React.ReactElement {
         body: JSON.stringify(payload),
       });
       const data = await response.json() as AccountResponse;
-      if (!response.ok) throw new Error(data.error ?? 'Failed to save email account');
+      if (!response.ok) {
+        setError(errorInfoFromResponse(data, 'Failed to save email account'));
+        return;
+      }
       setMessage(editingId ? 'Email account updated.' : 'Email account added.');
       resetForm();
       await loadAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save email account');
+      setError(errorInfoFromUnknown(err, 'Failed to save email account'));
     } finally {
       setIsSaving(false);
     }
@@ -266,12 +302,16 @@ export function EmailAccountsSection(): React.ReactElement {
     try {
       const response = await fetch(`/api/email/accounts/${accountId}/check`, { method: 'POST' });
       const data = await response.json() as AccountResponse;
-      if (!response.ok) throw new Error(data.error ?? 'SMTP check failed');
+      if (!response.ok) {
+        setError(errorInfoFromResponse(data, 'SMTP check failed'));
+        await loadAccounts(false);
+        return;
+      }
       setMessage('SMTP check succeeded.');
       await loadAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'SMTP check failed');
-      await loadAccounts();
+      setError(errorInfoFromUnknown(err, 'SMTP check failed'));
+      await loadAccounts(false);
     } finally {
       setIsSaving(false);
     }
@@ -286,7 +326,7 @@ export function EmailAccountsSection(): React.ReactElement {
       setMessage('Email account deleted.');
       await loadAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete email account');
+      setError(errorInfoFromUnknown(err, 'Failed to delete email account'));
     } finally {
       setIsSaving(false);
     }
@@ -299,7 +339,18 @@ export function EmailAccountsSection(): React.ReactElement {
         <h2 className="text-lg font-semibold text-text-primary">SMTP Accounts</h2>
       </div>
 
-      {error ? <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div> : null}
+      {error ? (
+        <div className="space-y-2 rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">
+          <p className="font-medium">{error.message}</p>
+          {error.details ? <p className="text-xs opacity-90">Details: {error.details}</p> : null}
+          {error.solution ? <p className="text-xs opacity-90">Fix: {error.solution}</p> : null}
+          {error.docsUrl ? (
+            <a href={error.docsUrl} target="_blank" rel="noreferrer" className="inline-flex text-xs font-medium underline">
+              Provider setup docs
+            </a>
+          ) : null}
+        </div>
+      ) : null}
       {message ? <div className="rounded-lg border border-accent-secondary/30 bg-accent-secondary/10 p-3 text-sm text-accent-secondary">{message}</div> : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(320px,420px)_1fr]">
@@ -451,7 +502,7 @@ export function EmailAccountsSection(): React.ReactElement {
       if (!response.ok) throw new Error('Failed to set default account');
       await loadAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set default account');
+      setError(errorInfoFromUnknown(err, 'Failed to set default account'));
     } finally {
       setIsSaving(false);
     }

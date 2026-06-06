@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { listEmailAccounts } from '@/lib/email-accounts';
 import { listInboxMessages, toMailboxAccount } from '@/lib/email-reader';
+import { buildEmailAccountLoadError, buildInboxLoadError } from '@/lib/email-reader/errors';
 
 function parseLimit(value: string | null): number {
   const limit = Number(value);
@@ -18,9 +19,17 @@ export async function GET(request: NextRequest): Promise<Response> {
   const accountId = request.nextUrl.searchParams.get('accountId');
   const limit = parseLimit(request.nextUrl.searchParams.get('limit'));
 
+  let accounts;
+  let mailboxAccounts;
   try {
-    const accounts = await listEmailAccounts(user.id);
-    const mailboxAccounts = accounts.map(toMailboxAccount);
+    accounts = await listEmailAccounts(user.id);
+    mailboxAccounts = accounts.map(toMailboxAccount);
+  } catch (error) {
+    console.error('[EmailMessages] Failed to load email accounts:', error);
+    return NextResponse.json(buildEmailAccountLoadError(error), { status: 500 });
+  }
+
+  try {
     const selected = accountId
       ? mailboxAccounts.find((item) => item.account.id === accountId)
       : mailboxAccounts.find((item) => item.account.isDefault && item.imap) ?? mailboxAccounts.find((item) => item.imap);
@@ -40,10 +49,40 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     if (!selected.imap) {
-      return NextResponse.json({ error: 'This email account does not support inbox reading yet' }, { status: 400 });
+      return NextResponse.json({
+        selectedAccountId: selected.account.id,
+        accounts: mailboxAccounts.map(({ account, imap }) => ({
+          id: account.id,
+          label: account.label,
+          fromEmail: account.fromEmail,
+          isDefault: account.isDefault,
+          readable: Boolean(imap),
+        })),
+        messages: [],
+        error: 'This email account does not support inbox reading yet',
+        solution: 'Use a provider with a supported IMAP preset, such as Gmail or Forward Email, or add an IMAP preset for this provider.',
+      }, { status: 400 });
     }
 
-    const messages = await listInboxMessages(selected.account, { limit });
+    let messages;
+    try {
+      messages = await listInboxMessages(selected.account, { limit });
+    } catch (error) {
+      console.error('[EmailMessages] Failed to list inbox messages:', error);
+      return NextResponse.json({
+        ...buildInboxLoadError(error, selected.account),
+        selectedAccountId: selected.account.id,
+        accounts: mailboxAccounts.map(({ account, imap }) => ({
+          id: account.id,
+          label: account.label,
+          fromEmail: account.fromEmail,
+          isDefault: account.isDefault,
+          readable: Boolean(imap),
+        })),
+        messages: [],
+      }, { status: 502 });
+    }
+
     return NextResponse.json({
       selectedAccountId: selected.account.id,
       accounts: mailboxAccounts.map(({ account, imap }) => ({
@@ -57,8 +96,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   } catch (error) {
     console.error('[EmailMessages] Failed to list inbox messages:', error);
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to load inbox',
-    }, { status: 500 });
+    return NextResponse.json(buildInboxLoadError(error, null), { status: 500 });
   }
 }

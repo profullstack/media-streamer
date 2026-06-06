@@ -6,6 +6,7 @@ import {
   toPublicEmailAccount,
   validateCreateEmailAccountInput,
 } from '@/lib/email-accounts';
+import { buildEmailAccountLoadError } from '@/lib/email-reader/errors';
 
 export async function GET(request: NextRequest): Promise<Response> {
   const user = await getAuthenticatedUser(request);
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ accounts: accounts.map(toPublicEmailAccount) });
   } catch (error) {
     console.error('[EmailAccounts] Failed to list accounts:', error);
-    return NextResponse.json({ error: 'Failed to list email accounts' }, { status: 500 });
+    return NextResponse.json(buildEmailAccountLoadError(error), { status: 500 });
   }
 }
 
@@ -45,6 +46,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     return NextResponse.json({ account: toPublicEmailAccount(account) });
   } catch (error) {
     console.error('[EmailAccounts] Failed to create account:', error);
-    return NextResponse.json({ error: 'Failed to create email account' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to create email account.',
+      details: error instanceof Error ? error.message : String(error),
+      solution: 'Verify ENCRYPTION_KEY is configured before saving SMTP credentials, then try again.',
+    }, { status: 500 });
   }
 }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
-import { getEmailAccount, listEmailAccounts } from '@/lib/email-accounts';
+import { getEmailAccount, listEmailAccounts, type EmailAccount } from '@/lib/email-accounts';
 import { getInboxMessage, toMailboxAccount } from '@/lib/email-reader';
+import { buildInboxLoadError } from '@/lib/email-reader/errors';
 
 interface RouteParams {
   params: Promise<{ uid: string }>;
@@ -20,9 +21,10 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
   }
 
   const accountId = request.nextUrl.searchParams.get('accountId');
+  let account: EmailAccount | null = null;
 
   try {
-    const account = accountId
+    account = accountId
       ? await getEmailAccount(user.id, accountId)
       : (await listEmailAccounts(user.id)).find((item) => item.isDefault) ?? null;
 
@@ -42,8 +44,6 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
     return NextResponse.json({ message });
   } catch (error) {
     console.error('[EmailMessages] Failed to load message:', error);
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to load message',
-    }, { status: 500 });
+    return NextResponse.json(buildInboxLoadError(error, account), { status: 500 });
   }
 }

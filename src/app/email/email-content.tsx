@@ -48,17 +48,45 @@ interface MessagesResponse {
   accounts?: EmailAccountOption[];
   messages?: EmailMessageSummary[];
   error?: string;
+  details?: string;
+  solution?: string;
+  docsUrl?: string;
 }
 
 interface MessageResponse {
   message?: EmailMessage;
   error?: string;
+  details?: string;
+  solution?: string;
+  docsUrl?: string;
 }
 
 interface SenderFeedResponse {
   feedUrl?: string;
   subscription?: unknown;
   error?: string;
+}
+
+interface ErrorInfo {
+  message: string;
+  details?: string;
+  solution?: string;
+  docsUrl?: string;
+}
+
+function errorInfoFromResponse(data: { error?: string; details?: string; solution?: string; docsUrl?: string }, fallback: string): ErrorInfo {
+  return {
+    message: data.error ?? fallback,
+    details: data.details,
+    solution: data.solution,
+    docsUrl: data.docsUrl,
+  };
+}
+
+function errorInfoFromUnknown(error: unknown, fallback: string): ErrorInfo {
+  return {
+    message: error instanceof Error ? error.message : fallback,
+  };
 }
 
 function displayDate(value: string | null): string {
@@ -94,7 +122,7 @@ export function EmailContent(): React.ReactElement {
   const [replyBody, setReplyBody] = useState('');
   const [feedProfileId, setFeedProfileId] = useState<string>('');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorInfo | null>(null);
 
   const readableAccounts = useMemo(() => accounts.filter((account) => account.readable), [accounts]);
 
@@ -106,7 +134,6 @@ export function EmailContent(): React.ReactElement {
       if (accountId) params.set('accountId', accountId);
       const response = await fetch(`/api/email/messages?${params.toString()}`);
       const data = await response.json() as MessagesResponse;
-      if (!response.ok) throw new Error(data.error ?? 'Failed to load inbox');
 
       const nextAccounts = data.accounts ?? [];
       const nextMessages = data.messages ?? [];
@@ -114,14 +141,23 @@ export function EmailContent(): React.ReactElement {
       setAccounts(nextAccounts);
       setMessages(nextMessages);
       setSelectedAccountId(nextAccountId);
+
+      if (!response.ok) {
+        setError(errorInfoFromResponse(data, 'Failed to load inbox'));
+        setSelectedUid(null);
+        setSelectedMessage(null);
+        setShowReply(false);
+        setReplyBody('');
+        return;
+      }
+
       setSelectedUid((current) => {
         if (current && nextMessages.some((message) => message.uid === current)) return current;
         if (Number.isSafeInteger(requestedUid) && nextMessages.some((message) => message.uid === requestedUid)) return requestedUid;
         return nextMessages[0]?.uid ?? null;
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load inbox';
-      setError(message);
+      setError(errorInfoFromUnknown(err, 'Failed to load inbox'));
       setMessages([]);
       setSelectedUid(null);
       setSelectedMessage(null);
@@ -140,13 +176,17 @@ export function EmailContent(): React.ReactElement {
       if (accountId) params.set('accountId', accountId);
       const response = await fetch(`/api/email/messages/${uid}?${params.toString()}`);
       const data = await response.json() as MessageResponse;
-      if (!response.ok || !data.message) throw new Error(data.error ?? 'Failed to load message');
+      if (!response.ok || !data.message) {
+        setError(errorInfoFromResponse(data, 'Failed to load message'));
+        setSelectedMessage(null);
+        return;
+      }
       setSelectedMessage(data.message);
       setShowReply(false);
       setReplyBody('');
     } catch (err) {
       setSelectedMessage(null);
-      setError(err instanceof Error ? err.message : 'Failed to load message');
+      setError(errorInfoFromUnknown(err, 'Failed to load message'));
     } finally {
       setIsLoadingMessage(false);
     }
@@ -199,7 +239,7 @@ export function EmailContent(): React.ReactElement {
       setShowReply(false);
       setActionMessage('Reply sent.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send reply');
+      setError(errorInfoFromUnknown(err, 'Failed to send reply'));
     } finally {
       setIsSendingReply(false);
     }
@@ -228,7 +268,7 @@ export function EmailContent(): React.ReactElement {
       await navigator.clipboard?.writeText(data.feedUrl).catch(() => undefined);
       setActionMessage('Sender feed added to RSS Reader for the selected profile. Private feed URL copied.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create sender RSS feed');
+      setError(errorInfoFromUnknown(err, 'Failed to create sender RSS feed'));
     } finally {
       setIsCreatingFeed(false);
     }
@@ -277,7 +317,18 @@ export function EmailContent(): React.ReactElement {
           </div>
         </div>
 
-        {error ? <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div> : null}
+        {error ? (
+          <div className="space-y-2 rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">
+            <p className="font-medium">{error.message}</p>
+            {error.details ? <p className="text-xs opacity-90">Details: {error.details}</p> : null}
+            {error.solution ? <p className="text-xs opacity-90">Fix: {error.solution}</p> : null}
+            {error.docsUrl ? (
+              <a href={error.docsUrl} target="_blank" rel="noreferrer" className="inline-flex text-xs font-medium underline">
+                Provider setup docs
+              </a>
+            ) : null}
+          </div>
+        ) : null}
         {actionMessage ? <div className="rounded-lg border border-accent-secondary/30 bg-accent-secondary/10 p-3 text-sm text-accent-secondary">{actionMessage}</div> : null}
 
         <div className="grid gap-4 xl:grid-cols-[260px_minmax(340px,0.95fr)_minmax(440px,1.25fr)]">
