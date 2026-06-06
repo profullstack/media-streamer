@@ -6,7 +6,8 @@ import {
   toPublicEmailAccount,
   updateEmailAccountCheckStatus,
 } from '@/lib/email-accounts';
-import { buildEmailAccountLoadError, buildSmtpCheckError } from '@/lib/email-reader/errors';
+import { checkImapAccount, hasSupportedImapProvider } from '@/lib/email-reader';
+import { buildEmailAccountLoadError, buildInboxLoadError, buildSmtpCheckError } from '@/lib/email-reader/errors';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -30,16 +31,29 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     return NextResponse.json(buildEmailAccountLoadError(error), { status: 500 });
   }
 
-  const result = await checkSmtpAccount(account);
-  const updated = await updateEmailAccountCheckStatus(user.id, id, result.success, result.error);
-  const failure = result.success ? undefined : buildSmtpCheckError(result.error ?? 'SMTP check failed', account);
+  const smtpResult = await checkSmtpAccount(account);
+  let success = smtpResult.success;
+  let errorMessage = smtpResult.error;
+  let failure = success ? undefined : buildSmtpCheckError(errorMessage ?? 'SMTP check failed', account);
+
+  if (success && hasSupportedImapProvider(account)) {
+    try {
+      await checkImapAccount(account);
+    } catch (error) {
+      success = false;
+      errorMessage = error instanceof Error ? error.message : 'IMAP check failed';
+      failure = buildInboxLoadError(error, account);
+    }
+  }
+
+  const updated = await updateEmailAccountCheckStatus(user.id, id, success, errorMessage);
 
   return NextResponse.json({
-    success: result.success,
-    error: result.success ? undefined : failure?.error,
+    success,
+    error: success ? undefined : failure?.error,
     details: failure?.details,
     solution: failure?.solution,
     docsUrl: failure?.docsUrl,
     account: toPublicEmailAccount(updated),
-  }, { status: result.success ? 200 : 400 });
+  }, { status: success ? 200 : 400 });
 }

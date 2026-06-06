@@ -132,6 +132,17 @@ export async function listInboxMessages(
   }, options.mailbox);
 }
 
+export async function checkImapAccount(account: EmailAccount): Promise<void> {
+  const settings = resolveImapSettings(account);
+  if (!settings) {
+    return;
+  }
+
+  await withMailbox(settings, async (client) => {
+    await client.status(DEFAULT_MAILBOX, { messages: true });
+  });
+}
+
 export async function getInboxMessage(
   account: EmailAccount,
   uid: number,

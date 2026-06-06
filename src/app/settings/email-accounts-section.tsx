@@ -72,6 +72,9 @@ interface ProviderPreset {
   key: Exclude<ProviderPresetKey, 'custom'>;
   label: string;
   provider: string;
+  imapHost: string | null;
+  imapPort: string | null;
+  imapSecurity: 'SSL/TLS' | null;
   smtpHost: string;
   smtpPort: string;
   smtpSecurity: FormState['smtpSecurity'];
@@ -97,6 +100,9 @@ const providerPresets: ProviderPreset[] = [
     key: 'gmail',
     label: 'Gmail',
     provider: 'gmail',
+    imapHost: 'imap.gmail.com',
+    imapPort: '993',
+    imapSecurity: 'SSL/TLS',
     smtpHost: 'smtp.gmail.com',
     smtpPort: '587',
     smtpSecurity: 'starttls',
@@ -106,6 +112,9 @@ const providerPresets: ProviderPreset[] = [
     key: 'protonmail',
     label: 'Proton Mail',
     provider: 'protonmail',
+    imapHost: null,
+    imapPort: null,
+    imapSecurity: null,
     smtpHost: 'smtp.protonmail.ch',
     smtpPort: '587',
     smtpSecurity: 'starttls',
@@ -115,6 +124,9 @@ const providerPresets: ProviderPreset[] = [
     key: 'resend',
     label: 'Resend',
     provider: 'resend',
+    imapHost: null,
+    imapPort: null,
+    imapSecurity: null,
     smtpHost: 'smtp.resend.com',
     smtpPort: '587',
     smtpSecurity: 'starttls',
@@ -124,6 +136,9 @@ const providerPresets: ProviderPreset[] = [
     key: 'forwardemail',
     label: 'ForwardEmail.net',
     provider: 'forwardemail',
+    imapHost: 'imap.forwardemail.net',
+    imapPort: '993',
+    imapSecurity: 'SSL/TLS',
     smtpHost: 'smtp.forwardemail.net',
     smtpPort: '465',
     smtpSecurity: 'tls',
@@ -137,6 +152,20 @@ function presetForProvider(provider: string): ProviderPreset | null {
     return providerPresets.find((preset) => preset.key === 'forwardemail') ?? null;
   }
   return providerPresets.find((preset) => preset.provider === normalized) ?? null;
+}
+
+function presetForAccount(account: Pick<EmailAccount, 'provider' | 'smtpHost'>): ProviderPreset | null {
+  const providerPreset = presetForProvider(account.provider ?? '');
+  if (providerPreset) return providerPreset;
+
+  const normalizedHost = account.smtpHost.trim().toLowerCase();
+  if (normalizedHost === 'smtp.gmail.com') {
+    return providerPresets.find((preset) => preset.key === 'gmail') ?? null;
+  }
+  if (normalizedHost === 'smtp.forwardemail.net') {
+    return providerPresets.find((preset) => preset.key === 'forwardemail') ?? null;
+  }
+  return null;
 }
 
 function providerPresetKey(provider: string): ProviderPresetKey {
@@ -176,6 +205,7 @@ export function EmailAccountsSection(): React.ReactElement {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const selectedPreset = providerPresetKey(form.provider) === 'custom' ? null : presetForProvider(form.provider);
 
   const loadAccounts = useCallback(async (clearExistingError = true): Promise<void> => {
     setIsLoading(true);
@@ -336,7 +366,7 @@ export function EmailAccountsSection(): React.ReactElement {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <MailIcon size={22} className="text-accent-primary" />
-        <h2 className="text-lg font-semibold text-text-primary">SMTP Accounts</h2>
+        <h2 className="text-lg font-semibold text-text-primary">Email Accounts</h2>
       </div>
 
       {error ? (
@@ -411,6 +441,16 @@ export function EmailAccountsSection(): React.ReactElement {
             onChange={(value) => setForm((prev) => ({ ...prev, smtpPassword: value }))}
             required={!editingId}
           />
+          {selectedPreset?.imapHost ? (
+            <div className="rounded-lg border border-border-subtle bg-bg-primary p-3 text-xs text-text-muted">
+              <p className="font-medium text-text-secondary">Provider settings</p>
+              <p className="mt-2">Incoming: IMAP, {selectedPreset.imapHost}, port {selectedPreset.imapPort}, {selectedPreset.imapSecurity}</p>
+              <p className="mt-1">
+                Outgoing: SMTP, {selectedPreset.smtpHost}, port {selectedPreset.smtpPort},{' '}
+                {selectedPreset.smtpSecurity === 'tls' ? 'SSL/TLS' : selectedPreset.smtpSecurity.toUpperCase()}
+              </p>
+            </div>
+          ) : null}
           <label className="flex items-center gap-2 text-sm text-text-secondary">
             <input
               type="checkbox"
@@ -464,6 +504,7 @@ export function EmailAccountsSection(): React.ReactElement {
                     </div>
                     <p className="mt-1 text-sm text-text-secondary">{account.fromName ? `${account.fromName} ` : ''}&lt;{account.fromEmail}&gt;</p>
                     <p className="mt-1 text-xs text-text-muted">{account.smtpHost}:{account.smtpPort} · {account.smtpSecurity.toUpperCase()}</p>
+                    <ProviderSettings account={account} />
                     {account.lastCheckError ? <p className="mt-2 text-xs text-status-error">{account.lastCheckError}</p> : null}
                   </div>
                   <div className="flex gap-2">
@@ -529,5 +570,16 @@ function Field({ label, value, onChange, type = 'text', required = false }: Fiel
         className="w-full rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-text-primary focus:border-accent-primary focus:outline-hidden"
       />
     </label>
+  );
+}
+
+function ProviderSettings({ account }: { account: EmailAccount }): React.ReactElement | null {
+  const preset = presetForAccount(account);
+  if (!preset?.imapHost) return null;
+
+  return (
+    <p className="mt-1 text-xs text-text-muted">
+      Incoming IMAP {preset.imapHost}:{preset.imapPort} SSL/TLS
+    </p>
   );
 }

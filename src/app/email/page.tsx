@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { EmailContent } from './email-content';
@@ -16,5 +17,9 @@ export default async function EmailPage(): Promise<React.ReactElement> {
     redirect('/login?redirect=/email');
   }
 
-  return <EmailContent />;
+  return (
+    <Suspense fallback={null}>
+      <EmailContent />
+    </Suspense>
+  );
 }
