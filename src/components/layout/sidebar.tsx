@@ -68,8 +68,8 @@ const mainNavItems: NavItem[] = [
 
 const accountNavItems: NavItem[] = [
   { href: '/pricing', label: 'Pricing', icon: CreditCardIcon },
+  { href: '/email', label: 'Email', icon: MailIcon, requiresAuth: true },
   { href: '/settings', label: 'Settings', icon: SettingsIcon, requiresAuth: true },
-  { href: '/settings?tab=email', label: 'Email', icon: MailIcon, requiresAuth: true },
 ];
 
 interface ExternalSite {
