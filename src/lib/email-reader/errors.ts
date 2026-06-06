@@ -67,6 +67,10 @@ function isAuthLikeError(message: string): boolean {
   return /auth|login|credential|password|command failed/i.test(message);
 }
 
+function isMailboxUnavailableError(message: string): boolean {
+  return /NONEXISTENT|SELECT/i.test(message);
+}
+
 function isNetworkLikeError(message: string): boolean {
   return /ECONN|ETIMEDOUT|ENOTFOUND|socket|TLS|certificate|timeout/i.test(message);
 }
@@ -107,6 +111,15 @@ export function buildInboxLoadError(
 
   if (isMissingEncryptionKey(message) || isCredentialDecryptError(message)) {
     return buildEmailAccountLoadError(error);
+  }
+
+  if (isForwardEmailAccount(account) && isMailboxUnavailableError(message)) {
+    return {
+      error: 'Forward Email mailbox is not available.',
+      details,
+      solution: 'Forward Email accepted the connection far enough to select a mailbox, but the inbox was not available. In Forward Email, make sure the alias exists as a mailbox with IMAP access enabled, generate an alias-specific password, then send a test message to the alias and recheck the account. Use imap.forwardemail.net on port 993 with SSL/TLS; port 2993 is also supported.',
+      docsUrl: FORWARD_EMAIL_DOCS_URL,
+    };
   }
 
   if (isForwardEmailAccount(account) && isAuthLikeError(message)) {
