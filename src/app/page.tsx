@@ -12,6 +12,7 @@ import { createServerClient } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { QuickActions } from '@/components/home';
 import { NewsSection } from '@/components/news';
+import { BlogPreviewSection } from '@/components/blog';
 
 /**
  * Check if user has an active paid subscription (premium or family)
@@ -228,8 +229,11 @@ export default async function HomePage(): Promise<React.ReactElement> {
           </ol>
         </section>
 
+        {/* Blog preview - public */}
+        <BlogPreviewSection />
+
         {/* News Section - only for logged-in users */}
-        {user && <NewsSection searchTerm="" limit={6} />}
+        {user ? <NewsSection searchTerm="" limit={6} /> : null}
       </div>
     </MainLayout>
   );
