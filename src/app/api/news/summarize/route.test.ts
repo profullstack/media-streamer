@@ -469,9 +469,10 @@ describe('News Summarize API Route', () => {
 
       expect(mockOpenAICreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'gpt-4o-mini',
+          model: 'gpt-5.5',
           response_format: { type: 'json_object' },
-          max_tokens: 1500,
+          max_completion_tokens: 1500,
+          reasoning_effort: 'high',
           temperature: 0.3,
         }),
         expect.objectContaining({

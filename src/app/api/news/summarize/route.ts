@@ -187,13 +187,14 @@ ${truncatedContent}`;
     console.log('[Summarize] Calling OpenAI API...');
     const completion = await openai.chat.completions.create(
       {
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.5',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        max_tokens: 1500,
+        max_completion_tokens: 1500,
+        reasoning_effort: 'high',
         temperature: 0.3,
       },
       {
