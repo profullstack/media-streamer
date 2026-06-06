@@ -13,7 +13,8 @@ describe('private sender feed helpers', () => {
   });
 
   it('signs feed URLs for a specific user, account, and sender', () => {
-    vi.stubEnv('EMAIL_FEED_SECRET', 'test-secret');
+    vi.stubEnv('EMAIL_FEED_SECRET', '');
+    vi.stubEnv('ENCRYPTION_KEY', 'test-encryption-key');
     const input = {
       userId: 'user-1',
       accountId: 'account-1',
@@ -27,7 +28,8 @@ describe('private sender feed helpers', () => {
   });
 
   it('builds a private feed URL with a verifiable token', () => {
-    vi.stubEnv('EMAIL_FEED_SECRET', 'test-secret');
+    vi.stubEnv('EMAIL_FEED_SECRET', '');
+    vi.stubEnv('ENCRYPTION_KEY', 'test-encryption-key');
 
     const feedUrl = buildPrivateSenderFeedUrl('https://app.example.com', {
       userId: 'user-1',
