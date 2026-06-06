@@ -105,6 +105,80 @@ export async function importOpmlFeeds(profileId: string, opml: string): Promise<
   return result;
 }
 
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function outlineAttributes(attributes: Record<string, string | null | undefined>): string {
+  return Object.entries(attributes)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim() !== '')
+    .map(([key, value]) => `${key}="${escapeXml(value)}"`)
+    .join(' ');
+}
+
+export async function exportOpmlFeeds(profileId: string): Promise<string> {
+  const subscriptions = await listSubscriptions(profileId);
+  const exportedAt = new Date().toUTCString();
+  const grouped = new Map<string, typeof subscriptions>();
+  const ungrouped: typeof subscriptions = [];
+
+  for (const subscription of subscriptions) {
+    if (subscription.folder) {
+      const current = grouped.get(subscription.folder) ?? [];
+      current.push(subscription);
+      grouped.set(subscription.folder, current);
+    } else {
+      ungrouped.push(subscription);
+    }
+  }
+
+  const renderFeed = (subscription: (typeof subscriptions)[number], indent = '    '): string => {
+    const title = subscription.customTitle ?? subscription.feed.title;
+    const attributes = outlineAttributes({
+      text: title,
+      title,
+      type: 'rss',
+      xmlUrl: subscription.feed.feedUrl,
+      htmlUrl: subscription.feed.siteUrl,
+    });
+    return `${indent}<outline ${attributes}/>`;
+  };
+
+  const folderOutlines = Array.from(grouped.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([folder, folderSubscriptions]) => {
+      const feeds = folderSubscriptions
+        .sort((a, b) => (a.customTitle ?? a.feed.title).localeCompare(b.customTitle ?? b.feed.title))
+        .map((subscription) => renderFeed(subscription, '      '))
+        .join('\n');
+      return `    <outline text="${escapeXml(folder)}" title="${escapeXml(folder)}">\n${feeds}\n    </outline>`;
+    });
+
+  const looseFeeds = ungrouped
+    .sort((a, b) => (a.customTitle ?? a.feed.title).localeCompare(b.customTitle ?? b.feed.title))
+    .map((subscription) => renderFeed(subscription));
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<opml version="2.0">',
+    '  <head>',
+    '    <title>BitTorrented RSS Reader Subscriptions</title>',
+    `    <dateCreated>${escapeXml(exportedAt)}</dateCreated>`,
+    '  </head>',
+    '  <body>',
+    ...folderOutlines,
+    ...looseFeeds,
+    '  </body>',
+    '</opml>',
+    '',
+  ].join('\n');
+}
+
 export async function refreshRssFeed(profileId: string, feedId: string): Promise<{ itemCount: number }> {
   const allowed = await hasActiveSubscription(profileId, feedId);
   if (!allowed) {

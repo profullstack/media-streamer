@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { SettingsIcon, UserIcon, TvIcon, VideoIcon, TrashIcon, ExternalLinkIcon, LoadingSpinner, MailIcon } from '@/components/ui/icons';
@@ -38,8 +39,9 @@ interface PlaylistsApiResponse {
 }
 
 export function SettingsContent(): React.ReactElement {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { isLoggedIn, isLoading: isAuthLoading, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const [transcodingEnabled, setTranscodingEnabled] = useState(false);
   const [autoplay, setAutoplay] = useState(true);
   const [quality, setQuality] = useState('auto');
@@ -55,6 +57,16 @@ export function SettingsContent(): React.ReactElement {
     { id: 'iptv' as const, label: 'IPTV', icon: TvIcon },
     { id: 'email' as const, label: 'Email', icon: MailIcon },
   ];
+
+  const tabParam = searchParams.get('tab');
+  const activeTab: SettingsTab =
+    tabParam === 'email' || tabParam === 'playback' || tabParam === 'iptv'
+      ? tabParam
+      : 'account';
+
+  const selectTab = (tab: SettingsTab): void => {
+    router.replace(tab === 'account' ? '/settings' : `/settings?tab=${tab}`, { scroll: false });
+  };
 
   // Load IPTV playlists when IPTV tab is active
   const loadPlaylists = useCallback(async (): Promise<void> => {
@@ -143,7 +155,7 @@ export function SettingsContent(): React.ReactElement {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => selectTab(tab.id)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
                     activeTab === tab.id

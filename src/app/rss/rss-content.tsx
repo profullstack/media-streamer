@@ -5,6 +5,7 @@ import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import {
   CheckIcon,
+  DownloadIcon,
   EditIcon,
   ExternalLinkIcon,
   FolderIcon,
@@ -183,6 +184,30 @@ export function RssContent(): React.ReactElement {
     }
   };
 
+  const exportOpml = async (): Promise<void> => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/rss/export');
+      if (!response.ok) throw new Error('Failed to export OPML');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `bittorrented-rss-${date}.opml`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setImportMessage('OPML export started.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export OPML');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const updateFeed = async (feedId: string): Promise<void> => {
     setIsSaving(true);
     try {
@@ -272,6 +297,15 @@ export function RssContent(): React.ReactElement {
               className="rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               Import OPML
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportOpml()}
+              disabled={isSaving || subscriptions.length === 0}
+              className="flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <DownloadIcon size={16} />
+              <span>Export OPML</span>
             </button>
             <button
               type="button"
