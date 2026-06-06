@@ -1,4 +1,8 @@
 import { parseFeedXml, parseOpmlXml } from './parser';
+import { getEmailAccount } from '@/lib/email-accounts';
+import { buildPrivateSenderFeedXml, extractEmailAddress } from '@/lib/email-reader';
+import { createServerClient } from '@/lib/supabase';
+import { isPaidSubscriptionActive } from '@/lib/subscription/check';
 import {
   deleteSubscription,
   getFeedById,
@@ -17,12 +21,93 @@ import type { OpmlFeedOutline, RssItemStateInput, RssListOptions, RssSubscriptio
 const MAX_FEED_BYTES = 1_000_000;
 const FETCH_TIMEOUT_MS = 15_000;
 
+interface PrivateSenderFeedParams {
+  origin: string;
+  profileId: string;
+  accountId: string;
+  senderEmail: string;
+}
+
+interface ProfileOwnerRow {
+  account_id: string | null;
+}
+
+interface ProfileOwnerClient {
+  from(table: 'profiles'): {
+    select(columns: 'account_id'): {
+      eq(column: 'id', value: string): {
+        maybeSingle(): Promise<{
+          data: ProfileOwnerRow | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+  };
+}
+
 function normalizeFeedUrl(feedUrl: string): string {
   const url = new URL(feedUrl.trim());
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error('Feed URL must use HTTP or HTTPS');
   }
   return url.toString();
+}
+
+function getPrivateSenderFeedParams(feedUrl: string): PrivateSenderFeedParams | null {
+  const url = new URL(feedUrl);
+  if (url.pathname !== '/api/email/sender-feed') return null;
+
+  const profileId = url.searchParams.get('profileId');
+  const accountId = url.searchParams.get('accountId');
+  const senderEmail = extractEmailAddress(url.searchParams.get('sender'));
+  if (!profileId || !accountId || !senderEmail) return null;
+
+  return {
+    origin: url.origin,
+    profileId,
+    accountId,
+    senderEmail,
+  };
+}
+
+async function getProfileOwnerId(profileId: string): Promise<string | null> {
+  const profileClient = createServerClient() as unknown as ProfileOwnerClient;
+  const { data, error } = await profileClient
+    .from('profiles')
+    .select('account_id')
+    .eq('id', profileId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to resolve RSS feed profile: ${error.message}`);
+  }
+
+  return typeof data?.account_id === 'string' ? data.account_id : null;
+}
+
+async function renderPrivateSenderFeed(profileId: string, feedUrl: string): Promise<string | null> {
+  const params = getPrivateSenderFeedParams(feedUrl);
+  if (!params) return null;
+  if (params.profileId !== profileId) {
+    throw new Error('Private email feed belongs to another profile');
+  }
+
+  const ownerId = await getProfileOwnerId(profileId);
+  if (!ownerId) {
+    throw new Error('Private email feed profile not found');
+  }
+
+  const paid = await isPaidSubscriptionActive(ownerId);
+  if (!paid.active) {
+    throw new Error('Paid subscription required');
+  }
+
+  const account = await getEmailAccount(ownerId, params.accountId);
+  if (!account) {
+    throw new Error('Email account not found');
+  }
+
+  return buildPrivateSenderFeedXml(params.origin, account, profileId, params.senderEmail);
 }
 
 async function fetchFeedXml(feedUrl: string): Promise<string> {
@@ -45,6 +130,12 @@ async function fetchFeedXml(feedUrl: string): Promise<string> {
   return xml;
 }
 
+async function loadFeedXml(profileId: string, feedUrl: string): Promise<string> {
+  const privateSenderXml = await renderPrivateSenderFeed(profileId, feedUrl);
+  if (privateSenderXml) return privateSenderXml;
+  return fetchFeedXml(feedUrl);
+}
+
 export async function subscribeToRssFeed(
   profileId: string,
   feedUrl: string,
@@ -52,7 +143,7 @@ export async function subscribeToRssFeed(
   options: { customTitle?: string | null; folder?: string | null } = {}
 ) {
   const normalizedUrl = normalizeFeedUrl(feedUrl);
-  const xml = await fetchFeedXml(normalizedUrl);
+  const xml = await loadFeedXml(profileId, normalizedUrl);
   const parsed = parseFeedXml(xml, normalizedUrl);
   if (!parsed) {
     throw new Error('Could not parse RSS or Atom feed');
@@ -191,7 +282,7 @@ export async function refreshRssFeed(profileId: string, feedId: string): Promise
   }
 
   try {
-    const xml = await fetchFeedXml(feed.feedUrl);
+    const xml = await loadFeedXml(profileId, feed.feedUrl);
     const parsed = parseFeedXml(xml, feed.feedUrl);
     if (!parsed) {
       throw new Error('Could not parse RSS or Atom feed');

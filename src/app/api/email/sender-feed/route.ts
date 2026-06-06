@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getEmailAccount } from '@/lib/email-accounts';
 import { getActiveProfileId, getProfilesService } from '@/lib/profiles';
-import { createServerClient } from '@/lib/supabase';
 import {
   buildPrivateSenderFeedUrl,
   buildPrivateSenderFeedXml,
   extractEmailAddress,
 } from '@/lib/email-reader';
+import { subscribeToRssFeed } from '@/lib/rss-reader';
 import { isPaidSubscriptionActive } from '@/lib/subscription/check';
 
 interface CreateSenderFeedRequest {
@@ -40,48 +40,6 @@ function privateRssResponse(xml: string): Response {
       'Cache-Control': 'private, no-store',
     },
   });
-}
-
-function unauthorizedFeedResponse(): Response {
-  return NextResponse.json(
-    { error: 'Authentication required' },
-    {
-      status: 401,
-      headers: {
-        'WWW-Authenticate': 'Basic realm="BitTorrented RSS", charset="UTF-8"',
-      },
-    }
-  );
-}
-
-function parseBasicAuth(request: NextRequest): { email: string; password: string } | null {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.toLowerCase().startsWith('basic ')) return null;
-
-  try {
-    const decoded = Buffer.from(authorization.slice(6), 'base64').toString('utf8');
-    const separator = decoded.indexOf(':');
-    if (separator <= 0) return null;
-    const email = decoded.slice(0, separator).trim().toLowerCase();
-    const password = decoded.slice(separator + 1);
-    if (!email || !password) return null;
-    return { email, password };
-  } catch {
-    return null;
-  }
-}
-
-async function authenticateFeedRequest(request: NextRequest): Promise<string | null> {
-  const cookieUser = await getAuthenticatedUser(request);
-  if (cookieUser) return cookieUser.id;
-
-  const credentials = parseBasicAuth(request);
-  if (!credentials) return null;
-
-  const supabase = createServerClient();
-  const { data, error } = await supabase.auth.signInWithPassword(credentials);
-  if (error || !data.user) return null;
-  return data.user.id;
 }
 
 async function requireOwnedProfile(userId: string, profileId: string): Promise<Response | null> {
@@ -142,10 +100,16 @@ export async function POST(request: NextRequest): Promise<Response> {
       senderEmail,
     });
 
+    const subscription = body.subscribe
+      ? await subscribeToRssFeed(profileId, feedUrl, false, {
+          customTitle: `Email from ${senderEmail}`,
+          folder: 'Email',
+        })
+      : null;
+
     return NextResponse.json({
       feedUrl,
-      auth: 'basic',
-      warning: 'Add this feed URL to an RSS reader using your BitTorrented email and password.',
+      subscription,
     });
   } catch (error) {
     console.error('[EmailSenderFeed] Failed to create sender feed:', error);
@@ -165,21 +129,21 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid private feed URL' }, { status: 400 });
   }
 
-  const userId = await authenticateFeedRequest(request);
-  if (!userId) {
-    return unauthorizedFeedResponse();
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const paid = await isPaidSubscriptionActive(userId);
+  const paid = await isPaidSubscriptionActive(user.id);
   if (!paid.active) {
     return NextResponse.json({ error: 'Paid subscription required' }, { status: 403 });
   }
 
   try {
-    const profileError = await requireOwnedProfile(userId, profileId);
+    const profileError = await requireOwnedProfile(user.id, profileId);
     if (profileError) return profileError;
 
-    const account = await getEmailAccount(userId, accountId);
+    const account = await getEmailAccount(user.id, accountId);
     if (!account) {
       return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
     }
