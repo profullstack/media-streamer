@@ -19,6 +19,7 @@
  *            This should come from codec detection stored in the database.
  *            When provided, transcoding will be enabled with the specified input format.
  *            Takes precedence over transcode=auto.
+ * - download: '1' or 'true' to force attachment download headers.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -48,6 +49,15 @@ import {
 import { getFFmpegManager } from '@/lib/ffmpeg-manager';
 
 const logger = createLogger('API:stream');
+
+function contentDispositionAttachment(fileName: string): string {
+  const fallbackName = fileName
+    .split('/')
+    .pop()
+    ?.replace(/[\r\n"]/g, '_')
+    .trim() || 'download';
+  return `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(fallbackName)}`;
+}
 
 /**
  * Parse Range header
@@ -694,6 +704,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   });
   
   const { searchParams } = new URL(url);
+  const forceDownload = searchParams.get('download') === '1' || searchParams.get('download') === 'true';
   
   // Log all search params for debugging
   reqLogger.info('Request parameters', {
@@ -1259,6 +1270,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       'Access-Control-Allow-Headers': 'Range, Content-Type',
       'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
     };
+
+    if (forceDownload) {
+      headers['Content-Disposition'] = contentDispositionAttachment(info.fileName);
+      headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Range, Accept-Ranges, Content-Disposition';
+    }
 
     if (result.isPartial && result.contentRange && result.contentLength) {
       headers['Content-Range'] = result.contentRange;

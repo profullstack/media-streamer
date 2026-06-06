@@ -67,7 +67,7 @@ const DOCUMENT_EXTENSIONS = ['txt', 'md', 'doc', 'docx', 'rtf'];
 
 export function getMediaCategory(filename: string): MediaCategory {
   const ext = getFileExtension(filename);
-  
+
   if (AUDIO_EXTENSIONS.includes(ext)) return 'audio';
   if (VIDEO_EXTENSIONS.includes(ext)) return 'video';
   if (EBOOK_EXTENSIONS.includes(ext)) return 'ebook';
@@ -80,7 +80,7 @@ export function getMediaCategory(filename: string): MediaCategory {
  */
 export function getMimeType(filename: string): string {
   const ext = getFileExtension(filename);
-  
+
   const mimeTypes: Record<string, string> = {
     // Audio
     mp3: 'audio/mpeg',
@@ -90,22 +90,31 @@ export function getMimeType(filename: string): string {
     aac: 'audio/aac',
     m4a: 'audio/mp4',
     opus: 'audio/opus',
-    
+
     // Video
     mp4: 'video/mp4',
     mkv: 'video/x-matroska',
     avi: 'video/x-msvideo',
     webm: 'video/webm',
     mov: 'video/quicktime',
-    
+
+    // Images
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    avif: 'image/avif',
+    bmp: 'image/bmp',
+
     // Ebooks
     pdf: 'application/pdf',
     epub: 'application/epub+zip',
-    
+
     // Documents
     txt: 'text/plain',
     md: 'text/markdown',
   };
-  
+
   return mimeTypes[ext] ?? 'application/octet-stream';
 }

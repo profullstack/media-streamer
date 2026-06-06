@@ -16,6 +16,7 @@ import {
   FolderIcon,
   FolderOpenIcon,
   FileIcon,
+  ImageIcon,
   MusicIcon,
   VideoIcon,
   BookIcon,
@@ -60,6 +61,8 @@ interface FileTreeProps {
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
+  /** Callback when an image file should open in the gallery */
+  onImageOpen?: (file: TorrentFile) => void;
   /** Callback when "Read" is clicked for an ebook file (epub/pdf) */
   onFileRead?: (file: TorrentFile) => void;
   /** Callback when "Play All" is clicked for a folder or the entire collection */
@@ -184,6 +187,13 @@ function createFolderMetadataMap(folders: FolderMetadata[]): Map<string, FolderM
   return map;
 }
 
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp']);
+
+function isImageFile(file: TorrentFile): boolean {
+  const extension = (file.extension || file.name.split('.').pop() || '').toLowerCase();
+  return file.mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extension);
+}
+
 export function FileTree({
   files,
   folders = [],
@@ -191,6 +201,7 @@ export function FileTree({
   onFileSelect,
   onFilePlay,
   onFileDownload,
+  onImageOpen,
   onFileRead,
   onPlayAll,
   onPlayAllShuffled,
@@ -211,6 +222,7 @@ export function FileTree({
           onFileSelect={onFileSelect}
           onFilePlay={onFilePlay}
           onFileDownload={onFileDownload}
+          onImageOpen={onImageOpen}
           onFileRead={onFileRead}
           onPlayAll={onPlayAll}
           onPlayAllShuffled={onPlayAllShuffled}
@@ -228,6 +240,7 @@ interface FileTreeNodeComponentProps {
   onFileSelect?: (file: TorrentFile) => void;
   onFilePlay?: (file: TorrentFile) => void;
   onFileDownload?: (file: TorrentFile) => void;
+  onImageOpen?: (file: TorrentFile) => void;
   onFileRead?: (file: TorrentFile) => void;
   onPlayAll?: (files: TorrentFile[]) => void;
   onPlayAllShuffled?: (files: TorrentFile[]) => void;
@@ -241,6 +254,7 @@ function FileTreeNodeComponent({
   onFileSelect,
   onFilePlay,
   onFileDownload,
+  onImageOpen,
   onFileRead,
   onPlayAll,
   onPlayAllShuffled,
@@ -292,6 +306,13 @@ function FileTreeNodeComponent({
     }
   };
 
+  const handleImageOpen = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    if (node.file && onImageOpen) {
+      onImageOpen(node.file);
+    }
+  };
+
   const handlePlayAll = (e: React.MouseEvent): void => {
     e.stopPropagation();
     if (onPlayAll && node.isDirectory) {
@@ -340,6 +361,7 @@ function FileTreeNodeComponent({
 
   const isPlayable = node.file && (node.file.mediaCategory === 'audio' || node.file.mediaCategory === 'video');
   const isReadable = node.file && node.file.mediaCategory === 'ebook';
+  const isImage = node.file ? isImageFile(node.file) : false;
 
   return (
     <div className="overflow-hidden w-full">
@@ -423,6 +445,18 @@ function FileTreeNodeComponent({
                   aria-label={`Read ${node.name}`}
                 >
                   <BookIcon size={20} />
+                </button>
+              ) : null}
+              {/* View button for image files */}
+              {isImage && onImageOpen ? (
+                <button
+                  type="button"
+                  onClick={handleImageOpen}
+                  className="rounded-full p-2 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/30 active:bg-accent-primary/40 transition-colors"
+                  title="View image"
+                  aria-label={`View ${node.name}`}
+                >
+                  <ImageIcon size={20} />
                 </button>
               ) : null}
               {/* Download button for files */}
@@ -515,6 +549,7 @@ function FileTreeNodeComponent({
               onFileSelect={onFileSelect}
               onFilePlay={onFilePlay}
               onFileDownload={onFileDownload}
+              onImageOpen={onImageOpen}
               onFileRead={onFileRead}
               onPlayAll={onPlayAll}
               onPlayAllShuffled={onPlayAllShuffled}

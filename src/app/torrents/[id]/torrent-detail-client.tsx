@@ -6,13 +6,13 @@
  * Shows torrent information, file browser, comments, and voting.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
 import { SearchBar, type SearchFilters } from '@/components/search';
-import { MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
+import { ImageGalleryModal, MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
 import { CommentsSection, TorrentVoting } from '@/components/comments';
 import {
   ChevronRightIcon,
@@ -21,6 +21,7 @@ import {
   VideoIcon,
   BookIcon,
   FileIcon,
+  ImageIcon,
   PlayIcon,
   ShuffleIcon,
 } from '@/components/ui/icons';
@@ -70,6 +71,35 @@ interface FolderMetadata {
 
 interface FoldersResponse {
   folders: FolderMetadata[];
+}
+
+interface StreamStatusEvent {
+  stage: 'initializing' | 'connecting' | 'searching_peers' | 'downloading_metadata' | 'buffering' | 'ready' | 'error';
+  message: string;
+  numPeers: number;
+  progress: number;
+  fileProgress?: number;
+  downloadSpeed: number;
+  downloaded: number;
+  ready: boolean;
+  fileReady?: boolean;
+}
+
+interface DownloadStatus {
+  fileId: string;
+  fileName: string;
+  message: string;
+  progress: number;
+  downloadSpeed: number;
+  numPeers: number;
+  error: string | null;
+}
+
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp']);
+
+function isImageFile(file: TorrentFile): boolean {
+  const extension = (file.extension || file.name.split('.').pop() || '').toLowerCase();
+  return file.mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extension);
 }
 
 /**
@@ -125,6 +155,11 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
   // Modal state
   const [selectedFile, setSelectedFile] = useState<TorrentFile | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Image gallery modal state
+  const [selectedImageFile, setSelectedImageFile] = useState<TorrentFile | null>(null);
+  const [imageGalleryFiles, setImageGalleryFiles] = useState<TorrentFile[]>([]);
+  const [isImageGalleryOpen, setIsImageGalleryOpen] = useState(false);
   
   // Playlist modal state
   const [playlistFiles, setPlaylistFiles] = useState<TorrentFile[]>([]);
@@ -138,6 +173,8 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isReportingTorrent, setIsReportingTorrent] = useState(false);
   const [reportTorrentStatus, setReportTorrentStatus] = useState<string | null>(null);
+  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus | null>(null);
+  const downloadStatusSourceRef = useRef<EventSource | null>(null);
 
   // Fetch folder metadata (torrent data comes from server props)
   useEffect(() => {
@@ -221,6 +258,13 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
 
     void fetchProgress();
   }, [user, torrentId]);
+
+  useEffect(() => {
+    return () => {
+      downloadStatusSourceRef.current?.close();
+      downloadStatusSourceRef.current = null;
+    };
+  }, []);
 
   // Handle saving progress (called by media player)
   const handleProgressSave = useCallback(async (
@@ -362,16 +406,113 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
       .sort((a, b) => a.path.localeCompare(b.path));
   }, [files]);
 
+  const visibleImageFiles = useMemo(() => {
+    return filteredFiles
+      .filter(isImageFile)
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [filteredFiles]);
+
+  const allImageFiles = useMemo(() => {
+    return files
+      .filter(isImageFile)
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [files]);
+
+  const handleImageOpen = useCallback((file: TorrentFile) => {
+    const galleryFiles = visibleImageFiles.some((imageFile) => imageFile.id === file.id)
+      ? visibleImageFiles
+      : allImageFiles;
+    setImageGalleryFiles(galleryFiles.length > 0 ? galleryFiles : [file]);
+    setSelectedImageFile(file);
+    setIsImageGalleryOpen(true);
+  }, [allImageFiles, visibleImageFiles]);
+
+  const handleImageGalleryClose = useCallback(() => {
+    setIsImageGalleryOpen(false);
+    setSelectedImageFile(null);
+    setImageGalleryFiles([]);
+  }, []);
+
   // Handle file download
   const handleFileDownload = useCallback((file: TorrentFile) => {
     if (torrent) {
-      const streamUrl = `/api/stream?infohash=${torrent.infohash}&fileIndex=${file.fileIndex}`;
-      const link = document.createElement('a');
-      link.href = streamUrl;
-      link.download = file.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      downloadStatusSourceRef.current?.close();
+
+      setDownloadStatus({
+        fileId: file.id,
+        fileName: file.name,
+        message: 'Preparing download...',
+        progress: 0,
+        downloadSpeed: 0,
+        numPeers: 0,
+        error: null,
+      });
+
+      const statusUrl = `/api/stream/status?infohash=${torrent.infohash}&fileIndex=${file.fileIndex}`;
+      const eventSource = new EventSource(statusUrl);
+      downloadStatusSourceRef.current = eventSource;
+
+      const startDownload = (): void => {
+        eventSource.close();
+        downloadStatusSourceRef.current = null;
+
+        const streamUrl = `/api/stream?infohash=${torrent.infohash}&fileIndex=${file.fileIndex}&download=1`;
+        const link = document.createElement('a');
+        link.href = streamUrl;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setDownloadStatus((current) => current?.fileId === file.id
+          ? {
+              ...current,
+              message: 'Download started',
+              progress: 1,
+              error: null,
+            }
+          : current);
+
+        window.setTimeout(() => {
+          setDownloadStatus((current) => current?.fileId === file.id ? null : current);
+        }, 3500);
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const status = JSON.parse(event.data as string) as StreamStatusEvent;
+          const progress = status.fileProgress ?? status.progress ?? 0;
+
+          setDownloadStatus((current) => current?.fileId === file.id
+            ? {
+                ...current,
+                message: status.message,
+                progress,
+                downloadSpeed: status.downloadSpeed,
+                numPeers: status.numPeers,
+                error: null,
+              }
+            : current);
+
+          if (status.fileReady ?? status.ready) {
+            startDownload();
+          }
+        } catch {
+          setDownloadStatus((current) => current?.fileId === file.id
+            ? { ...current, error: 'Could not read download status' }
+            : current);
+        }
+      };
+
+      eventSource.onerror = () => {
+        setDownloadStatus((current) => current?.fileId === file.id
+          ? {
+              ...current,
+              message: 'Still trying to connect...',
+              error: null,
+            }
+          : current);
+      };
     }
   }, [torrent]);
 
@@ -746,6 +887,14 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                 <BookIcon className="text-accent-ebook" size={14} />
                 <span className="text-text-primary">{mediaCounts.ebook} ebook</span>
               </div> : null}
+            {allImageFiles.length > 0 ? <button
+                type="button"
+                onClick={() => handleImageOpen(allImageFiles[0])}
+                className="flex items-center gap-2 rounded-full bg-accent-primary/10 px-3 py-1 text-sm text-accent-primary hover:bg-accent-primary/20 transition-colors"
+              >
+                <ImageIcon size={14} />
+                <span>{allImageFiles.length} image{allImageFiles.length === 1 ? '' : 's'}</span>
+              </button> : null}
             {mediaCounts.document && mediaCounts.document > 0 ? <div className="flex items-center gap-2 rounded-full bg-bg-tertiary px-3 py-1 text-sm">
                 <FileIcon className="text-text-secondary" size={14} />
                 <span className="text-text-primary">{mediaCounts.document} document</span>
@@ -782,6 +931,41 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                 debounceMs={150}
               />
             </div>
+            {downloadStatus ? (
+              <div className={`mt-3 rounded-md border p-3 ${
+                downloadStatus.error
+                  ? 'border-error/30 bg-error/10'
+                  : 'border-accent-primary/30 bg-accent-primary/10'
+              }`}>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-text-primary" title={downloadStatus.fileName}>
+                      {downloadStatus.fileName}
+                    </p>
+                    <p className={downloadStatus.error ? 'text-error' : 'text-text-muted'}>
+                      {downloadStatus.error ?? downloadStatus.message}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3 text-text-muted">
+                    <span>Peers {downloadStatus.numPeers}</span>
+                    {downloadStatus.downloadSpeed > 0 ? (
+                      <span>↓ {formatBytes(downloadStatus.downloadSpeed)}/s</span>
+                    ) : null}
+                    {downloadStatus.progress > 0 && downloadStatus.progress < 1 ? (
+                      <span>{Math.round(downloadStatus.progress * 100)}%</span>
+                    ) : null}
+                  </div>
+                </div>
+                {downloadStatus.progress > 0 && downloadStatus.progress < 1 ? (
+                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-bg-tertiary">
+                    <div
+                      className="h-full bg-accent-primary transition-all duration-300"
+                      style={{ width: `${downloadStatus.progress * 100}%` }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <div className="max-h-[600px] overflow-y-auto p-2">
             {filteredFiles.length > 0 ? (
@@ -791,6 +975,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                 progress={user ? fileProgress : undefined}
                 onFilePlay={handleFilePlay}
                 onFileDownload={handleFileDownload}
+                onImageOpen={handleImageOpen}
                 onFileRead={handleFileRead}
                 onPlayAll={handlePlayAll}
                 onPlayAllShuffled={handlePlayAllShuffled}
@@ -901,6 +1086,16 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           torrentName={playlistFolderMetadata?.album ?? (torrent.cleanTitle || cleanDisplayName(torrent.name))}
           coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
           artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
+        /> : null}
+
+      {torrent ? <ImageGalleryModal
+          key={selectedImageFile?.id ?? 'image-gallery'}
+          isOpen={isImageGalleryOpen}
+          onClose={handleImageGalleryClose}
+          files={imageGalleryFiles}
+          initialFile={selectedImageFile}
+          infohash={torrent.infohash}
+          torrentName={torrent.cleanTitle || cleanDisplayName(torrent.name)}
         /> : null}
     </MainLayout>
   );
