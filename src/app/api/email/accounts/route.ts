@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
 import {
   createEmailAccount,
-  listEmailAccounts,
+  listPublicEmailAccounts,
   toPublicEmailAccount,
   validateCreateEmailAccountInput,
 } from '@/lib/email-accounts';
@@ -15,8 +15,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const accounts = await listEmailAccounts(user.id);
-    return NextResponse.json({ accounts: accounts.map(toPublicEmailAccount) });
+    const accounts = await listPublicEmailAccounts(user.id);
+    return NextResponse.json({ accounts });
   } catch (error) {
     console.error('[EmailAccounts] Failed to list accounts:', error);
     return NextResponse.json(buildEmailAccountLoadError(error), { status: 500 });

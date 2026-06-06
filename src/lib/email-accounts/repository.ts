@@ -13,6 +13,24 @@ import {
 } from './credentials';
 
 const TABLE = 'email_accounts';
+const PUBLIC_COLUMNS = [
+  'id',
+  'label',
+  'provider',
+  'from_email',
+  'from_name',
+  'reply_to_email',
+  'smtp_host',
+  'smtp_port',
+  'smtp_security',
+  'smtp_username',
+  'is_default',
+  'last_checked_at',
+  'last_check_status',
+  'last_check_error',
+  'created_at',
+  'updated_at',
+].join(',');
 
 interface EmailAccountRow {
   id: string;
@@ -62,6 +80,35 @@ function rowToAccount(row: EmailAccountRow): EmailAccount {
   };
 }
 
+function decryptPublicUsername(value: string | null): string | null {
+  try {
+    return decryptNullableCredential(value);
+  } catch {
+    return null;
+  }
+}
+
+function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_password'>): PublicEmailAccount {
+  return {
+    id: row.id,
+    label: row.label,
+    provider: row.provider,
+    fromEmail: row.from_email,
+    fromName: row.from_name,
+    replyToEmail: row.reply_to_email,
+    smtpHost: row.smtp_host,
+    smtpPort: row.smtp_port,
+    smtpSecurity: row.smtp_security,
+    smtpUsername: decryptPublicUsername(row.smtp_username),
+    isDefault: row.is_default,
+    lastCheckedAt: row.last_checked_at,
+    lastCheckStatus: row.last_check_status,
+    lastCheckError: row.last_check_error,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export function toPublicEmailAccount(account: EmailAccount): PublicEmailAccount {
   return {
     id: account.id,
@@ -81,6 +128,17 @@ export function toPublicEmailAccount(account: EmailAccount): PublicEmailAccount 
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
   };
+}
+
+export async function listPublicEmailAccounts(userId: string): Promise<PublicEmailAccount[]> {
+  const { data, error } = await db()
+    .from(TABLE)
+    .select(PUBLIC_COLUMNS)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(`Failed to list email accounts: ${error.message}`);
+  return ((data ?? []) as unknown as Omit<EmailAccountRow, 'user_id' | 'smtp_password'>[]).map(rowToPublicEmailAccount);
 }
 
 export async function listEmailAccounts(userId: string): Promise<EmailAccount[]> {
@@ -183,7 +241,7 @@ export async function updateEmailAccount(
 }
 
 export async function deleteEmailAccount(userId: string, accountId: string): Promise<void> {
-  const target = await getEmailAccount(userId, accountId);
+  const target = (await listPublicEmailAccounts(userId)).find((account) => account.id === accountId) ?? null;
   if (!target) return;
 
   const { error } = await db()
@@ -195,9 +253,15 @@ export async function deleteEmailAccount(userId: string, accountId: string): Pro
   if (error) throw new Error(`Failed to delete email account: ${error.message}`);
 
   if (target.isDefault) {
-    const remaining = await listEmailAccounts(userId);
+    const remaining = await listPublicEmailAccounts(userId);
     if (remaining.length > 0) {
-      await updateEmailAccount(userId, remaining[0].id, { isDefault: true });
+      const { error: defaultError } = await db()
+        .from(TABLE)
+        .update({ is_default: true })
+        .eq('user_id', userId)
+        .eq('id', remaining[0].id);
+
+      if (defaultError) throw new Error(`Failed to set default email account: ${defaultError.message}`);
     }
   }
 }

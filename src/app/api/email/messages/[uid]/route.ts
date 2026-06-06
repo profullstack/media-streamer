@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
-import { getEmailAccount, listEmailAccounts, type EmailAccount } from '@/lib/email-accounts';
+import { getEmailAccount, listPublicEmailAccounts, type EmailAccount } from '@/lib/email-accounts';
 import { getInboxMessage, toMailboxAccount } from '@/lib/email-reader';
 import { buildInboxLoadError } from '@/lib/email-reader/errors';
 
@@ -24,9 +24,12 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
   let account: EmailAccount | null = null;
 
   try {
-    account = accountId
-      ? await getEmailAccount(user.id, accountId)
-      : (await listEmailAccounts(user.id)).find((item) => item.isDefault) ?? null;
+    if (accountId) {
+      account = await getEmailAccount(user.id, accountId);
+    } else {
+      const defaultAccount = (await listPublicEmailAccounts(user.id)).find((item) => item.isDefault) ?? null;
+      account = defaultAccount ? await getEmailAccount(user.id, defaultAccount.id) : null;
+    }
 
     if (!account) {
       return NextResponse.json({ error: 'Email account not found' }, { status: 404 });

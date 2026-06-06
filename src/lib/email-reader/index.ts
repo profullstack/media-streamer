@@ -8,7 +8,7 @@ export {
   buildPrivateSenderFeedXml,
   extractEmailAddress,
 } from './private-sender-feed';
-export { resolveImapSettings } from './providers';
+export { hasSupportedImapProvider, resolveImapSettings } from './providers';
 export type {
   EmailMessage,
   EmailMessageSummary,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveImapSettings } from './providers';
+import { hasSupportedImapProvider, resolveImapSettings } from './providers';
 import type { EmailAccount } from '@/lib/email-accounts';
 
 function account(overrides: Partial<EmailAccount>): EmailAccount {
@@ -39,4 +39,11 @@ describe('resolveImapSettings', () => {
       });
     }
   );
+
+  it('detects Forward Email as readable without requiring decrypted credentials', () => {
+    expect(hasSupportedImapProvider({
+      provider: 'forwardemail',
+      smtpHost: 'smtp.forwardemail.net',
+    })).toBe(true);
+  });
 });
