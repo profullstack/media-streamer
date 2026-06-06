@@ -12,6 +12,7 @@ import {
   markFeedFetchError,
   subscribeToFeed as saveSubscription,
   updateItemState,
+  updateItemsReadState,
   updateSubscription,
   upsertFeed,
   upsertFeedItems,
@@ -320,4 +321,11 @@ export async function updateRssSubscription(
 
 export async function setRssItemState(profileId: string, itemId: string, input: RssItemStateInput) {
   return updateItemState(profileId, itemId, input);
+}
+
+export async function setRssItemsReadState(
+  profileId: string,
+  input: { feedId?: string | null; isRead: boolean }
+) {
+  return updateItemsReadState(profileId, input);
 }

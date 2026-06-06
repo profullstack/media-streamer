@@ -216,6 +216,165 @@
   touch-action: pan-x;
 }
 
+@layer components {
+  .rich-content {
+    color: var(--text-secondary);
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+
+  .rich-content > *:first-child {
+    margin-top: 0;
+  }
+
+  .rich-content > *:last-child {
+    margin-bottom: 0;
+  }
+
+  .rich-content p,
+  .rich-content ul,
+  .rich-content ol,
+  .rich-content blockquote,
+  .rich-content pre,
+  .rich-content table,
+  .rich-content figure {
+    margin: 1rem 0;
+  }
+
+  .rich-content h1,
+  .rich-content h2,
+  .rich-content h3,
+  .rich-content h4,
+  .rich-content h5,
+  .rich-content h6 {
+    margin: 1.25rem 0 0.65rem;
+    color: var(--text-primary);
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .rich-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .rich-content h2 {
+    font-size: 1.25rem;
+  }
+
+  .rich-content h3,
+  .rich-content h4,
+  .rich-content h5,
+  .rich-content h6 {
+    font-size: 1.05rem;
+  }
+
+  .rich-content a {
+    color: var(--accent-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .rich-content a:hover {
+    color: var(--text-primary);
+  }
+
+  .rich-content strong,
+  .rich-content b {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+
+  .rich-content ul,
+  .rich-content ol {
+    padding-left: 1.35rem;
+  }
+
+  .rich-content ul {
+    list-style: disc;
+  }
+
+  .rich-content ol {
+    list-style: decimal;
+  }
+
+  .rich-content li {
+    margin: 0.35rem 0;
+  }
+
+  .rich-content blockquote {
+    border-left: 3px solid var(--border-default);
+    color: var(--text-muted);
+    padding-left: 1rem;
+  }
+
+  .rich-content code {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.25rem;
+    color: var(--text-primary);
+    font-size: 0.92em;
+    padding: 0.1rem 0.3rem;
+  }
+
+  .rich-content pre {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    padding: 0.85rem;
+  }
+
+  .rich-content pre code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+
+  .rich-content img {
+    border-radius: 0.5rem;
+    display: block;
+    height: auto;
+    margin: 1rem 0;
+    max-width: 100%;
+  }
+
+  .rich-content table {
+    border-collapse: collapse;
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .rich-content th,
+  .rich-content td {
+    border: 1px solid var(--border-subtle);
+    padding: 0.45rem 0.6rem;
+    text-align: left;
+  }
+
+  .rich-content th {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .rich-content hr {
+    border: 0;
+    border-top: 1px solid var(--border-subtle);
+    margin: 1.25rem 0;
+  }
+
+  .rich-content-compact p,
+  .rich-content-compact ul,
+  .rich-content-compact ol,
+  .rich-content-compact blockquote,
+  .rich-content-compact pre,
+  .rich-content-compact table,
+  .rich-content-compact figure {
+    margin: 0.75rem 0;
+  }
+}
+
 @layer base {
   :root {
     /* Background layers */
@@ -721,7 +880,6 @@ html.tv [role="dialog"] p {
 html.tv .max-w-md {
   max-width: 20rem;
 }
-
 
 
 

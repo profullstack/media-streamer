@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
+import { htmlToPlainText, renderRichContentHtml } from '@/lib/rich-content';
 import {
   CheckIcon,
   DownloadIcon,
@@ -66,8 +67,11 @@ interface ImportResponse {
   failed: Array<{ feedUrl: string; title: string | null; error: string }>;
 }
 
-function stripHtml(value: string | null | undefined): string {
-  return (value ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+interface BulkReadStateResponse {
+  feedId: string | null;
+  isRead: boolean;
+  updatedCount: number;
+  error?: string;
 }
 
 function displayDate(value: string | null): string {
@@ -101,11 +105,16 @@ export function RssContent(): React.ReactElement {
     () => items.find((item) => item.id === selectedItemId) ?? items[0] ?? null,
     [items, selectedItemId]
   );
+  const selectedItemBodyHtml = renderRichContentHtml(selectedItem?.content ?? selectedItem?.summary, { allowImages: true });
 
   const folders = useMemo(() => {
     const names = new Set(subscriptions.map((sub) => sub.folder).filter((folder): folder is string => Boolean(folder)));
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [subscriptions]);
+  const selectedSubscription = useMemo(
+    () => subscriptions.find((sub) => sub.feedId === selectedFeedId) ?? null,
+    [selectedFeedId, subscriptions]
+  );
 
   const loadReader = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -131,7 +140,10 @@ export function RssContent(): React.ReactElement {
   }, [selectedFeedId, showSavedOnly, showUnreadOnly]);
 
   useEffect(() => {
-    void loadReader();
+    const timeout = window.setTimeout(() => {
+      void loadReader();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [loadReader]);
 
   const addFeed = async (): Promise<void> => {
@@ -268,6 +280,32 @@ export function RssContent(): React.ReactElement {
     });
   };
 
+  const updateReadStateForScope = async (feedId: string | null, isRead: boolean): Promise<void> => {
+    setIsSaving(true);
+    setError(null);
+    setImportMessage(null);
+
+    try {
+      const response = await fetch('/api/rss/items', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedId, isRead }),
+      });
+      const data = await response.json() as BulkReadStateResponse;
+      if (!response.ok) throw new Error(data.error ?? 'Failed to update read state');
+
+      const scope = feedId
+        ? subscriptions.find((sub) => sub.feedId === feedId)?.customTitle ?? subscriptions.find((sub) => sub.feedId === feedId)?.feed.title ?? 'selected feed'
+        : 'all feeds';
+      setImportMessage(`Marked ${data.updatedCount} articles as ${isRead ? 'read' : 'unread'} in ${scope}.`);
+      await loadReader();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update read state');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-5">
@@ -366,6 +404,56 @@ export function RssContent(): React.ReactElement {
               </button>
             </div>
 
+            <div className="space-y-3 rounded-lg border border-border-subtle bg-bg-tertiary p-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-text-muted">Read state</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void updateReadStateForScope(null, true)}
+                    disabled={isSaving || subscriptions.length === 0}
+                    className="rounded-lg border border-border-default px-2 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    All read
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void updateReadStateForScope(null, false)}
+                    disabled={isSaving || subscriptions.length === 0}
+                    className="rounded-lg border border-border-default px-2 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    All unread
+                  </button>
+                </div>
+              </div>
+
+              {selectedSubscription ? (
+                <div className="border-t border-border-subtle pt-3">
+                  <p className="truncate text-xs font-semibold uppercase text-text-muted">
+                    {selectedSubscription.customTitle ?? selectedSubscription.feed.title}
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void updateReadStateForScope(selectedSubscription.feedId, true)}
+                      disabled={isSaving}
+                      className="rounded-lg border border-border-default px-2 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Feed read
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void updateReadStateForScope(selectedSubscription.feedId, false)}
+                      disabled={isSaving}
+                      className="rounded-lg border border-border-default px-2 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Feed unread
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             <div className="space-y-2">
               <button
                 type="button"
@@ -450,7 +538,7 @@ export function RssContent(): React.ReactElement {
                       <span className="shrink-0 text-xs text-text-muted">{displayDate(item.publishedAt)}</span>
                     </div>
                     <h2 className="line-clamp-2 text-sm font-semibold text-text-primary">{item.title}</h2>
-                    <p className="mt-2 line-clamp-2 text-xs text-text-muted">{stripHtml(item.summary ?? item.content)}</p>
+                    <p className="mt-2 line-clamp-2 text-xs text-text-muted">{htmlToPlainText(item.summary ?? item.content)}</p>
                   </button>
                 ))}
               </div>
@@ -474,7 +562,14 @@ export function RssContent(): React.ReactElement {
                     {selectedItem.isSaved ? 'Saved' : 'Save'}
                   </button>
                 </div>
-                <p className="text-sm leading-6 text-text-secondary">{stripHtml(selectedItem.content ?? selectedItem.summary) || 'No article summary available.'}</p>
+                {selectedItemBodyHtml ? (
+                  <div
+                    className="rich-content text-sm"
+                    dangerouslySetInnerHTML={{ __html: selectedItemBodyHtml }}
+                  />
+                ) : (
+                  <p className="text-sm leading-6 text-text-secondary">No article summary available.</p>
+                )}
                 {selectedItem.link ? (
                   <a
                     href={selectedItem.link}

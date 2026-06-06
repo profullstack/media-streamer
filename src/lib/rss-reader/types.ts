@@ -94,6 +94,11 @@ export interface RssItemStateInput {
   isSaved?: boolean;
 }
 
+export interface RssBulkReadStateInput {
+  feedId?: string | null;
+  isRead: boolean;
+}
+
 export interface RssListOptions {
   feedId?: string;
   unreadOnly?: boolean;

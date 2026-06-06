@@ -6,8 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import { htmlToPlainText, renderRichContentHtml } from '@/lib/rich-content';
 import {
-  ExternalLinkIcon,
   LinkIcon,
   LoadingSpinner,
   MailIcon,
@@ -73,7 +73,7 @@ function displayDate(value: string | null): string {
 
 function previewText(message: EmailMessage | null): string {
   if (!message) return '';
-  return message.text.replace(/\s+/g, ' ').trim();
+  return htmlToPlainText(message.text || message.html).replace(/\s+/g, ' ').trim();
 }
 
 export function EmailContent(): React.ReactElement {
@@ -237,6 +237,9 @@ export function EmailContent(): React.ReactElement {
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
   const visibleMessage = selectedUid ? selectedMessage : null;
   const bodyText = previewText(visibleMessage);
+  const messageBodyHtml = visibleMessage
+    ? renderRichContentHtml(visibleMessage.html || visibleMessage.text, { allowImages: false })
+    : '';
   const defaultFeedProfileId = activeProfileId && profiles.some((profile) => profile.id === activeProfileId)
     ? activeProfileId
     : profiles[0]?.id ?? '';
@@ -449,16 +452,11 @@ export function EmailContent(): React.ReactElement {
                     </div>
                   </div>
                 ) : null}
-                {bodyText ? (
-                  <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-text-secondary">{visibleMessage.text.trim()}</pre>
-                ) : visibleMessage.html ? (
-                  <div className="space-y-3 text-sm text-text-muted">
-                    <p>This message only has HTML content. Open it in your mail client to view the formatted version.</p>
-                    <a href={`mailto:${visibleMessage.from}`} className="inline-flex items-center gap-2 rounded-lg bg-accent-primary px-3 py-2 font-medium text-white">
-                      <ExternalLinkIcon size={16} />
-                      <span>Open mail client</span>
-                    </a>
-                  </div>
+                {bodyText || messageBodyHtml ? (
+                  <div
+                    className="rich-content rich-content-compact text-sm"
+                    dangerouslySetInnerHTML={{ __html: messageBodyHtml }}
+                  />
                 ) : (
                   <p className="text-sm text-text-muted">This message has no readable body.</p>
                 )}

@@ -80,6 +80,13 @@ describe('RSS reader browser flow', () => {
         });
       }
 
+      if (url === '/api/rss/items' && method === 'PATCH') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ feedId: null, isRead: true, updatedCount: 1 }),
+        });
+      }
+
       if (url === '/api/rss' && method === 'POST') {
         return Promise.resolve({
           ok: true,
@@ -108,6 +115,21 @@ describe('RSS reader browser flow', () => {
 
     await user.click(screen.getAllByText('First RSS Article')[0]);
     expect(screen.getByRole('link', { name: /open article/i })).toHaveAttribute('href', 'https://example.com/first');
+    expect(screen.getAllByText('Article summary').length).toBeGreaterThan(1);
+
+    await user.click(screen.getByRole('button', { name: /all read/i }));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/rss/items', expect.objectContaining({ method: 'PATCH' }));
+    });
+
+    await user.click(screen.getByRole('button', { name: /https:\/\/example\.com\/feed\.xml/i }));
+    await user.click(screen.getByRole('button', { name: /feed unread/i }));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/rss/items', expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ feedId: 'feed-1', isRead: false }),
+      }));
+    });
 
     await user.type(screen.getByPlaceholderText('https://example.com/feed.xml'), 'https://another.example.com/rss');
     await user.type(screen.getByPlaceholderText('Folder'), 'News');

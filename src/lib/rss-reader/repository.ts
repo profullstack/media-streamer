@@ -4,6 +4,7 @@ import type {
   ParsedRssItem,
   RssFeed,
   RssItem,
+  RssBulkReadStateInput,
   RssItemStateInput,
   RssItemWithState,
   RssListOptions,
@@ -67,6 +68,13 @@ interface SubscriptionWithFeedRow {
   created_at: string;
   updated_at: string;
   rss_feeds: FeedRow;
+}
+
+interface BulkReadStateRpcClient {
+  rpc(
+    fn: 'rss_mark_items_read_state',
+    params: { p_profile_id: string; p_feed_id: string | null; p_is_read: boolean }
+  ): Promise<{ data: number | null; error: { message: string } | null }>;
 }
 
 function db() {
@@ -416,4 +424,22 @@ export async function updateItemState(
   }
 
   return data as StateRow;
+}
+
+export async function updateItemsReadState(
+  profileId: string,
+  input: RssBulkReadStateInput
+): Promise<{ updatedCount: number }> {
+  const rpcClient = db() as unknown as BulkReadStateRpcClient;
+  const { data, error } = await rpcClient.rpc('rss_mark_items_read_state', {
+    p_profile_id: profileId,
+    p_feed_id: input.feedId ?? null,
+    p_is_read: input.isRead,
+  });
+
+  if (error) {
+    throw new Error(`Failed to update RSS item read state: ${error.message}`);
+  }
+
+  return { updatedCount: typeof data === 'number' ? data : 0 };
 }
