@@ -82,4 +82,39 @@ describe('Email accounts browser flow', () => {
       expect(mockFetch).toHaveBeenCalledWith('/api/email/accounts/acct-1/check', expect.objectContaining({ method: 'POST' }));
     });
   });
+
+  it('fills SMTP settings from provider presets', async () => {
+    const user = userEvent.setup();
+    render(<EmailAccountsSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Personal')).toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByLabelText('Provider type'), 'resend');
+
+    expect(screen.getByLabelText('Label')).toHaveValue('Resend');
+    expect(screen.getByLabelText('SMTP host')).toHaveValue('smtp.resend.com');
+    expect(screen.getByLabelText('Port')).toHaveValue(587);
+    expect(screen.getByLabelText('Security')).toHaveValue('starttls');
+    expect(screen.getByLabelText('Username')).toHaveValue('resend');
+
+    await user.type(screen.getByLabelText('From email'), 'noreply@example.com');
+    await user.type(screen.getByLabelText('Password'), 're_secret');
+    await user.click(screen.getByRole('button', { name: /add account/i }));
+
+    await waitFor(() => {
+      const postCall = mockFetch.mock.calls.find(([url, init]) => (
+        url === '/api/email/accounts' && init?.method === 'POST'
+      ));
+      expect(postCall).toBeTruthy();
+      expect(JSON.parse(postCall?.[1]?.body as string)).toEqual(expect.objectContaining({
+        provider: 'resend',
+        smtpHost: 'smtp.resend.com',
+        smtpPort: 587,
+        smtpSecurity: 'starttls',
+        smtpUsername: 'resend',
+      }));
+    });
+  });
 });

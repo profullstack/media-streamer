@@ -5,6 +5,12 @@ import type {
   PublicEmailAccount,
   UpdateEmailAccountInput,
 } from './types';
+import {
+  decryptCredential,
+  decryptNullableCredential,
+  encryptCredential,
+  encryptNullableCredential,
+} from './credentials';
 
 const TABLE = 'email_accounts';
 
@@ -45,8 +51,8 @@ function rowToAccount(row: EmailAccountRow): EmailAccount {
     smtpHost: row.smtp_host,
     smtpPort: row.smtp_port,
     smtpSecurity: row.smtp_security,
-    smtpUsername: row.smtp_username,
-    smtpPassword: row.smtp_password,
+    smtpUsername: decryptNullableCredential(row.smtp_username),
+    smtpPassword: decryptCredential(row.smtp_password),
     isDefault: row.is_default,
     lastCheckedAt: row.last_checked_at,
     lastCheckStatus: row.last_check_status,
@@ -129,8 +135,8 @@ export async function createEmailAccount(
       smtp_host: input.smtpHost,
       smtp_port: input.smtpPort,
       smtp_security: input.smtpSecurity,
-      smtp_username: input.smtpUsername ?? null,
-      smtp_password: input.smtpPassword,
+      smtp_username: encryptNullableCredential(input.smtpUsername),
+      smtp_password: encryptCredential(input.smtpPassword),
       is_default: isDefault,
     })
     .select('*')
@@ -157,8 +163,8 @@ export async function updateEmailAccount(
   if (input.smtpHost !== undefined) update.smtp_host = input.smtpHost;
   if (input.smtpPort !== undefined) update.smtp_port = input.smtpPort;
   if (input.smtpSecurity !== undefined) update.smtp_security = input.smtpSecurity;
-  if (input.smtpUsername !== undefined) update.smtp_username = input.smtpUsername;
-  if (input.smtpPassword !== undefined) update.smtp_password = input.smtpPassword;
+  if (input.smtpUsername !== undefined) update.smtp_username = encryptNullableCredential(input.smtpUsername);
+  if (input.smtpPassword !== undefined) update.smtp_password = encryptCredential(input.smtpPassword);
   if (input.isDefault !== undefined) update.is_default = input.isDefault;
 
   const { data, error } = await db()

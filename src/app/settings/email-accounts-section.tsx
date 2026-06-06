@@ -52,6 +52,18 @@ interface FormState {
   isDefault: boolean;
 }
 
+type ProviderPresetKey = 'custom' | 'gmail' | 'protonmail' | 'resend' | 'forwardemail';
+
+interface ProviderPreset {
+  key: Exclude<ProviderPresetKey, 'custom'>;
+  label: string;
+  provider: string;
+  smtpHost: string;
+  smtpPort: string;
+  smtpSecurity: FormState['smtpSecurity'];
+  username: 'fromEmail' | 'resend';
+}
+
 const emptyForm: FormState = {
   label: '',
   provider: '',
@@ -65,6 +77,57 @@ const emptyForm: FormState = {
   smtpPassword: '',
   isDefault: false,
 };
+
+const providerPresets: ProviderPreset[] = [
+  {
+    key: 'gmail',
+    label: 'Gmail',
+    provider: 'gmail',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: '587',
+    smtpSecurity: 'starttls',
+    username: 'fromEmail',
+  },
+  {
+    key: 'protonmail',
+    label: 'Proton Mail',
+    provider: 'protonmail',
+    smtpHost: 'smtp.protonmail.ch',
+    smtpPort: '587',
+    smtpSecurity: 'starttls',
+    username: 'fromEmail',
+  },
+  {
+    key: 'resend',
+    label: 'Resend',
+    provider: 'resend',
+    smtpHost: 'smtp.resend.com',
+    smtpPort: '587',
+    smtpSecurity: 'starttls',
+    username: 'resend',
+  },
+  {
+    key: 'forwardemail',
+    label: 'ForwardEmail.net',
+    provider: 'forwardemail',
+    smtpHost: 'smtp.forwardemail.net',
+    smtpPort: '465',
+    smtpSecurity: 'tls',
+    username: 'fromEmail',
+  },
+];
+
+function presetForProvider(provider: string): ProviderPreset | null {
+  return providerPresets.find((preset) => preset.provider === provider) ?? null;
+}
+
+function providerPresetKey(provider: string): ProviderPresetKey {
+  return presetForProvider(provider)?.key ?? 'custom';
+}
+
+function usernameForPreset(preset: ProviderPreset, fromEmail: string): string {
+  return preset.username === 'resend' ? 'resend' : fromEmail;
+}
 
 function statusLabel(account: EmailAccount): string {
   if (account.lastCheckStatus === 'success') return 'Connected';
@@ -103,6 +166,39 @@ export function EmailAccountsSection(): React.ReactElement {
   const resetForm = (): void => {
     setForm(emptyForm);
     setEditingId(null);
+  };
+
+  const applyProviderPreset = (key: ProviderPresetKey): void => {
+    if (key === 'custom') {
+      setForm((prev) => ({ ...prev, provider: '' }));
+      return;
+    }
+
+    const preset = providerPresets.find((item) => item.key === key);
+    if (!preset) return;
+
+    setForm((prev) => ({
+      ...prev,
+      label: prev.label || preset.label,
+      provider: preset.provider,
+      smtpHost: preset.smtpHost,
+      smtpPort: preset.smtpPort,
+      smtpSecurity: preset.smtpSecurity,
+      smtpUsername: usernameForPreset(preset, prev.fromEmail),
+    }));
+  };
+
+  const updateFromEmail = (value: string): void => {
+    setForm((prev) => {
+      const preset = presetForProvider(prev.provider);
+      const shouldSyncUsername = preset && prev.smtpUsername === usernameForPreset(preset, prev.fromEmail);
+
+      return {
+        ...prev,
+        fromEmail: value,
+        smtpUsername: shouldSyncUsername ? usernameForPreset(preset, value) : prev.smtpUsername,
+      };
+    });
   };
 
   const startEdit = (account: EmailAccount): void => {
@@ -212,9 +308,24 @@ export function EmailAccountsSection(): React.ReactElement {
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Label" value={form.label} onChange={(value) => setForm((prev) => ({ ...prev, label: value }))} required />
-            <Field label="Provider" value={form.provider} onChange={(value) => setForm((prev) => ({ ...prev, provider: value }))} />
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-text-primary">Provider type</span>
+              <select
+                value={providerPresetKey(form.provider)}
+                onChange={(event) => applyProviderPreset(event.target.value as ProviderPresetKey)}
+                className="w-full rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-text-primary focus:border-accent-primary focus:outline-hidden"
+              >
+                <option value="custom">Custom SMTP</option>
+                {providerPresets.map((preset) => (
+                  <option key={preset.key} value={preset.key}>{preset.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
-          <Field label="From email" type="email" value={form.fromEmail} onChange={(value) => setForm((prev) => ({ ...prev, fromEmail: value }))} required />
+          {providerPresetKey(form.provider) === 'custom' ? (
+            <Field label="Provider name" value={form.provider} onChange={(value) => setForm((prev) => ({ ...prev, provider: value }))} />
+          ) : null}
+          <Field label="From email" type="email" value={form.fromEmail} onChange={updateFromEmail} required />
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="From name" value={form.fromName} onChange={(value) => setForm((prev) => ({ ...prev, fromName: value }))} />
             <Field label="Reply-to" type="email" value={form.replyToEmail} onChange={(value) => setForm((prev) => ({ ...prev, replyToEmail: value }))} />
