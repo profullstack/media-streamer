@@ -10,11 +10,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { SettingsIcon, UserIcon, TvIcon, VideoIcon, TrashIcon, ExternalLinkIcon, LoadingSpinner } from '@/components/ui/icons';
+import { SettingsIcon, UserIcon, TvIcon, VideoIcon, TrashIcon, ExternalLinkIcon, LoadingSpinner, MailIcon } from '@/components/ui/icons';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
+import { EmailAccountsSection } from './email-accounts-section';
 
-type SettingsTab = 'account' | 'playback' | 'iptv';
+type SettingsTab = 'account' | 'playback' | 'iptv' | 'email';
 
 /**
  * IPTV Playlist data from API
@@ -42,7 +43,7 @@ export function SettingsContent(): React.ReactElement {
   const [transcodingEnabled, setTranscodingEnabled] = useState(false);
   const [autoplay, setAutoplay] = useState(true);
   const [quality, setQuality] = useState('auto');
-  
+
   // IPTV playlists state
   const [playlists, setPlaylists] = useState<IPTVPlaylist[]>([]);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
@@ -52,22 +53,23 @@ export function SettingsContent(): React.ReactElement {
     { id: 'account' as const, label: 'Account', icon: UserIcon },
     { id: 'playback' as const, label: 'Playback', icon: VideoIcon },
     { id: 'iptv' as const, label: 'IPTV', icon: TvIcon },
+    { id: 'email' as const, label: 'Email', icon: MailIcon },
   ];
 
   // Load IPTV playlists when IPTV tab is active
   const loadPlaylists = useCallback(async (): Promise<void> => {
     if (!isLoggedIn) return;
-    
+
     setIsLoadingPlaylists(true);
     setPlaylistsError(null);
-    
+
     try {
       const response = await fetch('/api/iptv/playlists');
-      
+
       if (!response.ok) {
         throw new Error('Failed to load playlists');
       }
-      
+
       const data = await response.json() as PlaylistsApiResponse;
       setPlaylists(data.playlists);
     } catch (err) {
@@ -88,16 +90,16 @@ export function SettingsContent(): React.ReactElement {
   // Delete playlist handler
   const handleDeletePlaylist = async (playlistId: string): Promise<void> => {
     if (!confirm('Are you sure you want to delete this playlist?')) return;
-    
+
     try {
       const response = await fetch(`/api/iptv/playlists/${playlistId}`, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to delete playlist');
       }
-      
+
       // Remove from local state
       setPlaylists(prev => prev.filter(p => p.id !== playlistId));
     } catch (err) {
@@ -372,6 +374,8 @@ export function SettingsContent(): React.ReactElement {
                 ) : null}
               </div>
             )}
+
+            {activeTab === 'email' && <EmailAccountsSection />}
           </div>
         </div>
       </div>

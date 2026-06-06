@@ -15,6 +15,234 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      email_accounts: {
+        Row: {
+          id: string;
+          user_id: string;
+          label: string;
+          provider: string | null;
+          from_email: string;
+          from_name: string | null;
+          reply_to_email: string | null;
+          smtp_host: string;
+          smtp_port: number;
+          smtp_security: 'none' | 'starttls' | 'tls';
+          smtp_username: string | null;
+          smtp_password: string;
+          is_default: boolean;
+          last_checked_at: string | null;
+          last_check_status: 'unchecked' | 'success' | 'failed';
+          last_check_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          label: string;
+          provider?: string | null;
+          from_email: string;
+          from_name?: string | null;
+          reply_to_email?: string | null;
+          smtp_host: string;
+          smtp_port: number;
+          smtp_security?: 'none' | 'starttls' | 'tls';
+          smtp_username?: string | null;
+          smtp_password: string;
+          is_default?: boolean;
+          last_checked_at?: string | null;
+          last_check_status?: 'unchecked' | 'success' | 'failed';
+          last_check_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          label?: string;
+          provider?: string | null;
+          from_email?: string;
+          from_name?: string | null;
+          reply_to_email?: string | null;
+          smtp_host?: string;
+          smtp_port?: number;
+          smtp_security?: 'none' | 'starttls' | 'tls';
+          smtp_username?: string | null;
+          smtp_password?: string;
+          is_default?: boolean;
+          last_checked_at?: string | null;
+          last_check_status?: 'unchecked' | 'success' | 'failed';
+          last_check_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      rss_feeds: {
+        Row: {
+          id: string;
+          feed_url: string;
+          site_url: string | null;
+          title: string;
+          description: string | null;
+          image_url: string | null;
+          language: string | null;
+          last_fetched_at: string | null;
+          last_successful_fetch_at: string | null;
+          last_fetch_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          feed_url: string;
+          site_url?: string | null;
+          title: string;
+          description?: string | null;
+          image_url?: string | null;
+          language?: string | null;
+          last_fetched_at?: string | null;
+          last_successful_fetch_at?: string | null;
+          last_fetch_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          feed_url?: string;
+          site_url?: string | null;
+          title?: string;
+          description?: string | null;
+          image_url?: string | null;
+          language?: string | null;
+          last_fetched_at?: string | null;
+          last_successful_fetch_at?: string | null;
+          last_fetch_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      rss_feed_items: {
+        Row: {
+          id: string;
+          feed_id: string;
+          guid: string;
+          title: string;
+          link: string | null;
+          author: string | null;
+          summary: string | null;
+          content: string | null;
+          image_url: string | null;
+          enclosure_url: string | null;
+          enclosure_type: string | null;
+          published_at: string | null;
+          source_updated_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          feed_id: string;
+          guid: string;
+          title: string;
+          link?: string | null;
+          author?: string | null;
+          summary?: string | null;
+          content?: string | null;
+          image_url?: string | null;
+          enclosure_url?: string | null;
+          enclosure_type?: string | null;
+          published_at?: string | null;
+          source_updated_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          feed_id?: string;
+          guid?: string;
+          title?: string;
+          link?: string | null;
+          author?: string | null;
+          summary?: string | null;
+          content?: string | null;
+          image_url?: string | null;
+          enclosure_url?: string | null;
+          enclosure_type?: string | null;
+          published_at?: string | null;
+          source_updated_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      rss_item_states: {
+        Row: {
+          id: string;
+          profile_id: string;
+          item_id: string;
+          is_read: boolean;
+          is_saved: boolean;
+          read_at: string | null;
+          saved_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          item_id: string;
+          is_read?: boolean;
+          is_saved?: boolean;
+          read_at?: string | null;
+          saved_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          item_id?: string;
+          is_read?: boolean;
+          is_saved?: boolean;
+          read_at?: string | null;
+          saved_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      rss_subscriptions: {
+        Row: {
+          id: string;
+          profile_id: string;
+          feed_id: string;
+          custom_title: string | null;
+          folder: string | null;
+          notify_new_items: boolean;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          feed_id: string;
+          custom_title?: string | null;
+          folder?: string | null;
+          notify_new_items?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          feed_id?: string;
+          custom_title?: string | null;
+          folder?: string | null;
+          notify_new_items?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       bt_torrents: {
         Row: {
           id: string;

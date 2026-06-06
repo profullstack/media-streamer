@@ -10,7 +10,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -32,6 +31,7 @@ import {
   SearchPlusIcon,
   NewsIcon,
   RadioIcon,
+  RssIcon,
   HeartIcon,
   MovieIcon,
   GlobeIcon,
@@ -57,6 +57,7 @@ const mainNavItems: NavItem[] = [
   { href: '/upcoming', label: 'Upcoming', icon: MovieIcon, requiresPaid: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
+  { href: '/rss', label: 'RSS Reader', icon: RssIcon, requiresAuth: true },
   { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },
   { href: '/youtube', label: 'YouTube', icon: VideoIcon, requiresAuth: true },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon, requiresAuth: true },
@@ -271,8 +272,6 @@ interface FocusableNavItemProps {
 }
 
 function FocusableNavItem({ href, isActive, needsLogin, icon: Icon, label, badge, onItemClick }: FocusableNavItemProps): React.ReactElement {
-  const router = useRouter();
-
   return (
     <Link
       href={href}
