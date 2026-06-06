@@ -1,4 +1,5 @@
 import type { CreateEmailAccountInput, SmtpSecurity, UpdateEmailAccountInput } from './types';
+import { normalizeSmtpSecurity, normalizeSmtpUsername } from './provider-settings';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SECURITY_VALUES: SmtpSecurity[] = ['none', 'starttls', 'tls'];
@@ -42,16 +43,32 @@ export function validateCreateEmailAccountInput(body: unknown): CreateEmailAccou
     return null;
   }
 
+  const provider = sanitizeOptionalString(obj.provider as string | null | undefined);
+  const smtpHost = obj.smtpHost.trim();
+  const smtpPort = obj.smtpPort;
+  const smtpSecurity = normalizeSmtpSecurity(
+    provider,
+    smtpHost,
+    smtpPort,
+    obj.smtpSecurity as SmtpSecurity
+  );
+  const smtpUsername = normalizeSmtpUsername(
+    provider,
+    smtpHost,
+    fromEmail,
+    sanitizeOptionalString(obj.smtpUsername as string | null | undefined)
+  );
+
   return {
     label: obj.label.trim(),
-    provider: sanitizeOptionalString(obj.provider as string | null | undefined),
+    provider,
     fromEmail,
     fromName: sanitizeOptionalString(obj.fromName as string | null | undefined),
     replyToEmail,
-    smtpHost: obj.smtpHost.trim(),
-    smtpPort: obj.smtpPort,
-    smtpSecurity: obj.smtpSecurity as SmtpSecurity,
-    smtpUsername: sanitizeOptionalString(obj.smtpUsername as string | null | undefined),
+    smtpHost,
+    smtpPort,
+    smtpSecurity,
+    smtpUsername,
     smtpPassword: obj.smtpPassword,
     isDefault: typeof obj.isDefault === 'boolean' ? obj.isDefault : false,
   };
@@ -99,6 +116,25 @@ export function validateUpdateEmailAccountInput(body: unknown): UpdateEmailAccou
   if ('isDefault' in obj) {
     if (typeof obj.isDefault !== 'boolean') return null;
     input.isDefault = obj.isDefault;
+  }
+
+  if (input.smtpHost !== undefined || input.smtpPort !== undefined || input.smtpSecurity !== undefined || input.provider !== undefined) {
+    const provider = input.provider ?? sanitizeOptionalString(obj.provider as string | null | undefined);
+    const smtpHost = input.smtpHost ?? sanitizeOptionalString(obj.smtpHost as string | null | undefined);
+    const smtpPort = input.smtpPort ?? (typeof obj.smtpPort === 'number' ? obj.smtpPort : undefined);
+    const smtpSecurity = input.smtpSecurity ?? (SECURITY_VALUES.includes(obj.smtpSecurity as SmtpSecurity) ? obj.smtpSecurity as SmtpSecurity : undefined);
+    if (smtpHost && smtpPort && smtpSecurity) {
+      input.smtpSecurity = normalizeSmtpSecurity(provider, smtpHost, smtpPort, smtpSecurity);
+    }
+  }
+
+  if (input.fromEmail && (input.smtpHost || sanitizeOptionalString(obj.smtpHost as string | null | undefined))) {
+    input.smtpUsername = normalizeSmtpUsername(
+      input.provider ?? sanitizeOptionalString(obj.provider as string | null | undefined),
+      input.smtpHost ?? sanitizeOptionalString(obj.smtpHost as string | null | undefined) ?? '',
+      input.fromEmail,
+      input.smtpUsername ?? sanitizeOptionalString(obj.smtpUsername as string | null | undefined)
+    );
   }
 
   return Object.keys(input).length > 0 ? input : null;

@@ -65,9 +65,34 @@ function createClient(settings: ImapConnectionSettings): ImapFlow {
     auth: {
       user: settings.username,
       pass: settings.password,
+      loginMethod: settings.loginMethod,
     },
     logger: false,
   });
+}
+
+function isImapConnectError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ECONN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|timeout|connect/i.test(message);
+}
+
+async function withMailboxOnPort<T>(
+  settings: ImapConnectionSettings,
+  port: number,
+  callback: (client: ImapFlow) => Promise<T>,
+  mailbox: string
+): Promise<T> {
+  const client = createClient({ ...settings, port });
+  let lock: { release: () => void } | null = null;
+
+  try {
+    await client.connect();
+    lock = await client.getMailboxLock(mailbox);
+    return await callback(client);
+  } finally {
+    lock?.release();
+    await client.logout().catch(() => undefined);
+  }
 }
 
 async function withMailbox<T>(
@@ -75,15 +100,22 @@ async function withMailbox<T>(
   callback: (client: ImapFlow) => Promise<T>,
   mailbox = DEFAULT_MAILBOX
 ): Promise<T> {
-  const client = createClient(settings);
-  await client.connect();
-  const lock = await client.getMailboxLock(mailbox);
-  try {
-    return await callback(client);
-  } finally {
-    lock.release();
-    await client.logout().catch(() => undefined);
+  const ports = [settings.port, ...(settings.alternatePorts ?? [])]
+    .filter((port, index, all) => all.indexOf(port) === index);
+  let lastError: unknown;
+
+  for (const [index, port] of ports.entries()) {
+    try {
+      return await withMailboxOnPort(settings, port, callback, mailbox);
+    } catch (error) {
+      lastError = error;
+      if (index === ports.length - 1 || !isImapConnectError(error)) {
+        throw error;
+      }
+    }
   }
+
+  throw lastError instanceof Error ? lastError : new Error('IMAP connection failed');
 }
 
 export function toMailboxAccount(account: EmailAccount): MailboxAccount {

@@ -1,6 +1,7 @@
 import net from 'node:net';
 import tls from 'node:tls';
 import type { EmailAccount, SmtpCheckResult } from './types';
+import { normalizeEmailAccountSmtp } from './provider-settings';
 
 const SMTP_TIMEOUT_MS = 15_000;
 
@@ -92,22 +93,23 @@ async function authenticate(socket: net.Socket, account: EmailAccount): Promise<
 
 export async function checkSmtpAccount(account: EmailAccount): Promise<SmtpCheckResult> {
   let socket: net.Socket | null = null;
+  const effectiveAccount = normalizeEmailAccountSmtp(account);
 
   try {
-    socket = account.smtpSecurity === 'tls'
-      ? await connectTls(account)
-      : await connectPlain(account);
+    socket = effectiveAccount.smtpSecurity === 'tls'
+      ? await connectTls(effectiveAccount)
+      : await connectPlain(effectiveAccount);
 
     await readLine(socket);
     await command(socket, 'EHLO bittorrented.local', [250]);
 
-    if (account.smtpSecurity === 'starttls') {
+    if (effectiveAccount.smtpSecurity === 'starttls') {
       await command(socket, 'STARTTLS', [220]);
-      socket = await upgradeToTls(socket, account.smtpHost);
+      socket = await upgradeToTls(socket, effectiveAccount.smtpHost);
       await command(socket, 'EHLO bittorrented.local', [250]);
     }
 
-    await authenticate(socket, account);
+    await authenticate(socket, effectiveAccount);
     await command(socket, 'QUIT', [221]);
     return { success: true };
   } catch (error) {

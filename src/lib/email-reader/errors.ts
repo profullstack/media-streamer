@@ -10,7 +10,27 @@ export interface EmailErrorPayload {
 const FORWARD_EMAIL_DOCS_URL = 'https://forwardemail.net/en/faq';
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (!(error instanceof Error)) return String(error);
+
+  const extra = error as Error & {
+    response?: string;
+    responseText?: string;
+    serverResponse?: string;
+    serverResponseCode?: string;
+    command?: string;
+    code?: string;
+  };
+  const parts = [
+    error.message,
+    extra.responseText,
+    extra.serverResponse,
+    extra.response,
+    extra.serverResponseCode,
+    extra.command ? `command=${extra.command}` : undefined,
+    extra.code ? `code=${extra.code}` : undefined,
+  ].filter((part): part is string => Boolean(part));
+
+  return Array.from(new Set(parts)).join(' | ');
 }
 
 function sanitizeDetail(value: string): string {
@@ -26,6 +46,8 @@ function isForwardEmailAccount(account: Pick<EmailAccount, 'provider' | 'smtpHos
   return (
     provider === 'forwardemail' ||
     provider === 'forwardemail.net' ||
+    provider === 'forwardmail' ||
+    provider === 'forwardmail.net' ||
     provider === 'forwardedemail' ||
     provider === 'forwardedemail.net' ||
     smtpHost === 'smtp.forwardemail.net'
@@ -91,7 +113,7 @@ export function buildInboxLoadError(
     return {
       error: 'Forward Email IMAP login failed.',
       details,
-      solution: 'Use the full alias email address as the username and an alias-specific generated "Normal Password" from Forward Email. The inbox uses imap.forwardemail.net on port 993 with SSL/TLS.',
+      solution: 'Use the full alias email address as the username and the alias-specific generated password from Forward Email. The inbox uses imap.forwardemail.net on port 993 with SSL/TLS; port 2993 is also supported.',
       docsUrl: FORWARD_EMAIL_DOCS_URL,
     };
   }

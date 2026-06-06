@@ -12,7 +12,7 @@ describe('email reader error messages', () => {
     expect(buildInboxLoadError(new Error('Command failed'), forwardEmailAccount)).toEqual({
       error: 'Forward Email IMAP login failed.',
       details: 'Command failed',
-      solution: 'Use the full alias email address as the username and an alias-specific generated "Normal Password" from Forward Email. The inbox uses imap.forwardemail.net on port 993 with SSL/TLS.',
+      solution: 'Use the full alias email address as the username and the alias-specific generated password from Forward Email. The inbox uses imap.forwardemail.net on port 993 with SSL/TLS; port 2993 is also supported.',
       docsUrl: 'https://forwardemail.net/en/faq',
     });
   });

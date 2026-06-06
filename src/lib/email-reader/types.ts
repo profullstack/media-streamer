@@ -3,7 +3,9 @@ import type { EmailAccount } from '@/lib/email-accounts';
 export interface ImapConnectionSettings {
   host: string;
   port: number;
+  alternatePorts?: number[];
   secure: boolean;
+  loginMethod?: 'LOGIN' | 'AUTH=LOGIN' | 'AUTH=PLAIN';
   username: string;
   password: string;
 }

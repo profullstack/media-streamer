@@ -2,6 +2,7 @@ import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import tls from 'node:tls';
 import type { EmailAccount } from './types';
+import { normalizeEmailAccountSmtp } from './provider-settings';
 
 const SMTP_TIMEOUT_MS = 20_000;
 
@@ -156,6 +157,7 @@ function buildMessage(account: EmailAccount, input: OutboundEmail, messageId: st
 }
 
 export async function sendEmail(account: EmailAccount, input: OutboundEmail): Promise<SendEmailResult> {
+  const effectiveAccount = normalizeEmailAccountSmtp(account);
   const recipients = normalizeRecipients(input.to);
   if (recipients.length === 0) {
     throw new Error('No valid reply recipient');
@@ -166,29 +168,29 @@ export async function sendEmail(account: EmailAccount, input: OutboundEmail): Pr
   }
 
   let socket: net.Socket | null = null;
-  const messageId = makeMessageId(account);
+  const messageId = makeMessageId(effectiveAccount);
 
   try {
-    socket = account.smtpSecurity === 'tls'
-      ? await connectTls(account)
-      : await connectPlain(account);
+    socket = effectiveAccount.smtpSecurity === 'tls'
+      ? await connectTls(effectiveAccount)
+      : await connectPlain(effectiveAccount);
 
     await readLine(socket);
     await command(socket, 'EHLO bittorrented.local', [250]);
 
-    if (account.smtpSecurity === 'starttls') {
+    if (effectiveAccount.smtpSecurity === 'starttls') {
       await command(socket, 'STARTTLS', [220]);
-      socket = await upgradeToTls(socket, account.smtpHost);
+      socket = await upgradeToTls(socket, effectiveAccount.smtpHost);
       await command(socket, 'EHLO bittorrented.local', [250]);
     }
 
-    await authenticate(socket, account);
-    await command(socket, `MAIL FROM:<${account.fromEmail}>`, [250]);
+    await authenticate(socket, effectiveAccount);
+    await command(socket, `MAIL FROM:<${effectiveAccount.fromEmail}>`, [250]);
     for (const recipient of recipients) {
       await command(socket, `RCPT TO:<${recipient}>`, [250, 251]);
     }
     await command(socket, 'DATA', [354]);
-    socket.write(`${buildMessage(account, { ...input, to: recipients }, messageId)}.\r\n`);
+    socket.write(`${buildMessage(effectiveAccount, { ...input, to: recipients }, messageId)}.\r\n`);
     const dataResponse = await readLine(socket);
     const dataCode = Number(dataResponse.slice(0, 3));
     if (dataCode !== 250) {

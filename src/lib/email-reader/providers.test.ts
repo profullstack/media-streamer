@@ -44,13 +44,15 @@ describe('resolveImapSettings', () => {
     }
   );
 
-  it.each(['forwardemail', 'forwardemail.net', 'forwardedemail', 'forwardedemail.net'])(
+  it.each(['forwardemail', 'forwardemail.net', 'forwardmail', 'forwardmail.net', 'forwardedemail', 'forwardedemail.net'])(
     'maps %s to Forward Email IMAP settings',
     (provider) => {
       expect(resolveImapSettings(account({ provider }))).toEqual({
         host: 'imap.forwardemail.net',
         port: 993,
+        alternatePorts: [2993],
         secure: true,
+        loginMethod: 'LOGIN',
         username: 'me@example.com',
         password: 'password',
       });
@@ -62,5 +64,15 @@ describe('resolveImapSettings', () => {
       provider: 'forwardemail',
       smtpHost: 'smtp.forwardemail.net',
     })).toBe(true);
+  });
+
+  it('uses the full alias email as the Forward Email IMAP username', () => {
+    expect(resolveImapSettings(account({
+      provider: 'forwardemail',
+      smtpUsername: 'wrong-user',
+    }))).toMatchObject({
+      loginMethod: 'LOGIN',
+      username: 'me@example.com',
+    });
   });
 });

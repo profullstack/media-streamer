@@ -45,4 +45,35 @@ describe('email account validation', () => {
     expect(validateUpdateEmailAccountInput({})).toBeNull();
     expect(validateUpdateEmailAccountInput({ smtpSecurity: 'ssl' })).toBeNull();
   });
+
+  it('normalizes Forward Email SMTP security from the selected port on create', () => {
+    expect(validateCreateEmailAccountInput({
+      label: 'Forward Email',
+      provider: 'forwardemail',
+      fromEmail: 'hello@example.com',
+      smtpHost: 'smtp.forwardemail.net',
+      smtpPort: 587,
+      smtpSecurity: 'tls',
+      smtpUsername: 'wrong-user',
+      smtpPassword: 'generated-password',
+    })).toMatchObject({
+      smtpPort: 587,
+      smtpSecurity: 'starttls',
+      smtpUsername: 'hello@example.com',
+    });
+
+    expect(validateCreateEmailAccountInput({
+      label: 'Forward Email',
+      provider: 'forwardmail.net',
+      fromEmail: 'hello@example.com',
+      smtpHost: 'smtp.forwardemail.net',
+      smtpPort: 2465,
+      smtpSecurity: 'starttls',
+      smtpUsername: 'hello@example.com',
+      smtpPassword: 'generated-password',
+    })).toMatchObject({
+      smtpPort: 2465,
+      smtpSecurity: 'tls',
+    });
+  });
 });
