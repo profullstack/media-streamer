@@ -3,41 +3,57 @@
  *
  * POST /api/auth/logout
  *
- * Logs out the current user by clearing the auth cookie.
- *
- * Server-side only - maintains Supabase security rules.
+ * Revokes the Supabase session and clears auth cookies.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase';
 
-/**
- * Cookie name for auth token
- */
 const AUTH_COOKIE_NAME = 'sb-auth-token';
 
-/**
- * POST /api/auth/logout
- *
- * Log out the current user.
- *
- * Returns:
- * - 200: Logout successful
- */
-export async function POST(_request: NextRequest): Promise<NextResponse> {
-  const response = NextResponse.json(
-    { message: 'Logged out successfully' },
-    { status: 200 }
-  );
+interface SessionToken {
+  access_token: string;
+  refresh_token: string;
+}
 
+function parseSessionCookie(value: string | undefined): SessionToken | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(value)) as unknown;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'access_token' in parsed &&
+      'refresh_token' in parsed
+    ) {
+      return parsed as SessionToken;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
 
-  // Clear the auth cookie by setting it to expire immediately
+  // Revoke the Supabase session server-side so the refresh token is invalidated
+  const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = parseSessionCookie(cookieValue);
+  if (session) {
+    try {
+      const supabase = createServerClient();
+      await supabase.auth.setSession(session);
+      await supabase.auth.signOut();
+    } catch { /* best-effort — still clear cookies */ }
+  }
+
+  const response = NextResponse.json({ message: 'Logged out successfully' }, { status: 200 });
+
+  // Clear auth cookie
   response.headers.append(
     'Set-Cookie',
     `${AUTH_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`
   );
-
-  // Clear the profile cookie too
+  // Clear profile cookie
   response.headers.append(
     'Set-Cookie',
     `x-profile-id=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`

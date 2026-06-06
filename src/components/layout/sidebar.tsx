@@ -191,6 +191,19 @@ export function Sidebar({ className, isLoggedIn = false, isPremium = false }: Si
                 Media Info
               </h3>
               <ul className="space-y-1">
+                <li>
+                  <Link
+                    href="/blog"
+                    onClick={closeMobile}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-bg-hover hover:text-text-primary',
+                      pathname.startsWith('/blog') ? 'bg-bg-active text-text-primary' : 'text-text-secondary'
+                    )}
+                  >
+                    <NewsIcon size={16} />
+                    <span>Blog</span>
+                  </Link>
+                </li>
                 {mediaInfoSites.map((site) => (
                   <li key={site.url}>
                     <a

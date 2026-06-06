@@ -41,6 +41,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
 
       if (response.ok) {
         clearAuth();
+        router.refresh(); // bust Next.js server-component cache
         router.push('/');
       }
     } catch (error) {
