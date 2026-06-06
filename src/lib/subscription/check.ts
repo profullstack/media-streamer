@@ -58,3 +58,15 @@ export async function isSubscriptionActive(userId: string): Promise<Subscription
     expiresAt: data.subscription_expires_at,
   };
 }
+
+/**
+ * Check whether a user currently has a paid subscription.
+ * Trials are active subscriptions, but they are intentionally excluded here.
+ */
+export async function isPaidSubscriptionActive(userId: string): Promise<SubscriptionCheckResult> {
+  const result = await isSubscriptionActive(userId);
+  return {
+    ...result,
+    active: result.active && (result.tier === 'premium' || result.tier === 'family'),
+  };
+}

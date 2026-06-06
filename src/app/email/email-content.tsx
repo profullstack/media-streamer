@@ -1,14 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import {
   ExternalLinkIcon,
+  LinkIcon,
   LoadingSpinner,
   MailIcon,
+  ReplyIcon,
   RefreshIcon,
+  RssIcon,
   SettingsIcon,
 } from '@/components/ui/icons';
 
@@ -24,12 +28,16 @@ interface EmailMessageSummary {
   uid: number;
   subject: string;
   from: string;
+  fromEmail: string | null;
   to: string[];
   date: string | null;
   isRead: boolean;
 }
 
 interface EmailMessage extends EmailMessageSummary {
+  replyTo: string[];
+  messageId: string | null;
+  references: string[];
   text: string;
   html: string | null;
 }
@@ -43,6 +51,14 @@ interface MessagesResponse {
 
 interface MessageResponse {
   message?: EmailMessage;
+  error?: string;
+}
+
+interface SenderFeedResponse {
+  feedUrl?: string;
+  subscription?: unknown;
+  subscriptionError?: string | null;
+  warning?: string;
   error?: string;
 }
 
@@ -62,6 +78,9 @@ function previewText(message: EmailMessage | null): string {
 }
 
 export function EmailContent(): React.ReactElement {
+  const searchParams = useSearchParams();
+  const requestedAccountId = searchParams.get('accountId') ?? '';
+  const requestedUid = Number(searchParams.get('uid'));
   const [accounts, setAccounts] = useState<EmailAccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [messages, setMessages] = useState<EmailMessageSummary[]>([]);
@@ -69,6 +88,11 @@ export function EmailContent(): React.ReactElement {
   const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null);
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isCreatingFeed, setIsCreatingFeed] = useState(false);
+  const [showReply, setShowReply] = useState(false);
+  const [replyBody, setReplyBody] = useState('');
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const readableAccounts = useMemo(() => accounts.filter((account) => account.readable), [accounts]);
@@ -89,17 +113,23 @@ export function EmailContent(): React.ReactElement {
       setAccounts(nextAccounts);
       setMessages(nextMessages);
       setSelectedAccountId(nextAccountId);
-      setSelectedUid((current) => current && nextMessages.some((message) => message.uid === current) ? current : nextMessages[0]?.uid ?? null);
+      setSelectedUid((current) => {
+        if (current && nextMessages.some((message) => message.uid === current)) return current;
+        if (Number.isSafeInteger(requestedUid) && nextMessages.some((message) => message.uid === requestedUid)) return requestedUid;
+        return nextMessages[0]?.uid ?? null;
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load inbox';
       setError(message);
       setMessages([]);
       setSelectedUid(null);
       setSelectedMessage(null);
+      setShowReply(false);
+      setReplyBody('');
     } finally {
       setIsLoadingList(false);
     }
-  }, [selectedAccountId]);
+  }, [requestedUid, selectedAccountId]);
 
   const loadMessage = useCallback(async (uid: number, accountId: string): Promise<void> => {
     setIsLoadingMessage(true);
@@ -111,6 +141,8 @@ export function EmailContent(): React.ReactElement {
       const data = await response.json() as MessageResponse;
       if (!response.ok || !data.message) throw new Error(data.error ?? 'Failed to load message');
       setSelectedMessage(data.message);
+      setShowReply(false);
+      setReplyBody('');
     } catch (err) {
       setSelectedMessage(null);
       setError(err instanceof Error ? err.message : 'Failed to load message');
@@ -121,10 +153,10 @@ export function EmailContent(): React.ReactElement {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      void loadMessages('');
+      void loadMessages(requestedAccountId);
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [loadMessages]);
+  }, [loadMessages, requestedAccountId]);
 
   useEffect(() => {
     if (!selectedUid || !selectedAccountId) {
@@ -141,7 +173,65 @@ export function EmailContent(): React.ReactElement {
     setSelectedAccountId(accountId);
     setSelectedMessage(null);
     setSelectedUid(null);
+    setActionMessage(null);
     void loadMessages(accountId);
+  };
+
+  const sendReply = async (): Promise<void> => {
+    if (!visibleMessage || !selectedAccountId || !replyBody.trim()) return;
+    setIsSendingReply(true);
+    setError(null);
+    setActionMessage(null);
+
+    try {
+      const response = await fetch(`/api/email/messages/${visibleMessage.uid}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: selectedAccountId,
+          body: replyBody,
+        }),
+      });
+      const data = await response.json() as { error?: string; message?: string };
+      if (!response.ok) throw new Error(data.message ?? data.error ?? 'Failed to send reply');
+      setReplyBody('');
+      setShowReply(false);
+      setActionMessage('Reply sent.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send reply');
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  const createSenderFeed = async (): Promise<void> => {
+    if (!visibleMessage || !selectedAccountId || !visibleMessage.fromEmail) return;
+    setIsCreatingFeed(true);
+    setError(null);
+    setActionMessage(null);
+
+    try {
+      const response = await fetch('/api/email/sender-feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: selectedAccountId,
+          sender: visibleMessage.fromEmail,
+          subscribe: true,
+        }),
+      });
+      const data = await response.json() as SenderFeedResponse;
+      if (!response.ok || !data.feedUrl) throw new Error(data.error ?? 'Failed to create sender RSS feed');
+
+      await navigator.clipboard?.writeText(data.feedUrl).catch(() => undefined);
+      setActionMessage(data.subscriptionError
+        ? `Private feed URL copied. RSS Reader add failed: ${data.subscriptionError}`
+        : 'Private sender feed added to RSS Reader and URL copied.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create sender RSS feed');
+    } finally {
+      setIsCreatingFeed(false);
+    }
   };
 
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
@@ -179,6 +269,7 @@ export function EmailContent(): React.ReactElement {
         </div>
 
         {error ? <div className="rounded-lg border border-status-error bg-status-error/10 p-3 text-sm text-status-error">{error}</div> : null}
+        {actionMessage ? <div className="rounded-lg border border-accent-secondary/30 bg-accent-secondary/10 p-3 text-sm text-accent-secondary">{actionMessage}</div> : null}
 
         <div className="grid gap-4 xl:grid-cols-[260px_minmax(340px,0.95fr)_minmax(440px,1.25fr)]">
           <aside className="min-h-[520px] rounded-lg border border-border-subtle bg-bg-secondary p-4">
@@ -264,7 +355,29 @@ export function EmailContent(): React.ReactElement {
             ) : visibleMessage ? (
               <div className="space-y-4">
                 <div className="border-b border-border-subtle pb-4">
-                  <h2 className="text-xl font-semibold text-text-primary">{visibleMessage.subject}</h2>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <h2 className="min-w-0 text-xl font-semibold text-text-primary">{visibleMessage.subject}</h2>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowReply((value) => !value)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                      >
+                        <ReplyIcon size={16} />
+                        <span>Reply</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void createSenderFeed()}
+                        disabled={isCreatingFeed || !visibleMessage.fromEmail}
+                        title="Create a private RSS feed for this sender"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isCreatingFeed ? <LoadingSpinner size={16} /> : <RssIcon size={16} />}
+                        <span>Sender RSS</span>
+                      </button>
+                    </div>
+                  </div>
                   <dl className="mt-3 space-y-1 text-sm text-text-muted">
                     <div className="flex gap-2">
                       <dt className="w-12 shrink-0 text-text-secondary">From</dt>
@@ -280,6 +393,44 @@ export function EmailContent(): React.ReactElement {
                     </div>
                   </dl>
                 </div>
+                {showReply ? (
+                  <div className="space-y-3 rounded-lg border border-border-subtle bg-bg-tertiary p-3">
+                    <textarea
+                      value={replyBody}
+                      onChange={(event) => setReplyBody(event.target.value)}
+                      rows={6}
+                      placeholder={`Reply to ${visibleMessage.replyTo[0] ?? visibleMessage.from}`}
+                      className="w-full resize-y rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-sm leading-6 text-text-primary focus:border-accent-primary focus:outline-hidden"
+                    />
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <p className="inline-flex items-center gap-1 text-xs text-text-muted">
+                        <LinkIcon size={13} />
+                        <span>Sent through {selectedAccount?.fromEmail}</span>
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowReply(false);
+                            setReplyBody('');
+                          }}
+                          className="rounded-lg px-3 py-2 text-sm font-medium text-text-muted hover:bg-bg-hover"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void sendReply()}
+                          disabled={isSendingReply || !replyBody.trim()}
+                          className="inline-flex items-center gap-2 rounded-lg bg-accent-primary px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isSendingReply ? <LoadingSpinner size={16} /> : <ReplyIcon size={16} />}
+                          <span>Send reply</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 {bodyText ? (
                   <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-text-secondary">{visibleMessage.text.trim()}</pre>
                 ) : visibleMessage.html ? (

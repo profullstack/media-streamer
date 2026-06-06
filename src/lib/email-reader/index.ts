@@ -3,6 +3,12 @@ export {
   listInboxMessages,
   toMailboxAccount,
 } from './imap';
+export {
+  buildPrivateSenderFeedUrl,
+  buildPrivateSenderFeedXml,
+  extractEmailAddress,
+  verifyPrivateSenderFeed,
+} from './private-sender-feed';
 export { resolveImapSettings } from './providers';
 export type {
   EmailMessage,

@@ -13,6 +13,10 @@ function formatAddress(addresses: AddressObject | undefined): string {
   return addresses?.value.map((item) => item.name ? `${item.name} <${item.address ?? ''}>` : item.address ?? '').filter(Boolean).join(', ') ?? '';
 }
 
+function firstEmailAddress(addresses: AddressObject | undefined): string | null {
+  return addresses?.value.find((item) => item.address)?.address ?? null;
+}
+
 function formatAddressList(addresses: AddressObject | AddressObject[] | undefined): string[] {
   const list = Array.isArray(addresses) ? addresses : addresses ? [addresses] : [];
   return list.flatMap((address) => address.value.map((item) => item.name ? `${item.name} <${item.address ?? ''}>` : item.address ?? '').filter(Boolean));
@@ -37,9 +41,17 @@ function normalizeParsedMail(parsed: ParsedMail, uid: number, flags: Set<string>
     uid,
     subject: normalizeSubject(parsed.subject),
     from: formatAddress(parsed.from),
+    fromEmail: firstEmailAddress(parsed.from),
     to: formatAddressList(parsed.to),
     date: toIsoDate(parsed.date ?? fallbackDate),
     isRead: flags.has('\\Seen'),
+    replyTo: formatAddressList(parsed.replyTo).length > 0 ? formatAddressList(parsed.replyTo) : formatAddressList(parsed.from),
+    messageId: parsed.messageId ?? null,
+    references: Array.isArray(parsed.references)
+      ? parsed.references
+      : typeof parsed.references === 'string'
+        ? [parsed.references]
+        : [],
     text: parsed.text?.trim() ?? '',
     html: typeof parsed.html === 'string' ? parsed.html : null,
   };
@@ -109,6 +121,7 @@ export async function listInboxMessages(
         uid: message.uid,
         subject: normalizeSubject(message.envelope?.subject),
         from: message.envelope?.from?.map((address) => address.name ? `${address.name} <${address.address}>` : address.address).filter(isString).join(', ') ?? '',
+        fromEmail: message.envelope?.from?.find((address) => address.address)?.address ?? null,
         to: message.envelope?.to?.map((address) => address.name ? `${address.name} <${address.address}>` : address.address).filter(isString) ?? [],
         date: toIsoDate(message.envelope?.date ?? message.internalDate),
         isRead: message.flags?.has('\\Seen') ?? false,

@@ -118,7 +118,11 @@ const providerPresets: ProviderPreset[] = [
 ];
 
 function presetForProvider(provider: string): ProviderPreset | null {
-  return providerPresets.find((preset) => preset.provider === provider) ?? null;
+  const normalized = provider.trim().toLowerCase();
+  if (['forwardemail', 'forwardemail.net', 'forwardedemail', 'forwardedemail.net'].includes(normalized)) {
+    return providerPresets.find((preset) => preset.key === 'forwardemail') ?? null;
+  }
+  return providerPresets.find((preset) => preset.provider === normalized) ?? null;
 }
 
 function providerPresetKey(provider: string): ProviderPresetKey {

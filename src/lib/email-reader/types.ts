@@ -17,12 +17,16 @@ export interface EmailMessageSummary {
   uid: number;
   subject: string;
   from: string;
+  fromEmail: string | null;
   to: string[];
   date: string | null;
   isRead: boolean;
 }
 
 export interface EmailMessage extends EmailMessageSummary {
+  replyTo: string[];
+  messageId: string | null;
+  references: string[];
   text: string;
   html: string | null;
 }

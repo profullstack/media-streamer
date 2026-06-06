@@ -11,6 +11,9 @@ const providerPresets: Record<string, ProviderImapPreset | null> = {
   gmail: { host: 'imap.gmail.com', port: 993, secure: true },
   google: { host: 'imap.gmail.com', port: 993, secure: true },
   forwardemail: { host: 'imap.forwardemail.net', port: 993, secure: true },
+  'forwardemail.net': { host: 'imap.forwardemail.net', port: 993, secure: true },
+  forwardedemail: { host: 'imap.forwardemail.net', port: 993, secure: true },
+  'forwardedemail.net': { host: 'imap.forwardemail.net', port: 993, secure: true },
   resend: null,
 };
 
