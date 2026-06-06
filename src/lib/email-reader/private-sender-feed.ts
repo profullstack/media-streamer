@@ -14,7 +14,6 @@ export interface PrivateSenderFeedInput {
 
 function secret(): string {
   const value = [
-    process.env.EMAIL_FEED_SECRET,
     process.env.ENCRYPTION_KEY,
     process.env.ENCYRPTION_KEY,
     process.env.EMAIL_ACCOUNTS_ENCRYPTION_KEY,
