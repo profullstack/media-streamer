@@ -33,6 +33,21 @@ import { createCustomRadioStation } from '@/lib/radio/station-utils';
 
 type TabType = 'favorites' | 'sports' | 'news';
 
+const STREAM_SUGGESTIONS: ReadonlyArray<{ name: string; genre: string; url: string }> = [
+  // News
+  { name: 'BBC World Service', genre: 'News', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service' },
+  { name: 'NPR News', genre: 'News', url: 'https://npr-ice.streamguys1.com/live.mp3' },
+  { name: 'Al Jazeera English', genre: 'News', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8' },
+  { name: 'France 24 English', genre: 'News', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8' },
+  { name: 'DW News', genre: 'News', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
+  // Sports
+  { name: 'ESPN Radio', genre: 'Sports', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ESPNRADIOFLAAC.aac' },
+  { name: 'BBC Radio 5 Live', genre: 'Sports', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live' },
+  { name: 'talkSPORT', genre: 'Sports', url: 'https://radio.talksport.com/stream' },
+  { name: 'Fox Sports Radio', genre: 'Sports', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXSPORTSRADIO.mp3' },
+  { name: 'SportsGrid', genre: 'Sports', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/SPORTSGRIDAAC.aac' },
+];
+
 const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
   { value: '256', label: '256 kbps' },
   { value: '128', label: '128 kbps' },
@@ -123,6 +138,16 @@ export function RadioContent(): React.ReactElement {
     const cat = tabToCategory(activeTab);
     if (cat) void browseCategory(cat);
   }, [clearResults, browseCategory, activeTab]);
+
+  const handleSuggestionClick = useCallback(
+    (suggestion: { name: string; genre: string; url: string }): void => {
+      setCustomName(suggestion.name);
+      setCustomGenre(suggestion.genre);
+      setCustomStreamUrl(suggestion.url);
+      setCustomError(null);
+    },
+    []
+  );
 
   const handleCustomSubmit = useCallback((e: React.FormEvent): void => {
     e.preventDefault();
@@ -433,6 +458,30 @@ export function RadioContent(): React.ReactElement {
               </p>
             </div>
           </div>
+
+          {/* Suggestion chips grouped by genre */}
+          {(['News', 'Sports'] as const).map((genre) => (
+            <div key={genre} className="mb-3">
+              <p className="mb-1.5 text-xs font-medium text-text-muted">Live {genre}</p>
+              <div className="flex flex-wrap gap-2">
+                {STREAM_SUGGESTIONS.filter((s) => s.genre === genre).map((s) => (
+                  <button
+                    key={s.url}
+                    type="button"
+                    onClick={() => handleSuggestionClick(s)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      customStreamUrl === s.url
+                        ? 'border-accent-primary bg-accent-primary/10 text-accent-primary'
+                        : 'border-border-default bg-bg-primary text-text-secondary hover:border-accent-primary hover:text-accent-primary'
+                    )}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
 
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto]">
             <input
