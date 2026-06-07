@@ -24,6 +24,10 @@ interface EmailAccount {
   smtpPort: number;
   smtpSecurity: 'none' | 'starttls' | 'tls';
   smtpUsername: string | null;
+  imapHost: string | null;
+  imapPort: number | null;
+  imapSecurity: 'none' | 'starttls' | 'tls' | null;
+  imapUsername: string | null;
   isDefault: boolean;
   lastCheckedAt: string | null;
   lastCheckStatus: 'unchecked' | 'success' | 'failed';
@@ -57,6 +61,11 @@ interface FormState {
   smtpSecurity: 'none' | 'starttls' | 'tls';
   smtpUsername: string;
   smtpPassword: string;
+  imapHost: string;
+  imapPort: string;
+  imapSecurity: 'none' | 'starttls' | 'tls';
+  imapUsername: string;
+  imapPassword: string;
   isDefault: boolean;
 }
 
@@ -94,6 +103,11 @@ const emptyForm: FormState = {
   smtpSecurity: 'starttls',
   smtpUsername: '',
   smtpPassword: '',
+  imapHost: '',
+  imapPort: '993',
+  imapSecurity: 'tls',
+  imapUsername: '',
+  imapPassword: '',
   isDefault: false,
 };
 
@@ -258,6 +272,10 @@ export function EmailAccountsSection(): React.ReactElement {
       smtpPort: preset.smtpPort,
       smtpSecurity: preset.smtpSecurity,
       smtpUsername: usernameForPreset(preset, prev.fromEmail),
+      imapHost: preset.imapHost ?? '',
+      imapPort: preset.imapPorts[0] ?? '993',
+      imapSecurity: preset.imapSecurity === 'SSL/TLS' ? 'tls' : prev.imapSecurity,
+      imapUsername: usernameForPreset(preset, prev.fromEmail),
     }));
   };
 
@@ -289,6 +307,7 @@ export function EmailAccountsSection(): React.ReactElement {
 
   const startEdit = (account: EmailAccount): void => {
     setEditingId(account.id);
+    const preset = presetForAccount(account);
     setForm({
       label: account.label,
       provider: account.provider ?? '',
@@ -300,6 +319,11 @@ export function EmailAccountsSection(): React.ReactElement {
       smtpSecurity: account.smtpSecurity,
       smtpUsername: account.smtpUsername ?? '',
       smtpPassword: '',
+      imapHost: account.imapHost ?? preset?.imapHost ?? '',
+      imapPort: String(account.imapPort ?? preset?.imapPorts[0] ?? '993'),
+      imapSecurity: account.imapSecurity ?? (preset?.imapSecurity === 'SSL/TLS' ? 'tls' : 'tls'),
+      imapUsername: account.imapUsername ?? account.smtpUsername ?? account.fromEmail,
+      imapPassword: '',
       isDefault: account.isDefault,
     });
   };
@@ -320,6 +344,11 @@ export function EmailAccountsSection(): React.ReactElement {
       smtpSecurity: form.smtpSecurity,
       smtpUsername: form.smtpUsername || null,
       ...(form.smtpPassword ? { smtpPassword: form.smtpPassword } : {}),
+      imapHost: form.imapHost || null,
+      imapPort: form.imapPort ? Number(form.imapPort) : null,
+      imapSecurity: (form.imapHost ? form.imapSecurity : null),
+      imapUsername: form.imapUsername || null,
+      ...(form.imapPassword ? { imapPassword: form.imapPassword } : {}),
       isDefault: form.isDefault,
     };
 
@@ -462,17 +491,49 @@ export function EmailAccountsSection(): React.ReactElement {
             onChange={(value) => setForm((prev) => ({ ...prev, smtpPassword: value }))}
             required={!editingId}
           />
-          {selectedPreset?.imapHost ? (
-            <div className="rounded-lg border border-border-subtle bg-bg-primary p-3 text-xs text-text-muted">
-              <p className="font-medium text-text-secondary">Provider settings</p>
-              <p className="mt-2">Incoming: IMAP, {selectedPreset.imapHost}, ports {selectedPreset.imapPorts.join(', ')}, {selectedPreset.imapSecurity}</p>
-              <p className="mt-1">
-                Outgoing: SMTP, {selectedPreset.smtpHost}, ports {selectedPreset.smtpPorts.join(', ')}, SSL/TLS or STARTTLS
-              </p>
-              {selectedPreset.key === 'forwardemail' ? (
-                <p className="mt-1">Username is the full alias email address; password is the alias-specific generated password from Forward Email.</p>
-              ) : null}
-            </div>
+          {/* IMAP configuration — shown when provider has IMAP or host is filled */}
+          {(selectedPreset?.imapHost || form.imapHost) ? (
+            <fieldset className="space-y-3 rounded-lg border border-border-subtle p-4">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-text-muted">IMAP (Incoming mail)</legend>
+              <Field
+                label="IMAP host"
+                value={form.imapHost}
+                onChange={(value) => setForm((prev) => ({ ...prev, imapHost: value }))}
+                placeholder={selectedPreset?.imapHost ?? 'imap.example.com'}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Field
+                  label="Port"
+                  value={form.imapPort}
+                  onChange={(value) => setForm((prev) => ({ ...prev, imapPort: value }))}
+                  placeholder="993"
+                />
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-text-secondary">Security</label>
+                  <select
+                    value={form.imapSecurity}
+                    onChange={(e) => setForm((prev) => ({ ...prev, imapSecurity: e.target.value as FormState['imapSecurity'] }))}
+                    className="w-full rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
+                  >
+                    <option value="tls">SSL/TLS</option>
+                    <option value="starttls">STARTTLS</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+              </div>
+              <Field
+                label="IMAP username"
+                value={form.imapUsername}
+                onChange={(value) => setForm((prev) => ({ ...prev, imapUsername: value }))}
+                placeholder={form.fromEmail || 'you@example.com'}
+              />
+              <Field
+                label={editingId ? 'New IMAP password (leave blank to keep current)' : 'IMAP password (leave blank to use SMTP password)'}
+                type="password"
+                value={form.imapPassword}
+                onChange={(value) => setForm((prev) => ({ ...prev, imapPassword: value }))}
+              />
+            </fieldset>
           ) : null}
           <label className="flex items-center gap-2 text-sm text-text-secondary">
             <input
@@ -579,9 +640,10 @@ interface FieldProps {
   onChange: (value: string) => void;
   type?: string;
   required?: boolean;
+  placeholder?: string;
 }
 
-function Field({ label, value, onChange, type = 'text', required = false }: FieldProps): React.ReactElement {
+function Field({ label, value, onChange, type = 'text', required = false, placeholder }: FieldProps): React.ReactElement {
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-text-primary">{label}</span>
@@ -589,8 +651,9 @@ function Field({ label, value, onChange, type = 'text', required = false }: Fiel
         type={type}
         required={required}
         value={value}
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-text-primary focus:border-accent-primary focus:outline-hidden"
+        className="w-full rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden"
       />
     </label>
   );

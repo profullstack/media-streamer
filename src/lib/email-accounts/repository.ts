@@ -25,6 +25,10 @@ const PUBLIC_COLUMNS = [
   'smtp_port',
   'smtp_security',
   'smtp_username',
+  'imap_host',
+  'imap_port',
+  'imap_security',
+  'imap_username',
   'is_default',
   'last_checked_at',
   'last_check_status',
@@ -46,6 +50,11 @@ interface EmailAccountRow {
   smtp_security: 'none' | 'starttls' | 'tls';
   smtp_username: string | null;
   smtp_password: string;
+  imap_host: string | null;
+  imap_port: number | null;
+  imap_security: 'none' | 'starttls' | 'tls' | null;
+  imap_username: string | null;
+  imap_password: string | null;
   is_default: boolean;
   last_checked_at: string | null;
   last_check_status: 'unchecked' | 'success' | 'failed';
@@ -72,6 +81,11 @@ function rowToAccount(row: EmailAccountRow): EmailAccount {
     smtpSecurity: row.smtp_security,
     smtpUsername: decryptNullableCredential(row.smtp_username),
     smtpPassword: decryptCredential(row.smtp_password),
+    imapHost: row.imap_host,
+    imapPort: row.imap_port,
+    imapSecurity: row.imap_security,
+    imapUsername: decryptPublicUsername(row.imap_username),
+    imapPassword: row.imap_password ? decryptCredential(row.imap_password) : null,
     isDefault: row.is_default,
     lastCheckedAt: row.last_checked_at,
     lastCheckStatus: row.last_check_status,
@@ -89,7 +103,7 @@ function decryptPublicUsername(value: string | null): string | null {
   }
 }
 
-function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_password'>): PublicEmailAccount {
+function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_password' | 'imap_password'>): PublicEmailAccount {
   const smtpUsername = normalizeSmtpUsername(
     row.provider,
     row.smtp_host,
@@ -114,6 +128,10 @@ function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_pa
     smtpPort: row.smtp_port,
     smtpSecurity,
     smtpUsername,
+    imapHost: row.imap_host,
+    imapPort: row.imap_port,
+    imapSecurity: row.imap_security,
+    imapUsername: decryptPublicUsername(row.imap_username),
     isDefault: row.is_default,
     lastCheckedAt: row.last_checked_at,
     lastCheckStatus: row.last_check_status,
@@ -135,6 +153,10 @@ export function toPublicEmailAccount(account: EmailAccount): PublicEmailAccount 
     smtpPort: account.smtpPort,
     smtpSecurity: account.smtpSecurity,
     smtpUsername: account.smtpUsername,
+    imapHost: account.imapHost,
+    imapPort: account.imapPort,
+    imapSecurity: account.imapSecurity,
+    imapUsername: account.imapUsername,
     isDefault: account.isDefault,
     lastCheckedAt: account.lastCheckedAt,
     lastCheckStatus: account.lastCheckStatus,
@@ -209,6 +231,11 @@ export async function createEmailAccount(
       smtp_security: input.smtpSecurity,
       smtp_username: encryptNullableCredential(input.smtpUsername),
       smtp_password: encryptCredential(input.smtpPassword),
+      imap_host: input.imapHost ?? null,
+      imap_port: input.imapPort ?? null,
+      imap_security: input.imapSecurity ?? null,
+      imap_username: encryptNullableCredential(input.imapUsername),
+      imap_password: input.imapPassword ? encryptCredential(input.imapPassword) : null,
       is_default: isDefault,
     })
     .select('*')
@@ -237,6 +264,11 @@ export async function updateEmailAccount(
   if (input.smtpSecurity !== undefined) update.smtp_security = input.smtpSecurity;
   if (input.smtpUsername !== undefined) update.smtp_username = encryptNullableCredential(input.smtpUsername);
   if (input.smtpPassword !== undefined) update.smtp_password = encryptCredential(input.smtpPassword);
+  if (input.imapHost !== undefined) update.imap_host = input.imapHost ?? null;
+  if (input.imapPort !== undefined) update.imap_port = input.imapPort ?? null;
+  if (input.imapSecurity !== undefined) update.imap_security = input.imapSecurity ?? null;
+  if (input.imapUsername !== undefined) update.imap_username = encryptNullableCredential(input.imapUsername);
+  if (input.imapPassword !== undefined) update.imap_password = input.imapPassword ? encryptCredential(input.imapPassword) : null;
   if (input.isDefault !== undefined) update.is_default = input.isDefault;
 
   const { data, error } = await db()

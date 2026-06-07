@@ -14,6 +14,11 @@ export interface EmailAccount {
   smtpSecurity: SmtpSecurity;
   smtpUsername: string | null;
   smtpPassword: string;
+  imapHost: string | null;
+  imapPort: number | null;
+  imapSecurity: SmtpSecurity | null;
+  imapUsername: string | null;
+  imapPassword: string | null;
   isDefault: boolean;
   lastCheckedAt: string | null;
   lastCheckStatus: EmailAccountCheckStatus;
@@ -33,6 +38,10 @@ export interface PublicEmailAccount {
   smtpPort: number;
   smtpSecurity: SmtpSecurity;
   smtpUsername: string | null;
+  imapHost: string | null;
+  imapPort: number | null;
+  imapSecurity: SmtpSecurity | null;
+  imapUsername: string | null;
   isDefault: boolean;
   lastCheckedAt: string | null;
   lastCheckStatus: EmailAccountCheckStatus;
@@ -52,11 +61,17 @@ export interface CreateEmailAccountInput {
   smtpSecurity: SmtpSecurity;
   smtpUsername?: string | null;
   smtpPassword: string;
+  imapHost?: string | null;
+  imapPort?: number | null;
+  imapSecurity?: SmtpSecurity | null;
+  imapUsername?: string | null;
+  imapPassword?: string | null;
   isDefault?: boolean;
 }
 
-export type UpdateEmailAccountInput = Partial<Omit<CreateEmailAccountInput, 'smtpPassword'>> & {
+export type UpdateEmailAccountInput = Partial<Omit<CreateEmailAccountInput, 'smtpPassword' | 'imapPassword'>> & {
   smtpPassword?: string;
+  imapPassword?: string;
 };
 
 export interface SmtpCheckResult {

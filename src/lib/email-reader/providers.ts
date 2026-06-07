@@ -17,21 +17,18 @@ interface ProviderAccount {
 const providerPresets: Record<string, ProviderImapPreset | null> = {
   gmail: { host: 'imap.gmail.com', port: 993, secure: true },
   google: { host: 'imap.gmail.com', port: 993, secure: true },
-  // Forward Email requires a separate alias-specific IMAP password — not the
-  // SMTP password — so IMAP reading via the SMTP credential does not work.
-  // Mark as null (not readable) until dedicated IMAP credentials are added.
-  forwardemail: null,
-  forwardmail: null,
-  'forwardemail.net': null,
-  'forwardmail.net': null,
-  forwardedemail: null,
-  'forwardedemail.net': null,
+  forwardemail: { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
+  forwardmail: { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
+  'forwardemail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
+  'forwardmail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
+  forwardedemail: { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
+  'forwardedemail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
   resend: null,
 };
 
 const smtpHostPresets: Record<string, ProviderImapPreset | null> = {
   'smtp.gmail.com': { host: 'imap.gmail.com', port: 993, secure: true },
-  'smtp.forwardemail.net': null,
+  'smtp.forwardemail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
   'smtp.resend.com': null,
 };
 
@@ -48,16 +45,29 @@ export function hasSupportedImapProvider(account: ProviderAccount): boolean {
 }
 
 export function resolveImapSettings(account: EmailAccount): ImapConnectionSettings | null {
-  const username = account.smtpUsername || account.fromEmail;
-  if (!username || !account.smtpPassword) return null;
-
+  // Prefer explicitly configured IMAP settings; fall back to provider preset.
   const preset = resolveImapPreset(account);
+  const host = account.imapHost || preset?.host;
+  if (!host) return null;
 
-  if (!preset) return null;
+  const port = account.imapPort || preset?.port || 993;
+  const secure = account.imapSecurity
+    ? account.imapSecurity !== 'none'
+    : (preset?.secure ?? true);
+  const alternatePorts = preset?.alternatePorts;
+  const loginMethod = preset?.loginMethod;
+
+  const username = account.imapUsername || account.smtpUsername || account.fromEmail;
+  const password = account.imapPassword || account.smtpPassword;
+  if (!username || !password) return null;
 
   return {
-    ...preset,
+    host,
+    port,
+    secure,
+    ...(alternatePorts ? { alternatePorts } : {}),
+    ...(loginMethod ? { loginMethod } : {}),
     username,
-    password: account.smtpPassword,
+    password,
   };
 }
