@@ -39,23 +39,24 @@ interface StreamSuggestion {
   genre: 'News' | 'Sports';
   format: 'TV' | 'Radio';
   url: string;
+  logoUrl?: string;
 }
 
 const STREAM_SUGGESTIONS: ReadonlyArray<StreamSuggestion> = [
   // --- US News Radio (StreamTheWorld — most reliable) ---
-  { name: 'ABC News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ABCNEWSRADIOFLAAC.aac' },
-  { name: 'Fox News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXNEWSRADIOFLAAC.aac' },
-  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3' },
-  { name: 'CNN Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CNNRADIO.mp3' },
+  { name: 'ABC News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ABCNEWSRADIOFLAAC.aac', logoUrl: 'https://logo.clearbit.com/abcnews.go.com' },
+  { name: 'Fox News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXNEWSRADIOFLAAC.aac', logoUrl: 'https://logo.clearbit.com/foxnews.com' },
+  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3', logoUrl: 'https://logo.clearbit.com/npr.org' },
+  { name: 'CNN Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CNNRADIO.mp3', logoUrl: 'https://logo.clearbit.com/cnn.com' },
   // --- International News TV (HLS — official CDN streams) ---
-  { name: 'Al Jazeera English', genre: 'News', format: 'TV', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8' },
-  { name: 'France 24 English', genre: 'News', format: 'TV', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8' },
-  { name: 'DW News English', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
+  { name: 'Al Jazeera English', genre: 'News', format: 'TV', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8', logoUrl: 'https://logo.clearbit.com/aljazeera.com' },
+  { name: 'France 24 English', genre: 'News', format: 'TV', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8', logoUrl: 'https://logo.clearbit.com/france24.com' },
+  { name: 'DW News English', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8', logoUrl: 'https://logo.clearbit.com/dw.com' },
   // --- International News Radio ---
-  { name: 'BBC World Service', genre: 'News', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service' },
+  { name: 'BBC World Service', genre: 'News', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', logoUrl: 'https://logo.clearbit.com/bbc.com' },
   // --- Sports: live game coverage only (no talk) ---
-  { name: 'BBC 5 Live Sports Extra', genre: 'Sports', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live_sports_extra' },
-  { name: 'talkSPORT 2 (Live Games)', genre: 'Sports', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/TALKSPORT2.mp3' },
+  { name: 'BBC 5 Live Sports Extra', genre: 'Sports', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live_sports_extra', logoUrl: 'https://logo.clearbit.com/bbc.com' },
+  { name: 'talkSPORT 2 (Live Games)', genre: 'Sports', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/TALKSPORT2.mp3', logoUrl: 'https://logo.clearbit.com/talksport.com' },
 ];
 
 const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
@@ -392,6 +393,16 @@ export function RadioContent(): React.ReactElement {
                       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-primary"
                     >
                       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
+                      {s.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={s.logoUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-8 w-8 shrink-0 rounded object-contain"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => handleSuggestionPlay(s)}
