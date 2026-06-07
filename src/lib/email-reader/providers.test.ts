@@ -45,34 +45,16 @@ describe('resolveImapSettings', () => {
   );
 
   it.each(['forwardemail', 'forwardemail.net', 'forwardmail', 'forwardmail.net', 'forwardedemail', 'forwardedemail.net'])(
-    'maps %s to Forward Email IMAP settings',
+    'returns null for %s — Forward Email requires a separate IMAP credential not in the schema',
     (provider) => {
-      expect(resolveImapSettings(account({ provider }))).toEqual({
-        host: 'imap.forwardemail.net',
-        port: 993,
-        alternatePorts: [2993],
-        secure: true,
-        loginMethod: 'LOGIN',
-        username: 'me@example.com',
-        password: 'password',
-      });
+      expect(resolveImapSettings(account({ provider }))).toBeNull();
     }
   );
 
-  it('detects Forward Email as readable without requiring decrypted credentials', () => {
+  it('does not mark Forward Email accounts as IMAP-readable', () => {
     expect(hasSupportedImapProvider({
       provider: 'forwardemail',
       smtpHost: 'smtp.forwardemail.net',
-    })).toBe(true);
-  });
-
-  it('uses the full alias email as the Forward Email IMAP username', () => {
-    expect(resolveImapSettings(account({
-      provider: 'forwardemail',
-      smtpUsername: 'wrong-user',
-    }))).toMatchObject({
-      loginMethod: 'LOGIN',
-      username: 'me@example.com',
-    });
+    })).toBe(false);
   });
 });

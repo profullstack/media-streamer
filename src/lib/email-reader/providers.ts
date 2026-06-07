@@ -1,5 +1,4 @@
 import type { EmailAccount } from '@/lib/email-accounts';
-import { isForwardEmailProvider } from '@/lib/email-accounts/provider-settings';
 import type { ImapConnectionSettings } from './types';
 
 interface ProviderImapPreset {
@@ -18,18 +17,21 @@ interface ProviderAccount {
 const providerPresets: Record<string, ProviderImapPreset | null> = {
   gmail: { host: 'imap.gmail.com', port: 993, secure: true },
   google: { host: 'imap.gmail.com', port: 993, secure: true },
-  forwardemail: { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
-  forwardmail: { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
-  'forwardemail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
-  'forwardmail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
-  forwardedemail: { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
-  'forwardedemail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
+  // Forward Email requires a separate alias-specific IMAP password — not the
+  // SMTP password — so IMAP reading via the SMTP credential does not work.
+  // Mark as null (not readable) until dedicated IMAP credentials are added.
+  forwardemail: null,
+  forwardmail: null,
+  'forwardemail.net': null,
+  'forwardmail.net': null,
+  forwardedemail: null,
+  'forwardedemail.net': null,
   resend: null,
 };
 
 const smtpHostPresets: Record<string, ProviderImapPreset | null> = {
   'smtp.gmail.com': { host: 'imap.gmail.com', port: 993, secure: true },
-  'smtp.forwardemail.net': { host: 'imap.forwardemail.net', port: 993, alternatePorts: [2993], secure: true, loginMethod: 'LOGIN' },
+  'smtp.forwardemail.net': null,
   'smtp.resend.com': null,
 };
 
@@ -46,9 +48,7 @@ export function hasSupportedImapProvider(account: ProviderAccount): boolean {
 }
 
 export function resolveImapSettings(account: EmailAccount): ImapConnectionSettings | null {
-  const username = isForwardEmailProvider(account.provider, account.smtpHost)
-    ? account.fromEmail
-    : account.smtpUsername || account.fromEmail;
+  const username = account.smtpUsername || account.fromEmail;
   if (!username || !account.smtpPassword) return null;
 
   const preset = resolveImapPreset(account);
