@@ -33,40 +33,12 @@ const smtpHostPresets: Record<string, ProviderImapPreset | null> = {
   'smtp.resend.com': null,
 };
 
-// Derive an IMAP host from the SMTP host the user already entered, so accounts
-// configured with only SMTP credentials are still readable without making the
-// user set up a separate IMAP server. Standard mailbox hosting exposes IMAP on
-// imap.<domain>:993 (TLS); we map the common smtp.* / mail.* prefixes and fall
-// back to prefixing imap. onto a bare domain.
-function inferImapPreset(smtpHost: string): ProviderImapPreset | null {
-  const host = smtpHost.trim().toLowerCase();
-  if (!host || !host.includes('.')) return null;
-
-  let imapHost: string;
-  if (host.startsWith('smtp.')) imapHost = `imap.${host.slice('smtp.'.length)}`;
-  else if (host.startsWith('mail.')) imapHost = `imap.${host.slice('mail.'.length)}`;
-  else if (host.startsWith('imap.')) imapHost = host;
-  else imapHost = `imap.${host}`;
-
-  return { host: imapHost, port: 993, secure: true };
-}
-
 function resolveImapPreset(account: ProviderAccount): ProviderImapPreset | null {
   const providerKey = account.provider?.trim().toLowerCase();
   const hostKey = account.smtpHost.trim().toLowerCase();
-
-  // Explicit provider preset wins (a null entry, e.g. resend, means the
-  // provider is send-only and genuinely has no IMAP — don't infer one).
-  if (providerKey && providerKey in providerPresets) {
-    return providerPresets[providerKey];
-  }
-  // Explicit SMTP-host preset next (also honors null for send-only hosts).
-  if (hostKey in smtpHostPresets) {
-    return smtpHostPresets[hostKey];
-  }
-  // Otherwise infer IMAP from the SMTP host so custom SMTP accounts are
-  // readable using the same credentials.
-  return inferImapPreset(hostKey);
+  return providerKey && providerKey in providerPresets
+    ? providerPresets[providerKey]
+    : smtpHostPresets[hostKey];
 }
 
 export function hasSupportedImapProvider(account: ProviderAccount): boolean {
