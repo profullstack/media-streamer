@@ -34,31 +34,20 @@ import { createCustomRadioStation } from '@/lib/radio/station-utils';
 
 type TabType = 'favorites' | 'sports' | 'news';
 
-interface StreamSuggestion {
-  name: string;
-  genre: 'News' | 'Sports';
-  format: 'TV' | 'Radio';
-  url: string;
-  /** SiriusXM search terms for image lookup — words that appear in the SXM channel name */
-  sxmKeywords?: string[];
-}
-
-const STREAM_SUGGESTIONS: ReadonlyArray<StreamSuggestion> = [
-  // --- US News Radio (StreamTheWorld — most reliable) ---
-  { name: 'ABC News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ABCNEWSRADIOFLAAC.aac', sxmKeywords: ['abc', 'news'] },
-  { name: 'Fox News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXNEWSRADIOFLAAC.aac', sxmKeywords: ['fox', 'news'] },
-  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3', sxmKeywords: ['npr'] },
-  { name: 'CNN Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CNNRADIO.mp3', sxmKeywords: ['cnn'] },
-  // --- International News TV (HLS — official CDN streams) ---
-  { name: 'Al Jazeera English', genre: 'News', format: 'TV', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8', sxmKeywords: ['jazeera'] },
-  { name: 'France 24 English', genre: 'News', format: 'TV', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8', sxmKeywords: ['france', '24'] },
-  { name: 'DW News English', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8', sxmKeywords: ['dw'] },
-  // --- International News Radio ---
-  { name: 'BBC World Service', genre: 'News', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', sxmKeywords: ['bbc', 'world'] },
-  // --- Sports: live game coverage only (no talk) ---
-  { name: 'BBC 5 Live Sports Extra', genre: 'Sports', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live_sports_extra', sxmKeywords: ['bbc', 'sport'] },
-  { name: 'talkSPORT 2 (Live Games)', genre: 'Sports', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/TALKSPORT2.mp3', sxmKeywords: ['talksport'] },
-];
+/**
+ * Marquee SiriusXM channel names to surface as a "featured" strip above the
+ * full category grid. These are matched case-insensitively by name against
+ * the SiriusXM channels already loaded for the active tab — so every featured
+ * row is a real SiriusXM channel with a working (proxied) stream and its own
+ * SiriusXM CDN thumbnail. No hardcoded third-party stream URLs.
+ *
+ * If a name isn't present in SiriusXM's current catalog it's simply skipped.
+ * Edit these lists to curate which channels get highlighted.
+ */
+const FEATURED_CHANNEL_NAMES: Record<'news' | 'sports', readonly string[]> = {
+  news: ['CNN', 'Fox News', 'MSNBC', 'CNBC', 'BBC', 'Bloomberg'],
+  sports: ['ESPN', 'Mad Dog Sports', 'SiriusXM NFL', 'SiriusXM NBA', 'MLB', 'SiriusXM PGA TOUR'],
+};
 
 const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
   { value: '256', label: '256 kbps' },
@@ -105,31 +94,22 @@ export function RadioContent(): React.ReactElement {
   const [selectedStation, setSelectedStation] = useState<RadioStation | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
-  // Build a keyword→imageUrl map from SiriusXM browse results so suggestion
-  // rows can reuse the same CDN images as the station cards below.
-  const sxmImageByKeyword = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const station of stations) {
-      if (!station.imageUrl) continue;
-      const words = station.name.toLowerCase().split(/\W+/).filter(Boolean);
-      for (const word of words) {
-        if (!map.has(word)) map.set(word, station.imageUrl);
-      }
+  // Pick out the marquee SiriusXM channels from the loaded category list to
+  // show as a featured strip. Each is a real station object (its own stream
+  // id + CDN image), so streams resolve and thumbnails don't flicker.
+  const featuredStations = useMemo<RadioStation[]>(() => {
+    if (activeTab === 'favorites') return [];
+    const wanted = FEATURED_CHANNEL_NAMES[activeTab];
+    const out: RadioStation[] = [];
+    for (const name of wanted) {
+      const needle = name.toLowerCase();
+      const match = stations.find(
+        (s) => s.name.toLowerCase().includes(needle) && !out.some((o) => o.id === s.id)
+      );
+      if (match) out.push(match);
     }
-    return map;
-  }, [stations]);
-
-  const suggestionImageUrl = useCallback(
-    (keywords?: string[]): string | undefined => {
-      if (!keywords) return undefined;
-      for (const kw of keywords) {
-        const url = sxmImageByKeyword.get(kw.toLowerCase());
-        if (url) return url;
-      }
-      return undefined;
-    },
-    [sxmImageByKeyword]
-  );
+    return out;
+  }, [stations, activeTab]);
 
   // Auto-load category list when the active tab changes (and no search query)
   useEffect(() => {
@@ -207,17 +187,8 @@ export function RadioContent(): React.ReactElement {
     setIsPlayerOpen(true);
   }, []);
 
-  const handleSuggestionPlay = useCallback(
-    (suggestion: StreamSuggestion): void => {
-      const station = createCustomRadioStation({ name: suggestion.name, genre: suggestion.genre, streamUrl: suggestion.url });
-      handlePlayStation(station);
-    },
-    [handlePlayStation]
-  );
-
-  const toggleSuggestionFavorite = useCallback(
-    async (suggestion: StreamSuggestion): Promise<void> => {
-      const station = createCustomRadioStation({ name: suggestion.name, genre: suggestion.genre, streamUrl: suggestion.url });
+  const toggleStationFavorite = useCallback(
+    async (station: RadioStation): Promise<void> => {
       if (isFavorited(station.id)) {
         await fetch('/api/radio/favorites', {
           method: 'DELETE',
@@ -228,7 +199,12 @@ export function RadioContent(): React.ReactElement {
         await fetch('/api/radio/favorites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stationId: station.id, stationName: station.name, stationGenre: station.genre }),
+          body: JSON.stringify({
+            stationId: station.id,
+            stationName: station.name,
+            stationImageUrl: station.imageUrl ?? null,
+            stationGenre: station.genre ?? null,
+          }),
         });
       }
       void refetchFavorites();
@@ -398,74 +374,72 @@ export function RadioContent(): React.ReactElement {
           </button>
         </div>
 
-        {/* Suggested live streams — tab-contextual tabular list */}
-        {activeTab !== 'favorites' && (() => {
-          const genre = activeTab === 'news' ? 'News' : 'Sports';
-          const rows = STREAM_SUGGESTIONS.filter((s) => s.genre === genre);
-          if (rows.length === 0) return null;
-          return (
-            <div className="overflow-hidden rounded-xl border border-border-default">
-              <div className="bg-bg-primary px-4 py-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                  {genre === 'News' ? 'Live News Broadcasts' : 'Live Sports · Game Coverage'}
-                </h2>
-              </div>
-              <div className="divide-y divide-border-default bg-bg-secondary">
-                {rows.map((s) => {
-                  const station = createCustomRadioStation({ name: s.name, genre: s.genre, streamUrl: s.url });
-                  const favorited = isFavorited(station.id);
-                  return (
-                    <div
-                      key={s.url}
-                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-primary"
-                    >
-                      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
-                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
-                        {suggestionImageUrl(s.sxmKeywords) ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={suggestionImageUrl(s.sxmKeywords)}
-                            alt=""
-                            aria-hidden="true"
-                            className="h-full w-full object-cover"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        ) : null}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleSuggestionPlay(s)}
-                        className="flex flex-1 items-center gap-3 text-left"
-                      >
-                        <span className="flex-1 text-sm font-medium text-text-primary">{s.name}</span>
-                        <span className="shrink-0 text-xs text-text-muted">{s.format}</span>
-                        <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-red-500 ring-1 ring-inset ring-red-500/40">
-                          LIVE
-                        </span>
-                        <span className="shrink-0 text-xs font-medium text-accent-primary">▶ Play</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void toggleSuggestionFavorite(s)}
-                        className={cn(
-                          'shrink-0 transition-colors',
-                          favorited ? 'text-red-500' : 'text-text-muted hover:text-red-400'
-                        )}
-                        aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
-                      >
-                        {favorited ? (
-                          <HeartFilledIcon size={16} />
-                        ) : (
-                          <HeartIcon size={16} />
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+        {/* Featured SiriusXM channels — marquee channels pulled from the
+            loaded category. Real channels, so streams resolve and thumbnails
+            are stable (no flicker, no dead third-party URLs). */}
+        {activeTab !== 'favorites' && !isSearchActive && featuredStations.length > 0 ? (
+          <div className="overflow-hidden rounded-xl border border-border-default">
+            <div className="bg-bg-primary px-4 py-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                {activeTab === 'news' ? 'Featured News Channels' : 'Featured Sports Channels'}
+              </h2>
             </div>
-          );
-        })()}
+            <div className="divide-y divide-border-default bg-bg-secondary">
+              {featuredStations.map((station) => {
+                const favorited = isFavorited(station.id);
+                return (
+                  <div
+                    key={station.id}
+                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-primary"
+                  >
+                    <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
+                      {station.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={station.imageUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-full w-full object-cover"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePlayStation(station)}
+                      className="flex flex-1 items-center gap-3 text-left"
+                    >
+                      <span className="flex-1 text-sm font-medium text-text-primary">{station.name}</span>
+                      {station.genre ? (
+                        <span className="shrink-0 text-xs text-text-muted">{station.genre}</span>
+                      ) : null}
+                      <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-red-500 ring-1 ring-inset ring-red-500/40">
+                        LIVE
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-accent-primary">▶ Play</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void toggleStationFavorite(station)}
+                      className={cn(
+                        'shrink-0 transition-colors',
+                        favorited ? 'text-red-500' : 'text-text-muted hover:text-red-400'
+                      )}
+                      aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      {favorited ? (
+                        <HeartFilledIcon size={16} />
+                      ) : (
+                        <HeartIcon size={16} />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {/* Header for the current view */}
         <div className="flex items-center justify-between">
