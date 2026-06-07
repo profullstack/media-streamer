@@ -126,12 +126,25 @@ export function EmailContent(): React.ReactElement {
 
   const readableAccounts = useMemo(() => accounts.filter((account) => account.readable), [accounts]);
 
+  const loadAccounts = useCallback(async (): Promise<void> => {
+    setIsLoadingList(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/email/messages');
+      const data = await response.json() as MessagesResponse;
+      setAccounts(data.accounts ?? []);
+    } catch (err) {
+      setError(errorInfoFromUnknown(err, 'Failed to load accounts'));
+    } finally {
+      setIsLoadingList(false);
+    }
+  }, []);
+
   const loadMessages = useCallback(async (accountId: string): Promise<void> => {
     setIsLoadingList(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ limit: '30' });
-      if (accountId) params.set('accountId', accountId);
+      const params = new URLSearchParams({ limit: '30', accountId });
       const response = await fetch(`/api/email/messages?${params.toString()}`);
       const data = await response.json() as MessagesResponse;
 
@@ -197,12 +210,15 @@ export function EmailContent(): React.ReactElement {
     }
   }, []);
 
+  // On mount: load account list only. If a specific account was linked to
+  // directly (URL param), load its inbox. Otherwise wait for user to pick.
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
+    if (requestedAccountId) {
       void loadMessages(requestedAccountId);
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [loadMessages, requestedAccountId]);
+    } else {
+      void loadAccounts();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedUid || !selectedAccountId) {

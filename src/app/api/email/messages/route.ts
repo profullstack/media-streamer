@@ -39,17 +39,20 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const accountOptions = accounts.map(toAccountOption);
 
+  // No accountId = just return the account list, no inbox fetch.
+  if (!accountId) {
+    return NextResponse.json({ accounts: accountOptions, messages: [] });
+  }
+
   try {
-    const selected = accountId
-      ? accountOptions.find((account) => account.id === accountId)
-      : accountOptions.find((account) => account.isDefault && account.readable) ?? accountOptions.find((account) => account.readable);
+    const selected = accountOptions.find((account) => account.id === accountId);
 
     if (!selected) {
       return NextResponse.json({
         accounts: accountOptions,
         messages: [],
-        error: accounts.length === 0 ? 'No email accounts configured' : 'No readable IMAP account configured',
-      }, { status: accounts.length === 0 ? 404 : 400 });
+        error: 'Email account not found',
+      }, { status: 404 });
     }
 
     if (!selected.readable) {
