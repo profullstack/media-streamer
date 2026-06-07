@@ -1,112 +1,115 @@
 # Product Requirements Document
-## Live Stream Suggestions on the Live Radio Interface
+## News & Sports Suggestions for Live Radio Streams
 
-**Version:** 1.0
+**Version:** 2.0
 **Date:** June 7, 2026
 **Status:** Draft
 
 ## 1. Overview
 
-Add news and sports suggestions to BitTorrented's Live Radio interface (`/radio`) so that, while a user browses or listens to a SiriusXM Sports or News station, the page surfaces a ranked rail of related **live video streams** and **relevant headlines**. The goal is to turn the audio-only radio experience into a launch point: a listener tuned to an NBA play-by-play station should be one click from the live TV broadcast of that game; a listener on a news station should see matching live news channels and current headlines.
+Add a suggestions layer to BitTorrented's Live Radio interface (`/radio`) that recommends **which live radio streams to tune into** in the News and Sports categories. Today the interface lists SiriusXM Sports/News stations and the user's favorites, but the user has to know what they want. This feature surfaces a ranked set of suggested live radio streams driven by what is happening right now — trending news topics, live sporting events, and the user's own listening history and favorites — so that opening `/radio` answers "what should I listen to right now?".
 
-Suggestions are assembled entirely from existing BitTorrented data the user already owns or subscribes to — their Live TV (IPTV) playlists, their RSS subscriptions, and the news extraction/summarization stack — and matched to the radio station's category, name, genre, and now-playing metadata. No new third-party content sources are introduced in the first milestone.
+The suggested items are **live radio streams** the user plays in the existing radio player. The "news and sports" signals (trending headlines, live event context) are used to decide *which* live radio streams to surface and to explain *why* — they are not separate video content.
 
 ### Goals
-- Show a "Watch live" rail on `/radio` suggesting Live TV channels relevant to the active or focused radio station.
-- Show a "Related headlines" rail suggesting recent news items relevant to the station's topic.
-- Rank suggestions by relevance using station category (sports/news), station name/genre, and current track/EPG signals.
-- Let a user open a suggested live TV stream in the existing HLS player without leaving the radio context.
-- Keep all suggestions profile-scoped and reuse existing Live TV, RSS, and news code.
+- Show a "Suggested for you" section of live radio streams on `/radio`, segmented by Sports and News.
+- Rank suggested streams using: live/now-relevant context (trending news topics, in-progress sports events), the user's favorites and recent listening, and station now-playing metadata.
+- Give each suggestion a short, honest "why" (e.g., "Live now: NBA Finals", "Trending: <topic>", "Because you favorited <station>").
+- Let a user play a suggested stream with one click in the existing radio player.
+- Keep suggestions profile-scoped and reuse existing radio, RSS/news, and favorites code.
 
 ### Non-Goals
-- No new external sports-data or news-API integrations in the first milestone (suggestions draw only from the user's own IPTV playlists, RSS subscriptions, and existing news endpoints).
-- No automatic switching of audio to a video stream's audio track.
+- No new audio/video sources beyond the live radio streams the interface already supports (SiriusXM stations, user favorites, and custom stream URLs).
+- No IPTV/Live TV video suggestions in this feature (live radio only).
+- No torrent/DHT on-demand results in the radio suggestions.
 - No editorial/curated suggestion feed maintained by BitTorrented.
-- No cross-profile or social "what others are watching" recommendations.
-- No torrent/DHT on-demand results in the radio suggestions rail (live streams only).
+- No cross-profile or social "what others are listening to" recommendations in the first milestone.
+- No automatic playback; suggestions are surfaced, the user chooses to play.
 
 ## 2. Users And Use Cases
 
-- A user listening to a SiriusXM Sports station sees their Live TV sports channels that are likely carrying the same event and opens one in the HLS player.
-- A user on a News station sees matching live news TV channels plus the latest related headlines from their RSS subscriptions.
-- A user browsing (not yet playing) the Sports or News tab sees suggestions for the focused/first station so the rail is useful before playback starts.
-- A user with no IPTV playlists or RSS feeds sees an empty-state prompt explaining how suggestions populate (link to `/live-tv` and `/rss`).
-- A user opens a suggested headline and triggers the existing extraction/summarization/TTS endpoints.
+- A user opens `/radio` during a major game and immediately sees the sports radio stream covering it suggested at the top, with a "Live now" reason.
+- A user opens `/radio` during a breaking news event and sees the relevant news radio stream suggested, with a "Trending" reason tied to current headlines.
+- A returning user sees suggestions weighted toward stations similar to their favorites and recent listening.
+- A new user with no history sees sensible defaults: popular/now-relevant Sports and News streams rather than an empty section.
+- A user dismisses or plays a suggestion; playing opens the existing radio player modal.
 
 ## 3. Functional Requirements
 
 ### Suggestion Sourcing
-- Derive a suggestion **context** from the active station (or, when nothing is playing, the focused/first station in the current tab): category (`sports`/`news`), station name, genre, description, and `currentTrack` when present.
-- Build a keyword set from the context: tokenized station name/genre/track plus category synonyms (e.g., sports league/team terms, "breaking", "headlines").
-- **Live TV suggestions:** match the user's IPTV channels by `group`/`groupTitle` (Sports/News) and by name/`tvgId` token overlap with the context keywords. Where an EPG (`epgUrl`) is available, prefer channels whose now-playing programme title overlaps the context.
-- **Headline suggestions:** match the active profile's RSS feed items by title/summary token overlap with the context keywords, filtered to recent items, unread-first.
-- Both rails must degrade gracefully: missing IPTV playlists, missing RSS subscriptions, or missing EPG must each produce an empty rail with guidance rather than an error.
+- Candidate live radio streams come from the existing radio catalog: SiriusXM Sports and News stations, the active profile's favorites, and previously played custom streams.
+- Build a relevance **context** from current signals:
+  - **News topics:** trending terms derived from the active profile's RSS items and the existing news stack (recent, high-signal headlines), tokenized into a keyword set.
+  - **Sports/live context:** in-progress or imminent events inferred from station now-playing metadata (`currentTrack`) and station name/genre (e.g., league/team terms). (A dedicated sports-schedule source is a later-milestone enhancement; M1 relies on station metadata and keywords.)
+  - **User signal:** the profile's favorites and recent listening history.
+- Match candidate streams against the context by token overlap on station `name`, `genre`, `description`, and `currentTrack`.
 
 ### Ranking
-- Rank Live TV suggestions by: category match (exact group) > name/tvg token overlap score > EPG now-playing overlap > playlist freshness.
-- Rank headlines by: token overlap score > recency > unread state.
-- Cap each rail to a configurable limit (default 12) and de-duplicate by channel id / item id.
+- Sports suggestions ranked by: live/now-relevant match (now-playing/event keywords) > similarity to favorites/recent listening > station reliability/popularity.
+- News suggestions ranked by: trending-topic overlap > similarity to favorites/recent listening > recency of now-playing metadata.
+- Each suggestion carries a machine-generated `reason` for display.
+- Cap each category to a configurable limit (default 8) and de-duplicate by station id; never suggest a stream that is currently playing.
+- Always return a non-empty default set when signals are sparse (popular Sports/News stations), so the section is never empty.
 
 ### Interaction
-- Clicking a Live TV suggestion opens the existing `HlsPlayerModal` with the channel, reusing the Live TV proxying path for HTTP/HTTPS compatibility.
-- Clicking a headline opens it through the existing news article flow (extraction/summarization), consistent with `/rss`.
-- Suggestions refresh when the active/focused station changes and when the user switches Sports/News tabs.
-- Radio playback continues uninterrupted while a user inspects suggestions; opening a video stream is an explicit user action.
+- Suggestions render in their own section on `/radio`, above or alongside the existing Sports/News/Favorites tabs.
+- Clicking a suggested stream opens the existing `RadioPlayerModal` and plays it, honoring the user's selected quality.
+- Suggestions refresh on page load, on tab change between Sports and News, and after the user favorites/plays a station.
+- A suggestion shows: station name, image, category badge, and its `reason` line.
 
 ### API
-- `GET /api/radio/suggestions?stationId=<id>&category=<sports|news>&limit=<n>` returns `{ liveStreams: ChannelSuggestion[], headlines: HeadlineSuggestion[], context: { keywords: string[] } }` for the active profile.
-- The endpoint reads the active profile's IPTV playlists and RSS items server-side; it must never fetch cross-origin content from the client.
-- Inputs are validated; unknown/empty context returns empty rails with `200`, not an error.
+- `GET /api/radio/suggestions?category=<sports|news>&limit=<n>` returns `{ suggestions: StreamSuggestion[], context: { keywords: string[] } }` for the active profile.
+- The endpoint assembles candidates and context server-side from the radio catalog, the profile's favorites/history, and RSS/news signals; it must never fetch cross-origin content from the client.
+- Empty or weak context returns the default popular set with `200`, not an error.
 
 ## 4. Data Model
 
-No new persistent tables are required for the first milestone; suggestions are computed on demand from existing data.
+No new persistent tables are strictly required for M1; suggestions are computed on demand. Optional additions support history-based ranking and tuning:
 
-- Reuse `Channel` (IPTV) including `group`/`groupTitle`, `tvgId`, `epgUrl`, `logo`, and stream `url`.
-- Reuse `RadioStation` (`id`, `name`, `genre`, `description`, `currentTrack`) as the context source.
-- Reuse `rss_feed_items` / `rss_subscriptions` / `rss_item_states` for headline candidates (profile-scoped, RLS via `profiles.account_id = auth.uid()`).
-- Optional (later milestone) `radio_suggestion_events`: profile-scoped click/impression log for tuning relevance, RLS-enforced.
+- Reuse `RadioStation` (`id`, `name`, `genre`, `description`, `currentTrack`, `reliability`) as both candidate and context source.
+- Reuse `RadioStationFavorite` (profile-scoped) for the user signal.
+- Reuse `rss_feed_items` / `rss_subscriptions` (profile-scoped) for trending-topic extraction.
+- Optional `radio_listening_history` (profile-scoped): recently played stations with timestamps, to power "similar to what you listen to" and to exclude the currently playing stream. RLS via `profiles.account_id = auth.uid()`.
+- Optional `radio_suggestion_events` (profile-scoped): impression/click/play log for relevance tuning. RLS-enforced.
 
-Derived types (no migration):
-- `ChannelSuggestion`: `{ channel: Channel, score: number, reason: 'group' | 'name' | 'epg' }`.
-- `HeadlineSuggestion`: `{ item: RssFeedItem, score: number }`.
+Derived type (no migration):
+- `StreamSuggestion`: `{ station: RadioStation, category: 'sports' | 'news', score: number, reason: string }`.
 
 ## 5. UX Requirements
 
-- Suggestions appear on the existing `/radio` page as two horizontally scrollable rails below the station grid (or in a right column on large screens): "Watch live" and "Related headlines".
-- Each Live TV suggestion shows channel logo, name, group badge, and a short "why" reason (e.g., "Sports • matches ESPN").
-- Each headline shows source/feed, title, and relative time.
-- Empty states must be explicit and actionable: link to `/live-tv` to add playlists and `/rss` to add feeds.
+- Suggestions appear on `/radio` as a dedicated "Suggested for you" section, visually distinct from the manual Sports/News/Favorites browsing tabs.
+- Sports and News suggestions are grouped (separate rows/rails or filtered by the active tab), each card showing station image, name, category badge, and the `reason` line.
+- The section must always render content (defaults when signals are weak); it must never show a bare empty state on a populated radio catalog.
+- Loading must not block the existing station list or playback; use independent skeletons.
 - Mobile layout uses stacked, swipeable rails without overlapping the radio player controls.
-- Suggestion loading must not block the radio station list or playback; use independent loading/skeleton states.
-- Must remain performant on low-power devices (Fire Stick/Silk): memoized suggestion cards, lazy logos with fallback, capped rail length.
+- Must remain performant on low-power devices (Fire Stick/Silk): memoized suggestion cards, lazy images with fallback, capped suggestion counts.
 
 ## 6. Technical Design
 
 - Use a Next.js App Router API route at `src/app/api/radio/suggestions/route.ts` for server-side assembly.
-- Put matching/ranking logic under `src/lib/radio/suggestions` (pure, unit-tested: context extraction, keyword build, scoring).
-- Reuse `src/lib/iptv` for channel parsing/lookup and EPG access; reuse `src/lib/rss-reader` for the active profile's items; reuse `src/lib/news/article-extractor.ts` for headline reading.
-- Reuse the existing radio service for station metadata and the Live TV `HlsPlayerModal` + radio/live-tv proxy routes for playback.
-- Use the existing server-side Supabase client and active-profile selection pattern; enforce profile scoping/RLS.
-- Keyword matching should be deterministic and dependency-light (tokenize, lowercase, stopword filter, overlap score); avoid embedding/LLM calls in M1 for latency and cost.
-- Avoid client-side cross-origin fetches; all IPTV/RSS/EPG access is server-side.
+- Put context-extraction, candidate-gathering, matching, and ranking logic under `src/lib/radio/suggestions` (pure, unit-tested).
+- Reuse the existing radio service (`src/lib/radio`) for the station catalog and now-playing metadata, `RadioStationFavorite` access for the user signal, and `src/lib/rss-reader` + `src/lib/news` for trending-topic extraction.
+- Reuse the existing `RadioPlayerModal` and `useRadio*` hooks for playback; suggestions are just another source of `RadioStation` objects.
+- Use the existing server-side Supabase client and active-profile selection; enforce profile scoping/RLS.
+- Keep M1 matching deterministic and dependency-light (tokenize, lowercase, stopword filter, overlap score); defer embedding/LLM-based topic modeling to a later milestone for latency/cost.
+- Avoid client-side cross-origin fetches; all catalog/RSS/news access is server-side.
 
 ## 7. Milestones
 
 ### M1 Suggestion Engine + API
-- PRD, `src/lib/radio/suggestions` (context extraction, keyword build, channel + headline scoring), `GET /api/radio/suggestions`, unit tests for ranking and empty-state behavior.
+- PRD, `src/lib/radio/suggestions` (context extraction from RSS/news + favorites, candidate gathering from the radio catalog, scoring with reasons, default fallback set), `GET /api/radio/suggestions`, unit tests for ranking, reason generation, dedup/exclusion, and default behavior.
 
-### M2 Radio UI Rails
-- "Watch live" and "Related headlines" rails on `/radio`, wired to the focused/active station, opening the existing HLS player and news flow, with empty states and skeletons.
+### M2 Radio UI Suggestions Section
+- "Suggested for you" section on `/radio` for Sports and News, wired to the radio player, with reasons, defaults, skeletons, and tab-aware refresh.
 
-### M3 EPG-Aware Matching + Tuning
-- Use IPTV EPG now-playing titles to sharpen sports matching; add `radio_suggestion_events` logging and relevance tuning; optional caching of suggestion results per (station, profile) with short TTL.
+### M3 History + Live Context + Tuning
+- Add `radio_listening_history` to power similarity ranking and current-stream exclusion; add `radio_suggestion_events` logging and relevance tuning; optionally integrate a dedicated sports-schedule/live-event source to sharpen "live now" sports suggestions.
 
 ## 8. Success Metrics
 
-- For a profile with at least one IPTV playlist, a Sports or News station returns at least one relevant live-stream suggestion in one request cycle.
-- For a profile with RSS subscriptions, a station returns relevant headlines ranked unread-first.
-- Opening a suggested live stream launches the existing HLS player without interrupting radio playback until the user chooses to play video.
+- On `/radio`, the Suggested section returns relevant Sports and News live radio streams in one request cycle, each with a reason.
+- During trending news or in-progress sports periods, the top suggestion reflects the current context (verifiable via the `reason` and keyword context).
+- A user can play any suggested stream in one click via the existing radio player.
 - Suggestions are isolated per profile; no cross-profile leakage.
-- Empty states (no playlists/feeds) render guidance, never errors.
+- The section never renders empty on a populated catalog; weak signals fall back to a sensible default set.
 - Suggestion assembly stays within an acceptable latency budget on low-power devices and does not block the station list or playback.
