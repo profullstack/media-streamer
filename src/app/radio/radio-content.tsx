@@ -33,19 +33,29 @@ import { createCustomRadioStation } from '@/lib/radio/station-utils';
 
 type TabType = 'favorites' | 'sports' | 'news';
 
-const STREAM_SUGGESTIONS: ReadonlyArray<{ name: string; genre: string; url: string }> = [
-  // News
-  { name: 'BBC World Service', genre: 'News', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service' },
-  { name: 'NPR News', genre: 'News', url: 'https://npr-ice.streamguys1.com/live.mp3' },
-  { name: 'Al Jazeera English', genre: 'News', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8' },
-  { name: 'France 24 English', genre: 'News', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8' },
-  { name: 'DW News', genre: 'News', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
-  // Sports
-  { name: 'ESPN Radio', genre: 'Sports', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ESPNRADIOFLAAC.aac' },
-  { name: 'BBC Radio 5 Live', genre: 'Sports', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live' },
-  { name: 'talkSPORT', genre: 'Sports', url: 'https://radio.talksport.com/stream' },
-  { name: 'Fox Sports Radio', genre: 'Sports', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXSPORTSRADIO.mp3' },
-  { name: 'SportsGrid', genre: 'Sports', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/SPORTSGRIDAAC.aac' },
+interface StreamSuggestion {
+  name: string;
+  genre: 'News' | 'Sports';
+  format: 'TV' | 'Radio';
+  url: string;
+}
+
+const STREAM_SUGGESTIONS: ReadonlyArray<StreamSuggestion> = [
+  // Live news TV broadcasts
+  { name: 'Al Jazeera English', genre: 'News', format: 'TV', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8' },
+  { name: 'France 24 English', genre: 'News', format: 'TV', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8' },
+  { name: 'Sky News', genre: 'News', format: 'TV', url: 'https://skynews-vh.akamaihd.net/i/skynews_live@112961/index_1628000_av-p.m3u8' },
+  { name: 'DW News (English)', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
+  { name: 'TRT World', genre: 'News', format: 'TV', url: 'https://trtworld-live.akamaized.net/hls/live/682530/TRTWorld/index.m3u8' },
+  { name: 'NHK World English', genre: 'News', format: 'TV', url: 'https://nhkworldjp-i.akamaihd.net/hls/live/512064/nhkworldjp/NHKWorldJP@492985/index.m3u8' },
+  { name: 'Euronews English', genre: 'News', format: 'TV', url: 'https://euronews-euronews-live-hls.akamaized.net/hls/live/2023085/euronews_en/master.m3u8' },
+  { name: 'CGTN English', genre: 'News', format: 'TV', url: 'https://news.cgtn.com/resource/live/english/cgtn-news.m3u8' },
+  // Live news radio
+  { name: 'BBC World Service', genre: 'News', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service' },
+  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3' },
+  // Live sports — game coverage only (not talk)
+  { name: 'BBC 5 Live Sports Extra', genre: 'Sports', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live_sports_extra' },
+  { name: 'talkSPORT 2 (Live Games)', genre: 'Sports', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/TALKSPORT2.mp3' },
 ];
 
 const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
@@ -170,7 +180,7 @@ export function RadioContent(): React.ReactElement {
   }, []);
 
   const handleSuggestionPlay = useCallback(
-    (suggestion: { name: string; genre: string; url: string }): void => {
+    (suggestion: StreamSuggestion): void => {
       const station = createCustomRadioStation({ name: suggestion.name, genre: suggestion.genre, streamUrl: suggestion.url });
       handlePlayStation(station);
     },
@@ -339,26 +349,41 @@ export function RadioContent(): React.ReactElement {
           </button>
         </div>
 
-        {/* Suggested live streams — always visible, plays directly */}
-        <div className="rounded-xl border border-border-default bg-bg-secondary p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-text-primary">Suggested Live Streams</h2>
-          {(['News', 'Sports'] as const).map((genre) => (
-            <div key={genre}>
-              <p className="mb-1.5 text-xs font-medium text-text-muted">Live {genre}</p>
-              <div className="flex flex-wrap gap-2">
-                {STREAM_SUGGESTIONS.filter((s) => s.genre === genre).map((s) => (
-                  <button
-                    key={s.url}
-                    type="button"
-                    onClick={() => handleSuggestionPlay(s)}
-                    className="rounded-full border border-border-default bg-bg-primary px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-accent-primary hover:text-accent-primary"
-                  >
-                    {s.name}
-                  </button>
-                ))}
+        {/* Suggested live streams — tabular list, always visible */}
+        <div className="overflow-hidden rounded-xl border border-border-default">
+          {(['News', 'Sports'] as const).map((genre, i) => {
+            const rows = STREAM_SUGGESTIONS.filter((s) => s.genre === genre);
+            return (
+              <div key={genre}>
+                <div className={cn(
+                  'bg-bg-primary px-4 py-2',
+                  i > 0 && 'border-t border-border-default'
+                )}>
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    {genre === 'News' ? 'Live News Broadcasts' : 'Live Sports · Game Coverage'}
+                  </h2>
+                </div>
+                <div className="divide-y divide-border-default bg-bg-secondary">
+                  {rows.map((s) => (
+                    <button
+                      key={s.url}
+                      type="button"
+                      onClick={() => handleSuggestionPlay(s)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-primary"
+                    >
+                      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
+                      <span className="flex-1 text-sm font-medium text-text-primary">{s.name}</span>
+                      <span className="shrink-0 text-xs text-text-muted">{s.format}</span>
+                      <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-red-500 ring-1 ring-inset ring-red-500/40">
+                        LIVE
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-accent-primary">▶ Play</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Header for the current view */}
