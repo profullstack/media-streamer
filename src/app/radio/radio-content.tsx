@@ -15,6 +15,7 @@ import {
   SearchIcon,
   LoadingSpinner,
   HeartFilledIcon,
+  HeartIcon,
   LinkIcon,
   PlusIcon,
   RadioIcon,
@@ -41,19 +42,18 @@ interface StreamSuggestion {
 }
 
 const STREAM_SUGGESTIONS: ReadonlyArray<StreamSuggestion> = [
-  // Live news TV broadcasts
+  // --- US News Radio (StreamTheWorld — most reliable) ---
+  { name: 'ABC News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ABCNEWSRADIOFLAAC.aac' },
+  { name: 'Fox News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXNEWSRADIOFLAAC.aac' },
+  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3' },
+  { name: 'CNN Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CNNRADIO.mp3' },
+  // --- International News TV (HLS — official CDN streams) ---
   { name: 'Al Jazeera English', genre: 'News', format: 'TV', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8' },
   { name: 'France 24 English', genre: 'News', format: 'TV', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8' },
-  { name: 'Sky News', genre: 'News', format: 'TV', url: 'https://skynews-vh.akamaihd.net/i/skynews_live@112961/index_1628000_av-p.m3u8' },
-  { name: 'DW News (English)', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
-  { name: 'TRT World', genre: 'News', format: 'TV', url: 'https://trtworld-live.akamaized.net/hls/live/682530/TRTWorld/index.m3u8' },
-  { name: 'NHK World English', genre: 'News', format: 'TV', url: 'https://nhkworldjp-i.akamaihd.net/hls/live/512064/nhkworldjp/NHKWorldJP@492985/index.m3u8' },
-  { name: 'Euronews English', genre: 'News', format: 'TV', url: 'https://euronews-euronews-live-hls.akamaized.net/hls/live/2023085/euronews_en/master.m3u8' },
-  { name: 'CGTN English', genre: 'News', format: 'TV', url: 'https://news.cgtn.com/resource/live/english/cgtn-news.m3u8' },
-  // Live news radio
+  { name: 'DW News English', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
+  // --- International News Radio ---
   { name: 'BBC World Service', genre: 'News', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service' },
-  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3' },
-  // Live sports — game coverage only (not talk)
+  // --- Sports: live game coverage only (no talk) ---
   { name: 'BBC 5 Live Sports Extra', genre: 'Sports', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live_sports_extra' },
   { name: 'talkSPORT 2 (Live Games)', genre: 'Sports', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/TALKSPORT2.mp3' },
 ];
@@ -185,6 +185,27 @@ export function RadioContent(): React.ReactElement {
       handlePlayStation(station);
     },
     [handlePlayStation]
+  );
+
+  const toggleSuggestionFavorite = useCallback(
+    async (suggestion: StreamSuggestion): Promise<void> => {
+      const station = createCustomRadioStation({ name: suggestion.name, genre: suggestion.genre, streamUrl: suggestion.url });
+      if (isFavorited(station.id)) {
+        await fetch('/api/radio/favorites', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stationId: station.id }),
+        });
+      } else {
+        await fetch('/api/radio/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stationId: station.id, stationName: station.name, stationGenre: station.genre }),
+        });
+      }
+      void refetchFavorites();
+    },
+    [isFavorited, refetchFavorites]
   );
 
   const handleClosePlayer = useCallback((): void => {
@@ -349,42 +370,62 @@ export function RadioContent(): React.ReactElement {
           </button>
         </div>
 
-        {/* Suggested live streams — tabular list, always visible */}
-        <div className="overflow-hidden rounded-xl border border-border-default">
-          {(['News', 'Sports'] as const).map((genre, i) => {
-            const rows = STREAM_SUGGESTIONS.filter((s) => s.genre === genre);
-            return (
-              <div key={genre}>
-                <div className={cn(
-                  'bg-bg-primary px-4 py-2',
-                  i > 0 && 'border-t border-border-default'
-                )}>
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                    {genre === 'News' ? 'Live News Broadcasts' : 'Live Sports · Game Coverage'}
-                  </h2>
-                </div>
-                <div className="divide-y divide-border-default bg-bg-secondary">
-                  {rows.map((s) => (
-                    <button
+        {/* Suggested live streams — tab-contextual tabular list */}
+        {activeTab !== 'favorites' && (() => {
+          const genre = activeTab === 'news' ? 'News' : 'Sports';
+          const rows = STREAM_SUGGESTIONS.filter((s) => s.genre === genre);
+          if (rows.length === 0) return null;
+          return (
+            <div className="overflow-hidden rounded-xl border border-border-default">
+              <div className="bg-bg-primary px-4 py-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  {genre === 'News' ? 'Live News Broadcasts' : 'Live Sports · Game Coverage'}
+                </h2>
+              </div>
+              <div className="divide-y divide-border-default bg-bg-secondary">
+                {rows.map((s) => {
+                  const station = createCustomRadioStation({ name: s.name, genre: s.genre, streamUrl: s.url });
+                  const favorited = isFavorited(station.id);
+                  return (
+                    <div
                       key={s.url}
-                      type="button"
-                      onClick={() => handleSuggestionPlay(s)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-primary"
+                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-primary"
                     >
                       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
-                      <span className="flex-1 text-sm font-medium text-text-primary">{s.name}</span>
-                      <span className="shrink-0 text-xs text-text-muted">{s.format}</span>
-                      <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-red-500 ring-1 ring-inset ring-red-500/40">
-                        LIVE
-                      </span>
-                      <span className="shrink-0 text-xs font-medium text-accent-primary">▶ Play</span>
-                    </button>
-                  ))}
-                </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSuggestionPlay(s)}
+                        className="flex flex-1 items-center gap-3 text-left"
+                      >
+                        <span className="flex-1 text-sm font-medium text-text-primary">{s.name}</span>
+                        <span className="shrink-0 text-xs text-text-muted">{s.format}</span>
+                        <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-red-500 ring-1 ring-inset ring-red-500/40">
+                          LIVE
+                        </span>
+                        <span className="shrink-0 text-xs font-medium text-accent-primary">▶ Play</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleSuggestionFavorite(s)}
+                        className={cn(
+                          'shrink-0 transition-colors',
+                          favorited ? 'text-red-500' : 'text-text-muted hover:text-red-400'
+                        )}
+                        aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                      >
+                        {favorited ? (
+                          <HeartFilledIcon size={16} />
+                        ) : (
+                          <HeartIcon size={16} />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })()}
 
         {/* Header for the current view */}
         <div className="flex items-center justify-between">
