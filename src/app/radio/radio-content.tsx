@@ -139,16 +139,6 @@ export function RadioContent(): React.ReactElement {
     if (cat) void browseCategory(cat);
   }, [clearResults, browseCategory, activeTab]);
 
-  const handleSuggestionClick = useCallback(
-    (suggestion: { name: string; genre: string; url: string }): void => {
-      setCustomName(suggestion.name);
-      setCustomGenre(suggestion.genre);
-      setCustomStreamUrl(suggestion.url);
-      setCustomError(null);
-    },
-    []
-  );
-
   const handleCustomSubmit = useCallback((e: React.FormEvent): void => {
     e.preventDefault();
 
@@ -178,6 +168,14 @@ export function RadioContent(): React.ReactElement {
     setSelectedStation(station);
     setIsPlayerOpen(true);
   }, []);
+
+  const handleSuggestionPlay = useCallback(
+    (suggestion: { name: string; genre: string; url: string }): void => {
+      const station = createCustomRadioStation({ name: suggestion.name, genre: suggestion.genre, streamUrl: suggestion.url });
+      handlePlayStation(station);
+    },
+    [handlePlayStation]
+  );
 
   const handleClosePlayer = useCallback((): void => {
     setIsPlayerOpen(false);
@@ -341,6 +339,28 @@ export function RadioContent(): React.ReactElement {
           </button>
         </div>
 
+        {/* Suggested live streams — always visible, plays directly */}
+        <div className="rounded-xl border border-border-default bg-bg-secondary p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-text-primary">Suggested Live Streams</h2>
+          {(['News', 'Sports'] as const).map((genre) => (
+            <div key={genre}>
+              <p className="mb-1.5 text-xs font-medium text-text-muted">Live {genre}</p>
+              <div className="flex flex-wrap gap-2">
+                {STREAM_SUGGESTIONS.filter((s) => s.genre === genre).map((s) => (
+                  <button
+                    key={s.url}
+                    type="button"
+                    onClick={() => handleSuggestionPlay(s)}
+                    className="rounded-full border border-border-default bg-bg-primary px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-accent-primary hover:text-accent-primary"
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* Header for the current view */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text-primary">{tabHeading}</h2>
@@ -458,30 +478,6 @@ export function RadioContent(): React.ReactElement {
               </p>
             </div>
           </div>
-
-          {/* Suggestion chips grouped by genre */}
-          {(['News', 'Sports'] as const).map((genre) => (
-            <div key={genre} className="mb-3">
-              <p className="mb-1.5 text-xs font-medium text-text-muted">Live {genre}</p>
-              <div className="flex flex-wrap gap-2">
-                {STREAM_SUGGESTIONS.filter((s) => s.genre === genre).map((s) => (
-                  <button
-                    key={s.url}
-                    type="button"
-                    onClick={() => handleSuggestionClick(s)}
-                    className={cn(
-                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                      customStreamUrl === s.url
-                        ? 'border-accent-primary bg-accent-primary/10 text-accent-primary'
-                        : 'border-border-default bg-bg-primary text-text-secondary hover:border-accent-primary hover:text-accent-primary'
-                    )}
-                  >
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
 
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto]">
             <input
