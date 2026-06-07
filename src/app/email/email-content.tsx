@@ -126,7 +126,7 @@ export function EmailContent(): React.ReactElement {
 
   const readableAccounts = useMemo(() => accounts.filter((account) => account.readable), [accounts]);
 
-  const loadMessages = useCallback(async (accountId = selectedAccountId): Promise<void> => {
+  const loadMessages = useCallback(async (accountId: string): Promise<void> => {
     setIsLoadingList(true);
     setError(null);
     try {
@@ -166,7 +166,12 @@ export function EmailContent(): React.ReactElement {
     } finally {
       setIsLoadingList(false);
     }
-  }, [requestedUid, selectedAccountId]);
+    // Intentionally NOT keyed on selectedAccountId: the caller always passes the
+    // account explicitly. Keeping selectedAccountId out of the deps means
+    // clicking a different account doesn't change this callback's identity,
+    // which would otherwise re-fire the mount effect with the (empty) URL param
+    // and snap the view back to the default inbox.
+  }, [requestedUid]);
 
   const loadMessage = useCallback(async (uid: number, accountId: string): Promise<void> => {
     setIsLoadingMessage(true);
@@ -308,7 +313,7 @@ export function EmailContent(): React.ReactElement {
             </Link>
             <button
               type="button"
-              onClick={() => void loadMessages()}
+              onClick={() => void loadMessages(selectedAccountId)}
               className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
               <RefreshIcon size={16} />
