@@ -12,7 +12,7 @@ Add a suggestions layer to BitTorrented's Live Radio interface (`/radio`) that r
 The suggested items are **live radio streams** the user plays in the existing radio player. The "news and sports" signals (trending headlines, live event context) are used to decide *which* live radio streams to surface and to explain *why* — they are not separate video content.
 
 ### Goals
-- Show a "Suggested for you" section of live radio streams on `/radio`, segmented by Sports and News.
+- Show a suggestion box at the top of the Sports and News tabs on `/radio`, above that tab's filtered station results.
 - Rank suggested streams using: live/now-relevant context (trending news topics, in-progress sports events), the user's favorites and recent listening, and station now-playing metadata.
 - Give each suggestion a short, honest "why" (e.g., "Live now: NBA Finals", "Trending: <topic>", "Because you favorited <station>").
 - Let a user play a suggested stream with one click in the existing radio player.
@@ -52,7 +52,7 @@ The suggested items are **live radio streams** the user plays in the existing ra
 - Always return a non-empty default set when signals are sparse (popular Sports/News stations), so the section is never empty.
 
 ### Interaction
-- Suggestions render in their own section on `/radio`, above or alongside the existing Sports/News/Favorites tabs.
+- The suggestion box renders inside the active tab, at the top of the Sports tab and the News tab, directly above that tab's filtered station results. The active tab determines the category: the Sports tab shows sports suggestions, the News tab shows news suggestions. The box is not shown on the Favorites tab.
 - Clicking a suggested stream opens the existing `RadioPlayerModal` and plays it, honoring the user's selected quality.
 - Suggestions refresh on page load, on tab change between Sports and News, and after the user favorites/plays a station.
 - A suggestion shows: station name, image, category badge, and its `reason` line.
@@ -77,10 +77,10 @@ Derived type (no migration):
 
 ## 5. UX Requirements
 
-- Suggestions appear on `/radio` as a dedicated "Suggested for you" section, visually distinct from the manual Sports/News/Favorites browsing tabs.
-- Sports and News suggestions are grouped (separate rows/rails or filtered by the active tab), each card showing station image, name, category badge, and the `reason` line.
-- The section must always render content (defaults when signals are weak); it must never show a bare empty state on a populated radio catalog.
-- Loading must not block the existing station list or playback; use independent skeletons.
+- The suggestion box sits at the top of the active Sports or News tab on `/radio`, directly above the filtered station results, and is part of that tab (not a separate section above the tab bar). It is not rendered on the Favorites tab.
+- The box reflects the active tab's category — sports suggestions on the Sports tab, news suggestions on the News tab — each card showing station image, name, and the `reason` line.
+- The box must always render content for a populated catalog (defaults when signals are weak); it must never show a bare empty state. When the user is actively searching within the tab, the box may collapse or hide so it does not crowd search results.
+- Loading must not block the existing station list or playback; use independent skeletons so the suggestion box loads above the results without delaying them.
 - Mobile layout uses stacked, swipeable rails without overlapping the radio player controls.
 - Must remain performant on low-power devices (Fire Stick/Silk): memoized suggestion cards, lazy images with fallback, capped suggestion counts.
 
@@ -99,17 +99,17 @@ Derived type (no migration):
 ### M1 Suggestion Engine + API
 - PRD, `src/lib/radio/suggestions` (context extraction from RSS/news + favorites, candidate gathering from the radio catalog, scoring with reasons, default fallback set), `GET /api/radio/suggestions`, unit tests for ranking, reason generation, dedup/exclusion, and default behavior.
 
-### M2 Radio UI Suggestions Section
-- "Suggested for you" section on `/radio` for Sports and News, wired to the radio player, with reasons, defaults, skeletons, and tab-aware refresh.
+### M2 Radio UI Suggestion Box
+- Suggestion box at the top of the Sports and News tabs on `/radio`, above the filtered station results, wired to the radio player, with reasons, defaults, skeletons, and tab-aware refresh.
 
 ### M3 History + Live Context + Tuning
 - Add `radio_listening_history` to power similarity ranking and current-stream exclusion; add `radio_suggestion_events` logging and relevance tuning; optionally integrate a dedicated sports-schedule/live-event source to sharpen "live now" sports suggestions.
 
 ## 8. Success Metrics
 
-- On `/radio`, the Suggested section returns relevant Sports and News live radio streams in one request cycle, each with a reason.
+- On `/radio`, the suggestion box at the top of the Sports and News tabs returns relevant live radio streams for the active category in one request cycle, each with a reason.
 - During trending news or in-progress sports periods, the top suggestion reflects the current context (verifiable via the `reason` and keyword context).
 - A user can play any suggested stream in one click via the existing radio player.
 - Suggestions are isolated per profile; no cross-profile leakage.
-- The section never renders empty on a populated catalog; weak signals fall back to a sensible default set.
+- The suggestion box never renders empty on a populated catalog; weak signals fall back to a sensible default set.
 - Suggestion assembly stays within an acceptable latency budget on low-power devices and does not block the station list or playback.
