@@ -8,7 +8,7 @@
  * supported.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import {
@@ -39,24 +39,25 @@ interface StreamSuggestion {
   genre: 'News' | 'Sports';
   format: 'TV' | 'Radio';
   url: string;
-  logoUrl?: string;
+  /** SiriusXM search terms for image lookup — words that appear in the SXM channel name */
+  sxmKeywords?: string[];
 }
 
 const STREAM_SUGGESTIONS: ReadonlyArray<StreamSuggestion> = [
   // --- US News Radio (StreamTheWorld — most reliable) ---
-  { name: 'ABC News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ABCNEWSRADIOFLAAC.aac', logoUrl: 'https://logo.clearbit.com/abcnews.go.com' },
-  { name: 'Fox News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXNEWSRADIOFLAAC.aac', logoUrl: 'https://logo.clearbit.com/foxnews.com' },
-  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3', logoUrl: 'https://logo.clearbit.com/npr.org' },
-  { name: 'CNN Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CNNRADIO.mp3', logoUrl: 'https://logo.clearbit.com/cnn.com' },
+  { name: 'ABC News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ABCNEWSRADIOFLAAC.aac', sxmKeywords: ['abc', 'news'] },
+  { name: 'Fox News Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FOXNEWSRADIOFLAAC.aac', sxmKeywords: ['fox', 'news'] },
+  { name: 'NPR News', genre: 'News', format: 'Radio', url: 'https://npr-ice.streamguys1.com/live.mp3', sxmKeywords: ['npr'] },
+  { name: 'CNN Radio', genre: 'News', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CNNRADIO.mp3', sxmKeywords: ['cnn'] },
   // --- International News TV (HLS — official CDN streams) ---
-  { name: 'Al Jazeera English', genre: 'News', format: 'TV', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8', logoUrl: 'https://logo.clearbit.com/aljazeera.com' },
-  { name: 'France 24 English', genre: 'News', format: 'TV', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8', logoUrl: 'https://logo.clearbit.com/france24.com' },
-  { name: 'DW News English', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8', logoUrl: 'https://logo.clearbit.com/dw.com' },
+  { name: 'Al Jazeera English', genre: 'News', format: 'TV', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8', sxmKeywords: ['jazeera'] },
+  { name: 'France 24 English', genre: 'News', format: 'TV', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8', sxmKeywords: ['france', '24'] },
+  { name: 'DW News English', genre: 'News', format: 'TV', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8', sxmKeywords: ['dw'] },
   // --- International News Radio ---
-  { name: 'BBC World Service', genre: 'News', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', logoUrl: 'https://logo.clearbit.com/bbc.com' },
+  { name: 'BBC World Service', genre: 'News', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', sxmKeywords: ['bbc', 'world'] },
   // --- Sports: live game coverage only (no talk) ---
-  { name: 'BBC 5 Live Sports Extra', genre: 'Sports', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live_sports_extra', logoUrl: 'https://logo.clearbit.com/bbc.com' },
-  { name: 'talkSPORT 2 (Live Games)', genre: 'Sports', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/TALKSPORT2.mp3', logoUrl: 'https://logo.clearbit.com/talksport.com' },
+  { name: 'BBC 5 Live Sports Extra', genre: 'Sports', format: 'Radio', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live_sports_extra', sxmKeywords: ['bbc', 'sport'] },
+  { name: 'talkSPORT 2 (Live Games)', genre: 'Sports', format: 'Radio', url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/TALKSPORT2.mp3', sxmKeywords: ['talksport'] },
 ];
 
 const QUALITIES: ReadonlyArray<{ value: RadioQuality; label: string }> = [
@@ -103,6 +104,32 @@ export function RadioContent(): React.ReactElement {
 
   const [selectedStation, setSelectedStation] = useState<RadioStation | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+
+  // Build a keyword→imageUrl map from SiriusXM browse results so suggestion
+  // rows can reuse the same CDN images as the station cards below.
+  const sxmImageByKeyword = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const station of stations) {
+      if (!station.imageUrl) continue;
+      const words = station.name.toLowerCase().split(/\W+/).filter(Boolean);
+      for (const word of words) {
+        if (!map.has(word)) map.set(word, station.imageUrl);
+      }
+    }
+    return map;
+  }, [stations]);
+
+  const suggestionImageUrl = useCallback(
+    (keywords?: string[]): string | undefined => {
+      if (!keywords) return undefined;
+      for (const kw of keywords) {
+        const url = sxmImageByKeyword.get(kw.toLowerCase());
+        if (url) return url;
+      }
+      return undefined;
+    },
+    [sxmImageByKeyword]
+  );
 
   // Auto-load category list when the active tab changes (and no search query)
   useEffect(() => {
@@ -394,10 +421,10 @@ export function RadioContent(): React.ReactElement {
                     >
                       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
                       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
-                        {s.logoUrl ? (
+                        {suggestionImageUrl(s.sxmKeywords) ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={s.logoUrl}
+                            src={suggestionImageUrl(s.sxmKeywords)}
                             alt=""
                             aria-hidden="true"
                             className="h-full w-full object-cover"
