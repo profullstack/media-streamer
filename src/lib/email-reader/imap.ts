@@ -76,6 +76,7 @@ function isImapConnectError(error: unknown): boolean {
   return /ECONN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|timeout|connect/i.test(message);
 }
 
+
 async function withMailboxOnPort<T>(
   settings: ImapConnectionSettings,
   port: number,
@@ -136,8 +137,10 @@ export async function listInboxMessages(
 
   const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   return withMailbox(settings, async (client) => {
-    const status = await client.status(DEFAULT_MAILBOX, { messages: true });
-    const total = status.messages ?? 0;
+    // client.mailbox.exists is set by the SELECT response — more reliable than
+    // a subsequent STATUS command which some servers (e.g. Gmail) answer with
+    // stale or zero counts when the mailbox is already selected.
+    const total = (client.mailbox as { exists?: number } | null)?.exists ?? 0;
     if (total === 0) return [];
 
     const start = Math.max(1, total - limit + 1);
