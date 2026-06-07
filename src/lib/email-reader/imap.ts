@@ -167,6 +167,31 @@ export async function listInboxMessages(
   }, options.mailbox);
 }
 
+// Archive folder names by provider, tried in order until one succeeds.
+const ARCHIVE_FOLDERS = ['Archive', '[Gmail]/All Mail', 'INBOX.Archive', 'Archived'];
+
+export async function archiveMessage(account: EmailAccount, uid: number): Promise<void> {
+  const settings = resolveImapSettings(account);
+  if (!settings) {
+    throw new Error('This email account does not have supported IMAP settings yet');
+  }
+
+  await withMailbox(settings, async (client) => {
+    // Try known archive folder names; fall back to just marking as read + flagged.
+    for (const folder of ARCHIVE_FOLDERS) {
+      try {
+        await client.messageMove(uid, folder, { uid: true });
+        return;
+      } catch {
+        // folder doesn't exist — try next
+      }
+    }
+    // No archive folder found: mark as read so it at least leaves the unread list.
+    await client.messageFlagsAdd(uid, ['\\Seen'], { uid: true });
+    throw new Error('No archive folder found. Message marked as read instead.');
+  });
+}
+
 export async function checkImapAccount(account: EmailAccount): Promise<void> {
   const settings = resolveImapSettings(account);
   if (!settings) {

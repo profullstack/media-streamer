@@ -1,4 +1,5 @@
 export {
+  archiveMessage,
   checkImapAccount,
   getInboxMessage,
   listInboxMessages,

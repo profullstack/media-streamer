@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { htmlToPlainText, renderRichContentHtml } from '@/lib/rich-content';
 import {
+  FolderIcon,
   LinkIcon,
   LoadingSpinner,
   MailIcon,
@@ -117,6 +118,7 @@ export function EmailContent(): React.ReactElement {
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
   const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [isCreatingFeed, setIsCreatingFeed] = useState(false);
   const [showReply, setShowReply] = useState(false);
   const [replyBody, setReplyBody] = useState('');
@@ -295,6 +297,30 @@ export function EmailContent(): React.ReactElement {
     }
   };
 
+  const archiveCurrentMessage = async (): Promise<void> => {
+    if (!visibleMessage || !selectedAccountId) return;
+    setIsArchiving(true);
+    setError(null);
+    setActionMessage(null);
+    try {
+      const res = await fetch(`/api/email/messages/${visibleMessage.uid}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: selectedAccountId }),
+      });
+      const data = await res.json() as { error?: string; success?: boolean };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to archive');
+      setMessages((prev) => prev.filter((m) => m.uid !== visibleMessage.uid));
+      setSelectedUid(null);
+      setSelectedMessage(null);
+      setActionMessage('Message archived.');
+    } catch (err) {
+      setError(errorInfoFromUnknown(err, 'Failed to archive message'));
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
   const visibleMessage = selectedUid ? selectedMessage : null;
   const bodyText = previewText(visibleMessage);
@@ -468,6 +494,16 @@ export function EmailContent(): React.ReactElement {
                       >
                         {isCreatingFeed ? <LoadingSpinner size={16} /> : <RssIcon size={16} />}
                         <span>Sender RSS</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void archiveCurrentMessage()}
+                        disabled={isArchiving}
+                        title="Archive this message"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isArchiving ? <LoadingSpinner size={16} /> : <FolderIcon size={16} />}
+                        <span>Archive</span>
                       </button>
                     </div>
                   </div>
