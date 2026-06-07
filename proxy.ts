@@ -230,7 +230,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   const ref = request.nextUrl.searchParams.get('ref');
-  if (ref) {
+  // Validate ref before storing: alphanumeric + hyphens/underscores, max 64 chars.
+  // Without validation, an attacker can inject arbitrary values via a crafted URL,
+  // enabling referral fraud and overflowing the cookie header.
+  if (ref && /^[a-zA-Z0-9_-]{1,64}$/.test(ref)) {
     response.cookies.set('referral_code', ref, { httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 30, path: '/' });
   }
   return response;
