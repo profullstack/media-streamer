@@ -393,16 +393,18 @@ export function RadioContent(): React.ReactElement {
                       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-primary"
                     >
                       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
-                      {s.logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={s.logoUrl}
-                          alt=""
-                          aria-hidden="true"
-                          className="h-8 w-8 shrink-0 rounded object-contain"
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        />
-                      ) : null}
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-bg-tertiary">
+                        {s.logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={s.logoUrl}
+                            alt=""
+                            aria-hidden="true"
+                            className="h-full w-full object-cover"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ) : null}
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleSuggestionPlay(s)}
