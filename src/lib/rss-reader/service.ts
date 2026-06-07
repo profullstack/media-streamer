@@ -298,12 +298,28 @@ export async function refreshRssFeed(profileId: string, feedId: string): Promise
   }
 }
 
-export async function getRssReaderData(profileId: string, options: RssListOptions = {}) {
-  const [subscriptions, items] = await Promise.all([
-    listSubscriptions(profileId),
-    listItems(profileId, options),
-  ]);
+// Default feed subscriptions (Profullstack, Inc. folder) are seeded directly in
+// the database via migration/trigger, so they have no items until first fetched.
+// On reader load, fetch any subscribed feed that has never been fetched so the
+// seeded feeds are not empty. Best-effort and one-shot per feed: a failed fetch
+// still sets last_fetched_at, so we never retry it automatically on every load.
+async function populateUnfetchedFeeds(
+  profileId: string,
+  subscriptions: Awaited<ReturnType<typeof listSubscriptions>>
+): Promise<void> {
+  const unfetched = subscriptions.filter((subscription) => !subscription.feed.lastFetchedAt);
+  if (unfetched.length === 0) return;
 
+  await Promise.allSettled(
+    unfetched.map((subscription) => refreshRssFeed(profileId, subscription.feedId))
+  );
+}
+
+export async function getRssReaderData(profileId: string, options: RssListOptions = {}) {
+  const subscriptions = await listSubscriptions(profileId);
+  await populateUnfetchedFeeds(profileId, subscriptions);
+
+  const items = await listItems(profileId, options);
   return { subscriptions, items };
 }
 
