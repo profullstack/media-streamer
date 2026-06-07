@@ -10,6 +10,13 @@
 - [ ] Documentation update
 - [ ] Refactoring (no functional changes)
 
+## Submission Payout
+
+- [ ] PR: $100 minimum per accepted PR
+- [ ] Bug fix: $100 minimum per confirmed bug fix
+- [ ] QA run: $250 minimum per QA run (files bugs and/or fixes them)
+- [ ] Feature/fix: $100 minimum per accepted feature implementation or substantive fix
+
 ## TDD Checklist (MANDATORY)
 
 **All items must be checked before merge:**
