@@ -43,6 +43,17 @@ describe('rich content rendering', () => {
     expect(html).toContain('<p>Article <em>summary</em></p>');
   });
 
+  it('preserves heading ids so in-article table-of-contents links resolve', () => {
+    const html = sanitizeRichHtml(
+      '<h2 id="table-of-contents">Contents</h2><ul><li><a href="#the-ui-is-not-the-system">The UI</a></li></ul><h2 id="the-ui-is-not-the-system">The UI is not the system</h2>',
+      { allowImages: true }
+    );
+
+    expect(html).toContain('id="table-of-contents"');
+    expect(html).toContain('id="the-ui-is-not-the-system"');
+    expect(html).toContain('href="#the-ui-is-not-the-system"');
+  });
+
   it('extracts readable preview text from HTML', () => {
     expect(htmlToPlainText('<p>First&nbsp;line</p><p>Second &amp; third</p>')).toBe('First line\nSecond & third');
   });

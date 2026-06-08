@@ -45,6 +45,8 @@ const BASE_ALLOWED_TAGS = [
 const BASE_ALLOWED_ATTR = [
   'colspan',
   'href',
+  'id',
+  'name',
   'rel',
   'rowspan',
   'target',
