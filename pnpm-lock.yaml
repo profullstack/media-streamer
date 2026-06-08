@@ -22,6 +22,9 @@ importers:
       '@profullstack/autoblog':
         specifier: github:profullstack/autoblog#75e54af
         version: https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af
+      '@profullstack/emailer':
+        specifier: ^1.0.1
+        version: 1.0.1
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.2.5)
@@ -964,6 +967,9 @@ packages:
     resolution: {tarball: https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af}
     version: 0.4.0
     engines: {node: '>=18'}
+
+  '@profullstack/emailer@1.0.1':
+    resolution: {integrity: sha512-/uhHJJGH+1xSSz3mJn6X+m6aruYjMD3JOaRp/d4R/YWlzpy07H9z0/JUleIyRyBPNmaANSIwjTZ7aVjaukOEpg==}
 
   '@profullstack/referrals@0.1.0':
     resolution: {integrity: sha512-u66SdBVpsv3kc0N+NWISPoYD5vjCERyv5wfD07iSkZwQeC2IA+ihX5jNA4e7Xr+Y4AUvxLycG+3b4VaROqzgRg==}
@@ -5681,6 +5687,8 @@ snapshots:
   '@posthog/types@1.381.0': {}
 
   '@profullstack/autoblog@https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af': {}
+
+  '@profullstack/emailer@1.0.1': {}
 
   '@profullstack/referrals@0.1.0(react@19.2.5)':
     optionalDependencies:

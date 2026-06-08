@@ -34,6 +34,7 @@
     "@mozilla/readability": "^0.6.0",
     "@noriginmedia/norigin-spatial-navigation": "^3.0.0",
     "@profullstack/autoblog": "github:profullstack/autoblog#75e54af",
+    "@profullstack/emailer": "^1.0.1",
     "@profullstack/referrals": "^0.1.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",

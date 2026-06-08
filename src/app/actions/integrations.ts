@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
+import { requireAdminUser } from "@/lib/admin";
 import { getServerClient } from "@/lib/supabase";
 
 type Ok<T = undefined> = { ok: true } & (T extends undefined ? object : T);
@@ -20,13 +21,7 @@ async function assertAdmin(): Promise<{ ok: true; userId: string } | Err> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Not authenticated." };
 
-  const svc = getServerClient();
-  const { data } = await svc
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!data) return { ok: false, error: "Admin only." };
+  if (!(await requireAdminUser(user.id))) return { ok: false, error: "Admin only." };
   return { ok: true, userId: user.id };
 }
 

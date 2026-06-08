@@ -1,7 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser } from '@/lib/auth';
+import { checkUserAdmin, listAuthUserEmails } from '@/lib/admin';
 import { getServerClient } from '@/lib/supabase';
+import { AdminTools } from './admin-tools';
 import { IntegrationsManager } from './integrations-form';
 import type { IntegrationKind } from '@/app/actions/integrations';
 
@@ -35,14 +37,10 @@ export default async function AdminPage() {
   if (!user) redirect('/login?redirect=/admin');
 
   const svc = getServerClient();
-  const { data: adminRow } = await (svc as any)
-    .from('admin_users')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!adminRow) notFound();
+  const adminCheck = await checkUserAdmin(user.id, svc as any);
+  if (!adminCheck.isAdmin) notFound();
 
-  const [{ data: integrationsRaw }, { data: postsRaw }] = await Promise.all([
+  const [{ data: integrationsRaw }, { data: postsRaw }, recipientEmails] = await Promise.all([
     (svc as any)
       .from('autoblog_integrations')
       .select('id, name, kind, access_token, request_count, last_used_at, created_at')
@@ -52,6 +50,10 @@ export default async function AdminPage() {
       .select('id, slug, title, source, published_at')
       .order('published_at', { ascending: false })
       .limit(20),
+    listAuthUserEmails(svc as any).catch((error) => {
+      console.error('[Admin] Failed to count auth users:', error);
+      return [];
+    }),
   ]);
 
   const integrations = (integrationsRaw ?? []) as Integration[];
@@ -63,6 +65,10 @@ export default async function AdminPage() {
         <h1 className="text-3xl font-bold">Admin</h1>
         <p className="mt-1 text-sm text-muted-foreground">Logged in as {user.email}</p>
       </div>
+
+      <section className="rounded-lg border border-border bg-card p-5">
+        <AdminTools recipientCount={recipientEmails.length} />
+      </section>
 
       <section className="rounded-lg border border-border bg-card p-5 space-y-4">
         <div>
