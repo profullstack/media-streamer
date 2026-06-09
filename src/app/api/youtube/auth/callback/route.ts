@@ -13,6 +13,7 @@ import {
   fetchGoogleUserInfo,
   getGoogleOAuthConfig,
   hasYouTubeSearchScope,
+  hasYouTubeSubscriptionManageScope,
   upsertAccount,
 } from '@/lib/youtube';
 import { getUserIdFromRequest } from '@/lib/youtube/request-auth';
@@ -80,6 +81,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
     if (!hasYouTubeSearchScope(grantedScopes)) {
       return redirectWithError(origin, 'missing_youtube_scope');
+    }
+    if (!hasYouTubeSubscriptionManageScope(grantedScopes)) {
+      return redirectWithError(origin, 'missing_youtube_manage_scope');
     }
 
     const userInfo = await fetchGoogleUserInfo(tokens.access_token);

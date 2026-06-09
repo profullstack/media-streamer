@@ -17,6 +17,7 @@ interface PublicYouTubeAccount {
   avatarUrl: string | null;
   isDefault: boolean;
   hasSearchAccess: boolean;
+  hasSubscriptionManageAccess: boolean;
   createdAt: string;
 }
 
@@ -24,6 +25,9 @@ function formatOauthError(error: string | null): string | null {
   if (!error) return null;
   if (error === 'missing_youtube_scope') {
     return 'Google did not grant YouTube search access. Reconnect the account and accept the YouTube permission prompt.';
+  }
+  if (error === 'missing_youtube_manage_scope') {
+    return 'Google did not grant YouTube subscription management access. Reconnect the account and accept the YouTube permission prompt.';
   }
   return `OAuth error: ${error}`;
 }
@@ -147,13 +151,13 @@ export function AccountsContent(): React.ReactElement {
                         </span> : null}
                     </div>
                     {a.email ? <div className="text-xs text-muted-foreground">{a.email}</div> : null}
-                    {!a.hasSearchAccess ? <div className="text-xs text-yellow-300">
-                        Reconnect required to grant YouTube search access.
+                    {!a.hasSearchAccess || !a.hasSubscriptionManageAccess ? <div className="text-xs text-yellow-300">
+                        Reconnect required to grant YouTube subscription management access.
                       </div> : null}
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {!a.hasSearchAccess ? <a
+                  {!a.hasSearchAccess || !a.hasSubscriptionManageAccess ? <a
                       href="/api/youtube/auth/start"
                       className="rounded-sm border border-yellow-500/40 px-3 py-1 text-sm text-yellow-200 hover:bg-yellow-500/10"
                     >

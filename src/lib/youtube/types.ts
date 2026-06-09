@@ -26,6 +26,7 @@ export interface PublicYouTubeAccount {
   avatarUrl: string | null;
   isDefault: boolean;
   hasSearchAccess: boolean;
+  hasSubscriptionManageAccess: boolean;
   createdAt: string;
 }
 

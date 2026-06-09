@@ -17,6 +17,7 @@ interface PublicYouTubeAccount {
   avatarUrl: string | null;
   isDefault: boolean;
   hasSearchAccess: boolean;
+  hasSubscriptionManageAccess: boolean;
   createdAt: string;
 }
 
@@ -68,6 +69,9 @@ export function YouTubeContent(): React.ReactElement {
   const [channelVideos, setChannelVideos] = useState<SearchItem[]>([]);
   const [loadingChannelVideos, setLoadingChannelVideos] = useState(false);
   const [channelVideosError, setChannelVideosError] = useState<string | null>(null);
+  const [subscriptionActionChannelId, setSubscriptionActionChannelId] = useState<string | null>(null);
+  const [subscriptionActionError, setSubscriptionActionError] = useState<string | null>(null);
+  const [subscriptionActionMessage, setSubscriptionActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -87,20 +91,20 @@ export function YouTubeContent(): React.ReactElement {
   const noAccounts = accounts !== null && accounts.length === 0;
   const activeAccount = accounts?.find((account) => account.id === activeAccountId) ?? null;
   const needsReconnect = Boolean(activeAccount && !activeAccount.hasSearchAccess);
+  const needsSubscriptionReconnect = Boolean(activeAccount && !activeAccount.hasSubscriptionManageAccess);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadSubscribedChannels = useCallback(
+    async (options?: { preserveActive?: boolean; isCancelled?: () => boolean }) => {
+      if (!activeAccountId || noAccounts || needsReconnect) return;
 
-    if (!activeAccountId || noAccounts || needsReconnect) {
-      return;
-    }
-
-    void (async () => {
       setLoadingChannels(true);
       setChannelsError(null);
       setChannels([]);
-      setActiveChannelId(null);
-      setChannelVideos([]);
+      if (!options?.preserveActive) {
+        setActiveChannelId(null);
+        setChannelVideos([]);
+      }
+
       try {
         const params = new URLSearchParams({ accountId: activeAccountId });
         const res = await fetch(`/api/youtube/subscriptions?${params.toString()}`);
@@ -109,22 +113,38 @@ export function YouTubeContent(): React.ReactElement {
           throw new Error(body.message ?? body.error ?? `Failed to load subscriptions: ${res.status}`);
         }
         const data = (await res.json()) as { items: SubscriptionChannel[] };
-        if (cancelled) return;
+        if (options?.isCancelled?.()) return;
         setChannels(data.items);
-        setActiveChannelId(data.items[0]?.channelId ?? null);
+        setActiveChannelId((current) => {
+          if (options?.preserveActive && current && data.items.some((item) => item.channelId === current)) {
+            return current;
+          }
+          return data.items[0]?.channelId ?? null;
+        });
       } catch (err) {
-        if (!cancelled) {
+        if (!options?.isCancelled?.()) {
           setChannelsError(err instanceof Error ? err.message : 'Failed to load subscriptions');
         }
       } finally {
-        if (!cancelled) setLoadingChannels(false);
+        if (!options?.isCancelled?.()) setLoadingChannels(false);
       }
-    })();
+    },
+    [activeAccountId, noAccounts, needsReconnect]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!activeAccountId || noAccounts || needsReconnect) {
+      return;
+    }
+
+    void loadSubscribedChannels({ isCancelled: () => cancelled });
 
     return () => {
       cancelled = true;
     };
-  }, [activeAccountId, noAccounts, needsReconnect]);
+  }, [activeAccountId, loadSubscribedChannels, noAccounts, needsReconnect]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,6 +212,43 @@ export function YouTubeContent(): React.ReactElement {
   );
 
   const activeChannel = channels.find((channel) => channel.channelId === activeChannelId) ?? null;
+  const subscriptionByChannelId = new Map(channels.map((channel) => [channel.channelId, channel]));
+
+  const handleSubscriptionAction = async (channelId: string, subscriptionId?: string) => {
+    if (!activeAccountId) return;
+    if (needsSubscriptionReconnect) {
+      setSubscriptionActionError('Reconnect this YouTube account before managing subscriptions.');
+      return;
+    }
+
+    setSubscriptionActionChannelId(channelId);
+    setSubscriptionActionError(null);
+    setSubscriptionActionMessage(null);
+
+    try {
+      const res = await fetch('/api/youtube/subscriptions', {
+        method: subscriptionId ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: activeAccountId,
+          channelId,
+          subscriptionId,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        throw new Error(body.message ?? body.error ?? `Subscription update failed: ${res.status}`);
+      }
+
+      await loadSubscribedChannels({ preserveActive: true });
+      setSubscriptionActionMessage(subscriptionId ? 'Unsubscribed.' : 'Subscribed.');
+    } catch (err) {
+      setSubscriptionActionError(err instanceof Error ? err.message : 'Failed to update subscription');
+    } finally {
+      setSubscriptionActionChannelId(null);
+    }
+  };
 
   const handleAccountChange = (accountId: string) => {
     setActiveAccountId(accountId);
@@ -201,7 +258,11 @@ export function YouTubeContent(): React.ReactElement {
     setChannels([]);
     setActiveChannelId(null);
     setChannelVideos([]);
+    setSubscriptionActionError(null);
+    setSubscriptionActionMessage(null);
   };
+
+  const activeVideoSubscription = activeVideo ? subscriptionByChannelId.get(activeVideo.channelId) : null;
 
   const activeVideoPanel = activeVideo ? <div className="mb-6 overflow-hidden rounded-xl border border-border bg-card">
       <div className="aspect-video w-full overflow-hidden bg-black">
@@ -234,14 +295,28 @@ export function YouTubeContent(): React.ReactElement {
               <dd>{formatPublishedAt(activeVideo.publishedAt)}</dd>
             </dl>
           </div>
-          <a
-            href={`https://www.youtube.com/watch?v=${activeVideo.videoId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex shrink-0 items-center rounded-sm border border-border px-3 py-2 text-sm hover:bg-accent"
-          >
-            Open on YouTube
-          </a>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={subscriptionActionChannelId === activeVideo.channelId || needsSubscriptionReconnect}
+              onClick={() => handleSubscriptionAction(activeVideo.channelId, activeVideoSubscription?.subscriptionId)}
+              className="inline-flex items-center rounded-sm border border-border px-3 py-2 text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {subscriptionActionChannelId === activeVideo.channelId
+                ? 'Updating...'
+                : activeVideoSubscription
+                  ? 'Unsubscribe'
+                  : 'Subscribe'}
+            </button>
+            <a
+              href={`https://www.youtube.com/watch?v=${activeVideo.videoId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-sm border border-border px-3 py-2 text-sm hover:bg-accent"
+            >
+              Open on YouTube
+            </a>
+          </div>
         </div>
         <div className="mt-4">
           <h3 className="text-sm font-medium">Description</h3>
@@ -293,6 +368,19 @@ export function YouTubeContent(): React.ReactElement {
             </Link>{' '}
             and accept the YouTube permission prompt.
           </div> : null}
+        {!needsReconnect && needsSubscriptionReconnect ? <div className="mb-4 rounded-sm border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-200">
+            This account was connected without YouTube subscription management access.{' '}
+            <Link href="/youtube/accounts" className="text-blue-400 hover:underline">
+              Reconnect it from Manage accounts
+            </Link>{' '}
+            and accept the YouTube permission prompt.
+          </div> : null}
+        {subscriptionActionError ? <div className="mb-4 rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+            {subscriptionActionError}
+          </div> : null}
+        {subscriptionActionMessage ? <div className="mb-4 rounded-sm border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm text-green-400">
+            {subscriptionActionMessage}
+          </div> : null}
 
         {activeVideoPanel}
 
@@ -322,26 +410,38 @@ export function YouTubeContent(): React.ReactElement {
                 {channels.map((channel) => {
                   const isActive = channel.channelId === activeChannelId;
                   return (
-                    <button
-                      type="button"
+                    <div
                       key={channel.subscriptionId}
-                      onClick={() => setActiveChannelId(channel.channelId)}
-                      className={`flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-accent ${isActive ? 'bg-accent' : ''}`}
+                      className={`flex items-center gap-2 border-b border-border px-3 py-3 transition-colors last:border-b-0 hover:bg-accent ${isActive ? 'bg-accent' : ''}`}
                     >
-                      {channel.thumbnailUrl ? <img
-                          src={channel.thumbnailUrl}
-                          alt=""
-                          className="h-11 w-11 shrink-0 rounded-full object-cover"
-                        /> : <div className="h-11 w-11 shrink-0 rounded-full bg-muted" />}
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{channel.title}</div>
-                        {channel.newItemCount !== null && channel.newItemCount > 0 ? <div className="text-xs text-muted-foreground">
-                            {channel.newItemCount} new
-                          </div> : <div className="text-xs text-muted-foreground">
-                            {channel.totalItemCount !== null ? `${channel.totalItemCount} videos` : 'Subscribed'}
-                          </div>}
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveChannelId(channel.channelId)}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
+                        {channel.thumbnailUrl ? <img
+                            src={channel.thumbnailUrl}
+                            alt=""
+                            className="h-11 w-11 shrink-0 rounded-full object-cover"
+                          /> : <div className="h-11 w-11 shrink-0 rounded-full bg-muted" />}
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{channel.title}</div>
+                          {channel.newItemCount !== null && channel.newItemCount > 0 ? <div className="text-xs text-muted-foreground">
+                              {channel.newItemCount} new
+                            </div> : <div className="text-xs text-muted-foreground">
+                              {channel.totalItemCount !== null ? `${channel.totalItemCount} videos` : 'Subscribed'}
+                            </div>}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={subscriptionActionChannelId === channel.channelId || needsSubscriptionReconnect}
+                        onClick={() => handleSubscriptionAction(channel.channelId, channel.subscriptionId)}
+                        className="shrink-0 rounded-sm border border-border px-2 py-1 text-xs hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {subscriptionActionChannelId === channel.channelId ? '...' : 'Unsubscribe'}
+                      </button>
+                    </div>
                   );
                 })}
               </div>

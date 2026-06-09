@@ -41,6 +41,11 @@ export interface YouTubeSubscriptionsResponse {
   prevPageToken: string | null;
 }
 
+export interface YouTubeSubscriptionMutationResult {
+  subscriptionId: string;
+  channelId: string;
+}
+
 interface RawSearchListResponse {
   nextPageToken?: string;
   prevPageToken?: string;
@@ -85,6 +90,16 @@ interface RawSubscriptionsListResponse {
       totalItemCount?: number;
     };
   }>;
+}
+
+interface RawSubscriptionResource {
+  id: string;
+  snippet?: {
+    resourceId?: {
+      kind: string;
+      channelId?: string;
+    };
+  };
 }
 
 function pickThumbnail(thumbnails?: {
@@ -163,6 +178,88 @@ export async function listSubscribedChannels(
     items,
     nextPageToken: raw.nextPageToken ?? null,
     prevPageToken: raw.prevPageToken ?? null,
+  };
+}
+
+export async function findSubscriptionByChannelId(
+  account: YouTubeAccount,
+  channelId: string
+): Promise<YouTubeSubscriptionMutationResult | null> {
+  const raw = await ytFetch<RawSubscriptionsListResponse>(account, {
+    path: '/subscriptions',
+    params: {
+      part: 'snippet',
+      mine: 'true',
+      forChannelId: channelId,
+      maxResults: 1,
+    },
+  });
+
+  const item = raw.items.find((subscription) => subscription.snippet.resourceId?.channelId === channelId);
+  if (!item) return null;
+
+  return {
+    subscriptionId: item.id,
+    channelId,
+  };
+}
+
+export async function subscribeToChannel(
+  account: YouTubeAccount,
+  channelId: string
+): Promise<YouTubeSubscriptionMutationResult> {
+  const existing = await findSubscriptionByChannelId(account, channelId);
+  if (existing) return existing;
+
+  const raw = await ytFetch<RawSubscriptionResource>(account, {
+    path: '/subscriptions',
+    method: 'POST',
+    params: {
+      part: 'snippet',
+    },
+    body: {
+      snippet: {
+        resourceId: {
+          kind: 'youtube#channel',
+          channelId,
+        },
+      },
+    },
+  });
+
+  return {
+    subscriptionId: raw.id,
+    channelId: raw.snippet?.resourceId?.channelId ?? channelId,
+  };
+}
+
+export async function unsubscribeFromChannel(
+  account: YouTubeAccount,
+  input: { subscriptionId?: string; channelId?: string }
+): Promise<YouTubeSubscriptionMutationResult> {
+  let subscriptionId = input.subscriptionId;
+  const channelId = input.channelId;
+
+  if (!subscriptionId && channelId) {
+    const existing = await findSubscriptionByChannelId(account, channelId);
+    subscriptionId = existing?.subscriptionId;
+  }
+
+  if (!subscriptionId) {
+    throw new Error('YouTube subscription not found');
+  }
+
+  await ytFetch<void>(account, {
+    path: '/subscriptions',
+    method: 'DELETE',
+    params: {
+      id: subscriptionId,
+    },
+  });
+
+  return {
+    subscriptionId,
+    channelId: channelId ?? '',
   };
 }
 

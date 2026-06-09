@@ -9,7 +9,12 @@ vi.mock('./client', () => ({
   ytFetch: mockYtFetch,
 }));
 
-import { listRecentChannelVideos, listSubscribedChannels } from './service';
+import {
+  listRecentChannelVideos,
+  listSubscribedChannels,
+  subscribeToChannel,
+  unsubscribeFromChannel,
+} from './service';
 
 const account: YouTubeAccount = {
   id: 'account-1',
@@ -115,5 +120,81 @@ describe('youtube/service', () => {
       channelId: 'channel-1',
       thumbnailUrl: 'https://example.com/video.jpg',
     });
+  });
+
+  it('subscribes to a channel after checking for an existing subscription', async () => {
+    mockYtFetch
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({
+        id: 'subscription-new',
+        snippet: {
+          resourceId: { kind: 'youtube#channel', channelId: 'channel-new' },
+        },
+      });
+
+    const result = await subscribeToChannel(account, 'channel-new');
+
+    expect(mockYtFetch).toHaveBeenNthCalledWith(1, account, {
+      path: '/subscriptions',
+      params: {
+        part: 'snippet',
+        mine: 'true',
+        forChannelId: 'channel-new',
+        maxResults: 1,
+      },
+    });
+    expect(mockYtFetch).toHaveBeenNthCalledWith(2, account, {
+      path: '/subscriptions',
+      method: 'POST',
+      params: { part: 'snippet' },
+      body: {
+        snippet: {
+          resourceId: {
+            kind: 'youtube#channel',
+            channelId: 'channel-new',
+          },
+        },
+      },
+    });
+    expect(result).toEqual({ subscriptionId: 'subscription-new', channelId: 'channel-new' });
+  });
+
+  it('returns the existing subscription instead of inserting a duplicate', async () => {
+    mockYtFetch.mockResolvedValue({
+      items: [
+        {
+          id: 'subscription-existing',
+          snippet: {
+            title: 'Channel One',
+            description: '',
+            publishedAt: '2026-04-01T00:00:00.000Z',
+            resourceId: { kind: 'youtube#channel', channelId: 'channel-1' },
+          },
+        },
+      ],
+    });
+
+    const result = await subscribeToChannel(account, 'channel-1');
+
+    expect(mockYtFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ subscriptionId: 'subscription-existing', channelId: 'channel-1' });
+  });
+
+  it('unsubscribes by subscription id', async () => {
+    mockYtFetch.mockResolvedValue(undefined);
+
+    const result = await unsubscribeFromChannel(account, {
+      subscriptionId: 'subscription-1',
+      channelId: 'channel-1',
+    });
+
+    expect(mockYtFetch).toHaveBeenCalledWith(account, {
+      path: '/subscriptions',
+      method: 'DELETE',
+      params: {
+        id: 'subscription-1',
+      },
+    });
+    expect(result).toEqual({ subscriptionId: 'subscription-1', channelId: 'channel-1' });
   });
 });

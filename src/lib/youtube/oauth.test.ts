@@ -30,7 +30,7 @@ describe('youtube/oauth', () => {
       expect(parsed.searchParams.get('access_type')).toBe('offline');
       expect(parsed.searchParams.get('prompt')).toBe('consent');
       expect(parsed.searchParams.get('state')).toBe('state123');
-      expect(parsed.searchParams.get('scope')).toContain('youtube.readonly');
+      expect(parsed.searchParams.get('scope')).toContain('youtube.force-ssl');
     });
   });
 

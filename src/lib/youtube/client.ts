@@ -68,6 +68,8 @@ export interface YtFetchOptions {
   path: string;
   /** Query parameters. Arrays are joined with commas (YouTube's convention). */
   params?: Record<string, string | number | string[] | undefined>;
+  method?: 'GET' | 'POST' | 'DELETE';
+  body?: unknown;
 }
 
 /**
@@ -87,13 +89,28 @@ export async function ytFetch<T>(
   }
 
   const url = `${YT_API_BASE}${options.path}?${search.toString()}`;
+  const headers: Record<string, string> = { Authorization: `Bearer ${fresh.accessToken}` };
+  const init: RequestInit = {
+    method: options.method ?? 'GET',
+    headers,
+  };
+
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(options.body);
+  }
+
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${fresh.accessToken}` },
+    ...init,
   });
 
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`YouTube API ${options.path} failed (${res.status}): ${text}`);
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
   }
 
   return (await res.json()) as T;

@@ -43,6 +43,7 @@ describe('YouTubeContent', () => {
                 avatarUrl: null,
                 isDefault: true,
                 hasSearchAccess: true,
+                hasSubscriptionManageAccess: true,
                 createdAt: '2026-04-19T00:00:00.000Z',
               },
             ],
@@ -58,6 +59,13 @@ describe('YouTubeContent', () => {
             nextPageToken: null,
             prevPageToken: null,
           }),
+        });
+      }
+
+      if (url === '/api/youtube/subscriptions') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ subscriptionId: 'subscription-123', channelId: 'channel-123' }),
         });
       }
 
@@ -117,7 +125,22 @@ describe('YouTubeContent', () => {
     expect(screen.getByTitle('YouTube video player')).toHaveAttribute(
       'src',
       'https://www.youtube.com/embed/video-123?autoplay=1'
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Subscribe' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/youtube/subscriptions',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            accountId: 'account-1',
+            channelId: 'channel-123',
+          }),
+        })
       );
+    });
   });
 
   it('shows subscribed channels and plays a recent channel video', async () => {
@@ -138,6 +161,7 @@ describe('YouTubeContent', () => {
                 avatarUrl: null,
                 isDefault: true,
                 hasSearchAccess: true,
+                hasSubscriptionManageAccess: true,
                 createdAt: '2026-04-19T00:00:00.000Z',
               },
             ],
