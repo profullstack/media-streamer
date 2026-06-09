@@ -8,6 +8,14 @@ vi.mock('@/components/layout', () => ({
   MainLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
 const mockFetch = vi.fn();
 
 describe('YouTubeContent', () => {
@@ -38,6 +46,17 @@ describe('YouTubeContent', () => {
                 createdAt: '2026-04-19T00:00:00.000Z',
               },
             ],
+          }),
+        });
+      }
+
+      if (url.startsWith('/api/youtube/subscriptions?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            items: [],
+            nextPageToken: null,
+            prevPageToken: null,
           }),
         });
       }
@@ -98,6 +117,95 @@ describe('YouTubeContent', () => {
     expect(screen.getByTitle('YouTube video player')).toHaveAttribute(
       'src',
       'https://www.youtube.com/embed/video-123?autoplay=1'
+      );
+  });
+
+  it('shows subscribed channels and plays a recent channel video', async () => {
+    const user = userEvent.setup();
+
+    mockFetch.mockImplementation((input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === '/api/youtube/accounts') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            accounts: [
+              {
+                id: 'account-1',
+                email: 'user@example.com',
+                displayName: 'User Account',
+                avatarUrl: null,
+                isDefault: true,
+                hasSearchAccess: true,
+                createdAt: '2026-04-19T00:00:00.000Z',
+              },
+            ],
+          }),
+        });
+      }
+
+      if (url === '/api/youtube/subscriptions?accountId=account-1') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            items: [
+              {
+                subscriptionId: 'subscription-1',
+                channelId: 'channel-1',
+                title: 'Science Channel',
+                description: 'Science videos.',
+                thumbnailUrl: 'https://example.com/channel.jpg',
+                publishedAt: '2026-04-01T00:00:00.000Z',
+                newItemCount: 2,
+                totalItemCount: 50,
+              },
+            ],
+            nextPageToken: null,
+            prevPageToken: null,
+          }),
+        });
+      }
+
+      if (url === '/api/youtube/subscriptions/videos?accountId=account-1&channelId=channel-1') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            items: [
+              {
+                videoId: 'channel-video-1',
+                title: 'New Science Upload',
+                description: 'Recent channel video.',
+                channelTitle: 'Science Channel',
+                channelId: 'channel-1',
+                publishedAt: '2026-04-21T12:00:00.000Z',
+                thumbnailUrl: 'https://example.com/video.jpg',
+              },
+            ],
+            nextPageToken: null,
+            prevPageToken: null,
+          }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ items: [] }),
+      });
+    });
+
+    render(<YouTubeContent />);
+
+    expect(await screen.findByRole('button', { name: /Science Channel/i })).toBeInTheDocument();
+    expect(await screen.findByText('New Science Upload')).toBeInTheDocument();
+
+    await user.click(screen.getByText('New Science Upload').closest('button')!);
+
+    expect(screen.getByRole('heading', { level: 2, name: 'New Science Upload' })).toBeInTheDocument();
+    expect(screen.getByText('Recent channel video.')).toBeInTheDocument();
+    expect(screen.getByTitle('YouTube video player')).toHaveAttribute(
+      'src',
+      'https://www.youtube.com/embed/channel-video-1?autoplay=1'
     );
   });
 });
