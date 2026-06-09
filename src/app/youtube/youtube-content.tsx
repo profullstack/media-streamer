@@ -18,6 +18,7 @@ interface PublicYouTubeAccount {
   isDefault: boolean;
   hasSearchAccess: boolean;
   hasSubscriptionManageAccess: boolean;
+  hasCommentWriteAccess: boolean;
   createdAt: string;
 }
 
@@ -42,6 +43,23 @@ interface SubscriptionChannel {
   totalItemCount: number | null;
 }
 
+interface VideoDetails {
+  videoId: string;
+  description: string;
+}
+
+interface VideoComment {
+  commentId: string;
+  authorDisplayName: string;
+  authorProfileImageUrl: string | null;
+  authorChannelUrl: string | null;
+  publishedAt: string;
+  updatedAt: string | null;
+  body: string;
+  likeCount: number;
+  totalReplyCount: number;
+}
+
 function formatPublishedAt(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -50,6 +68,20 @@ function formatPublishedAt(value: string): string {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
+  }).format(parsed);
+}
+
+function formatTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
     timeZone: 'UTC',
   }).format(parsed);
 }
@@ -72,6 +104,16 @@ export function YouTubeContent(): React.ReactElement {
   const [subscriptionActionChannelId, setSubscriptionActionChannelId] = useState<string | null>(null);
   const [subscriptionActionError, setSubscriptionActionError] = useState<string | null>(null);
   const [subscriptionActionMessage, setSubscriptionActionMessage] = useState<string | null>(null);
+  const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
+  const [loadingVideoDetails, setLoadingVideoDetails] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [comments, setComments] = useState<VideoComment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentBody, setCommentBody] = useState('');
+  const [postingComment, setPostingComment] = useState(false);
+  const [commentPostError, setCommentPostError] = useState<string | null>(null);
+  const [commentPostMessage, setCommentPostMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -92,6 +134,7 @@ export function YouTubeContent(): React.ReactElement {
   const activeAccount = accounts?.find((account) => account.id === activeAccountId) ?? null;
   const needsReconnect = Boolean(activeAccount && !activeAccount.hasSearchAccess);
   const needsSubscriptionReconnect = Boolean(activeAccount && !activeAccount.hasSubscriptionManageAccess);
+  const canWriteComments = Boolean(activeAccount?.hasCommentWriteAccess);
 
   const loadSubscribedChannels = useCallback(
     async (options?: { preserveActive?: boolean; isCancelled?: () => boolean }) => {
@@ -183,6 +226,59 @@ export function YouTubeContent(): React.ReactElement {
     };
   }, [activeAccountId, activeChannelId, needsReconnect]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!activeVideo || !activeAccountId || needsReconnect) {
+      return;
+    }
+
+    void (async () => {
+      setLoadingVideoDetails(true);
+      try {
+        const params = new URLSearchParams({
+          accountId: activeAccountId,
+          videoId: activeVideo.videoId,
+        });
+        const res = await fetch(`/api/youtube/videos?${params.toString()}`);
+        if (!res.ok) {
+          return;
+        }
+        const data = (await res.json()) as { video?: VideoDetails };
+        if (!cancelled) setVideoDetails(data.video ?? null);
+      } finally {
+        if (!cancelled) setLoadingVideoDetails(false);
+      }
+    })();
+
+    void (async () => {
+      setLoadingComments(true);
+      try {
+        const params = new URLSearchParams({
+          accountId: activeAccountId,
+          videoId: activeVideo.videoId,
+        });
+        const res = await fetch(`/api/youtube/comments?${params.toString()}`);
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+          throw new Error(body.message ?? body.error ?? `Failed to load comments: ${res.status}`);
+        }
+        const data = (await res.json()) as { items?: VideoComment[] };
+        if (!cancelled) setComments(data.items ?? []);
+      } catch (err) {
+        if (!cancelled) {
+          setCommentsError(err instanceof Error ? err.message : 'Failed to load comments');
+        }
+      } finally {
+        if (!cancelled) setLoadingComments(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAccountId, activeVideo, needsReconnect]);
+
   const handleSearch = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -213,6 +309,23 @@ export function YouTubeContent(): React.ReactElement {
 
   const activeChannel = channels.find((channel) => channel.channelId === activeChannelId) ?? null;
   const subscriptionByChannelId = new Map(channels.map((channel) => [channel.channelId, channel]));
+
+  const resetActiveVideoMetadata = () => {
+    setDescriptionExpanded(false);
+    setVideoDetails(null);
+    setLoadingVideoDetails(false);
+    setComments([]);
+    setLoadingComments(false);
+    setCommentsError(null);
+    setCommentBody('');
+    setCommentPostError(null);
+    setCommentPostMessage(null);
+  };
+
+  const selectVideo = (item: SearchItem) => {
+    resetActiveVideoMetadata();
+    setActiveVideo(item);
+  };
 
   const handleSubscriptionAction = async (channelId: string, subscriptionId?: string) => {
     if (!activeAccountId) return;
@@ -250,10 +363,46 @@ export function YouTubeContent(): React.ReactElement {
     }
   };
 
+  const handleCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeVideo || !activeAccountId || !commentBody.trim() || !canWriteComments) return;
+
+    setPostingComment(true);
+    setCommentPostError(null);
+    setCommentPostMessage(null);
+
+    try {
+      const res = await fetch('/api/youtube/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: activeAccountId,
+          videoId: activeVideo.videoId,
+          body: commentBody.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        throw new Error(body.message ?? body.error ?? `Failed to post comment: ${res.status}`);
+      }
+
+      const data = (await res.json()) as { comment: VideoComment };
+      setComments((current) => [data.comment, ...current.filter((item) => item.commentId !== data.comment.commentId)]);
+      setCommentBody('');
+      setCommentPostMessage('Comment posted.');
+    } catch (err) {
+      setCommentPostError(err instanceof Error ? err.message : 'Failed to post comment');
+    } finally {
+      setPostingComment(false);
+    }
+  };
+
   const handleAccountChange = (accountId: string) => {
     setActiveAccountId(accountId);
     setResults([]);
     setActiveVideo(null);
+    resetActiveVideoMetadata();
     setError(null);
     setChannels([]);
     setActiveChannelId(null);
@@ -263,6 +412,11 @@ export function YouTubeContent(): React.ReactElement {
   };
 
   const activeVideoSubscription = activeVideo ? subscriptionByChannelId.get(activeVideo.channelId) : null;
+  const activeDescription = videoDetails?.description ?? activeVideo?.description ?? '';
+  const hasLongDescription = activeDescription.length > 280 || activeDescription.includes('\n');
+  const visibleDescription =
+    descriptionExpanded || !hasLongDescription ? activeDescription : `${activeDescription.slice(0, 280).trimEnd()}...`;
+  const commentComposerDisabled = !activeVideo || !activeAccountId || !canWriteComments || postingComment;
 
   const activeVideoPanel = activeVideo ? <div className="mb-6 overflow-hidden rounded-xl border border-border bg-card">
       <div className="aspect-video w-full overflow-hidden bg-black">
@@ -319,10 +473,112 @@ export function YouTubeContent(): React.ReactElement {
           </div>
         </div>
         <div className="mt-4">
-          <h3 className="text-sm font-medium">Description</h3>
-          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">
-            {activeVideo.description || 'No description available.'}
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium">Description</h3>
+            {loadingVideoDetails ? <span className="text-xs text-muted-foreground">Loading full description...</span> : null}
+          </div>
+          <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-muted-foreground">
+            {visibleDescription || 'No description available.'}
           </p>
+          {hasLongDescription ? <button
+              type="button"
+              onClick={() => setDescriptionExpanded((value) => !value)}
+              className="mt-2 text-sm font-medium text-accent-primary hover:underline"
+            >
+              {descriptionExpanded ? 'Show less' : 'Read more'}
+            </button> : null}
+        </div>
+
+        <div className="mt-6 border-t border-border pt-5">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <h3 className="text-base font-semibold">Comments</h3>
+            {loadingComments ? <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <LoadingSpinner size={16} />
+                <span>Loading comments...</span>
+              </div> : null}
+          </div>
+
+          <form onSubmit={handleCommentSubmit} className="mb-5">
+            <label htmlFor="youtube-comment" className="sr-only">
+              Add a comment
+            </label>
+            <textarea
+              id="youtube-comment"
+              value={commentBody}
+              onChange={(e) => setCommentBody(e.target.value)}
+              placeholder={
+                canWriteComments
+                  ? 'Add a comment...'
+                  : 'Reconnect this YouTube account to enable comment posting.'
+              }
+              disabled={!activeAccountId || !canWriteComments || postingComment}
+              rows={3}
+              maxLength={10000}
+              className="w-full resize-y rounded-sm border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                {canWriteComments
+                  ? 'Posting uses your connected YouTube account.'
+                  : 'Comment posting is disabled until this account has YouTube comment access.'}
+              </p>
+              <button
+                type="submit"
+                disabled={commentComposerDisabled || !commentBody.trim()}
+                className="inline-flex items-center justify-center rounded-sm bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {postingComment ? 'Posting...' : 'Comment'}
+              </button>
+            </div>
+            {commentPostError ? <div className="mt-2 rounded-sm border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                {commentPostError}
+              </div> : null}
+            {commentPostMessage ? <div className="mt-2 rounded-sm border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-400">
+                {commentPostMessage}
+              </div> : null}
+          </form>
+
+          {commentsError ? <div className="rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {commentsError}
+            </div> : null}
+
+          {!loadingComments && !commentsError && comments.length === 0 ? <div className="rounded-sm border border-border bg-background p-4 text-sm text-muted-foreground">
+              No comments found for this video.
+            </div> : null}
+
+          {comments.length > 0 ? <div className="space-y-4">
+              {comments.map((comment) => (
+                <article key={comment.commentId} className="flex min-w-0 gap-3">
+                  {comment.authorProfileImageUrl ? <div
+                      aria-hidden="true"
+                      className="h-9 w-9 shrink-0 rounded-full bg-cover bg-center"
+                      style={{ backgroundImage: `url(${comment.authorProfileImageUrl})` }}
+                    /> : <div className="h-9 w-9 shrink-0 rounded-full bg-muted" />}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      {comment.authorChannelUrl ? <a
+                          href={comment.authorChannelUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="break-words text-sm font-medium hover:underline"
+                        >
+                          {comment.authorDisplayName}
+                        </a> : <span className="break-words text-sm font-medium">{comment.authorDisplayName}</span>}
+                      <time dateTime={comment.publishedAt} className="text-xs text-muted-foreground">
+                        {formatTimestamp(comment.publishedAt)}
+                      </time>
+                    </div>
+                    <p className="mt-1 whitespace-pre-line break-words text-sm leading-6 text-muted-foreground">
+                      {comment.body}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <span>{comment.likeCount} likes</span>
+                      {comment.totalReplyCount > 0 ? <span>{comment.totalReplyCount} replies</span> : null}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div> : null}
         </div>
       </div>
     </div> : null;
@@ -465,7 +721,7 @@ export function YouTubeContent(): React.ReactElement {
                       <button
                         type="button"
                         key={item.videoId}
-                        onClick={() => setActiveVideo(item)}
+                        onClick={() => selectVideo(item)}
                         className="group text-left"
                       >
                         <div className="aspect-video w-full overflow-hidden rounded-sm bg-muted">
@@ -525,7 +781,7 @@ export function YouTubeContent(): React.ReactElement {
             <button
               type="button"
               key={item.videoId}
-              onClick={() => setActiveVideo(item)}
+              onClick={() => selectVideo(item)}
               className="text-left group"
             >
               <div className="aspect-video w-full overflow-hidden rounded-sm bg-muted">

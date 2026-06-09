@@ -27,6 +27,7 @@ export interface PublicYouTubeAccount {
   isDefault: boolean;
   hasSearchAccess: boolean;
   hasSubscriptionManageAccess: boolean;
+  hasCommentWriteAccess: boolean;
   createdAt: string;
 }
 

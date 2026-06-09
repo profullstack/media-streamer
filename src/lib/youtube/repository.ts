@@ -6,7 +6,7 @@
  */
 
 import { createServerClient } from '@/lib/supabase';
-import { hasYouTubeSearchScope, hasYouTubeSubscriptionManageScope } from './config';
+import { hasYouTubeCommentWriteScope, hasYouTubeSearchScope, hasYouTubeSubscriptionManageScope } from './config';
 import type { PublicYouTubeAccount, YouTubeAccount } from './types';
 
 const TABLE = 'bt_youtube_accounts';
@@ -54,6 +54,7 @@ export function toPublicAccount(a: YouTubeAccount): PublicYouTubeAccount {
     isDefault: a.isDefault,
     hasSearchAccess: hasYouTubeSearchScope(a.scopes),
     hasSubscriptionManageAccess: hasYouTubeSubscriptionManageScope(a.scopes),
+    hasCommentWriteAccess: hasYouTubeCommentWriteScope(a.scopes),
     createdAt: a.createdAt,
   };
 }

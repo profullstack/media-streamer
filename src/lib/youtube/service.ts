@@ -46,11 +46,57 @@ export interface YouTubeSubscriptionMutationResult {
   channelId: string;
 }
 
+export interface YouTubeVideoDetails {
+  videoId: string;
+  title: string;
+  description: string;
+  channelTitle: string;
+  channelId: string;
+  publishedAt: string;
+  thumbnailUrl: string | null;
+}
+
+export interface YouTubeComment {
+  commentId: string;
+  authorDisplayName: string;
+  authorProfileImageUrl: string | null;
+  authorChannelUrl: string | null;
+  publishedAt: string;
+  updatedAt: string | null;
+  body: string;
+  likeCount: number;
+  totalReplyCount: number;
+}
+
+export interface YouTubeCommentsResponse {
+  items: YouTubeComment[];
+  nextPageToken: string | null;
+  prevPageToken: string | null;
+}
+
 interface RawSearchListResponse {
   nextPageToken?: string;
   prevPageToken?: string;
   items: Array<{
     id: { kind: string; videoId?: string };
+    snippet: {
+      title: string;
+      description: string;
+      channelTitle: string;
+      channelId: string;
+      publishedAt: string;
+      thumbnails?: {
+        medium?: { url: string };
+        high?: { url: string };
+        default?: { url: string };
+      };
+    };
+  }>;
+}
+
+interface RawVideoListResponse {
+  items: Array<{
+    id: string;
     snippet: {
       title: string;
       description: string;
@@ -102,12 +148,56 @@ interface RawSubscriptionResource {
   };
 }
 
+interface RawCommentThreadListResponse {
+  nextPageToken?: string;
+  prevPageToken?: string;
+  items: RawCommentThreadResource[];
+}
+
+interface RawCommentThreadResource {
+  id: string;
+  snippet: {
+    videoId?: string;
+    totalReplyCount?: number;
+    topLevelComment: {
+      id: string;
+      snippet: {
+        authorDisplayName?: string;
+        authorProfileImageUrl?: string;
+        authorChannelUrl?: string;
+        textDisplay?: string;
+        textOriginal?: string;
+        publishedAt: string;
+        updatedAt?: string;
+        likeCount?: number;
+      };
+    };
+  };
+}
+
 function pickThumbnail(thumbnails?: {
   medium?: { url: string };
   high?: { url: string };
   default?: { url: string };
 }): string | null {
   return thumbnails?.medium?.url ?? thumbnails?.high?.url ?? thumbnails?.default?.url ?? null;
+}
+
+function mapCommentThread(item: RawCommentThreadResource): YouTubeComment {
+  const comment = item.snippet.topLevelComment;
+  const snippet = comment.snippet;
+
+  return {
+    commentId: comment.id,
+    authorDisplayName: snippet.authorDisplayName ?? 'YouTube user',
+    authorProfileImageUrl: snippet.authorProfileImageUrl ?? null,
+    authorChannelUrl: snippet.authorChannelUrl ?? null,
+    publishedAt: snippet.publishedAt,
+    updatedAt: snippet.updatedAt ?? null,
+    body: snippet.textOriginal ?? snippet.textDisplay ?? '',
+    likeCount: snippet.likeCount ?? 0,
+    totalReplyCount: item.snippet.totalReplyCount ?? 0,
+  };
 }
 
 export async function searchVideos(
@@ -144,6 +234,33 @@ export async function searchVideos(
     items,
     nextPageToken: raw.nextPageToken ?? null,
     prevPageToken: raw.prevPageToken ?? null,
+  };
+}
+
+export async function getVideoDetails(
+  account: YouTubeAccount,
+  videoId: string
+): Promise<YouTubeVideoDetails | null> {
+  const raw = await ytFetch<RawVideoListResponse>(account, {
+    path: '/videos',
+    params: {
+      part: 'snippet',
+      id: videoId,
+      maxResults: 1,
+    },
+  });
+
+  const item = raw.items[0];
+  if (!item) return null;
+
+  return {
+    videoId: item.id,
+    title: item.snippet.title,
+    description: item.snippet.description,
+    channelTitle: item.snippet.channelTitle,
+    channelId: item.snippet.channelId,
+    publishedAt: item.snippet.publishedAt,
+    thumbnailUrl: pickThumbnail(item.snippet.thumbnails),
   };
 }
 
@@ -297,4 +414,54 @@ export async function listRecentChannelVideos(
     nextPageToken: raw.nextPageToken ?? null,
     prevPageToken: raw.prevPageToken ?? null,
   };
+}
+
+export async function listVideoComments(
+  account: YouTubeAccount,
+  videoId: string,
+  pageToken?: string
+): Promise<YouTubeCommentsResponse> {
+  const raw = await ytFetch<RawCommentThreadListResponse>(account, {
+    path: '/commentThreads',
+    params: {
+      part: 'snippet',
+      videoId,
+      order: 'relevance',
+      textFormat: 'plainText',
+      maxResults: 20,
+      pageToken,
+    },
+  });
+
+  return {
+    items: raw.items.map(mapCommentThread),
+    nextPageToken: raw.nextPageToken ?? null,
+    prevPageToken: raw.prevPageToken ?? null,
+  };
+}
+
+export async function addVideoComment(
+  account: YouTubeAccount,
+  videoId: string,
+  body: string
+): Promise<YouTubeComment> {
+  const raw = await ytFetch<RawCommentThreadResource>(account, {
+    path: '/commentThreads',
+    method: 'POST',
+    params: {
+      part: 'snippet',
+    },
+    body: {
+      snippet: {
+        videoId,
+        topLevelComment: {
+          snippet: {
+            textOriginal: body,
+          },
+        },
+      },
+    },
+  });
+
+  return mapCommentThread(raw);
 }

@@ -10,6 +10,9 @@ vi.mock('./client', () => ({
 }));
 
 import {
+  addVideoComment,
+  getVideoDetails,
+  listVideoComments,
   listRecentChannelVideos,
   listSubscribedChannels,
   subscribeToChannel,
@@ -122,6 +125,44 @@ describe('youtube/service', () => {
     });
   });
 
+  it('gets full video details by id', async () => {
+    mockYtFetch.mockResolvedValue({
+      items: [
+        {
+          id: 'video-1',
+          snippet: {
+            title: 'Full Video',
+            description: 'Full video description.',
+            channelTitle: 'Channel One',
+            channelId: 'channel-1',
+            publishedAt: '2026-04-02T00:00:00.000Z',
+            thumbnails: { default: { url: 'https://example.com/default.jpg' } },
+          },
+        },
+      ],
+    });
+
+    const result = await getVideoDetails(account, 'video-1');
+
+    expect(mockYtFetch).toHaveBeenCalledWith(account, {
+      path: '/videos',
+      params: {
+        part: 'snippet',
+        id: 'video-1',
+        maxResults: 1,
+      },
+    });
+    expect(result).toEqual({
+      videoId: 'video-1',
+      title: 'Full Video',
+      description: 'Full video description.',
+      channelTitle: 'Channel One',
+      channelId: 'channel-1',
+      publishedAt: '2026-04-02T00:00:00.000Z',
+      thumbnailUrl: 'https://example.com/default.jpg',
+    });
+  });
+
   it('subscribes to a channel after checking for an existing subscription', async () => {
     mockYtFetch
       .mockResolvedValueOnce({ items: [] })
@@ -196,5 +237,98 @@ describe('youtube/service', () => {
       },
     });
     expect(result).toEqual({ subscriptionId: 'subscription-1', channelId: 'channel-1' });
+  });
+
+  it('lists top-level comments for a video', async () => {
+    mockYtFetch.mockResolvedValue({
+      nextPageToken: 'next-comments',
+      items: [
+        {
+          id: 'thread-1',
+          snippet: {
+            totalReplyCount: 2,
+            topLevelComment: {
+              id: 'comment-1',
+              snippet: {
+                authorDisplayName: 'Commenter',
+                authorProfileImageUrl: 'https://example.com/avatar.jpg',
+                authorChannelUrl: 'https://youtube.com/@commenter',
+                textOriginal: 'Great video.',
+                publishedAt: '2026-04-03T00:00:00.000Z',
+                updatedAt: '2026-04-03T01:00:00.000Z',
+                likeCount: 7,
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const result = await listVideoComments(account, 'video-1', 'page-2');
+
+    expect(mockYtFetch).toHaveBeenCalledWith(account, {
+      path: '/commentThreads',
+      params: {
+        part: 'snippet',
+        videoId: 'video-1',
+        order: 'relevance',
+        textFormat: 'plainText',
+        maxResults: 20,
+        pageToken: 'page-2',
+      },
+    });
+    expect(result.items[0]).toEqual({
+      commentId: 'comment-1',
+      authorDisplayName: 'Commenter',
+      authorProfileImageUrl: 'https://example.com/avatar.jpg',
+      authorChannelUrl: 'https://youtube.com/@commenter',
+      publishedAt: '2026-04-03T00:00:00.000Z',
+      updatedAt: '2026-04-03T01:00:00.000Z',
+      body: 'Great video.',
+      likeCount: 7,
+      totalReplyCount: 2,
+    });
+    expect(result.nextPageToken).toBe('next-comments');
+  });
+
+  it('adds a top-level video comment', async () => {
+    mockYtFetch.mockResolvedValue({
+      id: 'thread-new',
+      snippet: {
+        totalReplyCount: 0,
+        topLevelComment: {
+          id: 'comment-new',
+          snippet: {
+            authorDisplayName: 'User',
+            textOriginal: 'Thanks for sharing.',
+            publishedAt: '2026-04-04T00:00:00.000Z',
+            likeCount: 0,
+          },
+        },
+      },
+    });
+
+    const result = await addVideoComment(account, 'video-1', 'Thanks for sharing.');
+
+    expect(mockYtFetch).toHaveBeenCalledWith(account, {
+      path: '/commentThreads',
+      method: 'POST',
+      params: { part: 'snippet' },
+      body: {
+        snippet: {
+          videoId: 'video-1',
+          topLevelComment: {
+            snippet: {
+              textOriginal: 'Thanks for sharing.',
+            },
+          },
+        },
+      },
+    });
+    expect(result).toMatchObject({
+      commentId: 'comment-new',
+      authorDisplayName: 'User',
+      body: 'Thanks for sharing.',
+    });
   });
 });

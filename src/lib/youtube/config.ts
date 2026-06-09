@@ -37,6 +37,10 @@ export function hasYouTubeSubscriptionManageScope(scopes: readonly string[]): bo
   return scopes.some((scope) => YOUTUBE_SUBSCRIPTION_MANAGE_SCOPES.has(scope));
 }
 
+export function hasYouTubeCommentWriteScope(scopes: readonly string[]): boolean {
+  return scopes.some((scope) => YOUTUBE_SUBSCRIPTION_MANAGE_SCOPES.has(scope));
+}
+
 export interface GoogleOAuthConfig {
   clientId: string;
   clientSecret: string;
