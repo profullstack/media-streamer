@@ -108,7 +108,6 @@ function AccountPageContent(): React.ReactElement {
         throw new Error('Failed to fetch payment history');
       }
       const data = await response.json() as { payments: PaymentHistoryItem[]; total: number };
-      console.log('[DEBUG fetchPaymentHistory] API Response:', JSON.stringify(data, null, 2));
       setPaymentHistory(data.payments);
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : 'Failed to load payment history');
@@ -287,21 +286,17 @@ function AccountPageContent(): React.ReactElement {
     blockchain: string | null,
     cryptoCurrency: string | null
   ): string | null => {
-    console.log('[DEBUG getExplorerUrl]', { txHash, blockchain, cryptoCurrency });
     if (!txHash) {
-      console.log('[DEBUG getExplorerUrl] No txHash, returning null');
       return null;
     }
 
     // Use blockchain first, then fall back to cryptoCurrency
     const chain = blockchain || cryptoCurrency;
     if (!chain) {
-      console.log('[DEBUG getExplorerUrl] No chain, returning null');
       return null;
     }
 
     const chainUpper = chain.toUpperCase();
-    console.log('[DEBUG getExplorerUrl] chainUpper:', chainUpper);
 
     // Map various chain names/codes to explorer URLs
     const explorers: Record<string, string> = {
@@ -327,7 +322,6 @@ function AccountPageContent(): React.ReactElement {
     };
 
     const result = explorers[chainUpper] || null;
-    console.log('[DEBUG getExplorerUrl] Result:', result ? 'URL found' : 'No match for chain');
     return result;
   };
 
