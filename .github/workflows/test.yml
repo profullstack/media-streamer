@@ -22,7 +22,7 @@ jobs:
       # pnpm version is read from the "packageManager" field in package.json.
       # Do not pin a version here — it conflicts with packageManager and fails
       # with ERR_PNPM_BAD_PM_VERSION.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
