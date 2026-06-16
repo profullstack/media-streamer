@@ -36,6 +36,7 @@ import {
   HeartIcon,
   MovieIcon,
   GlobeIcon,
+  FinanceIcon,
 } from '@/components/ui/icons';
 
 interface NavItem {
@@ -58,6 +59,7 @@ const mainNavItems: NavItem[] = [
   { href: '/upcoming', label: 'Upcoming', icon: MovieIcon, requiresPaid: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
+  { href: '/finance', label: 'Finance', icon: FinanceIcon, requiresPaid: true },
   { href: '/rss', label: 'RSS Reader', icon: RssIcon, requiresAuth: true },
   { href: '/podcasts', label: 'Podcasts', icon: PodcastIcon, requiresAuth: true },
   { href: '/youtube', label: 'YouTube', icon: VideoIcon, requiresAuth: true },
