@@ -17,7 +17,7 @@ import {
   upsertAccount,
 } from '@/lib/youtube';
 import { getUserIdFromRequest } from '@/lib/youtube/request-auth';
-import { YOUTUBE_OAUTH_STATE_COOKIE } from '../start/route';
+import { YOUTUBE_OAUTH_STATE_COOKIE } from '@/lib/youtube';
 
 function redirectWithError(origin: string, message: string): NextResponse {
   const url = new URL('/youtube/accounts', origin);

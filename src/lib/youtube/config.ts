@@ -56,3 +56,6 @@ export function getGoogleOAuthConfig(): GoogleOAuthConfig {
 
   return { clientId, clientSecret, redirectUri };
 }
+
+/** Cookie name holding the OAuth state nonce during the YouTube connect flow. */
+export const YOUTUBE_OAUTH_STATE_COOKIE = 'yt_oauth_state';

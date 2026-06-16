@@ -15,21 +15,9 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 const MIN_LIMIT = 1;
 
-// Supported categories from TheNewsAPI
-export const NEWS_CATEGORIES = [
-  'general',
-  'science',
-  'sports',
-  'business',
-  'health',
-  'entertainment',
-  'tech',
-  'politics',
-  'food',
-  'travel',
-] as const;
-
-export type NewsCategory = typeof NEWS_CATEGORIES[number];
+// Re-exported from a shared module: route files may only export Route handlers
+// (the webpack production build rejects extra exports like NEWS_CATEGORIES).
+import { NEWS_CATEGORIES, type NewsCategory } from '@/lib/news/categories';
 
 interface TheNewsApiArticle {
   uuid: string;
