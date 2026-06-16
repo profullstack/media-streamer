@@ -78,6 +78,228 @@ export type Database = {
         };
         Relationships: [];
       };
+      finance_watchlist: {
+        Row: {
+          id: string;
+          profile_id: string;
+          symbol: string;
+          exchange: string | null;
+          added_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          symbol: string;
+          exchange?: string | null;
+          added_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          symbol?: string;
+          exchange?: string | null;
+          added_at?: string;
+        };
+        Relationships: [];
+      };
+      finance_quotes_cache: {
+        Row: {
+          id: string;
+          symbol: string;
+          cache_key: string;
+          payload: Json;
+          fetched_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          symbol: string;
+          cache_key: string;
+          payload: Json;
+          fetched_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          id?: string;
+          symbol?: string;
+          cache_key?: string;
+          payload?: Json;
+          fetched_at?: string;
+          expires_at?: string;
+        };
+        Relationships: [];
+      };
+      finance_reports: {
+        Row: {
+          id: string;
+          symbol: string;
+          model: string;
+          prompt_version: number;
+          sections: Json;
+          markdown: string;
+          sources: Json;
+          prompt_tokens: number;
+          completion_tokens: number;
+          total_tokens: number;
+          cost_usd: number;
+          generated_by: string | null;
+          generated_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          symbol: string;
+          model: string;
+          prompt_version: number;
+          sections: Json;
+          markdown: string;
+          sources?: Json;
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+          cost_usd?: number;
+          generated_by?: string | null;
+          generated_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          id?: string;
+          symbol?: string;
+          model?: string;
+          prompt_version?: number;
+          sections?: Json;
+          markdown?: string;
+          sources?: Json;
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+          cost_usd?: number;
+          generated_by?: string | null;
+          generated_at?: string;
+          expires_at?: string;
+        };
+        Relationships: [];
+      };
+      finance_report_runs: {
+        Row: {
+          id: string;
+          profile_id: string | null;
+          symbol: string;
+          model: string;
+          prompt_version: number;
+          status: 'success' | 'failure' | 'rate_limited';
+          prompt_tokens: number;
+          completion_tokens: number;
+          total_tokens: number;
+          cost_usd: number;
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id?: string | null;
+          symbol: string;
+          model: string;
+          prompt_version: number;
+          status: 'success' | 'failure' | 'rate_limited';
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+          cost_usd?: number;
+          error?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string | null;
+          symbol?: string;
+          model?: string;
+          prompt_version?: number;
+          status?: 'success' | 'failure' | 'rate_limited';
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+          cost_usd?: number;
+          error?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      finance_broker_connections: {
+        Row: {
+          id: string;
+          profile_id: string;
+          provider: string;
+          encrypted_credentials: string;
+          scope: string;
+          status: 'active' | 'error' | 'revoked';
+          label: string | null;
+          last_sync_at: string | null;
+          last_sync_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          provider: string;
+          encrypted_credentials: string;
+          scope?: string;
+          status?: 'active' | 'error' | 'revoked';
+          label?: string | null;
+          last_sync_at?: string | null;
+          last_sync_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          provider?: string;
+          encrypted_credentials?: string;
+          scope?: string;
+          status?: 'active' | 'error' | 'revoked';
+          label?: string | null;
+          last_sync_at?: string | null;
+          last_sync_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      finance_holdings: {
+        Row: {
+          id: string;
+          profile_id: string;
+          connection_id: string;
+          symbol: string;
+          quantity: number;
+          avg_cost: number | null;
+          market_value: number | null;
+          as_of: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          connection_id: string;
+          symbol: string;
+          quantity?: number;
+          avg_cost?: number | null;
+          market_value?: number | null;
+          as_of?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          connection_id?: string;
+          symbol?: string;
+          quantity?: number;
+          avg_cost?: number | null;
+          market_value?: number | null;
+          as_of?: string;
+        };
+        Relationships: [];
+      };
       rss_feeds: {
         Row: {
           id: string;
