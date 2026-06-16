@@ -10,9 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireActiveSubscription } from '@/lib/subscription/guard';
-import { buildAuthUrl, generateState, getGoogleOAuthConfig } from '@/lib/youtube';
-
-export const YOUTUBE_OAUTH_STATE_COOKIE = 'yt_oauth_state';
+import { buildAuthUrl, generateState, getGoogleOAuthConfig, YOUTUBE_OAUTH_STATE_COOKIE } from '@/lib/youtube';
 
 export async function GET(request: NextRequest): Promise<Response> {
   const guard = await requireActiveSubscription(request);
