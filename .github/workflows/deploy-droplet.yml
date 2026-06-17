@@ -166,26 +166,30 @@ jobs:
               exit 1
             fi
             echo "=== Restarting services ==="
-            # The unit's ExecStart=${PNPM_HOME}/pnpm no longer resolves (pnpm/node
-            # moved to mise), so the service crash-loops with "Failed to spawn 'start'
-            # task: No such file or directory". Write a corrective drop-in using the
-            # ABSOLUTE pnpm/node paths discovered from this (mise-activated) deploy
-            # shell, so it works regardless of where the toolchain lives.
+            # The on-disk unit is stale (a hand-edited base unit with an
+            # EnvironmentFile that no longer exists + an ExecStart pointing at a pnpm
+            # path removed by the mise migration), and the service has hit systemd's
+            # start limiter from crash-looping. A drop-in can't override the base
+            # unit's EnvironmentFile, so REWRITE the whole base unit cleanly with
+            # absolute pnpm/node paths discovered from this (mise) deploy shell,
+            # drop any stale drop-ins, reset the failure limiter, then restart.
             PNPM_BIN="$(command -v pnpm || true)"
             NODE_BIN="$(command -v node || true)"
             echo "Resolved pnpm=${PNPM_BIN} node=${NODE_BIN}"
+            sudo rm -rf /etc/systemd/system/bittorrented.service.d
             if [ -n "$PNPM_BIN" ] && [ -n "$NODE_BIN" ]; then
               NODE_DIR="$(dirname "$NODE_BIN")"
               PNPM_DIR="$(dirname "$PNPM_BIN")"
-              sudo mkdir -p /etc/systemd/system/bittorrented.service.d
-              printf '[Service]\nExecStart=\nExecStart=%s start\nEnvironment="PATH=%s:%s:/usr/local/bin:/usr/bin:/bin"\nEnvironment="NODE_OPTIONS=--max-old-space-size=4096 --expose-gc"\n' \
-                "$PNPM_BIN" "$NODE_DIR" "$PNPM_DIR" \
-                | sudo tee /etc/systemd/system/bittorrented.service.d/override.conf > /dev/null
-              echo "--- wrote corrective override ---"; cat /etc/systemd/system/bittorrented.service.d/override.conf
+              APP_DIR="$(pwd)"
+              printf '[Unit]\nDescription=BitTorrented Media Streamer\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nExecStart=%s start\nRestart=on-failure\nRestartSec=10\nStartLimitIntervalSec=0\nEnvironment=NODE_ENV=production\nEnvironment=PATH=%s:%s:/usr/local/bin:/usr/bin:/bin\nEnvironment=NODE_OPTIONS=--max-old-space-size=4096 --expose-gc\nStandardOutput=append:/var/log/bittorrented.com.log\nStandardError=append:/var/log/bittorrented.com.error.log\nLimitNOFILE=65535\n\n[Install]\nWantedBy=multi-user.target\n' \
+                "$(whoami)" "$APP_DIR" "$PNPM_BIN" "$NODE_DIR" "$PNPM_DIR" \
+                | sudo tee /etc/systemd/system/bittorrented.service > /dev/null
+              echo "--- wrote clean unit ---"; cat /etc/systemd/system/bittorrented.service
             else
               echo "WARNING: could not resolve pnpm/node; leaving unit as-is"
             fi
             sudo systemctl daemon-reload || true
+            sudo systemctl reset-failed bittorrented || true
             sudo systemctl restart bittorrented || echo "Warning: Could not restart main service"
             echo "✓ Main service restart attempted"
 
