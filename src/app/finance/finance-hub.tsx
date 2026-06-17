@@ -23,6 +23,9 @@ export function FinanceHub(): React.ReactElement {
   const [query, setQuery] = useState('');
   const [watchlist, setWatchlist] = useState<WatchlistRow[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
+  const [bulk, setBulk] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -33,12 +36,50 @@ export function FinanceHub(): React.ReactElement {
     }
   }, []);
 
-  useEffect(() => {
+  const loadWatchlist = useCallback(() => {
     fetch('/api/finance/watchlist', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : { watchlist: [] }))
       .then((body: { watchlist?: WatchlistRow[] }) => setWatchlist(body.watchlist ?? []))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    loadWatchlist();
+  }, [loadWatchlist]);
+
+  const addBulk = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!bulk.trim()) return;
+      setBulkBusy(true);
+      setBulkMsg(null);
+      try {
+        const res = await fetch('/api/finance/watchlist', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ symbols: bulk }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setBulkMsg(body.error === 'no valid symbols' ? 'No valid tickers found.' : 'Could not add tickers.');
+          return;
+        }
+        const added = body.count ?? 0;
+        const invalid: string[] = body.invalid ?? [];
+        setBulkMsg(
+          `Added ${added} ticker${added === 1 ? '' : 's'}` +
+            (invalid.length ? ` · skipped ${invalid.length} invalid (${invalid.slice(0, 5).join(', ')})` : ''),
+        );
+        setBulk('');
+        loadWatchlist();
+      } catch {
+        setBulkMsg('Network error.');
+      } finally {
+        setBulkBusy(false);
+      }
+    },
+    [bulk, loadWatchlist],
+  );
 
   const go = useCallback(
     (raw: string) => {
@@ -99,6 +140,22 @@ export function FinanceHub(): React.ReactElement {
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-text-muted">
           Watchlist
         </h2>
+
+        <form onSubmit={addBulk} className="mb-4 flex flex-col gap-2 sm:flex-row">
+          <input
+            className="input flex-1"
+            placeholder="Paste tickers to add, e.g. NVDA, AAPL, TSLA, SPY"
+            value={bulk}
+            onChange={(e) => setBulk(e.target.value)}
+            autoCapitalize="characters"
+            spellCheck={false}
+          />
+          <button type="submit" disabled={bulkBusy || !bulk.trim()} className="btn btn-secondary disabled:opacity-60">
+            {bulkBusy ? 'Adding…' : 'Add all'}
+          </button>
+        </form>
+        {bulkMsg ? <p className="mb-3 text-xs text-text-muted">{bulkMsg}</p> : null}
+
         {watchlist.length === 0 ? (
           <p className="text-sm text-text-muted">
             No tickers yet. Open a ticker and tap “Add to watchlist”.
