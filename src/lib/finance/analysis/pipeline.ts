@@ -47,7 +47,8 @@ export function createOpenAIReportLLM(apiKey: string): ReportLLM {
           ],
           response_format: { type: 'json_object' },
           max_completion_tokens: maxTokens,
-          temperature: 0.4,
+          // NB: gpt-5.x reasoning models only support the default temperature (1);
+          // passing a custom value returns a 400. So we omit it.
         },
         { timeout: 90_000 },
       );
