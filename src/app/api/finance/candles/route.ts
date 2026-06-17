@@ -6,10 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireActiveSubscription } from '@/lib/subscription/guard';
-import { getMarketDataProvider, isTickerRange } from '@/lib/finance/market-data';
+import { getActiveProfileId } from '@/lib/profiles/profile-utils';
+import { isTickerRange, getFallbackMarketDataProvider } from '@/lib/finance/market-data';
+import { getMarketDataProviderForProfile } from '@/lib/finance/market-data/for-profile';
 import { normalizeSymbol } from '@/lib/finance/market-data/stooq';
 import { readThrough, CANDLES_TTL_SECONDS } from '@/lib/finance/market-data/cache';
-import type { Candle } from '@/lib/finance/market-data';
+import type { Candle, MarketDataProvider } from '@/lib/finance/market-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,18 +34,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'invalid symbol' }, { status: 400 });
   }
 
-  try {
-    const provider = getMarketDataProvider();
-    const candles = await readThrough<Candle[]>(
+  const profileId = await getActiveProfileId();
+  const provider = await getMarketDataProviderForProfile(profileId);
+
+  const fetchFrom = (p: MarketDataProvider) =>
+    readThrough<Candle[]>(
       symbol,
-      `candles:${provider.id}:${rangeParam}`,
+      `candles:${p.id}:${rangeParam}`,
       CANDLES_TTL_SECONDS,
-      () => provider.getCandles(symbol, rangeParam),
+      () => p.getCandles(symbol, rangeParam),
     );
 
-    return NextResponse.json({ symbol, range: rangeParam, candles });
+  try {
+    const candles = await fetchFrom(provider);
+    return NextResponse.json({ symbol, range: rangeParam, candles, source: provider.id });
   } catch (error) {
-    console.error('[finance/candles] error:', error);
-    return NextResponse.json({ error: 'failed to load candles' }, { status: 502 });
+    // The user's broker (e.g. Alpaca) failed — fall back to the keyless source so
+    // the chart still renders instead of going blank.
+    console.error(`[finance/candles] ${provider.id} failed, falling back:`, error);
+    const fallback = getFallbackMarketDataProvider();
+    if (fallback.id === provider.id) {
+      return NextResponse.json({ error: 'failed to load candles' }, { status: 502 });
+    }
+    try {
+      const candles = await fetchFrom(fallback);
+      return NextResponse.json({ symbol, range: rangeParam, candles, source: fallback.id });
+    } catch (fallbackError) {
+      console.error('[finance/candles] fallback failed:', fallbackError);
+      return NextResponse.json({ error: 'failed to load candles' }, { status: 502 });
+    }
   }
 }
