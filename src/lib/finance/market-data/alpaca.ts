@@ -10,6 +10,7 @@
 
 import Alpaca from '@alpacahq/alpaca-trade-api';
 import {
+  type AssetInfo,
   type Candle,
   type MarketDataProvider,
   type Quote,
@@ -28,12 +29,29 @@ interface AlpacaBarRaw {
   Volume?: number;
 }
 
+/** Raw shape returned by Alpaca's `GET /v2/assets/{symbol}`. */
+export interface AlpacaAssetRaw {
+  symbol?: string;
+  name?: string;
+  exchange?: string;
+  class?: string;
+  status?: string;
+  tradable?: boolean;
+  marginable?: boolean;
+  shortable?: boolean;
+  easy_to_borrow?: boolean;
+  fractionable?: boolean;
+  attributes?: string[];
+}
+
 /** Narrow slice of the SDK we use for market data. */
 export interface AlpacaDataClient {
   getBarsV2(symbol: string, options: Record<string, unknown>): AsyncIterable<AlpacaBarRaw>;
   newTimeframe(amount: number, unit: string): string;
   // SDK enum keys are uppercase: MIN="Min", HOUR="Hour", DAY="Day".
   timeframeUnit: { MIN: string; HOUR: string; DAY: string };
+  /** Trading API: asset metadata. Present on the full SDK client. */
+  getAsset?(symbol: string): Promise<AlpacaAssetRaw>;
 }
 
 export type AlpacaDataClientFactory = () => AlpacaDataClient;
@@ -115,5 +133,32 @@ export class AlpacaMarketDataProvider implements MarketDataProvider {
   /** Alpaca has no fuzzy search; Finnhub handles typeahead. */
   async search(): Promise<SymbolSearchResult[]> {
     return [];
+  }
+
+  /** Company/asset metadata from Alpaca's assets endpoint. */
+  async getAsset(symbol: string): Promise<AssetInfo | null> {
+    const client = this.factory();
+    if (typeof client.getAsset !== 'function') return null;
+    const canonical = normalizeSymbol(symbol);
+    try {
+      const a = await client.getAsset(canonical);
+      if (!a) return null;
+      const attrs = Array.isArray(a.attributes) ? a.attributes : [];
+      return {
+        symbol: a.symbol ?? canonical,
+        name: a.name ?? null,
+        exchange: a.exchange ?? null,
+        assetClass: a.class ?? null,
+        status: a.status ?? null,
+        tradable: a.tradable ?? null,
+        marginable: a.marginable ?? null,
+        shortable: a.shortable ?? null,
+        easyToBorrow: a.easy_to_borrow ?? null,
+        fractionable: a.fractionable ?? null,
+        hasOptions: attrs.length ? attrs.some((x) => x.includes('option')) : null,
+      };
+    } catch {
+      return null;
+    }
   }
 }

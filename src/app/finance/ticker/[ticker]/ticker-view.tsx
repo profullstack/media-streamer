@@ -12,9 +12,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FinanceChart } from './finance-chart';
 import { ReportPanel } from './report-panel';
+import { NewsSection } from '@/components/news';
 // Import from the SDK-free `types` module (not the index) so the Alpaca SDK is
 // never pulled into the client bundle.
-import { TICKER_RANGES, type Candle, type Quote, type TickerRange } from '@/lib/finance/market-data/types';
+import { TICKER_RANGES, type AssetInfo, type Candle, type Quote, type TickerRange } from '@/lib/finance/market-data/types';
+import type { WatchlistChanges } from '@/lib/finance/performance';
 
 const RECENT_KEY = 'finance:recent';
 const RECENT_MAX = 12;
@@ -58,6 +60,8 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [inWatchlist, setInWatchlist] = useState<boolean | null>(null);
   const [holding, setHolding] = useState<Holding | null>(null);
+  const [changes, setChanges] = useState<WatchlistChanges | null>(null);
+  const [asset, setAsset] = useState<AssetInfo | null>(null);
 
   useEffect(() => {
     rememberRecent(symbol);
@@ -132,6 +136,36 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
     };
   }, [symbol]);
 
+  // Trailing 1/5/30-day % change (reuses the watchlist changes endpoint).
+  useEffect(() => {
+    let cancelled = false;
+    setChanges(null);
+    fetch(`/api/finance/watchlist/changes?symbols=${encodeURIComponent(symbol)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { changes: {} }))
+      .then((body: { changes?: Record<string, WatchlistChanges> }) => {
+        if (!cancelled) setChanges(body.changes?.[symbol] ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol]);
+
+  // Company / asset metadata (Alpaca assets endpoint).
+  useEffect(() => {
+    let cancelled = false;
+    setAsset(null);
+    fetch(`/api/finance/asset?symbol=${encodeURIComponent(symbol)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { asset: null }))
+      .then((body: { asset?: AssetInfo | null }) => {
+        if (!cancelled) setAsset(body.asset ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol]);
+
   const toggleWatchlist = useCallback(async () => {
     const next = !inWatchlist;
     setInWatchlist(next);
@@ -167,6 +201,12 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
               {inWatchlist ? '★ In watchlist' : '☆ Add to watchlist'}
             </button>
           </div>
+          {asset?.name ? (
+            <div className="mt-1 text-sm text-text-secondary">
+              {asset.name}
+              {asset.exchange ? <span className="text-text-muted"> · {asset.exchange}</span> : null}
+            </div>
+          ) : null}
           {quote ? <div className="mt-2 flex items-baseline gap-3">
               <span className="text-2xl font-semibold text-text-primary">
                 ${formatNumber(quote.price, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -177,6 +217,11 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
                 {formatNumber(quote.changePercent, { maximumFractionDigits: 2 })}%)
               </span>
             </div> : null}
+          <div className="mt-3 flex items-center gap-5">
+            <TrailingChange label="1D" value={changes?.d1 ?? null} />
+            <TrailingChange label="5D" value={changes?.d5 ?? null} />
+            <TrailingChange label="30D" value={changes?.d30 ?? null} />
+          </div>
         </div>
         <div className="flex flex-wrap gap-1">
           {TICKER_RANGES.map((r) => (
@@ -223,8 +268,35 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
         />
       </div>
 
+      {/* Company info from the broker (Alpaca) assets endpoint. */}
+      {asset ? (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold text-text-primary">About {symbol}</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {asset.name ? <Stat label="Name" value={asset.name} /> : null}
+            {asset.exchange ? <Stat label="Exchange" value={asset.exchange} /> : null}
+            {asset.assetClass ? <Stat label="Class" value={formatAssetClass(asset.assetClass)} /> : null}
+            {asset.status ? <Stat label="Status" value={capitalize(asset.status)} /> : null}
+            <Stat label="Tradable" value={formatBool(asset.tradable)} />
+            <Stat label="Fractionable" value={formatBool(asset.fractionable)} />
+            <Stat label="Marginable" value={formatBool(asset.marginable)} />
+            <Stat label="Shortable" value={formatBool(asset.shortable)} />
+            <Stat label="Easy to borrow" value={formatBool(asset.easyToBorrow)} />
+            {asset.hasOptions !== null ? <Stat label="Options" value={formatBool(asset.hasOptions)} /> : null}
+          </div>
+        </section>
+      ) : null}
+
       {/* AI report area — never auto-runs; the Analyze button is the cost boundary. */}
       <ReportPanel symbol={symbol} />
+
+      {/* Ticker news — pulls from our /news API, searched by symbol. */}
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-semibold text-text-primary">
+          News for {symbol}
+        </h2>
+        <NewsSection searchTerm={symbol} limit={10} />
+      </section>
     </div>
   );
 }
@@ -236,4 +308,33 @@ function Stat({ label, value }: { label: string; value: string }): React.ReactEl
       <div className="mt-1 text-base font-semibold text-text-primary">{value}</div>
     </div>
   );
+}
+
+function TrailingChange({ label, value }: { label: string; value: number | null }): React.ReactElement {
+  const known = value !== null && Number.isFinite(value);
+  const up = known && (value as number) >= 0;
+  const color = !known ? 'text-text-muted' : up ? 'text-green-400' : 'text-red-400';
+  const text = !known ? '—' : `${up ? '+' : ''}${(value as number).toFixed(2)}%`;
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-xs uppercase tracking-wider text-text-muted">{label}</span>
+      <span className={`text-sm font-semibold tabular-nums ${color}`}>{text}</span>
+    </div>
+  );
+}
+
+function formatBool(value: boolean | null): string {
+  if (value === null) return '—';
+  return value ? 'Yes' : 'No';
+}
+
+function capitalize(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+function formatAssetClass(value: string): string {
+  return value
+    .split('_')
+    .map((part) => (part === 'us' ? 'US' : capitalize(part)))
+    .join(' ');
 }

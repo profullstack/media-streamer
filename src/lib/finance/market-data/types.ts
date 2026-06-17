@@ -46,12 +46,36 @@ export interface SymbolSearchResult {
   exchange?: string;
 }
 
+/**
+ * Company / asset metadata for the ticker page. Sourced from the broker's
+ * assets endpoint (Alpaca). All fields are nullable — providers fill in only
+ * what they expose.
+ */
+export interface AssetInfo {
+  symbol: string;
+  name: string | null;
+  exchange: string | null;
+  /** e.g. "us_equity", "crypto". */
+  assetClass: string | null;
+  /** e.g. "active", "inactive". */
+  status: string | null;
+  tradable: boolean | null;
+  marginable: boolean | null;
+  shortable: boolean | null;
+  easyToBorrow: boolean | null;
+  fractionable: boolean | null;
+  /** Whether the asset has tradable options (from Alpaca asset attributes). */
+  hasOptions: boolean | null;
+}
+
 export interface MarketDataProvider {
   /** Stable identifier used in cache keys and logs. */
   readonly id: string;
   getCandles(symbol: string, range: TickerRange): Promise<Candle[]>;
   getQuote(symbol: string): Promise<Quote | null>;
   search(query: string): Promise<SymbolSearchResult[]>;
+  /** Company/asset metadata, when the provider exposes it (Alpaca). */
+  getAsset?(symbol: string): Promise<AssetInfo | null>;
 }
 
 /** Approximate trailing-day window for each range (daily EOD bars). */
