@@ -57,6 +57,23 @@ const SORT_COLUMN_MAP: Record<SortBy, string> = {
   name: 'name',
 };
 
+function parseBoundedIntegerParam(
+  value: string | null,
+  fallback: number,
+  options: { min: number; max?: number }
+): number {
+  if (value == null || !/^\d+$/.test(value)) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < options.min) {
+    return fallback;
+  }
+
+  return options.max == null ? parsed : Math.min(parsed, options.max);
+}
+
 /**
  * GET /api/torrents
  *
@@ -88,14 +105,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const sortByParam = searchParams.get('sortBy');
   const sortOrderParam = searchParams.get('sortOrder');
 
-  const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 50, 100);
+  const limit = parseBoundedIntegerParam(limitParam, 50, { min: 1, max: 100 });
   
   // Support both offset and page-based pagination
   let offset: number;
   if (offsetParam) {
-    offset = parseInt(offsetParam, 10);
+    offset = parseBoundedIntegerParam(offsetParam, 0, { min: 0 });
   } else if (pageParam) {
-    const page = parseInt(pageParam, 10);
+    const page = parseBoundedIntegerParam(pageParam, 1, { min: 1 });
     offset = (page - 1) * limit;
   } else {
     offset = 0;
