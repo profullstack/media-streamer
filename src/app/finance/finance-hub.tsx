@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { normalizeSymbol } from '@/lib/finance/market-data/stooq';
 import { BrokerConnect } from './broker-connect';
 import { Sparkline } from '@/components/finance/sparkline';
+import type { WatchlistChanges } from '@/lib/finance/performance';
 
 const RECENT_KEY = 'finance:recent';
 
@@ -17,6 +18,19 @@ interface WatchlistRow {
   id: string;
   symbol: string;
   exchange: string | null;
+}
+
+function PctChange({ label, value }: { label: string; value: number | null }): React.ReactElement {
+  const known = value !== null && Number.isFinite(value);
+  const up = known && (value as number) >= 0;
+  const color = !known ? 'text-text-muted' : up ? 'text-green-400' : 'text-red-400';
+  const text = !known ? '—' : `${up ? '+' : ''}${(value as number).toFixed(2)}%`;
+  return (
+    <div className="flex flex-col items-center leading-tight">
+      <span className="text-[10px] uppercase tracking-wide text-text-muted">{label}</span>
+      <span className={`text-xs font-medium tabular-nums ${color}`}>{text}</span>
+    </div>
+  );
 }
 
 export function FinanceHub(): React.ReactElement {
@@ -28,6 +42,7 @@ export function FinanceHub(): React.ReactElement {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
+  const [changes, setChanges] = useState<Record<string, WatchlistChanges>>({});
 
   useEffect(() => {
     try {
@@ -61,6 +76,24 @@ export function FinanceHub(): React.ReactElement {
       .then((res) => (res.ok ? res.json() : { samples: {} }))
       .then((body: { samples?: Record<string, number[]> }) => {
         if (!cancelled) setSparklines(body.samples ?? {});
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [watchlistKey]);
+
+  // Fetch trailing 1/5/30-day % changes for the watchlist symbols.
+  useEffect(() => {
+    if (!watchlistKey) {
+      setChanges({});
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/finance/watchlist/changes?symbols=${encodeURIComponent(watchlistKey)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { changes: {} }))
+      .then((body: { changes?: Record<string, WatchlistChanges> }) => {
+        if (!cancelled) setChanges(body.changes ?? {});
       })
       .catch(() => undefined);
     return () => {
@@ -190,6 +223,11 @@ export function FinanceHub(): React.ReactElement {
                   <Sparkline samples={sparklines[row.symbol]} width={56} />
                 </div>
                 {row.exchange ? <div className="text-xs text-text-muted">{row.exchange}</div> : null}
+                <div className="mt-3 flex items-center justify-between gap-1 border-t border-border-primary pt-2">
+                  <PctChange label="1D" value={changes[row.symbol]?.d1 ?? null} />
+                  <PctChange label="5D" value={changes[row.symbol]?.d5 ?? null} />
+                  <PctChange label="30D" value={changes[row.symbol]?.d30 ?? null} />
+                </div>
               </Link>
             ))}
           </div>

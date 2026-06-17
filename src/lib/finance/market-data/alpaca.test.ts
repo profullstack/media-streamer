@@ -65,4 +65,51 @@ describe('AlpacaMarketDataProvider', () => {
     const p = new AlpacaMarketDataProvider({ clientFactory: () => makeClient(BARS) });
     expect(await p.search()).toEqual([]);
   });
+
+  it('maps asset metadata from getAsset', async () => {
+    const client: AlpacaDataClient = {
+      ...makeClient(BARS),
+      getAsset: async (symbol: string) => ({
+        symbol,
+        name: 'NVIDIA Corporation',
+        exchange: 'NASDAQ',
+        class: 'us_equity',
+        status: 'active',
+        tradable: true,
+        marginable: true,
+        shortable: true,
+        easy_to_borrow: true,
+        fractionable: true,
+        attributes: ['options_enabled'],
+      }),
+    };
+    const p = new AlpacaMarketDataProvider({ clientFactory: () => client });
+    const asset = await p.getAsset('nvda');
+    expect(asset).toMatchObject({
+      symbol: 'NVDA',
+      name: 'NVIDIA Corporation',
+      exchange: 'NASDAQ',
+      assetClass: 'us_equity',
+      status: 'active',
+      tradable: true,
+      fractionable: true,
+      hasOptions: true,
+    });
+  });
+
+  it('returns null asset when the SDK lacks getAsset', async () => {
+    const p = new AlpacaMarketDataProvider({ clientFactory: () => makeClient(BARS) });
+    expect(await p.getAsset('nvda')).toBeNull();
+  });
+
+  it('returns null asset when getAsset throws', async () => {
+    const client: AlpacaDataClient = {
+      ...makeClient(BARS),
+      getAsset: async () => {
+        throw new Error('not found');
+      },
+    };
+    const p = new AlpacaMarketDataProvider({ clientFactory: () => client });
+    expect(await p.getAsset('zzzz')).toBeNull();
+  });
 });

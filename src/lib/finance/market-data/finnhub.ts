@@ -8,6 +8,7 @@
  */
 
 import {
+  type AssetInfo,
   type Candle,
   type MarketDataProvider,
   type Quote,
@@ -68,6 +69,11 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
   /** Candles come from the delegate (Stooq EOD) — Finnhub free blocks them. */
   async getCandles(symbol: string, range: TickerRange): Promise<Candle[]> {
     return this.candleProvider.getCandles(symbol, range);
+  }
+
+  /** Asset metadata comes from the delegate (Alpaca) when it supports it. */
+  async getAsset(symbol: string): Promise<AssetInfo | null> {
+    return this.candleProvider.getAsset?.(symbol) ?? null;
   }
 
   async getQuote(symbol: string): Promise<Quote | null> {
