@@ -176,7 +176,19 @@ jobs:
             
             echo ""
             echo "=== Verifying deployment ==="
-            systemctl is-active bittorrented || { echo "✗ Main service is not active"; echo "failed" > "$STATUS_FILE"; exit 1; }
+            # Give the unit a moment to either become active or crash so the
+            # journal has the real reason.
+            sleep 12
+            if ! systemctl is-active --quiet bittorrented; then
+              echo "✗ Main service is not active — dumping diagnostics:"
+              echo "----- systemctl status -----"
+              sudo systemctl status bittorrented --no-pager -l 2>&1 | head -40 || true
+              echo "----- journalctl -xeu (last 60) -----"
+              sudo journalctl -xeu bittorrented -n 60 --no-pager 2>&1 | tail -60 || true
+              echo "----- app error log (last 40) -----"
+              tail -40 "${ERROR_LOG_FILE}" 2>/dev/null || true
+              echo "failed" > "$STATUS_FILE"; exit 1
+            fi
             systemctl is-active bittorrented-iptv-worker || echo "IPTV worker status unknown"
 
             echo "Waiting for HTTP health check..."
