@@ -166,7 +166,15 @@ jobs:
               exit 1
             fi
             echo "=== Restarting services ==="
-            # Pick up any unit-file changes (e.g. ExecStart) before restarting.
+            # A stale drop-in override (/etc/systemd/system/bittorrented.service.d/
+            # override.conf) shadows the unit with dead pnpm/node paths and a missing
+            # EnvironmentFile, crash-looping the service. Force-remove it here (runs
+            # in the deploy itself, not just setup-server.sh) right before restart.
+            if [ -e /etc/systemd/system/bittorrented.service.d/override.conf ]; then
+              echo "--- removing stale override.conf (contents below) ---"
+              cat /etc/systemd/system/bittorrented.service.d/override.conf 2>/dev/null || true
+            fi
+            sudo rm -rf /etc/systemd/system/bittorrented.service.d
             sudo systemctl daemon-reload || true
             sudo systemctl restart bittorrented || echo "Warning: Could not restart main service"
             echo "✓ Main service restart attempted"
