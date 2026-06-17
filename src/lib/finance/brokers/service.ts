@@ -31,6 +31,31 @@ export interface HoldingView {
   asOf: string;
 }
 
+/**
+ * Decrypt and return the active broker credentials for a profile+provider, or
+ * null. Used so a connected user's own market-data candles/quotes come from
+ * their broker (e.g. Alpaca) rather than a shared/fallback source.
+ * SERVER-ONLY — never expose the result to the client.
+ */
+export async function getActiveBrokerCreds(
+  profileId: string,
+  provider: string,
+): Promise<BrokerCredentials | null> {
+  const { data } = await getServerClient()
+    .from(CONNECTIONS_TABLE)
+    .select('encrypted_credentials, status')
+    .eq('profile_id', profileId)
+    .eq('provider', provider)
+    .maybeSingle();
+
+  if (!data || data.status !== 'active') return null;
+  try {
+    return decryptJson<BrokerCredentials>(data.encrypted_credentials);
+  } catch {
+    return null;
+  }
+}
+
 export async function listConnections(profileId: string): Promise<ConnectionView[]> {
   const { data } = await getServerClient()
     .from(CONNECTIONS_TABLE)
