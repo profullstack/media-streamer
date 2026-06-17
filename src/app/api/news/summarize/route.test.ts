@@ -473,12 +473,13 @@ describe('News Summarize API Route', () => {
           response_format: { type: 'json_object' },
           max_completion_tokens: 1500,
           reasoning_effort: 'high',
-          temperature: 0.3,
         }),
         expect.objectContaining({
           timeout: 60000,
         })
       );
+      // gpt-5.x reasoning models reject a custom temperature; we must not send one.
+      expect(mockOpenAICreate.mock.calls[0][0]).not.toHaveProperty('temperature');
     });
 
     it('should include article content in the prompt', async () => {

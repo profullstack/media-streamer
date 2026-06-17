@@ -195,7 +195,8 @@ ${truncatedContent}`;
         response_format: { type: 'json_object' },
         max_completion_tokens: 1500,
         reasoning_effort: 'high',
-        temperature: 0.3,
+        // gpt-5.x reasoning models only support the default temperature (1);
+        // passing a custom value returns a 400.
       },
       {
         timeout: 60000, // 60 second timeout
