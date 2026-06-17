@@ -812,11 +812,14 @@ After=network.target
 Type=simple
 User=${VPS_USER}
 WorkingDirectory=${DEPLOY_PATH}
-ExecStart=${PNPM_HOME}/pnpm start
+# Run via a login shell so pnpm AND node resolve from the user's environment
+# (mise/nvm-managed). A hardcoded \${PNPM_HOME}/pnpm path breaks when pnpm/node
+# move (e.g. to mise), which systemd reports as "failed because of unavailable
+# resources or another system error".
+ExecStart=/bin/bash -lc 'exec pnpm start'
 Restart=on-failure
 RestartSec=10
 Environment=NODE_ENV=production
-Environment=PATH=${PNPM_HOME}:/usr/local/bin:/usr/bin:/bin
 
 # Log to files instead of journald
 StandardOutput=append:${LOG_FILE}

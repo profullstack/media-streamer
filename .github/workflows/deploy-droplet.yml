@@ -166,6 +166,8 @@ jobs:
               exit 1
             fi
             echo "=== Restarting services ==="
+            # Pick up any unit-file changes (e.g. ExecStart) before restarting.
+            sudo systemctl daemon-reload || true
             sudo systemctl restart bittorrented || echo "Warning: Could not restart main service"
             echo "✓ Main service restart attempted"
 
