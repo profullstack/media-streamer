@@ -166,15 +166,25 @@ jobs:
               exit 1
             fi
             echo "=== Restarting services ==="
-            # A stale drop-in override (/etc/systemd/system/bittorrented.service.d/
-            # override.conf) shadows the unit with dead pnpm/node paths and a missing
-            # EnvironmentFile, crash-looping the service. Force-remove it here (runs
-            # in the deploy itself, not just setup-server.sh) right before restart.
-            if [ -e /etc/systemd/system/bittorrented.service.d/override.conf ]; then
-              echo "--- removing stale override.conf (contents below) ---"
-              cat /etc/systemd/system/bittorrented.service.d/override.conf 2>/dev/null || true
+            # The unit's ExecStart=${PNPM_HOME}/pnpm no longer resolves (pnpm/node
+            # moved to mise), so the service crash-loops with "Failed to spawn 'start'
+            # task: No such file or directory". Write a corrective drop-in using the
+            # ABSOLUTE pnpm/node paths discovered from this (mise-activated) deploy
+            # shell, so it works regardless of where the toolchain lives.
+            PNPM_BIN="$(command -v pnpm || true)"
+            NODE_BIN="$(command -v node || true)"
+            echo "Resolved pnpm=${PNPM_BIN} node=${NODE_BIN}"
+            if [ -n "$PNPM_BIN" ] && [ -n "$NODE_BIN" ]; then
+              NODE_DIR="$(dirname "$NODE_BIN")"
+              PNPM_DIR="$(dirname "$PNPM_BIN")"
+              sudo mkdir -p /etc/systemd/system/bittorrented.service.d
+              printf '[Service]\nExecStart=\nExecStart=%s start\nEnvironment="PATH=%s:%s:/usr/local/bin:/usr/bin:/bin"\nEnvironment="NODE_OPTIONS=--max-old-space-size=4096 --expose-gc"\n' \
+                "$PNPM_BIN" "$NODE_DIR" "$PNPM_DIR" \
+                | sudo tee /etc/systemd/system/bittorrented.service.d/override.conf > /dev/null
+              echo "--- wrote corrective override ---"; cat /etc/systemd/system/bittorrented.service.d/override.conf
+            else
+              echo "WARNING: could not resolve pnpm/node; leaving unit as-is"
             fi
-            sudo rm -rf /etc/systemd/system/bittorrented.service.d
             sudo systemctl daemon-reload || true
             sudo systemctl restart bittorrented || echo "Warning: Could not restart main service"
             echo "✓ Main service restart attempted"
