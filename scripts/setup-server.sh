@@ -835,6 +835,14 @@ AmbientCapabilities=CAP_NET_BIND_SERVICE
 WantedBy=multi-user.target
 EOF
 
+# Remove any stale drop-in override that shadows this unit. A leftover
+# /etc/systemd/system/bittorrented.service.d/override.conf was pointing ExecStart
+# and EnvironmentFile at paths that no longer exist (pnpm/node moved to mise),
+# making systemd fail with "Failed to load environment files / Failed to spawn
+# 'start' task" → result 'resources'. The app loads its own .env from
+# WorkingDirectory, so the clean unit above is sufficient.
+sudo rm -rf "/etc/systemd/system/${SERVICE_NAME}.service.d"
+
 # Set up log rotation for the domain logs
 echo "=== Setting up log rotation ==="
 sudo tee /etc/logrotate.d/${DOMAIN} > /dev/null << EOF
