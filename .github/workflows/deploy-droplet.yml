@@ -158,9 +158,10 @@ jobs:
             echo "✓ Build complete"
             
             echo ""
-            # Verify build output exists before restarting
-            if [ ! -f .next/standalone/server.js ]; then
-              echo "✗ Build output missing (.next/standalone/server.js not found)"
+            # Verify build output exists before restarting.
+            # Runtime is `next start` (not standalone), so check for .next/BUILD_ID.
+            if [ ! -f .next/BUILD_ID ]; then
+              echo "✗ Build output missing (.next/BUILD_ID not found)"
               echo "failed" > "$STATUS_FILE"
               exit 1
             fi

@@ -1,39 +1,19 @@
 /**
  * Service Worker Route
  *
- * Serves the service worker file with correct headers.
- * Needed because Next.js standalone mode doesn't serve /public files directly.
+ * Serves the push-notification service worker with correct headers.
+ *
+ * The worker is inlined as a string on purpose: doing `fs.readFileSync` /
+ * `path.join(process.cwd(), …)` here makes Turbopack trace the entire project
+ * for the standalone output ("Encountered unexpected file in NFT list"), which
+ * corrupts the trace and breaks the standalone build (missing
+ * `middleware.js.nft.json`). There is no `public/sw.js` on disk anyway, so the
+ * old filesystem lookup always fell back to this inline copy.
  */
 
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    // Try multiple paths since the location differs between dev and production
-    const possiblePaths = [
-      path.join(process.cwd(), 'public', 'sw.js'),
-      path.join(process.cwd(), '..', 'public', 'sw.js'),
-      '/app/public/sw.js', // Docker path
-    ];
-
-    let swContent: string | null = null;
-
-    for (const swPath of possiblePaths) {
-      try {
-        if (fs.existsSync(swPath)) {
-          swContent = fs.readFileSync(swPath, 'utf-8');
-          break;
-        }
-      } catch {
-        // Continue to next path
-      }
-    }
-
-    if (!swContent) {
-      // Fallback: inline the service worker code
-      swContent = `
+const SERVICE_WORKER = `
 /**
  * Service Worker for Push Notifications
  */
@@ -108,17 +88,13 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(clients.claim());
 });
 `;
-    }
 
-    return new NextResponse(swContent, {
-      headers: {
-        'Content-Type': 'application/javascript',
-        'Service-Worker-Allowed': '/',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    });
-  } catch (error) {
-    console.error('[SW Route] Error serving service worker:', error);
-    return new NextResponse('Service worker not available', { status: 500 });
-  }
+export async function GET(): Promise<NextResponse> {
+  return new NextResponse(SERVICE_WORKER, {
+    headers: {
+      'Content-Type': 'application/javascript',
+      'Service-Worker-Allowed': '/',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    },
+  });
 }

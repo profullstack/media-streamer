@@ -4,10 +4,13 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@profullstack/referrals'],
-  
-  // Enable standalone output for Docker deployment
-  output: 'standalone',
-  
+
+  // NOTE: `output: 'standalone'` is intentionally NOT set.
+  // The droplet runs the app via `next start` (see scripts/setup-server.sh,
+  // ExecStart=pnpm start), which serves /public and /_next/static natively — it
+  // never uses the standalone server.js. Enabling standalone also crashes the
+  // Turbopack production build (Next 16.2.x: `ENOENT middleware.js.nft.json`).
+
   // Enable experimental features for better performance
   experimental: {
     // Enable server actions
