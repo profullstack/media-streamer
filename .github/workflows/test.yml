@@ -29,6 +29,12 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Some tests exercise the real transcoding pipeline (spawn('ffmpeg')); a
+      # missing binary throws an uncaught spawn ENOENT that fails the whole run.
+      # ci.yml's test job already installs ffmpeg — keep this workflow in sync.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm test
