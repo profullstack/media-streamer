@@ -44,6 +44,23 @@ const SORT_COLUMN_MAP: Record<SortBy, string> = {
   name: 'name',
 };
 
+function parseBoundedIntegerParam(
+  value: string | null,
+  fallback: number,
+  options: { min: number; max?: number }
+): number {
+  if (value == null || !/^\d+$/.test(value)) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < options.min) {
+    return fallback;
+  }
+
+  return options.max == null ? parsed : Math.min(parsed, options.max);
+}
+
 /**
  * Check if an error is a network/connection error that warrants client reset
  */
@@ -131,8 +148,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Extract pagination
   const limitParam = searchParams.get('limit');
   const offsetParam = searchParams.get('offset');
-  const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 50, 100);
-  const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+  const limit = parseBoundedIntegerParam(limitParam, 50, { min: 1, max: 100 });
+  const offset = parseBoundedIntegerParam(offsetParam, 0, { min: 0 });
 
   reqLogger.info('GET /api/browse', {
     contentType,
