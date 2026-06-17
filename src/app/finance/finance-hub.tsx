@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { normalizeSymbol } from '@/lib/finance/market-data/stooq';
 import { BrokerConnect } from './broker-connect';
+import { Sparkline } from '@/components/finance/sparkline';
 
 const RECENT_KEY = 'finance:recent';
 
@@ -26,6 +27,7 @@ export function FinanceHub(): React.ReactElement {
   const [bulk, setBulk] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
 
   useEffect(() => {
     try {
@@ -46,6 +48,25 @@ export function FinanceHub(): React.ReactElement {
   useEffect(() => {
     loadWatchlist();
   }, [loadWatchlist]);
+
+  // Fetch last-week sparkline samples for the watchlist symbols (one batch call).
+  const watchlistKey = watchlist.map((w) => w.symbol).join(',');
+  useEffect(() => {
+    if (!watchlistKey) {
+      setSparklines({});
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/finance/sparklines?symbols=${encodeURIComponent(watchlistKey)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { samples: {} }))
+      .then((body: { samples?: Record<string, number[]> }) => {
+        if (!cancelled) setSparklines(body.samples ?? {});
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [watchlistKey]);
 
   const addBulk = useCallback(
     async (e: React.FormEvent) => {
@@ -164,7 +185,10 @@ export function FinanceHub(): React.ReactElement {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {watchlist.map((row) => (
               <Link key={row.id} href={`/finance/ticker/${row.symbol}`} className="card p-4 hover:bg-bg-tertiary">
-                <div className="text-lg font-semibold text-text-primary">{row.symbol}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-lg font-semibold text-text-primary">{row.symbol}</div>
+                  <Sparkline samples={sparklines[row.symbol]} width={56} />
+                </div>
                 {row.exchange ? <div className="text-xs text-text-muted">{row.exchange}</div> : null}
               </Link>
             ))}
