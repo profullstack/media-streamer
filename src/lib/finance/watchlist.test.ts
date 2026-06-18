@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSymbolList } from './watchlist';
+import { parseSymbolList, sanitizeWatchlistName, MAX_WATCHLIST_NAME } from './watchlist';
 
 describe('parseSymbolList', () => {
   it('parses a comma-separated string, normalizing + de-duping', () => {
@@ -26,5 +26,22 @@ describe('parseSymbolList', () => {
 
   it('returns empty for empty input', () => {
     expect(parseSymbolList('   ')).toEqual({ valid: [], invalid: [] });
+  });
+});
+
+describe('sanitizeWatchlistName', () => {
+  it('trims and collapses internal whitespace', () => {
+    expect(sanitizeWatchlistName('  My   Tech  List ')).toBe('My Tech List');
+  });
+
+  it('rejects empty / non-string input', () => {
+    expect(sanitizeWatchlistName('   ')).toBeNull();
+    expect(sanitizeWatchlistName('')).toBeNull();
+    expect(sanitizeWatchlistName(null)).toBeNull();
+    expect(sanitizeWatchlistName(42)).toBeNull();
+  });
+
+  it('caps the length', () => {
+    expect(sanitizeWatchlistName('x'.repeat(200))).toHaveLength(MAX_WATCHLIST_NAME);
   });
 });

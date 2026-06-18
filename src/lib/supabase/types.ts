@@ -78,10 +78,32 @@ export type Database = {
         };
         Relationships: [];
       };
+      finance_watchlists: {
+        Row: {
+          id: string;
+          profile_id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       finance_watchlist: {
         Row: {
           id: string;
           profile_id: string;
+          watchlist_id: string;
           symbol: string;
           exchange: string | null;
           added_at: string;
@@ -89,6 +111,7 @@ export type Database = {
         Insert: {
           id?: string;
           profile_id: string;
+          watchlist_id: string;
           symbol: string;
           exchange?: string | null;
           added_at?: string;
@@ -96,11 +119,20 @@ export type Database = {
         Update: {
           id?: string;
           profile_id?: string;
+          watchlist_id?: string;
           symbol?: string;
           exchange?: string | null;
           added_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'finance_watchlist_watchlist_id_fkey';
+            columns: ['watchlist_id'];
+            isOneToOne: false;
+            referencedRelation: 'finance_watchlists';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       finance_quotes_cache: {
         Row: {

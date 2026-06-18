@@ -1,12 +1,13 @@
 /**
- * Finance watchlist (PRD §3.1, §5) — profile-scoped tickers.
+ * Finance watchlist items (PRD §3.1, §5) — tickers within a named list.
  *
- * GET    /api/finance/watchlist          — list the active profile's tickers
- * POST   /api/finance/watchlist {symbol} — add a ticker
- * DELETE /api/finance/watchlist?symbol=  — remove a ticker
+ * GET    /api/finance/watchlist?watchlistId=        — list a list's tickers
+ * POST   /api/finance/watchlist {symbol|symbols, watchlistId?} — add ticker(s)
+ * DELETE /api/finance/watchlist?symbol=&watchlistId= — remove a ticker
  *
- * Paid-gated. Rows are filtered by the active profile id; the table also has
- * RLS as defense in depth.
+ * Paid-gated. When `watchlistId` is omitted we fall back to the profile's
+ * default (oldest) list, creating one if needed — so legacy single-list callers
+ * keep working. Every query is scoped to the active profile (RLS in depth).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,10 +16,22 @@ import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { getServerClient } from '@/lib/supabase';
 import { normalizeSymbol } from '@/lib/finance/market-data/stooq';
 import { parseSymbolList } from '@/lib/finance/watchlist';
+import { getOrCreateDefaultWatchlistId, ownsWatchlist } from '@/lib/finance/watchlist-db';
 
 export const dynamic = 'force-dynamic';
 
 const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
+
+/**
+ * Resolve the target list for a profile. Returns the verified list id, or null
+ * when an explicit (but unowned/unknown) id was supplied.
+ */
+async function resolveWatchlistId(profileId: string, requested: string | null): Promise<string | null> {
+  if (requested) {
+    return (await ownsWatchlist(profileId, requested)) ? requested : null;
+  }
+  return getOrCreateDefaultWatchlistId(profileId);
+}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const gate = await requireActiveSubscription(request);
@@ -29,10 +42,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'No active profile' }, { status: 400 });
   }
 
+  const watchlistId = await resolveWatchlistId(profileId, request.nextUrl.searchParams.get('watchlistId'));
+  if (!watchlistId) {
+    return NextResponse.json({ error: 'watchlist not found' }, { status: 404 });
+  }
+
   const { data, error } = await getServerClient()
     .from('finance_watchlist')
     .select('id, symbol, exchange, added_at')
-    .eq('profile_id', profileId)
+    .eq('watchlist_id', watchlistId)
     .order('added_at', { ascending: false });
 
   if (error) {
@@ -40,7 +58,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'failed to load watchlist' }, { status: 500 });
   }
 
-  return NextResponse.json({ watchlist: data ?? [] });
+  return NextResponse.json({ watchlistId, watchlist: data ?? [] });
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -53,8 +71,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { symbol?: string; symbols?: string | string[]; exchange?: string }
+    | { symbol?: string; symbols?: string | string[]; exchange?: string; watchlistId?: string }
     | null;
+
+  const watchlistId = await resolveWatchlistId(profileId, body?.watchlistId ?? null);
+  if (!watchlistId) {
+    return NextResponse.json({ error: 'watchlist not found' }, { status: 404 });
+  }
+
+  const supabase = getServerClient();
 
   // Bulk add: `symbols` may be a comma/space/newline-separated string or array.
   if (body?.symbols !== undefined) {
@@ -63,11 +88,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'no valid symbols', invalid }, { status: 400 });
     }
 
-    const { data, error } = await getServerClient()
+    const { data, error } = await supabase
       .from('finance_watchlist')
       .upsert(
-        valid.map((symbol) => ({ profile_id: profileId, symbol, exchange: null })),
-        { onConflict: 'profile_id,symbol' },
+        valid.map((symbol) => ({ profile_id: profileId, watchlist_id: watchlistId, symbol, exchange: null })),
+        { onConflict: 'watchlist_id,symbol' },
       )
       .select('id, symbol, exchange, added_at');
 
@@ -76,7 +101,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'failed to add symbols' }, { status: 500 });
     }
 
-    return NextResponse.json({ added: data ?? [], count: data?.length ?? 0, invalid }, { status: 201 });
+    return NextResponse.json({ watchlistId, added: data ?? [], count: data?.length ?? 0, invalid }, { status: 201 });
   }
 
   // Single add.
@@ -85,11 +110,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'invalid symbol' }, { status: 400 });
   }
 
-  const { data, error } = await getServerClient()
+  const { data, error } = await supabase
     .from('finance_watchlist')
     .upsert(
-      { profile_id: profileId, symbol, exchange: body?.exchange ?? null },
-      { onConflict: 'profile_id,symbol' },
+      { profile_id: profileId, watchlist_id: watchlistId, symbol, exchange: body?.exchange ?? null },
+      { onConflict: 'watchlist_id,symbol' },
     )
     .select('id, symbol, exchange, added_at')
     .single();
@@ -99,7 +124,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'failed to add symbol' }, { status: 500 });
   }
 
-  return NextResponse.json({ item: data }, { status: 201 });
+  return NextResponse.json({ watchlistId, item: data }, { status: 201 });
 }
 
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
@@ -116,10 +141,15 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'invalid symbol' }, { status: 400 });
   }
 
+  const watchlistId = await resolveWatchlistId(profileId, request.nextUrl.searchParams.get('watchlistId'));
+  if (!watchlistId) {
+    return NextResponse.json({ error: 'watchlist not found' }, { status: 404 });
+  }
+
   const { error } = await getServerClient()
     .from('finance_watchlist')
     .delete()
-    .eq('profile_id', profileId)
+    .eq('watchlist_id', watchlistId)
     .eq('symbol', symbol);
 
   if (error) {
