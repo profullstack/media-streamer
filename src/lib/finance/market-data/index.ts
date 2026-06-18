@@ -50,3 +50,4 @@ export { StooqMarketDataProvider } from './stooq';
 export { YahooMarketDataProvider } from './yahoo';
 export { FinnhubMarketDataProvider } from './finnhub';
 export { AlpacaMarketDataProvider } from './alpaca';
+export { getFinvizFundamentals, parseFinvizSnapshot } from './finviz';

@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createWriteStream } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { Readable } from 'node:stream';
 import { mkdir, rm, access } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -18,6 +19,12 @@ import {
   isFileBasedTranscodingRequired,
   TEMP_DIR,
 } from './file-transcoding';
+
+// The streaming-transcode tests below spawn the real `ffmpeg` binary. CI runners
+// don't have ffmpeg installed, so a `spawn('ffmpeg')` ENOENT crashes the whole
+// vitest process with an uncaught exception. Skip those tests when ffmpeg is
+// unavailable instead of failing the entire suite.
+const HAS_FFMPEG = spawnSync('ffmpeg', ['-version']).status === 0;
 
 describe('File-based Transcoding Service', () => {
   describe('getTempFilePath', () => {
@@ -175,7 +182,7 @@ describe('File-based Transcoding Service', () => {
     });
   });
 
-  describe('FileTranscodingService - downloadAndTranscode (stream-as-available)', () => {
+  describe.skipIf(!HAS_FFMPEG)('FileTranscodingService - downloadAndTranscode (stream-as-available)', () => {
     let service: FileTranscodingService;
 
     afterEach(async () => {
