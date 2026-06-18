@@ -24,6 +24,13 @@ export interface Candle {
   volume: number;
 }
 
+/**
+ * Trading session for a symbol's primary exchange:
+ *   PRE = pre-market, REGULAR = regular hours, POST = after-hours, CLOSED = no
+ *   session active. Providers that don't expose it leave `marketState` unset.
+ */
+export type MarketSession = 'PRE' | 'REGULAR' | 'POST' | 'CLOSED';
+
 /** Last price + the key stats we can render defensively (PRD §3.2). */
 export interface Quote {
   symbol: string;
@@ -37,6 +44,8 @@ export interface Quote {
   volume: number;
   /** UTC unix seconds of the latest bar backing this quote. */
   asOf: number;
+  /** Current trading session, when the provider exposes it. */
+  marketState?: MarketSession;
 }
 
 /** Symbol typeahead result (PRD §3.1). */

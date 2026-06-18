@@ -17,6 +17,11 @@ import { NewsSection } from '@/components/news';
 // never pulled into the client bundle.
 import { TICKER_RANGES, type AssetInfo, type Candle, type Fundamentals, type Quote, type TickerRange } from '@/lib/finance/market-data/types';
 import type { WatchlistChanges } from '@/lib/finance/performance';
+import { useVisibleInterval } from '@/lib/finance/use-visible-interval';
+import { MarketSessionBadge } from '@/components/finance/market-session';
+
+/** Quote poll cadence (ms) while the tab is visible and a session is live. */
+const QUOTE_POLL_MS = 15_000;
 
 const RECENT_KEY = 'finance:recent';
 const RECENT_MAX = 12;
@@ -68,19 +73,25 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
     rememberRecent(symbol);
   }, [symbol]);
 
-  // Quote (independent of range).
-  useEffect(() => {
-    let cancelled = false;
+  // Quote (independent of range). Fetched on mount and then polled live while
+  // the tab is visible — see the useVisibleInterval below.
+  const loadQuote = useCallback(() => {
     fetch(`/api/finance/quote?symbol=${encodeURIComponent(symbol)}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((body) => {
-        if (!cancelled && body?.quote) setQuote(body.quote as Quote);
+        if (body?.quote) setQuote(body.quote as Quote);
       })
       .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
   }, [symbol]);
+
+  useEffect(() => {
+    setQuote(null);
+    loadQuote();
+  }, [loadQuote]);
+
+  // Poll the quote for near-live price/stats. Pause once we know the market is
+  // closed (the numbers can't move), but keep polling pre/regular/after-hours.
+  useVisibleInterval(loadQuote, QUOTE_POLL_MS, quote?.marketState !== 'CLOSED');
 
   // Candles (re-fetched per range).
   useEffect(() => {
@@ -223,7 +234,7 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
               {asset.exchange ? <span className="text-text-muted"> · {asset.exchange}</span> : null}
             </div>
           ) : null}
-          {quote ? <div className="mt-2 flex items-baseline gap-3">
+          {quote ? <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-2xl font-semibold text-text-primary">
                 ${formatNumber(quote.price, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
@@ -232,6 +243,7 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
                 {formatNumber(quote.change, { maximumFractionDigits: 2 })} ({changePositive ? '+' : ''}
                 {formatNumber(quote.changePercent, { maximumFractionDigits: 2 })}%)
               </span>
+              <MarketSessionBadge state={quote.marketState} className="self-center" />
             </div> : null}
           <div className="mt-3 flex items-center gap-5">
             <TrailingChange label="1D" value={changes?.d1 ?? null} />
@@ -280,7 +292,7 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
         <Stat label="Volume" value={formatVolume(quote?.volume)} />
         <Stat
           label="As of"
-          value={quote ? new Date(quote.asOf * 1000).toLocaleDateString() : '—'}
+          value={quote ? new Date(quote.asOf * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—'}
         />
       </div>
 

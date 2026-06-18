@@ -10,9 +10,20 @@ import Link from 'next/link';
 import { normalizeSymbol } from '@/lib/finance/market-data/stooq';
 import { BrokerConnect } from './broker-connect';
 import { Sparkline } from '@/components/finance/sparkline';
+import { MarketSessionBadge } from '@/components/finance/market-session';
+import { useVisibleInterval } from '@/lib/finance/use-visible-interval';
 import type { WatchlistChanges } from '@/lib/finance/performance';
+import type { Quote } from '@/lib/finance/market-data/types';
 
 const RECENT_KEY = 'finance:recent';
+
+/** Live-quote poll cadence (ms) for the watchlist while the tab is visible. */
+const QUOTE_POLL_MS = 20_000;
+
+function formatPrice(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return '—';
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 interface WatchlistRow {
   id: string;
@@ -43,6 +54,7 @@ export function FinanceHub(): React.ReactElement {
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
   const [changes, setChanges] = useState<Record<string, WatchlistChanges>>({});
+  const [quotes, setQuotes] = useState<Record<string, Quote>>({});
 
   useEffect(() => {
     try {
@@ -100,6 +112,27 @@ export function FinanceHub(): React.ReactElement {
       cancelled = true;
     };
   }, [watchlistKey]);
+
+  // Live last price + market session per symbol — fetched on change and polled
+  // while the tab is visible (see useVisibleInterval below).
+  const loadQuotes = useCallback(() => {
+    if (!watchlistKey) {
+      setQuotes({});
+      return;
+    }
+    fetch(`/api/finance/quotes?symbols=${encodeURIComponent(watchlistKey)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { quotes: {} }))
+      .then((body: { quotes?: Record<string, Quote> }) => setQuotes(body.quotes ?? {}))
+      .catch(() => undefined);
+  }, [watchlistKey]);
+
+  useEffect(() => {
+    loadQuotes();
+  }, [loadQuotes]);
+
+  // Stop polling when every symbol's session is closed (nothing moves).
+  const anyLive = Object.values(quotes).some((q) => q.marketState && q.marketState !== 'CLOSED');
+  useVisibleInterval(loadQuotes, QUOTE_POLL_MS, watchlistKey.length > 0 && anyLive);
 
   const addBulk = useCallback(
     async (e: React.FormEvent) => {
@@ -216,20 +249,32 @@ export function FinanceHub(): React.ReactElement {
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {watchlist.map((row) => (
-              <Link key={row.id} href={`/finance/ticker/${row.symbol}`} className="card p-4 hover:bg-bg-tertiary">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-lg font-semibold text-text-primary">{row.symbol}</div>
-                  <Sparkline samples={sparklines[row.symbol]} width={56} />
-                </div>
-                {row.exchange ? <div className="text-xs text-text-muted">{row.exchange}</div> : null}
-                <div className="mt-3 flex items-center justify-between gap-1 border-t border-border-primary pt-2">
-                  <PctChange label="1D" value={changes[row.symbol]?.d1 ?? null} />
-                  <PctChange label="5D" value={changes[row.symbol]?.d5 ?? null} />
-                  <PctChange label="30D" value={changes[row.symbol]?.d30 ?? null} />
-                </div>
-              </Link>
-            ))}
+            {watchlist.map((row) => {
+              const quote = quotes[row.symbol];
+              // Prefer the live intraday day-change for 1D; fall back to the
+              // candle-derived trailing change before the quote loads.
+              const d1 = quote ? quote.changePercent : changes[row.symbol]?.d1 ?? null;
+              return (
+                <Link key={row.id} href={`/finance/ticker/${row.symbol}`} className="card p-4 hover:bg-bg-tertiary">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-lg font-semibold text-text-primary">{row.symbol}</div>
+                    <Sparkline samples={sparklines[row.symbol]} width={56} />
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className="text-base font-semibold tabular-nums text-text-primary">
+                      {formatPrice(quote?.price)}
+                    </span>
+                    <MarketSessionBadge state={quote?.marketState} />
+                  </div>
+                  {row.exchange ? <div className="text-xs text-text-muted">{row.exchange}</div> : null}
+                  <div className="mt-3 flex items-center justify-between gap-1 border-t border-border-primary pt-2">
+                    <PctChange label="1D" value={d1} />
+                    <PctChange label="5D" value={changes[row.symbol]?.d5 ?? null} />
+                    <PctChange label="30D" value={changes[row.symbol]?.d30 ?? null} />
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>

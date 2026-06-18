@@ -11,8 +11,12 @@ import type { Json } from '@/lib/supabase';
 
 const CACHE_TABLE = 'finance_quotes_cache';
 
-/** Default freshness windows (seconds). EOD data changes at most daily. */
-export const QUOTE_TTL_SECONDS = 5 * 60;
+/**
+ * Default freshness windows (seconds). Quotes carry an intraday last price +
+ * session, so the window is short to feel near-live; the shared cache bounds
+ * upstream load to ~1 fetch per symbol per window regardless of viewer count.
+ */
+export const QUOTE_TTL_SECONDS = 30;
 export const CANDLES_TTL_SECONDS = 60 * 60;
 /** Fundamentals (valuation/perf/technicals) move slowly — cache for hours. */
 export const FUNDAMENTALS_TTL_SECONDS = 6 * 60 * 60;
