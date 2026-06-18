@@ -15,7 +15,7 @@ import { ReportPanel } from './report-panel';
 import { NewsSection } from '@/components/news';
 // Import from the SDK-free `types` module (not the index) so the Alpaca SDK is
 // never pulled into the client bundle.
-import { TICKER_RANGES, type AssetInfo, type Candle, type Quote, type TickerRange } from '@/lib/finance/market-data/types';
+import { TICKER_RANGES, type AssetInfo, type Candle, type Fundamentals, type Quote, type TickerRange } from '@/lib/finance/market-data/types';
 import type { WatchlistChanges } from '@/lib/finance/performance';
 
 const RECENT_KEY = 'finance:recent';
@@ -62,6 +62,7 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
   const [holding, setHolding] = useState<Holding | null>(null);
   const [changes, setChanges] = useState<WatchlistChanges | null>(null);
   const [asset, setAsset] = useState<AssetInfo | null>(null);
+  const [fundamentals, setFundamentals] = useState<Fundamentals | null>(null);
 
   useEffect(() => {
     rememberRecent(symbol);
@@ -159,6 +160,21 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
       .then((res) => (res.ok ? res.json() : { asset: null }))
       .then((body: { asset?: AssetInfo | null }) => {
         if (!cancelled) setAsset(body.asset ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol]);
+
+  // Fundamentals / snapshot (Finviz: valuation, performance, technicals, etc.).
+  useEffect(() => {
+    let cancelled = false;
+    setFundamentals(null);
+    fetch(`/api/finance/fundamentals?symbol=${encodeURIComponent(symbol)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { fundamentals: null }))
+      .then((body: { fundamentals?: Fundamentals | null }) => {
+        if (!cancelled) setFundamentals(body.fundamentals ?? null);
       })
       .catch(() => undefined);
     return () => {
@@ -287,6 +303,25 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
         </section>
       ) : null}
 
+      {/* Fundamentals snapshot (Finviz): full valuation / performance /
+          technical / fund / dividend table, rendered generically. */}
+      {fundamentals && fundamentals.metrics.length > 0 ? (
+        <section className="mt-8">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-lg font-semibold text-text-primary">Fundamentals</h2>
+            <span className="text-xs text-text-muted">via Finviz</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {fundamentals.metrics.map((m) => (
+              <Stat key={m.label} label={m.label} value={m.value} tone={m.tone} />
+            ))}
+          </div>
+          {fundamentals.description ? (
+            <p className="mt-4 text-sm leading-relaxed text-text-secondary">{fundamentals.description}</p>
+          ) : null}
+        </section>
+      ) : null}
+
       {/* AI report area — never auto-runs; the Analyze button is the cost boundary. */}
       <ReportPanel symbol={symbol} />
 
@@ -301,11 +336,21 @@ export function TickerView({ symbol }: { symbol: string }): React.ReactElement {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }): React.ReactElement {
+function Stat({
+  label,
+  value,
+  tone = null,
+}: {
+  label: string;
+  value: string;
+  tone?: 'positive' | 'negative' | null;
+}): React.ReactElement {
+  const valueColor =
+    tone === 'positive' ? 'text-green-400' : tone === 'negative' ? 'text-red-400' : 'text-text-primary';
   return (
     <div className="card p-3">
       <div className="text-xs uppercase tracking-wider text-text-muted">{label}</div>
-      <div className="mt-1 text-base font-semibold text-text-primary">{value}</div>
+      <div className={`mt-1 text-base font-semibold ${valueColor}`}>{value}</div>
     </div>
   );
 }

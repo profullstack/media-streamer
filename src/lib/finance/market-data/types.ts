@@ -68,6 +68,34 @@ export interface AssetInfo {
   hasOptions: boolean | null;
 }
 
+/**
+ * One label/value row from a fundamentals snapshot (e.g. "P/E" → "24.50",
+ * "Perf Year" → "24.00%"). Values are kept as the source's display strings —
+ * many are non-numeric (percentages, "787.10B", "Yes / Yes") and we render
+ * them faithfully. `tone` mirrors the source's up/down coloring when present.
+ */
+export interface FundamentalMetric {
+  label: string;
+  value: string;
+  tone: 'positive' | 'negative' | null;
+}
+
+/**
+ * Fundamentals / snapshot data for the ticker page: the full table of
+ * valuation, performance, technical, fund and dividend metrics plus the
+ * company/fund description. Sourced from Finviz (see `finviz.ts`). Ordered
+ * `metrics` preserve the source layout and are rendered generically, so new
+ * rows the source adds appear without code changes.
+ */
+export interface Fundamentals {
+  symbol: string;
+  source: 'finviz';
+  metrics: FundamentalMetric[];
+  description: string | null;
+  /** UTC unix seconds when this snapshot was fetched. */
+  asOf: number;
+}
+
 export interface MarketDataProvider {
   /** Stable identifier used in cache keys and logs. */
   readonly id: string;

@@ -14,6 +14,8 @@ const CACHE_TABLE = 'finance_quotes_cache';
 /** Default freshness windows (seconds). EOD data changes at most daily. */
 export const QUOTE_TTL_SECONDS = 5 * 60;
 export const CANDLES_TTL_SECONDS = 60 * 60;
+/** Fundamentals (valuation/perf/technicals) move slowly — cache for hours. */
+export const FUNDAMENTALS_TTL_SECONDS = 6 * 60 * 60;
 
 interface CacheRow<T> {
   payload: T;
