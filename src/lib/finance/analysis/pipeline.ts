@@ -17,6 +17,8 @@ export interface LLMCompletion {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  /** OpenAI finish_reason — 'length' means the budget was exhausted (truncated). */
+  finishReason?: string;
 }
 
 export interface ReportLLM {
@@ -57,6 +59,7 @@ export function createOpenAIReportLLM(apiKey: string): ReportLLM {
         promptTokens: completion.usage?.prompt_tokens ?? 0,
         completionTokens: completion.usage?.completion_tokens ?? 0,
         totalTokens: completion.usage?.total_tokens ?? 0,
+        finishReason: completion.choices[0]?.finish_reason,
       };
     },
   };
@@ -87,6 +90,14 @@ export async function generateReport({
 
   const { sections, sources: parsedSources } = parseReportJson(completion.content);
   if (!isReportUsable(sections)) {
+    // 'length' means the model hit max_completion_tokens before finishing the
+    // JSON (often reasoning tokens eating the budget) — distinguish it so the
+    // failure is diagnosable rather than a vague "empty report".
+    if (completion.finishReason === 'length') {
+      throw new ReportGenerationError(
+        `Report truncated at the token budget (${MAX_COMPLETION_TOKENS}); raise MAX_COMPLETION_TOKENS`,
+      );
+    }
     throw new ReportGenerationError('Model returned an empty or unusable report');
   }
 

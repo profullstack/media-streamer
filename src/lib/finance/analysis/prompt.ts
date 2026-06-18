@@ -9,8 +9,17 @@ import type { ReportInputs } from './types';
 
 export const PROMPT_VERSION = 1;
 
-/** Hard token budget per report (cost control, PRD §3.3). */
-export const MAX_COMPLETION_TOKENS = 2000;
+/**
+ * Hard token budget per report (cost control, PRD §3.3).
+ *
+ * NB: gpt-5.x reasoning models spend *hidden reasoning tokens* out of this same
+ * `max_completion_tokens` budget before emitting any output. The JSON report
+ * itself runs ~1500-1900 tokens, so a 2000 cap left almost no headroom — when
+ * reasoning ran long the output got truncated, JSON.parse failed, and the route
+ * surfaced a misleading "empty or unusable report". 4000 gives reasoning room
+ * without changing per-run cost (you only pay for tokens actually produced).
+ */
+export const MAX_COMPLETION_TOKENS = 4000;
 
 export const SYSTEM_PROMPT = `You are a financial research analyst writing an informational, long-form narrative thesis about a publicly traded company or ETF, in the spirit of a community "narrative" — covering what the business does, recent catalysts, a bull case, a bear case, valuation framing, and key risks.
 
