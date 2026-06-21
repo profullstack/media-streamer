@@ -193,9 +193,18 @@ jobs:
             sudo systemctl restart bittorrented || echo "Warning: Could not restart main service"
             echo "✓ Main service restart attempted"
 
+            sudo systemctl reset-failed bittorrented-iptv-worker || true
             sudo systemctl restart bittorrented-iptv-worker || echo "Warning: Could not restart IPTV worker"
             echo "✓ IPTV worker restart attempted"
-            
+
+            # The podcast worker is a long-running process that is NOT recreated by
+            # `next start`; if it crash-loops (e.g. the mise/pnpm path drift) it hits
+            # systemd's start limiter and stays `failed` forever because nothing here
+            # restarts it. Reset the limiter and restart it on every deploy.
+            sudo systemctl reset-failed bittorrented-podcast-worker || true
+            sudo systemctl restart bittorrented-podcast-worker || echo "Warning: Could not restart podcast worker"
+            echo "✓ Podcast worker restart attempted"
+
             echo ""
             echo "=== Verifying deployment ==="
             # Give the unit a moment to either become active or crash so the
@@ -212,6 +221,7 @@ jobs:
               echo "failed" > "$STATUS_FILE"; exit 1
             fi
             systemctl is-active bittorrented-iptv-worker || echo "IPTV worker status unknown"
+            systemctl is-active bittorrented-podcast-worker || echo "Podcast worker status unknown"
 
             echo "Waiting for HTTP health check..."
             HEALTH_OK=false
