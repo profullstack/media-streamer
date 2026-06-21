@@ -933,6 +933,9 @@ WorkingDirectory=${DEPLOY_PATH}
 ExecStart=/bin/bash -c 'set -a; source ${DEPLOY_PATH}/.env; set +a; exec ${PNPM_HOME}/pnpm podcast-worker'
 Restart=on-failure
 RestartSec=30
+# Never let crash-looping wedge the worker in systemd's start limiter; it must
+# keep retrying so it self-heals after a transient failure (e.g. feed/network).
+StartLimitIntervalSec=0
 Environment=NODE_ENV=production
 Environment=PATH=${PNPM_HOME}:/usr/local/bin:/usr/bin:/bin
 
