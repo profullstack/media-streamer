@@ -5,7 +5,7 @@
  *
  * Podcast discovery and subscription management.
  * Features:
- * - Search podcasts via Castos API
+ * - Search podcasts via the Apple Podcasts / iTunes Search API
  * - Subscribe to podcasts (saved in Supabase)
  * - View subscribed podcasts and episodes
  * - Audio player for podcast episodes (global, persists across routes)

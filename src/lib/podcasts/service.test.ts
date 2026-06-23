@@ -52,30 +52,30 @@ describe('PodcastService', () => {
   });
 
   describe('searchPodcasts', () => {
-    it('should search podcasts using Castos API', async () => {
-      const mockCastosResponse = {
-        success: true,
-        data: [
+    it('should search podcasts using the iTunes Search API', async () => {
+      const mockItunesResponse = {
+        resultCount: 2,
+        results: [
           {
-            title: 'Test Podcast',
-            author: 'Test Author',
-            description: 'A test podcast description',
-            image: 'https://example.com/image.jpg',
-            url: 'https://example.com/feed.xml',
+            collectionName: 'Test Podcast',
+            artistName: 'Test Author',
+            artworkUrl600: 'https://example.com/image.jpg',
+            feedUrl: 'https://example.com/feed.xml',
+            collectionViewUrl: 'https://podcasts.apple.com/test',
           },
           {
-            title: 'Another Podcast',
-            author: 'Another Author',
-            description: 'Another description',
-            image: 'https://example.com/image2.jpg',
-            url: 'https://example.com/feed2.xml',
+            collectionName: 'Another Podcast',
+            artistName: 'Another Author',
+            artworkUrl600: 'https://example.com/image2.jpg',
+            feedUrl: 'https://example.com/feed2.xml',
+            collectionViewUrl: 'https://podcasts.apple.com/another',
           },
         ],
       };
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockCastosResponse),
+        json: () => Promise.resolve(mockItunesResponse),
       });
 
       const results = await service.searchPodcasts('test');
@@ -84,17 +84,16 @@ describe('PodcastService', () => {
       expect(results[0]).toEqual({
         title: 'Test Podcast',
         author: 'Test Author',
-        description: 'A test podcast description',
+        description: null,
         imageUrl: 'https://example.com/image.jpg',
         feedUrl: 'https://example.com/feed.xml',
-        websiteUrl: null,
+        websiteUrl: 'https://podcasts.apple.com/test',
       });
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://castos.com/wp-admin/admin-ajax.php',
-        expect.objectContaining({
-          method: 'POST',
-        })
-      );
+      const [calledUrl, calledOptions] = mockFetch.mock.calls[0];
+      expect(calledUrl).toContain('https://itunes.apple.com/search');
+      expect(calledUrl).toContain('media=podcast');
+      expect(calledUrl).toContain('term=test');
+      expect(calledOptions).toMatchObject({ method: 'GET' });
     });
 
     it('should return empty array when search fails', async () => {
@@ -111,7 +110,7 @@ describe('PodcastService', () => {
     it('should handle empty search results', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ success: true, data: [] }),
+        json: () => Promise.resolve({ resultCount: 0, results: [] }),
       });
 
       const results = await service.searchPodcasts('nonexistent');
@@ -122,46 +121,46 @@ describe('PodcastService', () => {
     it('should sanitize search query', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ success: true, data: [] }),
+        json: () => Promise.resolve({ resultCount: 0, results: [] }),
       });
 
       await service.searchPodcasts('test <script>alert("xss")</script>');
 
-      // Verify the FormData was created with sanitized input
-      expect(mockFetch).toHaveBeenCalled();
+      // The query is sanitized (script tags/special chars stripped) before being
+      // placed in the request URL.
+      const [calledUrl] = mockFetch.mock.calls[0];
+      expect(calledUrl).not.toContain('script');
+      expect(calledUrl).not.toContain('%3C'); // no encoded '<'
     });
 
-    it('should filter out results without url', async () => {
-      const mockCastosResponse = {
-        success: true,
-        data: [
+    it('should filter out results without a feed url', async () => {
+      const mockItunesResponse = {
+        resultCount: 3,
+        results: [
           {
-            title: 'Valid Podcast',
-            author: 'Author',
-            description: 'Description',
-            image: 'https://example.com/image.jpg',
-            url: 'https://example.com/feed.xml',
+            collectionName: 'Valid Podcast',
+            artistName: 'Author',
+            artworkUrl600: 'https://example.com/image.jpg',
+            feedUrl: 'https://example.com/feed.xml',
           },
           {
-            title: 'Invalid Podcast - No URL',
-            author: 'Author',
-            description: 'Description',
-            image: 'https://example.com/image2.jpg',
-            // Missing url
+            collectionName: 'Invalid Podcast - No feedUrl',
+            artistName: 'Author',
+            artworkUrl600: 'https://example.com/image2.jpg',
+            // Missing feedUrl
           },
           {
-            title: 'Invalid Podcast - Empty URL',
-            author: 'Author',
-            description: 'Description',
-            image: 'https://example.com/image3.jpg',
-            url: '',
+            collectionName: 'Invalid Podcast - Empty feedUrl',
+            artistName: 'Author',
+            artworkUrl600: 'https://example.com/image3.jpg',
+            feedUrl: '',
           },
         ],
       };
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockCastosResponse),
+        json: () => Promise.resolve(mockItunesResponse),
       });
 
       const results = await service.searchPodcasts('test');
@@ -171,29 +170,34 @@ describe('PodcastService', () => {
       expect(results[0].feedUrl).toBe('https://example.com/feed.xml');
     });
 
-    it('should handle url field from Castos API', async () => {
-      const mockCastosResponse = {
-        success: true,
-        data: [
+    it('should fall back to trackName and artworkUrl100 when collection fields are absent', async () => {
+      const mockItunesResponse = {
+        resultCount: 1,
+        results: [
           {
-            title: 'Podcast with url',
-            author: 'Author',
-            description: 'Description',
-            image: 'https://example.com/image.jpg',
-            url: 'https://example.com/feed.xml',
+            trackName: 'Track-named Podcast',
+            artworkUrl100: 'https://example.com/image100.jpg',
+            feedUrl: 'https://example.com/feed.xml',
           },
         ],
       };
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockCastosResponse),
+        json: () => Promise.resolve(mockItunesResponse),
       });
 
       const results = await service.searchPodcasts('test');
 
       expect(results).toHaveLength(1);
-      expect(results[0].feedUrl).toBe('https://example.com/feed.xml');
+      expect(results[0]).toEqual({
+        title: 'Track-named Podcast',
+        author: null,
+        description: null,
+        imageUrl: 'https://example.com/image100.jpg',
+        feedUrl: 'https://example.com/feed.xml',
+        websiteUrl: null,
+      });
     });
   });
 

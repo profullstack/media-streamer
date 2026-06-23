@@ -120,7 +120,11 @@ export interface PodcastService {
 // Constants
 // ============================================================================
 
-const CASTOS_API_URL = 'https://castos.com/wp-admin/admin-ajax.php';
+// Apple Podcasts / iTunes Search API — free, keyless, server-friendly.
+// Replaced the Castos lookup tool, which moved behind a Cloudflare Turnstile
+// challenge that backend (server-to-server) requests cannot satisfy.
+const ITUNES_SEARCH_API_URL = 'https://itunes.apple.com/search';
+const PODCAST_SEARCH_LIMIT = 25;
 const COMPLETION_THRESHOLD = 0.95; // 95% = completed
 
 // ============================================================================
@@ -337,25 +341,29 @@ function parseRssFeed(xml: string): ParsedPodcastFeed | null {
 export function createPodcastService(repository: PodcastRepository): PodcastService {
   return {
     /**
-     * Search podcasts using Castos API
+     * Search podcasts using the Apple Podcasts / iTunes Search API.
+     *
+     * The iTunes Search API is free, requires no API key, and returns the RSS
+     * `feedUrl` we need to subscribe. It does not return a description, so that
+     * field is null here and gets populated from the RSS feed on subscribe.
      */
     async searchPodcasts(query: string): Promise<PodcastSearchResult[]> {
       const sanitizedQuery = sanitizeQuery(query);
       if (!sanitizedQuery) return [];
 
       try {
-        const formData = new FormData();
-        formData.append('search', sanitizedQuery);
-        formData.append('action', 'feed_url_lookup_search');
+        const params = new URLSearchParams({
+          media: 'podcast',
+          entity: 'podcast',
+          limit: String(PODCAST_SEARCH_LIMIT),
+          term: sanitizedQuery,
+        });
 
-        const response = await fetch(CASTOS_API_URL, {
-          method: 'POST',
-          body: formData,
+        const response = await fetch(`${ITUNES_SEARCH_API_URL}?${params.toString()}`, {
+          method: 'GET',
           headers: {
-            'Accept': '*/*',
+            'Accept': 'application/json',
             'User-Agent': 'podcast-search/1.0',
-            'Referer': 'https://castos.com/tools/find-podcast-rss-feed/',
-            'Origin': 'https://castos.com',
           },
         });
 
@@ -364,37 +372,32 @@ export function createPodcastService(repository: PodcastRepository): PodcastServ
         }
 
         const data = await response.json() as {
-          success: boolean;
-          data: Array<{
-            title: string;
-            author?: string;
-            description?: string;
-            image?: string;
-            url?: string;
-            feed_url?: string;
+          resultCount: number;
+          results: Array<{
+            collectionName?: string;
+            trackName?: string;
+            artistName?: string;
             feedUrl?: string;
-            website?: string;
+            artworkUrl600?: string;
+            artworkUrl100?: string;
+            collectionViewUrl?: string;
           }>;
         };
 
-        if (!data.success || !Array.isArray(data.data)) {
+        if (!Array.isArray(data.results)) {
           return [];
         }
 
-        // Filter out results without a valid feed URL and map to our format
-        // Castos API returns 'url' field for the RSS feed URL
-        return data.data
-          .filter(item => {
-            const feedUrl = item.url ?? item.feed_url ?? item.feedUrl;
-            return typeof feedUrl === 'string' && feedUrl.length > 0;
-          })
+        // Only results with a usable RSS feed URL can be subscribed to.
+        return data.results
+          .filter(item => typeof item.feedUrl === 'string' && item.feedUrl.length > 0)
           .map(item => ({
-            title: item.title,
-            author: item.author ?? null,
-            description: item.description ?? null,
-            imageUrl: item.image ?? null,
-            feedUrl: (item.url ?? item.feed_url ?? item.feedUrl) as string,
-            websiteUrl: item.website ?? null,
+            title: item.collectionName ?? item.trackName ?? 'Untitled Podcast',
+            author: item.artistName ?? null,
+            description: null,
+            imageUrl: item.artworkUrl600 ?? item.artworkUrl100 ?? null,
+            feedUrl: item.feedUrl as string,
+            websiteUrl: item.collectionViewUrl ?? null,
           }));
       } catch {
         return [];
