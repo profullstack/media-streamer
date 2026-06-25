@@ -6,6 +6,7 @@
  * redirect to <callback>#token=btr_... which TronBrowser captures and stores.
  */
 
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { isAllowedConnectRedirect } from '@/lib/api-tokens';
@@ -51,9 +52,9 @@ export default async function ConnectPage({
         >
           Allow
         </button>
-        <a href="/" className="rounded-lg border border-gray-700 px-5 py-2 text-gray-300 hover:text-white">
+        <Link href="/" className="rounded-lg border border-gray-700 px-5 py-2 text-gray-300 hover:text-white">
           Cancel
-        </a>
+        </Link>
       </form>
 
       <p className="mt-6 text-xs text-gray-600">
