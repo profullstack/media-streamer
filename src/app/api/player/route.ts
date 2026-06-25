@@ -127,9 +127,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const autoplay = q.get('autoplay') !== '0';
   let src = q.get('src') || '';
 
-  // Convenience resolver: a raw live-TV stream → the public iptv proxy.
+  // Convenience resolver: a live-TV channel → the iptv proxy. The favorites API
+  // already stores channels as proxied "/api/iptv-proxy?url=…" paths, so only wrap
+  // a *raw* stream URL — wrapping an already-proxied path double-encodes it and the
+  // proxy rejects the relative inner URL ("Invalid stream URL").
   if (type === 'tv' && q.get('channel')) {
-    src = `/api/iptv-proxy?url=${encodeURIComponent(q.get('channel') as string)}`;
+    const ch = q.get('channel') as string;
+    src = /iptv-proxy\?url=/.test(ch)
+      ? (ch.charAt(0) === '/' ? ch : '/' + ch) // already proxied — use as-is
+      : `/api/iptv-proxy?url=${encodeURIComponent(ch)}`; // raw stream — wrap it
   }
 
   // Radio: resolve the SiriusXM HLS stream server-side for the token user.
