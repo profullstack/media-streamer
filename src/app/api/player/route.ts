@@ -273,6 +273,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         } else if(v.canPlayType('application/vnd.apple.mpegurl')){ v.src=u; v.play().catch(function(){}); }
         else { err('This browser can\\'t play HLS.'); }
       }
+      var triedHls=false;
       function playMpegts(u){
         // Raw MPEG-TS (IPTV .ts) — Chromium can't play it natively or via hls.js.
         // mpegts.js runs in a worker and needs an absolute URL; token rides in the URL.
@@ -281,9 +282,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           var p = mpegts.createPlayer({ type:'mpegts', isLive:true, url:abs },
             { enableWorker:true, enableStashBuffer:true, stashInitialSize:384*1024,
               liveBufferLatencyChasing:false, autoCleanupSourceBuffer:true });
-          p.on(mpegts.Events.ERROR, function(){ err('Stream error — channel may be offline.'); });
+          p.on(mpegts.Events.ERROR, function(){
+            try{ p.destroy(); }catch(e){}
+            // Many IPTV channels have no .ts/.m3u8 extension and are actually HLS —
+            // try hls.js once before giving up. A dead channel fails both -> offline.
+            if(!triedHls){ triedHls=true; playHls(u); } else err('Stream error — channel may be offline.');
+          });
           p.attachMediaElement(v); p.load(); v.play().catch(function(){});
-        } else { err('This browser can\\'t play this channel.'); }
+        } else if(!triedHls){ triedHls=true; playHls(u); }
+        else { err('This browser can\\'t play this channel.'); }
       }
       var inner = src; try { inner = decodeURIComponent(src); } catch(e) {}
       var isProxy = /iptv-proxy/.test(src);
