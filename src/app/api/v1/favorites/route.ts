@@ -38,6 +38,19 @@ export async function GET(request: Request): Promise<NextResponse> {
   const user = await getApiUser(request);
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: CORS });
 
+  // Optional filters (all sections returned in full by default):
+  //   ?q=<text>            case-insensitive substring filter on each item's name/title
+  //   ?sections=tv,movies  return only these sections (others come back empty)
+  //   ?limit=<n>           cap items per section (0/absent = no cap)
+  const url = new URL(request.url);
+  const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+  const only = (url.searchParams.get('sections') || url.searchParams.get('section') || '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const limit = Math.max(0, parseInt(url.searchParams.get('limit') || '0', 10) || 0);
+  const want = (name: string): boolean => only.length === 0 || only.includes(name);
+  const matches = (s: string | null | undefined): boolean => !q || (s || '').toLowerCase().includes(q);
+  const cap = <T>(arr: T[]): T[] => (limit > 0 ? arr.slice(0, limit) : arr);
+
   try {
     const profile = await getProfilesService().ensureDefaultProfile(user.id);
     const pid = profile.id;
@@ -51,15 +64,15 @@ export async function GET(request: Request): Promise<NextResponse> {
       getRadioRepository().getUserFavorites(pid).catch(() => []),
     ]);
 
-    const tv = tvRaw.map((c) => ({
+    const tv = want('tv') ? cap(tvRaw.filter((c) => matches(c.channel_name)).map((c) => ({
       id: c.channel_id,
       name: c.channel_name,
       logo: c.channel_logo ?? null,
       player: player({ type: 'tv', channel: c.channel_url, title: c.channel_name }),
       url: `${SITE}/live-tv?channel=${encodeURIComponent(c.channel_id)}`,
-    }));
+    }))) : [];
 
-    const radio = radioRaw.map((s) => ({
+    const radio = !want('radio') ? [] : cap(radioRaw.filter((s) => matches(s.station_name)).map((s) => ({
       id: s.station_id,
       name: s.station_name,
       logo: s.station_image_url ?? null,
@@ -70,7 +83,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         ...(s.station_image_url ? { poster: s.station_image_url } : {}),
       }),
       url: `${SITE}/radio?station=${encodeURIComponent(s.station_id)}`,
-    }));
+    })));
 
     // Resolve a playable file per torrent favorite (from bt_torrent_files) so
     // movies/music/books open in the embeddable player (token-auth streamed).
@@ -90,7 +103,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     const pickFile = (files: typeof filesByTorrent[string], cats: string[]) =>
       (files || []).filter((f) => f.media_category && cats.includes(f.media_category)).sort((a, b) => (b.size || 0) - (a.size || 0))[0] || null;
 
-    const movies = torrentsRaw.map((t) => {
+    const moviesAll = !want('movies') ? [] : torrentsRaw.map((t) => {
       const bt = (t.bt_torrents ?? {}) as Record<string, unknown>;
       const infohash = (bt.infohash as string) ?? '';
       const ct = (bt.content_type as string) ?? null;
@@ -124,11 +137,12 @@ export async function GET(request: Request): Promise<NextResponse> {
         url: `${SITE}/library?infohash=${encodeURIComponent(infohash)}`,
       };
     });
+    const movies = cap(moviesAll.filter((m) => matches(m.title)));
 
-    // Podcasts: subscription + a few recent episodes, each with an audio player URL.
-    const podcasts = await Promise.all(
-      subsRaw.slice(0, 12).map(async (p) => {
-        const eps = await podRepo.getEpisodesByPodcast(p.podcast_id, 5).catch(() => []);
+    // Podcasts: every subscription (filtered) + recent episodes, each an audio player.
+    const podcasts = !want('podcasts') ? [] : await Promise.all(
+      cap(subsRaw.filter((p) => matches(p.podcast_title))).map(async (p) => {
+        const eps = await podRepo.getEpisodesByPodcast(p.podcast_id, 10).catch(() => []);
         return {
           id: p.podcast_id,
           title: p.podcast_title,
