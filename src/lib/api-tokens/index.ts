@@ -30,7 +30,16 @@ export function isAllowedConnectRedirect(url: string): boolean {
     const u = new URL(url);
     if (u.protocol !== 'https:') return false;
     const h = u.hostname;
-    return h === 'tronbrowser.dev' || h.endsWith('.tronbrowser.dev') || h.endsWith('.chromiumapp.org');
+    return (
+      h === 'tronbrowser.dev' ||
+      h.endsWith('.tronbrowser.dev') ||
+      // chrome.identity callback host: <ext-id>.chromiumapp.org. Ungoogled
+      // Chromium rewrites it to <ext-id>.ch40m1umapp.qjz9zk via domain
+      // substitution; .qjz9zk is ungoogled's non-resolving trap TLD, so
+      // allowlisting it is safe (no real attacker can host there).
+      h.endsWith('.chromiumapp.org') ||
+      h.endsWith('.qjz9zk')
+    );
   } catch {
     return false;
   }
