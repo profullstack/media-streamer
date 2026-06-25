@@ -82,6 +82,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const j = JSON.stringify(src);
+  const tk = JSON.stringify(q.get('token') || ''); // connect token for gated proxy streams
   const ap = autoplay ? ' autoplay' : '';
 
   if (type === 'audio' || type === 'radio' || type === 'podcast' || type === 'music') {
@@ -118,10 +119,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     <video id="v" controls${ap} playsinline ${poster ? `poster="${esc(poster)}"` : ''}></video>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
     <script>
-      var v=document.getElementById('v'), src=${j};
-      var isHls=/\\.m3u8(\\?|$)/i.test(src) || /m3u8/i.test(src);
+      var v=document.getElementById('v'), src=${j}, token=${tk};
+      var isHls=/\\.m3u8(\\?|$)/i.test(src) || /m3u8/i.test(src) || /iptv-proxy/.test(src);
       if(isHls && window.Hls && Hls.isSupported()){
-        var h=new Hls({enableWorker:true}); h.loadSource(src); h.attachMedia(v);
+        var h=new Hls({enableWorker:true, xhrSetup:function(xhr){ if(token) xhr.setRequestHeader('Authorization','Bearer '+token); }});
+        h.loadSource(src); h.attachMedia(v);
       } else { v.src=src; } // native HLS (Safari) or progressive mp4/webm/ts
     </script>`, theme));
 }

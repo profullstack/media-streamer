@@ -40,6 +40,21 @@ function parseSessionCookie(cookieValue: string | undefined): SessionToken | nul
  * Returns a NextResponse (401) if not authenticated.
  */
 export async function requireActiveSubscription(request: NextRequest): Promise<NextResponse | null> {
+  // TronBrowser connect-token path (embedded player). Accepts `Authorization:
+  // Bearer btr_…` and checks the token user's subscription — no session cookie
+  // exists inside a third-party iframe.
+  const authz = request.headers.get('authorization') || '';
+  if (/^Bearer\s+btr_/i.test(authz)) {
+    const { getApiUser } = await import('@/lib/api-tokens');
+    const apiUser = await getApiUser(request);
+    if (!apiUser) {
+      return NextResponse.json({ error: 'unauthorized', message: 'Invalid token' }, { status: 401 });
+    }
+    const r = await isSubscriptionActive(apiUser.id);
+    if (r.active) return null;
+    return NextResponse.json({ error: 'subscription_expired', message: 'Subscription required.' }, { status: 402 });
+  }
+
   const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const sessionToken = parseSessionCookie(cookieValue);
 
