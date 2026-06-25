@@ -59,7 +59,13 @@ function publicOriginFor(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const user = await getCurrentUser();
+  // Session cookie, or a TronBrowser connect token (embedded player can't send a cookie).
+  let user = await getCurrentUser();
+  if (!user) {
+    const { getApiUser } = await import('@/lib/api-tokens');
+    const apiUser = await getApiUser(request);
+    if (apiUser) user = { id: apiUser.id, email: apiUser.email ?? '' };
+  }
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }

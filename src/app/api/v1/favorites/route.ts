@@ -64,6 +64,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       name: s.station_name,
       logo: s.station_image_url ?? null,
       genre: s.station_genre ?? null,
+      player: player({ type: 'radio', station: s.station_id, title: s.station_name }),
       url: `${SITE}/radio?station=${encodeURIComponent(s.station_id)}`,
     }));
 
@@ -74,11 +75,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     const torrentDbIds = torrentsRaw
       .map((t) => (t.bt_torrents as Record<string, unknown> | undefined)?.id as string)
       .filter(Boolean);
-    const filesByTorrent: Record<string, Array<{ file_index: number; size: number; media_category: string | null }>> = {};
+    const filesByTorrent: Record<string, Array<{ file_index: number; size: number; media_category: string | null; extension: string | null }>> = {};
     if (torrentDbIds.length) {
       const { data: files } = await sb
         .from('bt_torrent_files')
-        .select('torrent_id, file_index, size, media_category')
+        .select('torrent_id, file_index, size, media_category, extension')
         .in('torrent_id', torrentDbIds);
       for (const f of files || []) (filesByTorrent[f.torrent_id] ||= []).push(f);
     }
@@ -97,7 +98,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         if (f) pl = player({ type: 'audio', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title });
       } else if (ct === 'book') {
         const f = pickFile(files, ['ebook', 'document']);
-        if (f) pl = player({ type: 'ebook', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title });
+        if (f) pl = player({ type: 'ebook', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title, fmt: (f.extension || '').replace(/^\./, '').toLowerCase() });
       } else {
         const f = pickFile(files, ['video']);
         if (f) pl = player({ type: 'video', src: `/api/stream/hls?infohash=${infohash}&fileIndex=${f.file_index}`, title });

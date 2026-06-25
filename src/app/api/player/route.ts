@@ -77,6 +77,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (type === 'tv' && q.get('channel')) {
     src = `/api/iptv-proxy?url=${encodeURIComponent(q.get('channel') as string)}`;
   }
+
+  // Radio: resolve the SiriusXM HLS stream server-side for the token user.
+  if (type === 'radio' && q.get('station')) {
+    let radioErr = 'Radio unavailable.';
+    try {
+      const { getApiUser } = await import('@/lib/api-tokens');
+      const u = await getApiUser(request);
+      if (!u) {
+        radioErr = 'Connect your account to play radio.';
+      } else {
+        const { withSiriusXmUser } = await import('@/lib/radio/siriusxm-auth');
+        const { getRadioService } = await import('@/lib/radio');
+        src = await withSiriusXmUser(u.id, async () => {
+          const { preferred } = await getRadioService().getStream(q.get('station') as string, '256' as never);
+          return preferred?.url || '';
+        });
+        if (!src) radioErr = 'No stream — link your SiriusXM account on bittorrented.com.';
+      }
+    } catch {
+      radioErr = 'Radio unavailable — link SiriusXM on bittorrented.com.';
+    }
+    if (!src) return html(SHELL(title, `<div class="msg">${esc(radioErr)}</div>`, theme));
+  }
+
   if (!src) {
     return html(SHELL(title, `<div class="msg">No media source.</div>`, theme));
   }
@@ -92,13 +116,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const tk = JSON.stringify(tokenRaw); // connect token for gated proxy streams (video → header)
   const ap = autoplay ? ' autoplay' : '';
 
-  if (type === 'audio' || type === 'radio' || type === 'podcast' || type === 'music') {
+  // Radio = HLS audio (via the auth'd proxy) — play through hls.js with the token header.
+  if (type === 'radio') {
+    return html(SHELL(title, `
+      ${title ? `<div class="bar"><b>📻</b> ${esc(title)}</div>` : ''}
+      <audio id="a" controls${ap}></audio>
+      <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+      <script>
+        var a=document.getElementById('a'), src=${j}, token=${tk};
+        if(window.Hls && Hls.isSupported()){
+          var h=new Hls({xhrSetup:function(xhr){ if(token) xhr.setRequestHeader('Authorization','Bearer '+token); }});
+          h.loadSource(src); h.attachMedia(a);
+        } else { a.src=src; }
+      </script>`, theme));
+  }
+
+  if (type === 'audio' || type === 'podcast' || type === 'music') {
     return html(SHELL(title, `
       ${title ? `<div class="bar"><b>♪</b> ${esc(title)}</div>` : ''}
       <audio controls${ap} src=${j}></audio>`, theme));
   }
 
   if (type === 'ebook' || type === 'book') {
+    // PDF (and other non-EPUB) → browser-native viewer; EPUB → epub.js.
+    if ((q.get('fmt') || '').toLowerCase() === 'pdf' || /\\.pdf(\\?|$)/i.test(src)) {
+      return html(SHELL(title, `
+        ${title ? `<div class="bar"><b>📖</b> ${esc(title)}</div>` : ''}
+        <iframe src=${j} style="width:100%;height:100%;border:0;background:#fff"></iframe>`, theme));
+    }
     return html(SHELL(title, `
       <div class="bar"><b>${esc(title) || 'Reader'}</b>
         <button onclick="rendition&&rendition.prev()">‹ Prev</button>
