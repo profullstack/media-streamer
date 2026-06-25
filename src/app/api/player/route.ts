@@ -30,7 +30,9 @@ function html(body: string): NextResponse {
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
         "style-src 'self' 'unsafe-inline'; " +
         "media-src * data: blob:; img-src * data: blob:; connect-src *; " +
-        "frame-ancestors *",
+        // '*' only covers http/https/ws — list extension schemes explicitly so
+        // TronBrowser's chrome-extension:// new tab can embed the player.
+        "frame-ancestors * https: http: chrome-extension: moz-extension:",
     },
   });
 }
