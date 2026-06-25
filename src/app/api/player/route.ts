@@ -27,7 +27,9 @@ function html(body: string): NextResponse {
       // Embeddable in any site's modal; allow the CDN libs + media the player needs.
       'content-security-policy':
         "default-src 'self' data: blob: https: http:; " +
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+        // blob: + worker-src for mpegts.js (raw IPTV .ts decodes in a blob worker).
+        "script-src 'self' 'unsafe-inline' blob: https://cdn.jsdelivr.net; " +
+        "worker-src blob:; " +
         "style-src 'self' 'unsafe-inline'; " +
         "media-src * data: blob:; img-src * data: blob:; connect-src *; " +
         // '*' only covers http/https/ws — list extension schemes explicitly so
@@ -77,8 +79,12 @@ button{background:var(--accent);color:#04060c;border:0;border-radius:6px;padding
 .dock .seek input{flex:1;min-width:0;accent-color:var(--accent)}
 .dock .seek .tm{font-size:11px;opacity:.7;width:40px;text-align:center}
 .live{background:#e7344e;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700}
+#xclose{position:fixed;top:8px;right:8px;z-index:20;width:30px;height:30px;border-radius:50%;padding:0;
+font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.25)}
 @media(max-width:560px){.dock .seek{display:none}}</style>
-</head><body><div id="wrap">${inner}</div></body></html>`;
+</head><body><div id="wrap">${inner}</div>
+<button id="xclose" title="Close" onclick="try{window.parent.postMessage({type:'tron-player-close'},'*')}catch(e){}">✕</button>
+</body></html>`;
 
 // Docked audio player bar (podcast/music/radio) — mirrors bittorrented.com's
 // NowPlayingBar: artwork + title/subtitle + skip-30 / play / seek + time.
@@ -156,7 +162,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Audio/ebook elements can't set Authorization headers, so put the connect
   // token in the gated stream URL. Video uses hls.js xhrSetup (header) instead.
   const tokenRaw = q.get('token') || '';
-  if (tokenRaw && ['audio', 'radio', 'podcast', 'music', 'ebook', 'book'].includes(type) && /\/api\/(stream|iptv-proxy)/.test(src)) {
+  if (tokenRaw && ['audio', 'radio', 'podcast', 'music', 'ebook', 'book', 'tv'].includes(type) && /\/api\/(stream|iptv-proxy)/.test(src)) {
     src += (src.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(tokenRaw);
   }
 
@@ -230,6 +236,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ${title ? `<div class="bar"><b>▶</b> ${esc(title)}</div>` : ''}
     <video id="v" controls${ap} playsinline ${poster ? `poster="${esc(poster)}"` : ''}></video>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js"></script>
     <script>
       var v=document.getElementById('v'), src=${j}, hlsUrl=${hf}, token=${tk};
       function err(t){ document.getElementById('wrap').innerHTML='<div class="msg">'+t+'</div>'; }
@@ -242,11 +249,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         } else if(v.canPlayType('application/vnd.apple.mpegurl')){ v.src=u; v.play().catch(function(){}); }
         else { err('This browser can\\'t play HLS.'); }
       }
-      var isHls=/\\.m3u8(\\?|$)/i.test(src) || /m3u8/i.test(src) || /iptv-proxy/.test(src) || /stream\\/hls/.test(src);
-      if(isHls){ playHls(src); }
+      function playMpegts(u){
+        // Raw MPEG-TS (IPTV .ts) — Chromium can't play it natively or via hls.js.
+        // mpegts.js runs in a worker and needs an absolute URL; token rides in the URL.
+        if(window.mpegts && mpegts.isSupported()){
+          var abs = u.charAt(0)==='/' ? location.origin+u : u;
+          var p = mpegts.createPlayer({ type:'mpegts', isLive:true, url:abs },
+            { enableWorker:true, enableStashBuffer:true, stashInitialSize:384*1024,
+              liveBufferLatencyChasing:false, autoCleanupSourceBuffer:true });
+          p.on(mpegts.Events.ERROR, function(){ err('Stream error — channel may be offline.'); });
+          p.attachMediaElement(v); p.load(); v.play().catch(function(){});
+        } else { err('This browser can\\'t play this channel.'); }
+      }
+      var inner = src; try { inner = decodeURIComponent(src); } catch(e) {}
+      var isProxy = /iptv-proxy/.test(src);
+      var isHls = /\\.m3u8(\\?|$)/i.test(src) || /stream\\/hls/.test(src) || (isProxy && /\\.m3u8|\\.m3u(\\?|$|&)/i.test(inner));
+      if(isProxy && !isHls){ playMpegts(src); }   // raw .ts IPTV channel
+      else if(isHls){ playHls(src); }              // HLS (.m3u8 IPTV or torrent transcode)
       else {
-        // Direct progressive — native <video> can't set headers, so token goes in the URL.
-        // On a decode error (unsupported codec), transcode via the HLS fallback.
+        // Direct progressive torrent stream — native <video> can't set headers, so
+        // token goes in the URL. On a decode error (unsupported codec), transcode
+        // via the HLS fallback (matches the native site's "transcode only if needed").
         v.src = src + (token ? (src.indexOf('?')>=0?'&':'?')+'token='+encodeURIComponent(token) : '');
         v.addEventListener('error', function(){ if(hlsUrl) playHls(hlsUrl); else err('Could not play this file.'); });
         v.play().catch(function(){});
