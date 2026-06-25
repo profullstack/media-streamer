@@ -187,13 +187,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       </script>`, theme));
   }
 
-  // Audio (podcast episodes / music) — docked bar with artwork + seek + skip-30.
+  // Audio (podcast episodes / music) — docked bar with artwork + seek + skip-30,
+  // plus resume ("start where you left off") + progress reporting for podcasts.
   if (type === 'audio' || type === 'podcast' || type === 'music') {
+    const episodeId = q.get('episodeId') || '';
+    const start = Math.max(0, parseInt(q.get('start') || '0', 10) || 0);
     return html(SHELL(title, dockBar(title, subtitle, poster, false) + `
       <script>
         ${DOCK_JS}
         var src=${j}, autoplay=${autoplay ? 'true' : 'false'};
+        var episodeId=${JSON.stringify(episodeId)}, token=${tk}, startAt=${start};
         a.addEventListener('error', function(){ err('Could not play this audio.'); });
+        // Resume where you left off.
+        a.addEventListener('loadedmetadata', function(){
+          if(startAt>0 && isFinite(a.duration) && startAt < a.duration-2){ try{ a.currentTime=startAt; }catch(e){} }
+        });
+        // Report progress (podcast history): throttled while playing + on pause/ended.
+        var lastSent=0;
+        function report(done){
+          if(!episodeId || !token) return;
+          try{ fetch('/api/v1/progress',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+token},
+            keepalive:true, body:JSON.stringify({type:'podcast',episodeId:episodeId,currentTimeSeconds:Math.floor(a.currentTime||0),durationSeconds:Math.floor(a.duration||0),completed:!!done})});}catch(e){}
+        }
+        a.addEventListener('timeupdate', function(){ var t=Date.now(); if(t-lastSent>10000){ lastSent=t; report(false); } });
+        a.addEventListener('pause', function(){ report(false); });
+        a.addEventListener('ended', function(){ report(true); });
         a.src=src; if(autoplay) a.play().catch(function(){});
       </script>`, theme));
   }

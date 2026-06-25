@@ -142,7 +142,19 @@ export async function GET(request: Request): Promise<NextResponse> {
     // Podcasts: every subscription (filtered) + recent episodes, each an audio player.
     const podcasts = !want('podcasts') ? [] : await Promise.all(
       cap(subsRaw.filter((p) => matches(p.podcast_title))).map(async (p) => {
-        const eps = await podRepo.getEpisodesByPodcast(p.podcast_id, 10).catch(() => []);
+        const [eps, progressRows] = await Promise.all([
+          podRepo.getEpisodesByPodcast(p.podcast_id, 10).catch(() => []),
+          podRepo.getListenProgressForPodcast(pid, p.podcast_id).catch(() => []),
+        ]);
+        // episodeId -> saved progress, so the client can resume + mark played.
+        const progByEp: Record<string, { positionSeconds: number; completed: boolean; percentage: number }> = {};
+        for (const r of progressRows as Array<Record<string, unknown>>) {
+          progByEp[r.episode_id as string] = {
+            positionSeconds: Number(r.current_time_seconds ?? 0),
+            completed: Boolean(r.completed),
+            percentage: Number(r.percentage ?? 0),
+          };
+        }
         return {
           id: p.podcast_id,
           title: p.podcast_title,
@@ -153,13 +165,17 @@ export async function GET(request: Request): Promise<NextResponse> {
             .filter((e) => e.audio_url)
             .map((e) => {
               const art = ((e as { image_url?: string }).image_url) || p.podcast_image_url || '';
+              const prog = progByEp[e.id];
+              const start = prog && !prog.completed ? Math.max(0, Math.floor(prog.positionSeconds)) : 0;
               return {
                 id: e.id,
                 title: e.title,
                 publishedAt: e.published_at,
+                progress: prog ?? { positionSeconds: 0, completed: false, percentage: 0 },
                 player: player({
                   type: 'audio', src: e.audio_url as string, title: e.title,
-                  subtitle: p.podcast_title || '',
+                  subtitle: p.podcast_title || '', episodeId: e.id,
+                  ...(start > 0 ? { start: String(start) } : {}),
                   ...(art ? { poster: art } : {}),
                 }),
               };
