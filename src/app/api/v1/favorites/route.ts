@@ -64,7 +64,11 @@ export async function GET(request: Request): Promise<NextResponse> {
       name: s.station_name,
       logo: s.station_image_url ?? null,
       genre: s.station_genre ?? null,
-      player: player({ type: 'radio', station: s.station_id, title: s.station_name }),
+      player: player({
+        type: 'radio', station: s.station_id, title: s.station_name,
+        subtitle: s.station_genre || 'Live radio',
+        ...(s.station_image_url ? { poster: s.station_image_url } : {}),
+      }),
       url: `${SITE}/radio?station=${encodeURIComponent(s.station_id)}`,
     }));
 
@@ -93,20 +97,28 @@ export async function GET(request: Request): Promise<NextResponse> {
       const title = (bt.clean_title as string) || (bt.name as string) || '';
       const files = filesByTorrent[(bt.id as string) ?? ''] || [];
       let pl: string | null = null;
+      const poster = (bt.poster_url as string) || (bt.cover_url as string) || '';
       if (ct === 'music') {
         const f = pickFile(files, ['audio']);
-        if (f) pl = player({ type: 'audio', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title });
+        if (f) pl = player({ type: 'audio', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title, subtitle: 'Music', ...(poster ? { poster } : {}) });
       } else if (ct === 'book') {
         const f = pickFile(files, ['ebook', 'document']);
         if (f) pl = player({ type: 'ebook', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title, fmt: (f.extension || '').replace(/^\./, '').toLowerCase() });
       } else {
+        // Play the direct stream first; the player transcodes via &hls= only if
+        // the browser can't decode the codec (matches the native site's behavior).
         const f = pickFile(files, ['video']);
-        if (f) pl = player({ type: 'video', src: `/api/stream/hls?infohash=${infohash}&fileIndex=${f.file_index}`, title });
+        if (f) pl = player({
+          type: 'video', title,
+          src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`,
+          hls: `/api/stream/hls?infohash=${infohash}&fileIndex=${f.file_index}`,
+          ...(poster ? { poster } : {}),
+        });
       }
       return {
         id: infohash || null,
         title,
-        poster: (bt.poster_url as string) || (bt.cover_url as string) || null,
+        poster: poster || null,
         contentType: ct,
         player: pl,
         url: `${SITE}/library?infohash=${encodeURIComponent(infohash)}`,
@@ -125,12 +137,19 @@ export async function GET(request: Request): Promise<NextResponse> {
           url: `${SITE}/podcasts/${encodeURIComponent(p.podcast_id)}`,
           episodes: eps
             .filter((e) => e.audio_url)
-            .map((e) => ({
-              id: e.id,
-              title: e.title,
-              publishedAt: e.published_at,
-              player: player({ type: 'audio', src: e.audio_url as string, title: e.title }),
-            })),
+            .map((e) => {
+              const art = ((e as { image_url?: string }).image_url) || p.podcast_image_url || '';
+              return {
+                id: e.id,
+                title: e.title,
+                publishedAt: e.published_at,
+                player: player({
+                  type: 'audio', src: e.audio_url as string, title: e.title,
+                  subtitle: p.podcast_title || '',
+                  ...(art ? { poster: art } : {}),
+                }),
+              };
+            }),
         };
       }),
     );

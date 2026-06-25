@@ -63,14 +63,60 @@ font:14px/1.5 ui-monospace,Menlo,monospace}#wrap{width:100%;height:100%;display:
 video,audio{width:100%;height:100%;background:#000}audio{height:auto}
 .msg{padding:24px;text-align:center}.bar{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;gap:8px;
 align-items:center;padding:8px 12px;background:linear-gradient(var(--bg),transparent)}.bar b{color:var(--accent)}
-button{background:var(--accent);color:#04060c;border:0;border-radius:6px;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer}</style>
+button{background:var(--accent);color:#04060c;border:0;border-radius:6px;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer}
+.dock{position:fixed;bottom:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:10px 14px;box-sizing:border-box;background:var(--bg);border-top:1px solid rgba(127,140,170,.25)}
+.dock audio{display:none}
+.dock .art{width:56px;height:56px;border-radius:8px;object-fit:cover;flex:none;background:rgba(127,140,170,.18);display:grid;place-items:center;font-size:22px}
+.dock .meta{min-width:0;flex:1 1 140px}
+.dock .meta .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .meta .s{font-size:12px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .ctrl{display:flex;align-items:center;gap:6px;flex:none}
+.dock .ctrl button{width:38px;height:38px;border-radius:50%;padding:0;font-size:12px}
+.dock .ctrl .pp{width:46px;height:46px;font-size:16px}
+.dock .seek{display:flex;align-items:center;gap:8px;flex:2 1 160px;min-width:0;max-width:440px}
+.dock .seek input{flex:1;min-width:0;accent-color:var(--accent)}
+.dock .seek .tm{font-size:11px;opacity:.7;width:40px;text-align:center}
+.live{background:#e7344e;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700}
+@media(max-width:560px){.dock .seek{display:none}}</style>
 </head><body><div id="wrap">${inner}</div></body></html>`;
+
+// Docked audio player bar (podcast/music/radio) — mirrors bittorrented.com's
+// NowPlayingBar: artwork + title/subtitle + skip-30 / play / seek + time.
+const dockBar = (title: string, subtitle: string, poster: string, live: boolean) => `
+  <div class="dock">
+    ${poster ? `<img class="art" src="${esc(poster)}" alt="">` : `<div class="art">${live ? '📻' : '♪'}</div>`}
+    <div class="meta"><div class="t">${esc(title) || 'Now playing'}</div>
+      <div class="s">${live ? '<span class="live">LIVE</span> ' : ''}${esc(subtitle)}</div></div>
+    <div class="ctrl">
+      ${live ? '' : '<button id="bk" title="Back 30s">↺30</button>'}
+      <button id="pp" class="pp" title="Play / pause">▶</button>
+      ${live ? '' : '<button id="fw" title="Forward 30s">30↻</button>'}
+    </div>
+    ${live ? '' : '<div class="seek"><span class="tm" id="cur">0:00</span><input id="sk" type="range" min="0" max="100" value="0"><span class="tm" id="dur">--:--</span></div>'}
+    <audio id="a"></audio>
+  </div>`;
+
+// Shared custom-control JS driving <audio id="a"> for the docked bar.
+const DOCK_JS = `
+  var a=document.getElementById('a'),pp=document.getElementById('pp'),sk=document.getElementById('sk'),
+  cur=document.getElementById('cur'),dur=document.getElementById('dur'),bk=document.getElementById('bk'),fw=document.getElementById('fw');
+  function fmt(s){if(!isFinite(s)||s<0)return '0:00';var m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+(x<10?'0':'')+x;}
+  function err(t){document.getElementById('wrap').innerHTML='<div class="msg">'+t+'</div>';}
+  pp.onclick=function(){a.paused?a.play().catch(function(){}):a.pause();};
+  a.addEventListener('play',function(){pp.textContent='❚❚';});
+  a.addEventListener('pause',function(){pp.textContent='▶';});
+  if(bk)bk.onclick=function(){a.currentTime=Math.max(0,a.currentTime-30);};
+  if(fw)fw.onclick=function(){a.currentTime=Math.min(a.duration||1e9,a.currentTime+30);};
+  if(sk){a.addEventListener('timeupdate',function(){if(cur)cur.textContent=fmt(a.currentTime);if(a.duration)sk.value=String(a.currentTime/a.duration*100);});
+  a.addEventListener('loadedmetadata',function(){if(dur)dur.textContent=fmt(a.duration);});
+  sk.oninput=function(){if(a.duration)a.currentTime=a.duration*(sk.value/100);};}`;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const q = request.nextUrl.searchParams;
   const theme = themeCss(q);
   const type = (q.get('type') || 'video').toLowerCase();
   const title = q.get('title') || '';
+  const subtitle = q.get('subtitle') || '';
   const poster = q.get('poster') || '';
   const autoplay = q.get('autoplay') !== '0';
   let src = q.get('src') || '';
@@ -118,25 +164,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const tk = JSON.stringify(tokenRaw); // connect token for gated proxy streams (video → header)
   const ap = autoplay ? ' autoplay' : '';
 
-  // Radio = HLS audio (via the auth'd proxy) — play through hls.js with the token header.
+  // Radio = HLS audio (via the auth'd proxy) — docked live bar, hls.js + token header.
   if (type === 'radio') {
-    return html(SHELL(title, `
-      ${title ? `<div class="bar"><b>📻</b> ${esc(title)}</div>` : ''}
-      <audio id="a" controls${ap}></audio>
+    return html(SHELL(title, dockBar(title, subtitle || 'Live radio', poster, true) + `
       <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
       <script>
-        var a=document.getElementById('a'), src=${j}, token=${tk};
+        ${DOCK_JS}
+        var src=${j}, token=${tk}, autoplay=${autoplay ? 'true' : 'false'};
         if(window.Hls && Hls.isSupported()){
-          var h=new Hls({xhrSetup:function(xhr){ if(token) xhr.setRequestHeader('Authorization','Bearer '+token); }});
+          var h=new Hls({xhrSetup:function(x){ if(token) x.setRequestHeader('Authorization','Bearer '+token); }});
+          h.on(Hls.Events.MANIFEST_PARSED, function(){ if(autoplay) a.play().catch(function(){}); });
+          h.on(Hls.Events.ERROR, function(e,d){ if(d&&d.fatal) err('Radio stream error — station offline or SiriusXM session expired.'); });
           h.loadSource(src); h.attachMedia(a);
-        } else { a.src=src; }
+        } else if(a.canPlayType('application/vnd.apple.mpegurl')){ a.src=src; if(autoplay) a.play().catch(function(){}); }
+        else { err('This browser can\\'t play the radio stream.'); }
       </script>`, theme));
   }
 
+  // Audio (podcast episodes / music) — docked bar with artwork + seek + skip-30.
   if (type === 'audio' || type === 'podcast' || type === 'music') {
-    return html(SHELL(title, `
-      ${title ? `<div class="bar"><b>♪</b> ${esc(title)}</div>` : ''}
-      <audio controls${ap} src=${j}></audio>`, theme));
+    return html(SHELL(title, dockBar(title, subtitle, poster, false) + `
+      <script>
+        ${DOCK_JS}
+        var src=${j}, autoplay=${autoplay ? 'true' : 'false'};
+        a.addEventListener('error', function(){ err('Could not play this audio.'); });
+        a.src=src; if(autoplay) a.play().catch(function(){});
+      </script>`, theme));
   }
 
   if (type === 'ebook' || type === 'book') {
@@ -167,17 +220,36 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       </script>`, theme));
   }
 
-  // default: video (HLS or progressive)
+  // default: video. Mirrors bittorrented's "transcode only when necessary":
+  // play the direct stream natively first; if the browser can't decode it,
+  // fall back to the HLS transcode (passed as &hls=). Live TV / .m3u8 go
+  // straight to hls.js (already HLS).
+  const hlsFallback = q.get('hls') || '';
+  const hf = JSON.stringify(hlsFallback);
   return html(SHELL(title, `
     ${title ? `<div class="bar"><b>▶</b> ${esc(title)}</div>` : ''}
     <video id="v" controls${ap} playsinline ${poster ? `poster="${esc(poster)}"` : ''}></video>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
     <script>
-      var v=document.getElementById('v'), src=${j}, token=${tk};
-      var isHls=/\\.m3u8(\\?|$)/i.test(src) || /m3u8/i.test(src) || /iptv-proxy/.test(src);
-      if(isHls && window.Hls && Hls.isSupported()){
-        var h=new Hls({enableWorker:true, xhrSetup:function(xhr){ if(token) xhr.setRequestHeader('Authorization','Bearer '+token); }});
-        h.loadSource(src); h.attachMedia(v);
-      } else { v.src=src; } // native HLS (Safari) or progressive mp4/webm/ts
+      var v=document.getElementById('v'), src=${j}, hlsUrl=${hf}, token=${tk};
+      function err(t){ document.getElementById('wrap').innerHTML='<div class="msg">'+t+'</div>'; }
+      function playHls(u){
+        if(window.Hls && Hls.isSupported()){
+          var h=new Hls({enableWorker:true, xhrSetup:function(x){ if(token) x.setRequestHeader('Authorization','Bearer '+token); }});
+          h.on(Hls.Events.MANIFEST_PARSED, function(){ v.play().catch(function(){}); });
+          h.on(Hls.Events.ERROR, function(e,d){ if(d&&d.fatal) err('Stream error.'); });
+          h.loadSource(u); h.attachMedia(v);
+        } else if(v.canPlayType('application/vnd.apple.mpegurl')){ v.src=u; v.play().catch(function(){}); }
+        else { err('This browser can\\'t play HLS.'); }
+      }
+      var isHls=/\\.m3u8(\\?|$)/i.test(src) || /m3u8/i.test(src) || /iptv-proxy/.test(src) || /stream\\/hls/.test(src);
+      if(isHls){ playHls(src); }
+      else {
+        // Direct progressive — native <video> can't set headers, so token goes in the URL.
+        // On a decode error (unsupported codec), transcode via the HLS fallback.
+        v.src = src + (token ? (src.indexOf('?')>=0?'&':'?')+'token='+encodeURIComponent(token) : '');
+        v.addEventListener('error', function(){ if(hlsUrl) playHls(hlsUrl); else err('Could not play this file.'); });
+        v.play().catch(function(){});
+      }
     </script>`, theme));
 }
