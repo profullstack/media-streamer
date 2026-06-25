@@ -67,14 +67,48 @@ export async function GET(request: Request): Promise<NextResponse> {
       url: `${SITE}/radio?station=${encodeURIComponent(s.station_id)}`,
     }));
 
+    // Resolve a playable file per torrent favorite (from bt_torrent_files) so
+    // movies/music/books open in the embeddable player (token-auth streamed).
+    const { createServerClient } = await import('@/lib/supabase');
+    const sb = createServerClient() as unknown as { from: (t: string) => any };
+    const torrentDbIds = torrentsRaw
+      .map((t) => (t.bt_torrents as Record<string, unknown> | undefined)?.id as string)
+      .filter(Boolean);
+    const filesByTorrent: Record<string, Array<{ file_index: number; size: number; media_category: string | null }>> = {};
+    if (torrentDbIds.length) {
+      const { data: files } = await sb
+        .from('bt_torrent_files')
+        .select('torrent_id, file_index, size, media_category')
+        .in('torrent_id', torrentDbIds);
+      for (const f of files || []) (filesByTorrent[f.torrent_id] ||= []).push(f);
+    }
+    const pickFile = (files: typeof filesByTorrent[string], cats: string[]) =>
+      (files || []).filter((f) => f.media_category && cats.includes(f.media_category)).sort((a, b) => (b.size || 0) - (a.size || 0))[0] || null;
+
     const movies = torrentsRaw.map((t) => {
       const bt = (t.bt_torrents ?? {}) as Record<string, unknown>;
+      const infohash = (bt.infohash as string) ?? '';
+      const ct = (bt.content_type as string) ?? null;
+      const title = (bt.clean_title as string) || (bt.name as string) || '';
+      const files = filesByTorrent[(bt.id as string) ?? ''] || [];
+      let pl: string | null = null;
+      if (ct === 'music') {
+        const f = pickFile(files, ['audio']);
+        if (f) pl = player({ type: 'audio', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title });
+      } else if (ct === 'book') {
+        const f = pickFile(files, ['ebook', 'document']);
+        if (f) pl = player({ type: 'ebook', src: `/api/stream?infohash=${infohash}&fileIndex=${f.file_index}`, title });
+      } else {
+        const f = pickFile(files, ['video']);
+        if (f) pl = player({ type: 'video', src: `/api/stream/hls?infohash=${infohash}&fileIndex=${f.file_index}`, title });
+      }
       return {
-        id: (bt.infohash as string) ?? null,
-        title: (bt.clean_title as string) || (bt.name as string) || '',
+        id: infohash || null,
+        title,
         poster: (bt.poster_url as string) || (bt.cover_url as string) || null,
-        contentType: (bt.content_type as string) ?? null,
-        url: `${SITE}/library?infohash=${encodeURIComponent((bt.infohash as string) ?? '')}`,
+        contentType: ct,
+        player: pl,
+        url: `${SITE}/library?infohash=${encodeURIComponent(infohash)}`,
       };
     });
 

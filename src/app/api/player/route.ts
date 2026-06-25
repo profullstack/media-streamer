@@ -81,8 +81,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return html(SHELL(title, `<div class="msg">No media source.</div>`, theme));
   }
 
+  // Audio/ebook elements can't set Authorization headers, so put the connect
+  // token in the gated stream URL. Video uses hls.js xhrSetup (header) instead.
+  const tokenRaw = q.get('token') || '';
+  if (tokenRaw && ['audio', 'radio', 'podcast', 'music', 'ebook', 'book'].includes(type) && /\/api\/(stream|iptv-proxy)/.test(src)) {
+    src += (src.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(tokenRaw);
+  }
+
   const j = JSON.stringify(src);
-  const tk = JSON.stringify(q.get('token') || ''); // connect token for gated proxy streams
+  const tk = JSON.stringify(tokenRaw); // connect token for gated proxy streams (video → header)
   const ap = autoplay ? ' autoplay' : '';
 
   if (type === 'audio' || type === 'radio' || type === 'podcast' || type === 'music') {

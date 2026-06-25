@@ -44,7 +44,9 @@ export async function requireActiveSubscription(request: NextRequest): Promise<N
   // Bearer btr_…` and checks the token user's subscription — no session cookie
   // exists inside a third-party iframe.
   const authz = request.headers.get('authorization') || '';
-  if (/^Bearer\s+btr_/i.test(authz)) {
+  let queryToken = '';
+  try { queryToken = new URL(request.url).searchParams.get('token') || ''; } catch { /* ignore */ }
+  if (/^Bearer\s+btr_/i.test(authz) || /^btr_/.test(queryToken)) {
     const { getApiUser } = await import('@/lib/api-tokens');
     const apiUser = await getApiUser(request);
     if (!apiUser) {

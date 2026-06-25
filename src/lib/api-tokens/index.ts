@@ -87,10 +87,14 @@ export async function verifyApiToken(token: string): Promise<{ userId: string } 
  * Returns { id, email } or null.
  */
 export async function getApiUser(request: Request): Promise<{ id: string; email: string | null } | null> {
-  const auth = request.headers.get('authorization') || '';
-  const m = auth.match(/^Bearer\s+(.+)$/i);
-  if (!m) return null;
-  const result = await verifyApiToken(m[1].trim());
+  // Token from the Authorization header, or a ?token= query param (for <audio>/
+  // <iframe> sources that can't set headers).
+  let token = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (!token) {
+    try { token = new URL(request.url).searchParams.get('token') || undefined; } catch { /* ignore */ }
+  }
+  if (!token) return null;
+  const result = await verifyApiToken(token);
   if (!result) return null;
   // Look up the email via the service-role admin API (best-effort).
   let email: string | null = null;
