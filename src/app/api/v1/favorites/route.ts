@@ -17,6 +17,7 @@ import { getProfilesService } from '@/lib/profiles/profiles-service';
 import { getFavoritesService } from '@/lib/favorites';
 import { getPodcastRepository } from '@/lib/podcasts';
 import { getRadioRepository } from '@/lib/radio';
+import { encodeStreamUrl } from '@/lib/iptv-proxy';
 
 const SITE = 'https://bittorrented.com';
 const PLAYER = `${SITE}/api/player`;
@@ -173,7 +174,14 @@ export async function GET(request: Request): Promise<NextResponse> {
                 publishedAt: e.published_at,
                 progress: prog ?? { positionSeconds: 0, completed: false, percentage: 0 },
                 player: player({
-                  type: 'audio', src: e.audio_url as string, title: e.title,
+                  // Route the RSS enclosure through the stream proxy: it upgrades
+                  // http→https (the player page is https, so a raw http enclosure is
+                  // blocked as mixed content → "Could not play this audio."), sends
+                  // browser-like headers (defeats hotlink/referer blocks), and
+                  // forwards Range for seeking. Same proxy live-TV channels use.
+                  type: 'audio',
+                  src: `/api/iptv-proxy?url=${encodeStreamUrl(e.audio_url as string)}`,
+                  title: e.title,
                   subtitle: p.podcast_title || '', episodeId: e.id,
                   ...(start > 0 ? { start: String(start) } : {}),
                   ...(art ? { poster: art } : {}),
