@@ -25,6 +25,7 @@ import {
   setMediaSessionActionHandlers,
   clearMediaSession,
 } from '@/lib/media-session';
+import { encodeStreamUrl } from '@/lib/iptv-proxy';
 
 // ============================================================================
 // Constants
@@ -306,8 +307,12 @@ export function PodcastPlayerProvider({ children }: PodcastPlayerProviderProps):
     setCurrentTime(startTime ?? 0);
     setDuration(episode.duration ?? 0);
 
-    // Load and play
-    audio.src = episode.audioUrl;
+    // Load and play. Route the RSS enclosure through the stream proxy: this page
+    // is https, so a raw http:// enclosure is blocked as mixed content ("Could not
+    // play this audio."), and hotlink/referer-protected hosts reject the bare
+    // request. The proxy upgrades http→https, sends browser-like headers, and
+    // forwards Range for seeking/resume. Mirrors /api/v1/favorites.
+    audio.src = `/api/iptv-proxy?url=${encodeStreamUrl(episode.audioUrl)}`;
     audio.load();
 
     // If we have a start time (resume position), seek to it after loading

@@ -187,7 +187,10 @@ describe('PodcastPlayerContext', () => {
         fireEvent.click(screen.getByTestId('play-episode'));
       });
       
-      expect(mockAudio.src).toBe('https://example.com/audio.mp3');
+      // Enclosure is routed through the stream proxy (https upgrade + Range).
+      expect(mockAudio.src).toBe(
+        `/api/iptv-proxy?url=${encodeURIComponent('https://example.com/audio.mp3')}`
+      );
       expect(mockAudio.play).toHaveBeenCalled();
     });
     
