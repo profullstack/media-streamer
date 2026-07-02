@@ -5,6 +5,7 @@ import {
   listPublicEmailAccounts,
   toPublicEmailAccount,
   validateCreateEmailAccountInput,
+  validateSmtpPortSecurity,
 } from '@/lib/email-accounts';
 import { buildEmailAccountLoadError } from '@/lib/email-reader/errors';
 
@@ -39,6 +40,11 @@ export async function POST(request: NextRequest): Promise<Response> {
   const input = validateCreateEmailAccountInput(body);
   if (!input) {
     return NextResponse.json({ error: 'Invalid email account configuration' }, { status: 400 });
+  }
+
+  const portSecurityError = validateSmtpPortSecurity(input.smtpPort, input.smtpSecurity);
+  if (portSecurityError) {
+    return NextResponse.json({ error: portSecurityError }, { status: 400 });
   }
 
   try {

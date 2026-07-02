@@ -1,4 +1,5 @@
 import type { EmailAccount } from '@/lib/email-accounts';
+import { isSmtpPortSecurityMismatch } from '@/lib/email-accounts/provider-settings';
 
 export interface EmailErrorPayload {
   error: string;
@@ -155,6 +156,14 @@ export function buildSmtpCheckError(
 
   if (isMissingEncryptionKey(message) || isCredentialDecryptError(message)) {
     return buildEmailAccountLoadError(error);
+  }
+
+  if (isSmtpPortSecurityMismatch(message)) {
+    return {
+      error: 'SMTP port and security setting do not match.',
+      details,
+      solution: message,
+    };
   }
 
   if (isForwardEmailAccount(account) && isAuthLikeError(message)) {

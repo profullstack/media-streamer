@@ -9,8 +9,11 @@ const FORWARD_EMAIL_PROVIDERS = new Set([
   'forwardedemail.net',
 ]);
 
-const FORWARD_EMAIL_TLS_PORTS = new Set([465, 2465]);
-const FORWARD_EMAIL_STARTTLS_PORTS = new Set([587, 2587, 2525, 25]);
+// Ports that speak implicit TLS from the first byte (SMTPS). The client must
+// open a TLS handshake immediately; STARTTLS/None here hangs until timeout.
+const IMPLICIT_TLS_PORTS = new Set([465, 2465]);
+// Submission/relay ports that start in plaintext and upgrade via STARTTLS.
+const STARTTLS_PORTS = new Set([587, 2587, 2525, 25]);
 
 export function isForwardEmailProvider(provider: string | null | undefined, smtpHost: string): boolean {
   return FORWARD_EMAIL_PROVIDERS.has(provider?.trim().toLowerCase() ?? '') ||
@@ -24,9 +27,38 @@ export function normalizeSmtpSecurity(
   smtpSecurity: SmtpSecurity
 ): SmtpSecurity {
   if (!isForwardEmailProvider(provider, smtpHost)) return smtpSecurity;
-  if (FORWARD_EMAIL_TLS_PORTS.has(smtpPort)) return 'tls';
-  if (FORWARD_EMAIL_STARTTLS_PORTS.has(smtpPort)) return 'starttls';
+  if (IMPLICIT_TLS_PORTS.has(smtpPort)) return 'tls';
+  if (STARTTLS_PORTS.has(smtpPort)) return 'starttls';
   return smtpSecurity;
+}
+
+// Marker phrases used by the error builder to give a precise, non-generic
+// message. Keep them in sync with buildSmtpCheckError's detection.
+const IMPLICIT_TLS_MISMATCH = 'uses implicit TLS';
+const STARTTLS_MISMATCH = 'uses STARTTLS';
+
+/**
+ * Rejects port/security combinations that cannot work, so the account fails
+ * instantly with a readable reason instead of silently timing out after ~15s
+ * (e.g. port 465 with STARTTLS waits forever for a plaintext banner that a
+ * TLS-only port never sends). This never rewrites the user's input — it only
+ * reports why the combination is invalid. Returns null when the combo is fine.
+ */
+export function validateSmtpPortSecurity(
+  smtpPort: number,
+  smtpSecurity: SmtpSecurity
+): string | null {
+  if (IMPLICIT_TLS_PORTS.has(smtpPort) && smtpSecurity !== 'tls') {
+    return `Port ${smtpPort} ${IMPLICIT_TLS_MISMATCH} (SSL), but Security is set to "${smtpSecurity}". Set Security to "TLS".`;
+  }
+  if (STARTTLS_PORTS.has(smtpPort) && smtpSecurity === 'tls') {
+    return `Port ${smtpPort} ${STARTTLS_MISMATCH}, but Security is set to "TLS". Set Security to "STARTTLS" (or "None").`;
+  }
+  return null;
+}
+
+export function isSmtpPortSecurityMismatch(message: string): boolean {
+  return message.includes(IMPLICIT_TLS_MISMATCH) || message.includes(STARTTLS_MISMATCH);
 }
 
 export function normalizeSmtpUsername(

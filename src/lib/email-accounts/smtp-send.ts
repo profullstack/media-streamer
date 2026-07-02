@@ -2,7 +2,7 @@ import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import tls from 'node:tls';
 import type { EmailAccount } from './types';
-import { normalizeEmailAccountSmtp } from './provider-settings';
+import { normalizeEmailAccountSmtp, validateSmtpPortSecurity } from './provider-settings';
 
 const SMTP_TIMEOUT_MS = 20_000;
 
@@ -158,6 +158,12 @@ function buildMessage(account: EmailAccount, input: OutboundEmail, messageId: st
 
 export async function sendEmail(account: EmailAccount, input: OutboundEmail): Promise<SendEmailResult> {
   const effectiveAccount = normalizeEmailAccountSmtp(account);
+
+  const configError = validateSmtpPortSecurity(effectiveAccount.smtpPort, effectiveAccount.smtpSecurity);
+  if (configError) {
+    throw new Error(configError);
+  }
+
   const recipients = normalizeRecipients(input.to);
   if (recipients.length === 0) {
     throw new Error('No valid reply recipient');

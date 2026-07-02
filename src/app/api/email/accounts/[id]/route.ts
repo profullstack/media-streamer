@@ -5,6 +5,7 @@ import {
   getEmailAccount,
   toPublicEmailAccount,
   updateEmailAccount,
+  validateSmtpPortSecurity,
   validateUpdateEmailAccountInput,
 } from '@/lib/email-accounts';
 
@@ -45,8 +46,23 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
     return NextResponse.json({ error: 'Invalid email account update' }, { status: 400 });
   }
 
+  const { id } = await context.params;
+
+  if (input.smtpPort !== undefined || input.smtpSecurity !== undefined) {
+    const existing = await getEmailAccount(user.id, id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
+    }
+    const portSecurityError = validateSmtpPortSecurity(
+      input.smtpPort ?? existing.smtpPort,
+      input.smtpSecurity ?? existing.smtpSecurity
+    );
+    if (portSecurityError) {
+      return NextResponse.json({ error: portSecurityError }, { status: 400 });
+    }
+  }
+
   try {
-    const { id } = await context.params;
     const account = await updateEmailAccount(user.id, id, input);
     return NextResponse.json({ account: toPublicEmailAccount(account) });
   } catch (error) {

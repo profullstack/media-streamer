@@ -1,7 +1,7 @@
 import net from 'node:net';
 import tls from 'node:tls';
 import type { EmailAccount, SmtpCheckResult } from './types';
-import { normalizeEmailAccountSmtp } from './provider-settings';
+import { normalizeEmailAccountSmtp, validateSmtpPortSecurity } from './provider-settings';
 
 const SMTP_TIMEOUT_MS = 15_000;
 
@@ -94,6 +94,11 @@ async function authenticate(socket: net.Socket, account: EmailAccount): Promise<
 export async function checkSmtpAccount(account: EmailAccount): Promise<SmtpCheckResult> {
   let socket: net.Socket | null = null;
   const effectiveAccount = normalizeEmailAccountSmtp(account);
+
+  const configError = validateSmtpPortSecurity(effectiveAccount.smtpPort, effectiveAccount.smtpSecurity);
+  if (configError) {
+    return { success: false, error: configError };
+  }
 
   try {
     socket = effectiveAccount.smtpSecurity === 'tls'
