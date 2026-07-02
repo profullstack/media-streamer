@@ -49,20 +49,27 @@ export async function GET(): Promise<NextResponse<StatsResponse | ErrorResponse>
       throw new Error(userError.message);
     }
 
-    // Get count from DHT torrents (torrents table from Bitmagnet)
-    // This table may not exist if DHT is not set up, so handle gracefully
+    // Get count from DHT torrents (torrents table from Bitmagnet).
+    // Use an ESTIMATED count (planner's reltuples) rather than exact: this
+    // table has ~15M rows and an exact count(*) exceeds Postgres's
+    // statement_timeout, which previously errored out and silently dropped
+    // the DHT total to 0 (collapsing the shown count to just bt_torrents).
+    // This table may not exist if DHT is not set up, so handle gracefully.
     let dhtCount = 0;
     try {
       const { count, error: dhtError } = await client
         .from('torrents')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'estimated', head: true });
 
-      if (!dhtError && count !== null) {
+      if (dhtError) {
+        // Log loudly - do not let a genuine failure masquerade as an empty DHT.
+        console.error('DHT torrents count error:', dhtError);
+      } else if (count !== null) {
         dhtCount = count;
       }
-    } catch {
+    } catch (dhtErr) {
       // DHT table may not exist - that's OK
-      console.log('DHT torrents table not available');
+      console.log('DHT torrents table not available', dhtErr);
     }
 
     const totalTorrents = (userCount ?? 0) + dhtCount;
