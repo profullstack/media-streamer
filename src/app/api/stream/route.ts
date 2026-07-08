@@ -149,44 +149,60 @@ async function getMagnetUri(infohash: string): Promise<string> {
  */
 function nodeStreamToWebStream(nodeStream: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
   let controllerClosed = false;
-  
+  let controller: ReadableStreamDefaultController<Uint8Array>;
+
+  // Named handlers so we can detach them — otherwise every stream leaks
+  // data/end/error listeners on the underlying socket/stream. (Mirrors the
+  // cleanup already done in nodeStreamToWebStreamWithPreBuffer.)
+  const cleanup = (): void => {
+    nodeStream.removeListener('data', onData);
+    nodeStream.removeListener('end', onEnd);
+    nodeStream.removeListener('error', onError);
+  };
+
+  const onData = (chunk: Buffer): void => {
+    if (controllerClosed) return;
+    try {
+      controller.enqueue(new Uint8Array(chunk));
+    } catch {
+      // Controller may be closed if client disconnected
+      controllerClosed = true;
+      cleanup();
+    }
+  };
+
+  const onEnd = (): void => {
+    if (controllerClosed) return;
+    controllerClosed = true;
+    cleanup();
+    try {
+      controller.close();
+    } catch {
+      // Controller may already be closed
+    }
+  };
+
+  const onError = (err: Error): void => {
+    if (controllerClosed) return;
+    controllerClosed = true;
+    cleanup();
+    try {
+      controller.error(err);
+    } catch {
+      // Controller may already be closed
+    }
+  };
+
   return new ReadableStream({
-    start(controller) {
-      nodeStream.on('data', (chunk: Buffer) => {
-        if (!controllerClosed) {
-          try {
-            controller.enqueue(new Uint8Array(chunk));
-          } catch {
-            // Controller may be closed if client disconnected
-            controllerClosed = true;
-          }
-        }
-      });
-      
-      nodeStream.on('end', () => {
-        if (!controllerClosed) {
-          controllerClosed = true;
-          try {
-            controller.close();
-          } catch {
-            // Controller may already be closed
-          }
-        }
-      });
-      
-      nodeStream.on('error', (err: Error) => {
-        if (!controllerClosed) {
-          controllerClosed = true;
-          try {
-            controller.error(err);
-          } catch {
-            // Controller may already be closed
-          }
-        }
-      });
+    start(c) {
+      controller = c;
+      nodeStream.on('data', onData);
+      nodeStream.on('end', onEnd);
+      nodeStream.on('error', onError);
     },
     cancel() {
       controllerClosed = true;
+      cleanup();
       if ('destroy' in nodeStream && typeof nodeStream.destroy === 'function') {
         nodeStream.destroy();
       }
