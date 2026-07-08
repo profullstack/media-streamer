@@ -24,6 +24,7 @@ import {
   ImageIcon,
   PlayIcon,
   ShuffleIcon,
+  DownloadIcon,
 } from '@/components/ui/icons';
 import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeholder';
 import { AmazonBuyButton } from '@/components/ui/amazon-buy-button';
@@ -670,6 +671,22 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                     {torrent.contentType}
                   </span> : null}
               </div>
+
+              {/* Download the whole torrent — hands the magnet off to the user's
+                  BitTorrent client so all files download at once (vs. the
+                  per-file download buttons in the file list below). */}
+              {torrent.magnetUri ? (
+                <div className="mt-4">
+                  <a
+                    href={torrent.magnetUri}
+                    className="inline-flex items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 transition-colors"
+                    title="Open this torrent in your BitTorrent client to download all files at once"
+                  >
+                    <DownloadIcon size={18} />
+                    Download torrent
+                  </a>
+                </div>
+              ) : null}
 
               {/* IMDB rating */}
               {(torrent as any).imdbRating ? <div className="mt-3 flex items-center gap-3">
