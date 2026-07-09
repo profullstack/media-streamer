@@ -67,6 +67,17 @@ describe('Torrent Search API', () => {
       expect(data.error).toBe('Invalid limit. Must be a number.');
     });
 
+    it('should return 400 for partial, fractional, or unsafe integer limits', async () => {
+      for (const limit of ['10abc', '1.5', '9007199254740992']) {
+        const request = createRequest({ q: 'test', limit });
+        const response = await GET(request);
+
+        expect(response.status).toBe(400);
+        const data = await response.json();
+        expect(data.error).toBe('Invalid limit. Must be a number.');
+      }
+    });
+
     it('should return 400 if limit exceeds maximum', async () => {
       const request = createRequest({ q: 'test', limit: '200' });
       const response = await GET(request);
@@ -92,6 +103,17 @@ describe('Torrent Search API', () => {
       expect(response.status).toBe(400);
       const data = await response.json();
       expect(data.error).toBe('Invalid offset. Must be a number.');
+    });
+
+    it('should return 400 for partial, fractional, or unsafe integer offsets', async () => {
+      for (const offset of ['10abc', '1.5', '9007199254740992']) {
+        const request = createRequest({ q: 'test', offset });
+        const response = await GET(request);
+
+        expect(response.status).toBe(400);
+        const data = await response.json();
+        expect(data.error).toBe('Invalid offset. Must be a number.');
+      }
     });
 
     it('should return 400 for negative offset', async () => {

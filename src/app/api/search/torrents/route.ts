@@ -39,6 +39,15 @@ const MAX_LIMIT = 100;
  */
 const DEFAULT_LIMIT = 50;
 
+function parseStrictIntegerParam(value: string | null): number | null {
+  if (value == null || !/^-?\d+$/.test(value)) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 /**
  * Extended search result with source
  */
@@ -125,8 +134,8 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
   const limitParam = searchParams.get('limit');
   let limit = DEFAULT_LIMIT;
   if (limitParam) {
-    const parsedLimit = parseInt(limitParam, 10);
-    if (isNaN(parsedLimit)) {
+    const parsedLimit = parseStrictIntegerParam(limitParam);
+    if (parsedLimit == null) {
       return NextResponse.json(
         { error: 'Invalid limit. Must be a number.' },
         { status: 400 }
@@ -151,8 +160,8 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
   const offsetParam = searchParams.get('offset');
   let offset = 0;
   if (offsetParam) {
-    const parsedOffset = parseInt(offsetParam, 10);
-    if (isNaN(parsedOffset)) {
+    const parsedOffset = parseStrictIntegerParam(offsetParam);
+    if (parsedOffset == null) {
       return NextResponse.json(
         { error: 'Invalid offset. Must be a number.' },
         { status: 400 }
