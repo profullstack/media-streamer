@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { searchTorrentFiles } from '@/lib/torrent-index';
+import { parseIntegerParam } from '@/lib/api/pagination';
 import type { MediaCategory } from '@/lib/supabase/types';
 
 // Valid media types
@@ -59,18 +60,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   // Parse pagination parameters
-  const limit = limitParam ? parseInt(limitParam, 10) : 50;
-  const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+  const limit = limitParam ? parseIntegerParam(limitParam, { min: 0 }) : 50;
+  const offset = offsetParam ? parseIntegerParam(offsetParam, { min: 0 }) : 0;
 
   // Validate pagination
-  if (isNaN(limit) || limit < 0) {
+  if (limit == null) {
     return NextResponse.json(
       { error: 'Invalid limit parameter' },
       { status: 400 }
     );
   }
 
-  if (isNaN(offset) || offset < 0) {
+  if (offset == null) {
     return NextResponse.json(
       { error: 'Invalid offset parameter' },
       { status: 400 }

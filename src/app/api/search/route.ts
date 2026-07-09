@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { searchFiles } from '@/lib/supabase';
+import { parseIntegerParam } from '@/lib/api/pagination';
 import type { MediaCategory } from '@/lib/supabase';
 
 /**
@@ -158,8 +159,8 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
   const limitParam = searchParams.get('limit');
   let limit = DEFAULT_LIMIT;
   if (limitParam) {
-    const parsedLimit = parseInt(limitParam, 10);
-    if (isNaN(parsedLimit)) {
+    const parsedLimit = parseIntegerParam(limitParam);
+    if (parsedLimit == null) {
       return NextResponse.json(
         { error: 'Invalid limit. Must be a number.' },
         { status: 400 }
@@ -184,8 +185,8 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
   const offsetParam = searchParams.get('offset');
   let offset = 0;
   if (offsetParam) {
-    const parsedOffset = parseInt(offsetParam, 10);
-    if (isNaN(parsedOffset)) {
+    const parsedOffset = parseIntegerParam(offsetParam);
+    if (parsedOffset == null) {
       return NextResponse.json(
         { error: 'Invalid offset. Must be a number.' },
         { status: 400 }
