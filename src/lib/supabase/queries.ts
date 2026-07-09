@@ -831,6 +831,9 @@ export async function searchAllTorrents(
     source?: 'all' | 'user' | 'dht';
     sortBy?: 'relevance' | 'date' | 'seeders' | 'leechers' | 'size';
     sortOrder?: 'asc' | 'desc';
+    /** Content category filter (video/audio/ebook/xxx/other) — mapped to
+     *  bitmagnet + user content types inside the RPC. */
+    contentCategory?: string | null;
   }
 ): Promise<(TorrentSearchResult & { source: 'user' | 'dht' })[]> {
   const client = getServerClient();
@@ -838,7 +841,7 @@ export async function searchAllTorrents(
     query, source = 'all', limit = 50, offset = 0,
     sortBy = 'seeders', sortOrder = 'desc',
     minSeeders, maxSeeders, minLeechers, maxLeechers,
-    minSize, maxSize, dateFrom, dateTo,
+    minSize, maxSize, dateFrom, dateTo, contentCategory,
   } = options;
 
   // Use the search_all_torrents RPC
@@ -856,6 +859,7 @@ export async function searchAllTorrents(
     max_size: maxSize ?? null,
     date_from: dateFrom ?? null,
     date_to: dateTo ?? null,
+    p_content_type: contentCategory ?? null,
   });
 
   if (error) {

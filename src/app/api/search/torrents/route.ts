@@ -24,7 +24,10 @@ type SearchSource = 'all' | 'user' | 'dht';
 /**
  * Valid media types for filtering
  */
-const VALID_MEDIA_TYPES: MediaCategory[] = ['audio', 'video', 'ebook', 'document', 'other'];
+// Search content categories. audio/video/ebook/document/other are the file media
+// categories the UI exposes; 'xxx' is bitmagnet's adult classification. The RPC
+// maps each to the underlying bitmagnet + user content_type taxonomies.
+const VALID_MEDIA_TYPES: string[] = ['audio', 'video', 'ebook', 'document', 'other', 'xxx'];
 
 /**
  * Maximum allowed limit for pagination
@@ -111,7 +114,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
 
   // Extract and validate media type filter
   const mediaType = searchParams.get('type');
-  if (mediaType && !VALID_MEDIA_TYPES.includes(mediaType as MediaCategory)) {
+  if (mediaType && !VALID_MEDIA_TYPES.includes(mediaType)) {
     return NextResponse.json(
       { error: `Invalid media type. Must be one of: ${VALID_MEDIA_TYPES.join(', ')}` },
       { status: 400 }
@@ -238,6 +241,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         maxSize,
         dateFrom,
         dateTo,
+        contentCategory: mediaType,
       });
       results = unifiedResults;
     }
