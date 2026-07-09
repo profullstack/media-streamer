@@ -112,7 +112,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           plan,
           userEmail: user.email,
         },
-        webhookUrl: `${baseUrl}/api/payments/webhook`,
+        webhookUrl: `${baseUrl}/api/webhooks/coinpayportal`,
         redirectUrl: `${baseUrl}/account?payment=success`,
       });
     } catch (apiError) {

@@ -116,6 +116,27 @@ describe('Payment API Route', () => {
       expect(data.payment.plan).toBe('premium');
     });
 
+    it('should register the webhook at a route that actually exists (src/app/api/webhooks/coinpayportal)', async () => {
+      const { POST } = await import('./route');
+
+      const request = new Request('http://localhost:3000/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: 'premium',
+          cryptoType: 'BTC',
+        }),
+      });
+
+      await POST(request);
+
+      expect(mockCreatePayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          webhookUrl: expect.stringMatching(/\/api\/webhooks\/coinpayportal$/),
+        })
+      );
+    });
+
     it('should create a payment request for family plan', async () => {
       const { POST } = await import('./route');
       
