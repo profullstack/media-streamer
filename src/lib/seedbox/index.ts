@@ -14,3 +14,29 @@ export type {
   SeedboxResourceKind,
   SeedboxResourceStatus,
 } from './lifecycle';
+
+// Transports: hand a torrent off to a seedbox over HTTP (torlink API) or SSH.
+export {
+  getSeedboxConfig,
+  availableTransports,
+  isEmailAllowed,
+  parseAllowedEmails,
+} from './config';
+
+export type {
+  SeedboxConfig,
+  SeedboxHttpConfig,
+  SeedboxSshConfig,
+  SeedboxTransport,
+  SeedboxHttpAuth,
+} from './config';
+
+export {
+  getSeedboxAccess,
+  sendTorrentToSeedbox,
+  isValidMagnet,
+} from './send';
+
+export type { SeedboxAccess } from './send';
+
+export type { SendResult } from './http-transport';

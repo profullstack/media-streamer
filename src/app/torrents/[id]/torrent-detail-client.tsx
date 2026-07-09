@@ -14,6 +14,7 @@ import { FileTree } from '@/components/files';
 import { SearchBar, type SearchFilters } from '@/components/search';
 import { ImageGalleryModal, MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
 import { CommentsSection, TorrentVoting } from '@/components/comments';
+import { SeedboxSendButton } from '@/components/torrents';
 import {
   ChevronRightIcon,
   LoadingSpinner,
@@ -685,6 +686,12 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                     <DownloadIcon size={18} />
                     Download torrent
                   </a>
+                  {/* Push the torrent to a configured seedbox (operator-only) */}
+                  <SeedboxSendButton
+                    torrentId={torrentId}
+                    magnetUri={torrent.magnetUri}
+                    torrentName={torrent.cleanTitle || cleanDisplayName(torrent.name)}
+                  />
                 </div>
               ) : null}
 
