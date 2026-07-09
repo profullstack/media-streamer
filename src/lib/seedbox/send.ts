@@ -18,6 +18,8 @@ export interface SeedboxAccess {
   transports: SeedboxTransport[];
   /** Our public key to add to the seedbox's authorized_keys (SSH transport only). */
   publicKey: string | null;
+  /** True when a seedbox file server is configured, so playback-from-seedbox is available. */
+  filesConfigured: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export async function getSeedboxAccess(
     enabled: allowed && transports.length > 0,
     transports,
     publicKey,
+    filesConfigured: allowed && config.files != null,
   };
 }
 

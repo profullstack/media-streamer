@@ -40,3 +40,7 @@ export {
 export type { SeedboxAccess } from './send';
 
 export type { SendResult } from './http-transport';
+
+// File streaming: proxy completed files from the seedbox file server (torlnk files).
+export { buildSeedboxFileUrl, fetchSeedboxFile, filesAuthHeaders } from './files';
+export type { SeedboxFilesConfig } from './config';

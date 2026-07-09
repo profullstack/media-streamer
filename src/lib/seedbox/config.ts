@@ -44,10 +44,24 @@ export interface SeedboxSshConfig {
   addCommand: string | null;
 }
 
+/** How the file-streaming proxy authenticates against the seedbox file server. */
+export type SeedboxFilesAuth =
+  | { kind: 'none' }
+  | { kind: 'bearer'; token: string }
+  | { kind: 'header'; header: string; token: string }
+  | { kind: 'basic'; user: string; pass: string };
+
+export interface SeedboxFilesConfig {
+  /** HTTP root that maps to the seedbox save directory (files live at base + '/' + file.path). */
+  baseUrl: string;
+  auth: SeedboxFilesAuth;
+}
+
 export interface SeedboxConfig {
   allowedEmails: string[];
   http: SeedboxHttpConfig | null;
   ssh: SeedboxSshConfig | null;
+  files: SeedboxFilesConfig | null;
 }
 
 function readTrimmed(name: string): string | null {
@@ -85,7 +99,8 @@ function readHttpConfig(): SeedboxHttpConfig | null {
   return {
     baseUrl: baseUrl.replace(/\/+$/, ''),
     token,
-    addPath: readTrimmed('SEEDBOX_HTTP_ADD_PATH') ?? '/api/torrents/add',
+    // Default matches `torlnk serve` (POST /add {"magnet":"..."}); override for other clients.
+    addPath: readTrimmed('SEEDBOX_HTTP_ADD_PATH') ?? '/add',
     auth: parseHttpAuth(readTrimmed('SEEDBOX_HTTP_AUTH')),
     magnetField: readTrimmed('SEEDBOX_HTTP_MAGNET_FIELD') ?? 'magnet',
   };
@@ -118,11 +133,39 @@ function readSshConfig(): SeedboxSshConfig | null {
   };
 }
 
+function readFilesAuth(): SeedboxFilesAuth {
+  const raw = (readTrimmed('SEEDBOX_FILES_AUTH') ?? 'none').toLowerCase();
+  if (raw === 'basic') {
+    const user = readTrimmed('SEEDBOX_FILES_BASIC_USER');
+    const pass = readTrimmed('SEEDBOX_FILES_BASIC_PASS');
+    if (user && pass) return { kind: 'basic', user, pass };
+    return { kind: 'none' };
+  }
+  const token = readTrimmed('SEEDBOX_FILES_TOKEN');
+  if (raw === 'bearer' && token) return { kind: 'bearer', token };
+  const headerMatch = /^header:(.+)$/i.exec(raw);
+  if (headerMatch && token) {
+    const header = headerMatch[1].trim();
+    if (header) return { kind: 'header', header, token };
+  }
+  return { kind: 'none' };
+}
+
+function readFilesConfig(): SeedboxFilesConfig | null {
+  const baseUrl = readTrimmed('SEEDBOX_FILES_BASE_URL');
+  if (!baseUrl) return null;
+  return {
+    baseUrl: baseUrl.replace(/\/+$/, ''),
+    auth: readFilesAuth(),
+  };
+}
+
 export function getSeedboxConfig(): SeedboxConfig {
   return {
     allowedEmails: parseAllowedEmails(readTrimmed('SEEDBOX_ALLOWED_EMAILS')),
     http: readHttpConfig(),
     ssh: readSshConfig(),
+    files: readFilesConfig(),
   };
 }
 

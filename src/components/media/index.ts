@@ -7,3 +7,4 @@
 export { MediaPlayerModal, type MediaPlayerModalProps } from './media-player-modal';
 export { PlaylistPlayerModal, type PlaylistPlayerModalProps } from './playlist-player-modal';
 export { ImageGalleryModal, type ImageGalleryModalProps } from './image-gallery-modal';
+export { SeedboxPlayerModal } from './seedbox-player-modal';

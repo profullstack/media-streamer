@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
 import { SearchBar, type SearchFilters } from '@/components/search';
-import { ImageGalleryModal, MediaPlayerModal, PlaylistPlayerModal } from '@/components/media';
+import { ImageGalleryModal, MediaPlayerModal, PlaylistPlayerModal, SeedboxPlayerModal } from '@/components/media';
 import { CommentsSection, TorrentVoting } from '@/components/comments';
 import { SeedboxSendButton } from '@/components/torrents';
 import {
@@ -158,6 +158,12 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
   const [selectedFile, setSelectedFile] = useState<TorrentFile | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Seedbox playback: when a seedbox file server is configured for this operator,
+  // offer to play files straight from the seedbox instead of the torrent swarm.
+  const [seedboxFilesEnabled, setSeedboxFilesEnabled] = useState(false);
+  const [playFromSeedbox, setPlayFromSeedbox] = useState(false);
+  const [isSeedboxPlayerOpen, setIsSeedboxPlayerOpen] = useState(false);
+
   // Image gallery modal state
   const [selectedImageFile, setSelectedImageFile] = useState<TorrentFile | null>(null);
   const [imageGalleryFiles, setImageGalleryFiles] = useState<TorrentFile[]>([]);
@@ -192,6 +198,26 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
       }
     };
     if (torrentId) void fetchFolders();
+  }, [torrentId]);
+
+  // Resolve whether this operator has a seedbox file server configured (gates the
+  // "play from seedbox" toggle). Returns disabled for everyone else.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAccess = async (): Promise<void> => {
+      try {
+        const res = await fetch(`/api/torrents/${torrentId}/seedbox`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { filesConfigured?: boolean };
+        if (!cancelled) setSeedboxFilesEnabled(Boolean(data.filesConfigured));
+      } catch {
+        // Stay hidden if access can't be resolved.
+      }
+    };
+    if (torrentId) void fetchAccess();
+    return () => {
+      cancelled = true;
+    };
   }, [torrentId]);
 
 
@@ -332,13 +358,17 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
     setFilteredFiles(filtered);
   }, [files]);
 
-  // Handle file play - opens modal instead of new tab
+  // Handle file play - opens modal instead of new tab. When "play from seedbox"
+  // is on, stream the completed file from the seedbox instead of the swarm.
   const handleFilePlay = useCallback((file: TorrentFile) => {
-    if (torrent) {
-      setSelectedFile(file);
+    if (!torrent) return;
+    setSelectedFile(file);
+    if (playFromSeedbox && seedboxFilesEnabled) {
+      setIsSeedboxPlayerOpen(true);
+    } else {
       setIsModalOpen(true);
     }
-  }, [torrent]);
+  }, [torrent, playFromSeedbox, seedboxFilesEnabled]);
 
   // Handle file read - navigates to reader page for ebooks
   const handleFileRead = useCallback((file: TorrentFile) => {
@@ -943,9 +973,22 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           <div className="border-b border-border-subtle p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-text-primary">Files</h2>
-              <span className="text-sm text-text-muted">
-                {filteredFiles.length} of {files.length} files
-              </span>
+              <div className="flex items-center gap-3">
+                {seedboxFilesEnabled ? (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-secondary" title="Play files by streaming them from your seedbox instead of the torrent swarm">
+                    <input
+                      type="checkbox"
+                      checked={playFromSeedbox}
+                      onChange={(e) => setPlayFromSeedbox(e.target.checked)}
+                      className="h-3.5 w-3.5"
+                    />
+                    Play from seedbox
+                  </label>
+                ) : null}
+                <span className="text-sm text-text-muted">
+                  {filteredFiles.length} of {files.length} files
+                </span>
+              </div>
             </div>
             <div className="mt-3">
               <SearchBar
@@ -1111,6 +1154,15 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
           artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
         /> : null}
+
+      <SeedboxPlayerModal
+        isOpen={isSeedboxPlayerOpen}
+        onClose={() => {
+          setIsSeedboxPlayerOpen(false);
+          setSelectedFile(null);
+        }}
+        file={selectedFile}
+      />
 
       {torrent ? <ImageGalleryModal
           key={selectedImageFile?.id ?? 'image-gallery'}

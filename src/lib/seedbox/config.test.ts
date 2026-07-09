@@ -67,7 +67,7 @@ describe('seedbox config', () => {
       const http = getSeedboxConfig().http;
       expect(http).not.toBeNull();
       expect(http?.baseUrl).toBe('https://box.example.com');
-      expect(http?.addPath).toBe('/api/torrents/add');
+      expect(http?.addPath).toBe('/add');
       expect(http?.magnetField).toBe('magnet');
       expect(http?.auth).toEqual({ kind: 'bearer' });
     });
