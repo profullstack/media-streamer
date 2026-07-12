@@ -54,6 +54,17 @@ export {
 } from './account-config';
 export type { SeedboxConfigInput, SeedboxConfigSummary } from './account-config';
 
+// One-click provisioning: install torlnk + start serve/files + open ports over SSH.
+export {
+  provisionTorlink,
+  generateSeedboxToken,
+  buildProvisionScript,
+  DEFAULT_SERVE_PORT,
+  DEFAULT_FILES_PORT,
+} from './provision';
+export type { ProvisionResult, ProvisionStep } from './provision';
+export { execRemote } from './ssh-transport';
+
 // File streaming: proxy completed files from the seedbox file server (torlnk files).
 export { buildSeedboxFileUrl, fetchSeedboxFile, filesAuthHeaders } from './files';
 export type { SeedboxFilesConfig } from './config';

@@ -236,25 +236,61 @@ export async function saveAccountSeedboxConfig(
   const existing = await fetchRow(accountId);
   const supabase = createServerClient();
 
-  const record = {
-    account_id: accountId,
-    http_base_url: input.http?.baseUrl?.trim() || null,
-    http_token_encrypted: nextSecret(input.http?.token, existing?.http_token_encrypted ?? null),
-    http_add_path: input.http?.addPath?.trim() || null,
-    http_auth: input.http?.auth?.trim() || null,
-    http_magnet_field: input.http?.magnetField?.trim() || null,
-    ssh_host: input.ssh?.host?.trim() || null,
-    ssh_port: input.ssh?.port ?? null,
-    ssh_user: input.ssh?.user?.trim() || null,
-    ssh_private_key_encrypted: nextSecret(input.ssh?.privateKey, existing?.ssh_private_key_encrypted ?? null),
-    ssh_watch_dir: input.ssh?.watchDir?.trim() || null,
-    ssh_add_command: input.ssh?.addCommand?.trim() || null,
-    files_base_url: input.files?.baseUrl?.trim() || null,
-    files_auth: input.files?.auth?.trim() || null,
-    files_token_encrypted: nextSecret(input.files?.token, existing?.files_token_encrypted ?? null),
-    files_basic_user: input.files?.basicUser?.trim() || null,
-    files_basic_pass_encrypted: nextSecret(input.files?.basicPass, existing?.files_basic_pass_encrypted ?? null),
-  };
+  // A section (http/ssh/files) that is omitted entirely from the input is left
+  // untouched — so a partial save (e.g. the torlink provisioner setting only
+  // http+files) never clobbers the account's other transports. The settings
+  // form always sends all three sections, so its clear-a-field behavior stands.
+  const http = input.http
+    ? {
+        http_base_url: input.http.baseUrl?.trim() || null,
+        http_token_encrypted: nextSecret(input.http.token, existing?.http_token_encrypted ?? null),
+        http_add_path: input.http.addPath?.trim() || null,
+        http_auth: input.http.auth?.trim() || null,
+        http_magnet_field: input.http.magnetField?.trim() || null,
+      }
+    : {
+        http_base_url: existing?.http_base_url ?? null,
+        http_token_encrypted: existing?.http_token_encrypted ?? null,
+        http_add_path: existing?.http_add_path ?? null,
+        http_auth: existing?.http_auth ?? null,
+        http_magnet_field: existing?.http_magnet_field ?? null,
+      };
+
+  const ssh = input.ssh
+    ? {
+        ssh_host: input.ssh.host?.trim() || null,
+        ssh_port: input.ssh.port ?? null,
+        ssh_user: input.ssh.user?.trim() || null,
+        ssh_private_key_encrypted: nextSecret(input.ssh.privateKey, existing?.ssh_private_key_encrypted ?? null),
+        ssh_watch_dir: input.ssh.watchDir?.trim() || null,
+        ssh_add_command: input.ssh.addCommand?.trim() || null,
+      }
+    : {
+        ssh_host: existing?.ssh_host ?? null,
+        ssh_port: existing?.ssh_port ?? null,
+        ssh_user: existing?.ssh_user ?? null,
+        ssh_private_key_encrypted: existing?.ssh_private_key_encrypted ?? null,
+        ssh_watch_dir: existing?.ssh_watch_dir ?? null,
+        ssh_add_command: existing?.ssh_add_command ?? null,
+      };
+
+  const files = input.files
+    ? {
+        files_base_url: input.files.baseUrl?.trim() || null,
+        files_auth: input.files.auth?.trim() || null,
+        files_token_encrypted: nextSecret(input.files.token, existing?.files_token_encrypted ?? null),
+        files_basic_user: input.files.basicUser?.trim() || null,
+        files_basic_pass_encrypted: nextSecret(input.files.basicPass, existing?.files_basic_pass_encrypted ?? null),
+      }
+    : {
+        files_base_url: existing?.files_base_url ?? null,
+        files_auth: existing?.files_auth ?? null,
+        files_token_encrypted: existing?.files_token_encrypted ?? null,
+        files_basic_user: existing?.files_basic_user ?? null,
+        files_basic_pass_encrypted: existing?.files_basic_pass_encrypted ?? null,
+      };
+
+  const record = { account_id: accountId, ...http, ...ssh, ...files };
 
   const { error } = await supabase.from(TABLE).upsert(record, { onConflict: 'account_id' });
   if (error) {

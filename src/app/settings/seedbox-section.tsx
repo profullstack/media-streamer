@@ -31,6 +31,8 @@ export function SeedboxSection(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [installSteps, setInstallSteps] = useState<{ name: string; status: string; detail: string }[] | null>(null);
 
   // HTTP
   const [httpBaseUrl, setHttpBaseUrl] = useState('');
@@ -143,6 +145,32 @@ export function SeedboxSection(): React.ReactElement {
     applySummary,
   ]);
 
+  const installTorlink = useCallback(async (): Promise<void> => {
+    setInstalling(true);
+    setStatus(null);
+    setInstallSteps(null);
+    try {
+      const res = await fetch('/api/account/seedbox/install-torlink', { method: 'POST' });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+        steps?: { name: string; status: string; detail: string }[];
+        summary?: SeedboxSummary;
+      };
+      if (data.steps) setInstallSteps(data.steps);
+      if (res.ok && data.success) {
+        if (data.summary) applySummary(data.summary);
+        setStatus({ ok: true, message: 'torlink installed and running — HTTP + files are now connected.' });
+      } else {
+        setStatus({ ok: false, message: data.error ?? 'Install failed' });
+      }
+    } catch (err) {
+      setStatus({ ok: false, message: err instanceof Error ? err.message : 'Install failed' });
+    } finally {
+      setInstalling(false);
+    }
+  }, [applySummary]);
+
   const disconnect = useCallback(async (): Promise<void> => {
     if (!window.confirm('Disconnect your seedbox? This removes the stored connection and credentials.')) return;
     setSaving(true);
@@ -252,6 +280,46 @@ export function SeedboxSection(): React.ReactElement {
           </div>
         </div>
         <p className="text-xs text-text-tertiary">Provide a private key that can log into your seedbox, plus either a watch directory or an add-command.</p>
+
+        {/* One-click torlink provisioning — needs a working SSH connection saved first. */}
+        <div className="rounded-md border border-dashed border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-text-primary">Install torlink on this seedbox</p>
+              <p className="text-xs text-text-tertiary">
+                Runs <code className="rounded bg-border/40 px-1">npm i -g torlnk</code>, starts the add-API (9161) and file
+                server (9160), opens those ports, and connects them here automatically. Requires a saved SSH connection and
+                Node.js 22+ on the box.
+              </p>
+            </div>
+            <button
+              onClick={() => void installTorlink()}
+              disabled={installing || !summary?.ssh.ready}
+              title={summary?.ssh.ready ? undefined : 'Save an SSH host, user, and private key first'}
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-accent-primary px-3 py-1.5 text-xs font-medium text-accent-primary hover:bg-accent-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {installing ? <LoadingSpinner className="h-4 w-4" /> : null}
+              {installing ? 'Installing…' : 'Install torlink & open ports'}
+            </button>
+          </div>
+          {installSteps ? (
+            <ul className="mt-3 space-y-1 border-t border-border pt-2 text-xs">
+              {installSteps.map((s, i) => (
+                <li key={`${s.name}-${i}`} className="flex gap-2">
+                  <span
+                    className={cn(
+                      'font-mono',
+                      s.status === 'ok' ? 'text-green-500' : s.status === 'skip' ? 'text-amber-500' : 'text-red-500'
+                    )}
+                  >
+                    {s.status === 'ok' ? '✓' : s.status === 'skip' ? '!' : '✗'} {s.name}
+                  </span>
+                  <span className="text-text-tertiary">{s.detail}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </fieldset>
 
       {/* Files server */}

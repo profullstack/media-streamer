@@ -57,10 +57,11 @@ interface ExecResult {
 function runExecFile(
   file: string,
   args: string[],
-  input?: string
+  input?: string,
+  timeoutMs = 30_000
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
-    const child = execFile(file, args, { timeout: 30_000 }, (error, stdout, stderr) => {
+    const child = execFile(file, args, { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
         const detail = stderr?.trim() || error.message;
         reject(new Error(detail));
@@ -72,6 +73,23 @@ function runExecFile(
       child.stdin.write(input);
       child.stdin.end();
     }
+  });
+}
+
+/**
+ * Run an arbitrary command on the account's seedbox over SSH, using its stored
+ * key. The command is fed to a remote `bash -s` on stdin (via `input`) so long
+ * scripts need no shell-quoting. Used by the torlink provisioner.
+ */
+export async function execRemote(
+  config: SeedboxSshConfig,
+  options: { command?: string; input?: string; timeoutMs?: number }
+): Promise<ExecResult> {
+  return withPrivateKeyFile(config, async (keyPath) => {
+    const target = `${config.user}@${config.host}`;
+    const sshArgs = baseSshArgs(config, keyPath);
+    const remote = options.command ?? 'bash -s';
+    return runExecFile('ssh', [...sshArgs, target, remote], options.input, options.timeoutMs ?? 30_000);
   });
 }
 
