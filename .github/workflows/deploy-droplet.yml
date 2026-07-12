@@ -181,7 +181,7 @@ jobs:
               NODE_DIR="$(dirname "$NODE_BIN")"
               PNPM_DIR="$(dirname "$PNPM_BIN")"
               APP_DIR="$(pwd)"
-              printf '[Unit]\nDescription=BitTorrented Media Streamer\nAfter=network.target\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nExecStart=%s start\nRestart=on-failure\nRestartSec=10\nStartLimitIntervalSec=0\nEnvironment=NODE_ENV=production\nEnvironment=PATH=%s:%s:/usr/local/bin:/usr/bin:/bin\nEnvironment=NODE_OPTIONS=--max-old-space-size=4096 --expose-gc\nStandardOutput=append:/var/log/bittorrented.com.log\nStandardError=append:/var/log/bittorrented.com.error.log\nLimitNOFILE=65535\n\n[Install]\nWantedBy=multi-user.target\n' \
+              printf '[Unit]\nDescription=BitTorrented Media Streamer\nAfter=network.target\nStartLimitIntervalSec=0\n\n[Service]\nType=simple\nUser=%s\nWorkingDirectory=%s\nExecStart=%s start\nRestart=always\nRestartSec=10\nEnvironment=NODE_ENV=production\nEnvironment=PATH=%s:%s:/usr/local/bin:/usr/bin:/bin\nEnvironment="NODE_OPTIONS=--max-old-space-size=8192 --expose-gc"\nStandardOutput=append:/var/log/bittorrented.com.log\nStandardError=append:/var/log/bittorrented.com.error.log\nLimitNOFILE=65535\n\n[Install]\nWantedBy=multi-user.target\n' \
                 "$(whoami)" "$APP_DIR" "$PNPM_BIN" "$NODE_DIR" "$PNPM_DIR" \
                 | sudo tee /etc/systemd/system/bittorrented.service > /dev/null
               echo "--- wrote clean unit ---"; cat /etc/systemd/system/bittorrented.service
