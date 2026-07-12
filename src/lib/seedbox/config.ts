@@ -1,16 +1,21 @@
 /**
- * Seedbox transport configuration
+ * Seedbox transport configuration.
  *
- * Reads seedbox connection settings from the environment. Two transports are
- * supported for handing a torrent off to the seedbox:
+ * A seedbox connection is configured PER ACCOUNT (the master account connects
+ * their own seedbox in Settings; it's then shared to every profile under that
+ * account). Two transports hand a torrent off to the seedbox:
  *
  *   - HTTP:  POST the magnet to a torrent-client API (e.g. torlink) using a
  *            bearer token or a custom header.
  *   - SSH:   either drop a `.magnet` file into a watch/blackhole directory the
  *            client monitors, or run a configurable add-command on the box.
  *
- * The feature fails closed: it is only available to the emails listed in
- * `SEEDBOX_ALLOWED_EMAILS`, and only for transports that are fully configured.
+ * Plus an optional files server for streaming completed files back for playback.
+ *
+ * These builders are pure — they turn already-resolved values (from the DB row,
+ * with secrets decrypted) into a validated `SeedboxConfig`, keeping only the
+ * transports that are fully specified. The feature is available to an account
+ * exactly when {@link hasSeedbox} is true for its resolved config.
  */
 
 export type SeedboxTransport = 'http' | 'ssh';
@@ -58,28 +63,24 @@ export interface SeedboxFilesConfig {
 }
 
 export interface SeedboxConfig {
-  allowedEmails: string[];
   http: SeedboxHttpConfig | null;
   ssh: SeedboxSshConfig | null;
   files: SeedboxFilesConfig | null;
 }
 
-function readTrimmed(name: string): string | null {
-  const value = process.env[name];
+/** A config with nothing configured (no transports, no files). */
+export function emptySeedboxConfig(): SeedboxConfig {
+  return { http: null, ssh: null, files: null };
+}
+
+function trimOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function parseAllowedEmails(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter((email) => email.length > 0);
-}
-
-function parseHttpAuth(raw: string | null): SeedboxHttpAuth {
+/** Parse an HTTP-auth spec: 'bearer' | 'header:X-Header-Name'. */
+export function parseHttpAuth(raw: string | null | undefined): SeedboxHttpAuth {
   if (!raw || raw.toLowerCase() === 'bearer') return { kind: 'bearer' };
   const match = /^header:(.+)$/i.exec(raw);
   if (match) {
@@ -90,9 +91,17 @@ function parseHttpAuth(raw: string | null): SeedboxHttpAuth {
   return { kind: 'bearer' };
 }
 
-function readHttpConfig(): SeedboxHttpConfig | null {
-  const baseUrl = readTrimmed('SEEDBOX_HTTP_BASE_URL');
-  const token = readTrimmed('SEEDBOX_HTTP_TOKEN');
+export interface HttpConfigValues {
+  baseUrl?: string | null;
+  token?: string | null;
+  addPath?: string | null;
+  auth?: string | null;
+  magnetField?: string | null;
+}
+
+export function buildHttpConfig(values: HttpConfigValues): SeedboxHttpConfig | null {
+  const baseUrl = trimOrNull(values.baseUrl);
+  const token = trimOrNull(values.token);
   // Both are required for the HTTP transport to be usable.
   if (!baseUrl || !token) return null;
 
@@ -100,27 +109,37 @@ function readHttpConfig(): SeedboxHttpConfig | null {
     baseUrl: baseUrl.replace(/\/+$/, ''),
     token,
     // Default matches `torlnk serve` (POST /add {"magnet":"..."}); override for other clients.
-    addPath: readTrimmed('SEEDBOX_HTTP_ADD_PATH') ?? '/add',
-    auth: parseHttpAuth(readTrimmed('SEEDBOX_HTTP_AUTH')),
-    magnetField: readTrimmed('SEEDBOX_HTTP_MAGNET_FIELD') ?? 'magnet',
+    addPath: trimOrNull(values.addPath) ?? '/add',
+    auth: parseHttpAuth(trimOrNull(values.auth)),
+    magnetField: trimOrNull(values.magnetField) ?? 'magnet',
   };
 }
 
-function readSshConfig(): SeedboxSshConfig | null {
-  const host = readTrimmed('SEEDBOX_SSH_HOST');
-  const user = readTrimmed('SEEDBOX_SSH_USER');
-  const privateKey = readTrimmed('SEEDBOX_SSH_PRIVATE_KEY');
-  const privateKeyPath = readTrimmed('SEEDBOX_SSH_PRIVATE_KEY_PATH');
-  const watchDir = readTrimmed('SEEDBOX_SSH_WATCH_DIR');
-  const addCommand = readTrimmed('SEEDBOX_SSH_ADD_COMMAND');
+export interface SshConfigValues {
+  host?: string | null;
+  port?: number | string | null;
+  user?: string | null;
+  privateKey?: string | null;
+  privateKeyPath?: string | null;
+  watchDir?: string | null;
+  addCommand?: string | null;
+}
+
+export function buildSshConfig(values: SshConfigValues): SeedboxSshConfig | null {
+  const host = trimOrNull(values.host);
+  const user = trimOrNull(values.user);
+  const privateKey = trimOrNull(values.privateKey);
+  const privateKeyPath = trimOrNull(values.privateKeyPath);
+  const watchDir = trimOrNull(values.watchDir);
+  const addCommand = trimOrNull(values.addCommand);
 
   // Host, user, a key, and at least one delivery mode are all required.
   if (!host || !user) return null;
   if (!privateKey && !privateKeyPath) return null;
   if (!watchDir && !addCommand) return null;
 
-  const portRaw = readTrimmed('SEEDBOX_SSH_PORT');
-  const port = portRaw ? Number.parseInt(portRaw, 10) : 22;
+  const portRaw = typeof values.port === 'number' ? values.port : trimOrNull(values.port ?? null);
+  const port = typeof portRaw === 'number' ? portRaw : portRaw ? Number.parseInt(portRaw, 10) : 22;
 
   return {
     host,
@@ -133,15 +152,24 @@ function readSshConfig(): SeedboxSshConfig | null {
   };
 }
 
-function readFilesAuth(): SeedboxFilesAuth {
-  const raw = (readTrimmed('SEEDBOX_FILES_AUTH') ?? 'none').toLowerCase();
+export interface FilesConfigValues {
+  baseUrl?: string | null;
+  /** 'none' | 'bearer' | 'basic' | 'header:X-Header-Name'. */
+  auth?: string | null;
+  token?: string | null;
+  basicUser?: string | null;
+  basicPass?: string | null;
+}
+
+export function buildFilesAuth(values: FilesConfigValues): SeedboxFilesAuth {
+  const raw = (trimOrNull(values.auth) ?? 'none').toLowerCase();
   if (raw === 'basic') {
-    const user = readTrimmed('SEEDBOX_FILES_BASIC_USER');
-    const pass = readTrimmed('SEEDBOX_FILES_BASIC_PASS');
+    const user = trimOrNull(values.basicUser);
+    const pass = trimOrNull(values.basicPass);
     if (user && pass) return { kind: 'basic', user, pass };
     return { kind: 'none' };
   }
-  const token = readTrimmed('SEEDBOX_FILES_TOKEN');
+  const token = trimOrNull(values.token);
   if (raw === 'bearer' && token) return { kind: 'bearer', token };
   const headerMatch = /^header:(.+)$/i.exec(raw);
   if (headerMatch && token) {
@@ -151,21 +179,12 @@ function readFilesAuth(): SeedboxFilesAuth {
   return { kind: 'none' };
 }
 
-function readFilesConfig(): SeedboxFilesConfig | null {
-  const baseUrl = readTrimmed('SEEDBOX_FILES_BASE_URL');
+export function buildFilesConfig(values: FilesConfigValues): SeedboxFilesConfig | null {
+  const baseUrl = trimOrNull(values.baseUrl);
   if (!baseUrl) return null;
   return {
     baseUrl: baseUrl.replace(/\/+$/, ''),
-    auth: readFilesAuth(),
-  };
-}
-
-export function getSeedboxConfig(): SeedboxConfig {
-  return {
-    allowedEmails: parseAllowedEmails(readTrimmed('SEEDBOX_ALLOWED_EMAILS')),
-    http: readHttpConfig(),
-    ssh: readSshConfig(),
-    files: readFilesConfig(),
+    auth: buildFilesAuth(values),
   };
 }
 
@@ -177,9 +196,8 @@ export function availableTransports(config: SeedboxConfig): SeedboxTransport[] {
   return transports;
 }
 
-/** Is the given email allowed to use the seedbox feature? */
-export function isEmailAllowed(config: SeedboxConfig, email: string | null | undefined): boolean {
-  if (!email) return false;
-  if (config.allowedEmails.length === 0) return false; // fail closed
-  return config.allowedEmails.includes(email.trim().toLowerCase());
+/** Does this account have a usable seedbox (at least one transport, or a files server)? */
+export function hasSeedbox(config: SeedboxConfig | null | undefined): config is SeedboxConfig {
+  if (!config) return false;
+  return config.http != null || config.ssh != null || config.files != null;
 }

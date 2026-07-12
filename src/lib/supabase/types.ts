@@ -78,6 +78,72 @@ export type Database = {
         };
         Relationships: [];
       };
+      account_seedbox_configs: {
+        Row: {
+          account_id: string;
+          http_base_url: string | null;
+          http_token_encrypted: string | null;
+          http_add_path: string | null;
+          http_auth: string | null;
+          http_magnet_field: string | null;
+          ssh_host: string | null;
+          ssh_port: number | null;
+          ssh_user: string | null;
+          ssh_private_key_encrypted: string | null;
+          ssh_watch_dir: string | null;
+          ssh_add_command: string | null;
+          files_base_url: string | null;
+          files_auth: string | null;
+          files_token_encrypted: string | null;
+          files_basic_user: string | null;
+          files_basic_pass_encrypted: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          account_id: string;
+          http_base_url?: string | null;
+          http_token_encrypted?: string | null;
+          http_add_path?: string | null;
+          http_auth?: string | null;
+          http_magnet_field?: string | null;
+          ssh_host?: string | null;
+          ssh_port?: number | null;
+          ssh_user?: string | null;
+          ssh_private_key_encrypted?: string | null;
+          ssh_watch_dir?: string | null;
+          ssh_add_command?: string | null;
+          files_base_url?: string | null;
+          files_auth?: string | null;
+          files_token_encrypted?: string | null;
+          files_basic_user?: string | null;
+          files_basic_pass_encrypted?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          account_id?: string;
+          http_base_url?: string | null;
+          http_token_encrypted?: string | null;
+          http_add_path?: string | null;
+          http_auth?: string | null;
+          http_magnet_field?: string | null;
+          ssh_host?: string | null;
+          ssh_port?: number | null;
+          ssh_user?: string | null;
+          ssh_private_key_encrypted?: string | null;
+          ssh_watch_dir?: string | null;
+          ssh_add_command?: string | null;
+          files_base_url?: string | null;
+          files_auth?: string | null;
+          files_token_encrypted?: string | null;
+          files_basic_user?: string | null;
+          files_basic_pass_encrypted?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       finance_watchlists: {
         Row: {
           id: string;

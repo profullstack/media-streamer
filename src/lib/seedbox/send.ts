@@ -4,8 +4,6 @@
 
 import {
   availableTransports,
-  getSeedboxConfig,
-  isEmailAllowed,
   type SeedboxConfig,
   type SeedboxTransport,
 } from './config';
@@ -13,31 +11,33 @@ import { sendMagnetViaHttp, type SendResult } from './http-transport';
 import { getSeedboxPublicKey, sendMagnetViaSsh } from './ssh-transport';
 
 export interface SeedboxAccess {
-  /** True when this user may push to a fully-configured seedbox. */
+  /** True when this account may push to a configured seedbox transport. */
   enabled: boolean;
   transports: SeedboxTransport[];
-  /** Our public key to add to the seedbox's authorized_keys (SSH transport only). */
+  /** The public key derived from the account's SSH key, for reference (SSH transport only). */
   publicKey: string | null;
   /** True when a seedbox file server is configured, so playback-from-seedbox is available. */
   filesConfigured: boolean;
 }
 
 /**
- * Resolve what the given user can do with the seedbox: which transports are
- * configured, and (for SSH) the public key they need to authorize.
+ * Resolve what the account can do with its configured seedbox: which transports
+ * are usable, and (for SSH) the public key derived from the stored private key.
+ * `config` is the account's own resolved config (null when nothing is connected).
  */
 export async function getSeedboxAccess(
-  email: string | null | undefined,
-  config: SeedboxConfig = getSeedboxConfig()
+  config: SeedboxConfig | null | undefined
 ): Promise<SeedboxAccess> {
-  const allowed = isEmailAllowed(config, email);
-  const transports = allowed ? availableTransports(config) : [];
-  const publicKey = allowed && config.ssh ? await getSeedboxPublicKey(config.ssh) : null;
+  if (!config) {
+    return { enabled: false, transports: [], publicKey: null, filesConfigured: false };
+  }
+  const transports = availableTransports(config);
+  const publicKey = config.ssh ? await getSeedboxPublicKey(config.ssh) : null;
   return {
-    enabled: allowed && transports.length > 0,
+    enabled: transports.length > 0,
     transports,
     publicKey,
-    filesConfigured: allowed && config.files != null,
+    filesConfigured: config.files != null,
   };
 }
 
@@ -53,7 +53,7 @@ export async function sendTorrentToSeedbox(
   magnet: string,
   name: string,
   transport: SeedboxTransport | undefined,
-  config: SeedboxConfig = getSeedboxConfig()
+  config: SeedboxConfig
 ): Promise<SendResult> {
   const available = availableTransports(config);
   if (available.length === 0) {

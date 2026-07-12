@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { fetchSeedboxFile, getSeedboxConfig, isEmailAllowed } from '@/lib/seedbox';
+import { fetchSeedboxFile, loadAccountSeedboxConfig } from '@/lib/seedbox';
 
 // Stream a completed file from the seedbox file server (torlnk files) back to the
 // browser. We proxy rather than redirect so the seedbox's token stays server-side
@@ -15,11 +15,11 @@ export const dynamic = 'force-dynamic';
 
 async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Response> {
   const user = await getCurrentUser();
-  const config = getSeedboxConfig();
-  if (!user || !isEmailAllowed(config, user.email)) {
-    return NextResponse.json({ error: 'Seedbox access is not enabled for this account' }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  if (!config.files) {
+  const config = await loadAccountSeedboxConfig(user.id);
+  if (!config?.files) {
     return NextResponse.json({ error: 'No seedbox file server is configured' }, { status: 404 });
   }
 

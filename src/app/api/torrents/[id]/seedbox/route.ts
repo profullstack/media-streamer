@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import {
   getSeedboxAccess,
-  getSeedboxConfig,
-  isEmailAllowed,
+  hasSeedbox,
   isValidMagnet,
+  loadAccountSeedboxConfig,
   sendTorrentToSeedbox,
   type SeedboxTransport,
 } from '@/lib/seedbox';
@@ -21,19 +21,21 @@ function isTransport(value: unknown): value is SeedboxTransport {
 }
 
 /**
- * GET — report what the current user can do with the seedbox (which transports
- * are configured + the public key to authorize for SSH). Used by the UI to
- * decide whether to show the "Send to seedbox" controls.
+ * GET — report what the current account can do with its connected seedbox (which
+ * transports are configured + the SSH public key). Used by the UI to decide
+ * whether to show the "Send to seedbox" controls. The config is per-account and
+ * shared to every profile under it; a logged-out user simply gets nothing.
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getCurrentUser();
-  const access = await getSeedboxAccess(user?.email);
+  const config = user ? await loadAccountSeedboxConfig(user.id) : null;
+  const access = await getSeedboxAccess(config);
   return NextResponse.json(access, { status: 200 });
 }
 
 /**
- * POST — push a magnet to the seedbox over the chosen transport. Gated to the
- * allowlisted operator emails (fails closed).
+ * POST — push a magnet to the account's seedbox over the chosen transport.
+ * Requires the account to have connected a seedbox (fails closed otherwise).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
@@ -41,9 +43,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const config = getSeedboxConfig();
-  if (!isEmailAllowed(config, user.email)) {
-    return NextResponse.json({ error: 'Seedbox access is not enabled for this account' }, { status: 403 });
+  const config = await loadAccountSeedboxConfig(user.id);
+  if (!hasSeedbox(config)) {
+    return NextResponse.json(
+      { error: 'No seedbox is connected. Add one in Settings → Seedbox.' },
+      { status: 403 }
+    );
   }
 
   const body = (await request.json().catch(() => ({}))) as SendToSeedboxBody;

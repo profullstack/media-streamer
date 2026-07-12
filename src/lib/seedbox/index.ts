@@ -17,10 +17,14 @@ export type {
 
 // Transports: hand a torrent off to a seedbox over HTTP (torlink API) or SSH.
 export {
-  getSeedboxConfig,
   availableTransports,
-  isEmailAllowed,
-  parseAllowedEmails,
+  hasSeedbox,
+  emptySeedboxConfig,
+  buildHttpConfig,
+  buildSshConfig,
+  buildFilesConfig,
+  buildFilesAuth,
+  parseHttpAuth,
 } from './config';
 
 export type {
@@ -40,6 +44,15 @@ export {
 export type { SeedboxAccess } from './send';
 
 export type { SendResult } from './http-transport';
+
+// Per-account config store (secrets AES-256-GCM encrypted at rest).
+export {
+  loadAccountSeedboxConfig,
+  getSeedboxConfigSummary,
+  saveAccountSeedboxConfig,
+  deleteAccountSeedboxConfig,
+} from './account-config';
+export type { SeedboxConfigInput, SeedboxConfigSummary } from './account-config';
 
 // File streaming: proxy completed files from the seedbox file server (torlnk files).
 export { buildSeedboxFileUrl, fetchSeedboxFile, filesAuthHeaders } from './files';

@@ -1,70 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 import {
   availableTransports,
-  getSeedboxConfig,
-  isEmailAllowed,
-  parseAllowedEmails,
+  buildFilesConfig,
+  buildHttpConfig,
+  buildSshConfig,
+  emptySeedboxConfig,
+  hasSeedbox,
+  parseHttpAuth,
+  type SeedboxConfig,
 } from './config';
 
-const SEEDBOX_KEYS = [
-  'SEEDBOX_ALLOWED_EMAILS',
-  'SEEDBOX_HTTP_BASE_URL',
-  'SEEDBOX_HTTP_TOKEN',
-  'SEEDBOX_HTTP_ADD_PATH',
-  'SEEDBOX_HTTP_AUTH',
-  'SEEDBOX_HTTP_MAGNET_FIELD',
-  'SEEDBOX_SSH_HOST',
-  'SEEDBOX_SSH_PORT',
-  'SEEDBOX_SSH_USER',
-  'SEEDBOX_SSH_PRIVATE_KEY',
-  'SEEDBOX_SSH_PRIVATE_KEY_PATH',
-  'SEEDBOX_SSH_WATCH_DIR',
-  'SEEDBOX_SSH_ADD_COMMAND',
-];
-
-describe('seedbox config', () => {
-  const originalEnv = process.env;
-
-  beforeEach(() => {
-    process.env = { ...originalEnv };
-    for (const key of SEEDBOX_KEYS) delete process.env[key];
-  });
-
-  afterEach(() => {
-    process.env = originalEnv;
-  });
-
-  describe('parseAllowedEmails', () => {
-    it('splits, trims, and lowercases', () => {
-      expect(parseAllowedEmails('  A@x.com , b@Y.com ')).toEqual(['a@x.com', 'b@y.com']);
-    });
-    it('returns [] for empty/undefined', () => {
-      expect(parseAllowedEmails('')).toEqual([]);
-      expect(parseAllowedEmails(null)).toEqual([]);
-    });
-  });
-
-  describe('isEmailAllowed', () => {
-    it('fails closed when no allowlist is set', () => {
-      const config = getSeedboxConfig();
-      expect(isEmailAllowed(config, 'anyone@x.com')).toBe(false);
-    });
-    it('is case-insensitive on the allowlist', () => {
-      process.env.SEEDBOX_ALLOWED_EMAILS = 'ops@x.com';
-      const config = getSeedboxConfig();
-      expect(isEmailAllowed(config, 'OPS@x.com')).toBe(true);
-      expect(isEmailAllowed(config, 'other@x.com')).toBe(false);
-      expect(isEmailAllowed(config, null)).toBe(false);
-    });
-  });
-
-  describe('HTTP transport activation', () => {
+describe('seedbox config builders', () => {
+  describe('buildHttpConfig', () => {
     it('is null unless both base URL and token are present', () => {
-      process.env.SEEDBOX_HTTP_BASE_URL = 'https://box.example.com';
-      expect(getSeedboxConfig().http).toBeNull();
-      process.env.SEEDBOX_HTTP_TOKEN = 'tok';
-      const http = getSeedboxConfig().http;
+      expect(buildHttpConfig({ baseUrl: 'https://box.example.com' })).toBeNull();
+      expect(buildHttpConfig({ token: 'tok' })).toBeNull();
+      const http = buildHttpConfig({ baseUrl: 'https://box.example.com', token: 'tok' });
       expect(http).not.toBeNull();
       expect(http?.baseUrl).toBe('https://box.example.com');
       expect(http?.addPath).toBe('/add');
@@ -73,53 +25,94 @@ describe('seedbox config', () => {
     });
 
     it('strips trailing slashes and parses a custom header auth', () => {
-      process.env.SEEDBOX_HTTP_BASE_URL = 'https://box.example.com///';
-      process.env.SEEDBOX_HTTP_TOKEN = 'tok';
-      process.env.SEEDBOX_HTTP_AUTH = 'header:X-Api-Key';
-      const http = getSeedboxConfig().http;
+      const http = buildHttpConfig({
+        baseUrl: 'https://box.example.com///',
+        token: 'tok',
+        auth: 'header:X-Api-Key',
+      });
       expect(http?.baseUrl).toBe('https://box.example.com');
       expect(http?.auth).toEqual({ kind: 'header', header: 'X-Api-Key' });
     });
   });
 
-  describe('SSH transport activation', () => {
+  describe('parseHttpAuth', () => {
+    it('defaults to bearer and parses header specs', () => {
+      expect(parseHttpAuth(null)).toEqual({ kind: 'bearer' });
+      expect(parseHttpAuth('bearer')).toEqual({ kind: 'bearer' });
+      expect(parseHttpAuth('header:X-Key')).toEqual({ kind: 'header', header: 'X-Key' });
+      expect(parseHttpAuth('garbage')).toEqual({ kind: 'bearer' });
+    });
+  });
+
+  describe('buildSshConfig', () => {
     it('requires host, user, a key, and a delivery mode', () => {
-      process.env.SEEDBOX_SSH_HOST = 'box.example.com';
-      process.env.SEEDBOX_SSH_USER = 'seedbox-mgr';
-      expect(getSeedboxConfig().ssh).toBeNull(); // no key, no mode
-      process.env.SEEDBOX_SSH_PRIVATE_KEY = 'KEY';
-      expect(getSeedboxConfig().ssh).toBeNull(); // still no delivery mode
-      process.env.SEEDBOX_SSH_WATCH_DIR = '/home/user/watch';
-      const ssh = getSeedboxConfig().ssh;
+      expect(buildSshConfig({ host: 'box', user: 'u' })).toBeNull(); // no key, no mode
+      expect(buildSshConfig({ host: 'box', user: 'u', privateKey: 'KEY' })).toBeNull(); // no mode
+      const ssh = buildSshConfig({ host: 'box', user: 'u', privateKey: 'KEY', watchDir: '/home/user/watch' });
       expect(ssh).not.toBeNull();
-      expect(ssh?.host).toBe('box.example.com');
+      expect(ssh?.host).toBe('box');
       expect(ssh?.port).toBe(22);
       expect(ssh?.watchDir).toBe('/home/user/watch');
     });
 
-    it('parses a custom port and falls back on garbage', () => {
-      process.env.SEEDBOX_SSH_HOST = 'box';
-      process.env.SEEDBOX_SSH_USER = 'u';
-      process.env.SEEDBOX_SSH_PRIVATE_KEY_PATH = '/k';
-      process.env.SEEDBOX_SSH_ADD_COMMAND = 'torlink add {magnet}';
-      process.env.SEEDBOX_SSH_PORT = '2222';
-      expect(getSeedboxConfig().ssh?.port).toBe(2222);
-      process.env.SEEDBOX_SSH_PORT = 'nonsense';
-      expect(getSeedboxConfig().ssh?.port).toBe(22);
+    it('parses a numeric or string port and falls back on garbage', () => {
+      const base = { host: 'box', user: 'u', privateKeyPath: '/k', addCommand: 'torlink add {magnet}' };
+      expect(buildSshConfig({ ...base, port: 2222 })?.port).toBe(2222);
+      expect(buildSshConfig({ ...base, port: '2222' })?.port).toBe(2222);
+      expect(buildSshConfig({ ...base, port: 'nonsense' })?.port).toBe(22);
+      expect(buildSshConfig({ ...base })?.port).toBe(22);
     });
   });
 
-  describe('availableTransports', () => {
+  describe('buildFilesConfig', () => {
+    it('is null without a base URL and defaults to no auth', () => {
+      expect(buildFilesConfig({})).toBeNull();
+      const files = buildFilesConfig({ baseUrl: 'http://box:9160//' });
+      expect(files?.baseUrl).toBe('http://box:9160');
+      expect(files?.auth).toEqual({ kind: 'none' });
+    });
+
+    it('parses bearer and basic auth', () => {
+      expect(buildFilesConfig({ baseUrl: 'http://b', auth: 'bearer', token: 't' })?.auth).toEqual({
+        kind: 'bearer',
+        token: 't',
+      });
+      expect(
+        buildFilesConfig({ baseUrl: 'http://b', auth: 'basic', basicUser: 'u', basicPass: 'p' })?.auth
+      ).toEqual({ kind: 'basic', user: 'u', pass: 'p' });
+      // basic without both parts falls back to none
+      expect(buildFilesConfig({ baseUrl: 'http://b', auth: 'basic', basicUser: 'u' })?.auth).toEqual({
+        kind: 'none',
+      });
+    });
+  });
+
+  describe('availableTransports & hasSeedbox', () => {
     it('reflects which transports are configured', () => {
-      expect(availableTransports(getSeedboxConfig())).toEqual([]);
-      process.env.SEEDBOX_HTTP_BASE_URL = 'https://box';
-      process.env.SEEDBOX_HTTP_TOKEN = 'tok';
-      expect(availableTransports(getSeedboxConfig())).toEqual(['http']);
-      process.env.SEEDBOX_SSH_HOST = 'box';
-      process.env.SEEDBOX_SSH_USER = 'u';
-      process.env.SEEDBOX_SSH_PRIVATE_KEY = 'k';
-      process.env.SEEDBOX_SSH_WATCH_DIR = '/w';
-      expect(availableTransports(getSeedboxConfig())).toEqual(['http', 'ssh']);
+      const empty = emptySeedboxConfig();
+      expect(availableTransports(empty)).toEqual([]);
+      expect(hasSeedbox(empty)).toBe(false);
+      expect(hasSeedbox(null)).toBe(false);
+
+      const httpOnly: SeedboxConfig = {
+        http: buildHttpConfig({ baseUrl: 'https://box', token: 'tok' }),
+        ssh: null,
+        files: null,
+      };
+      expect(availableTransports(httpOnly)).toEqual(['http']);
+      expect(hasSeedbox(httpOnly)).toBe(true);
+
+      const both: SeedboxConfig = {
+        http: buildHttpConfig({ baseUrl: 'https://box', token: 'tok' }),
+        ssh: buildSshConfig({ host: 'box', user: 'u', privateKey: 'k', watchDir: '/w' }),
+        files: null,
+      };
+      expect(availableTransports(both)).toEqual(['http', 'ssh']);
+
+      // files-only counts as "has seedbox" but exposes no send transports
+      const filesOnly: SeedboxConfig = { http: null, ssh: null, files: buildFilesConfig({ baseUrl: 'http://b' }) };
+      expect(availableTransports(filesOnly)).toEqual([]);
+      expect(hasSeedbox(filesOnly)).toBe(true);
     });
   });
 });
