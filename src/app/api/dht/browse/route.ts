@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
+import { parseIntegerParam } from '@/lib/api/pagination';
 
 const VALID_SORT_BY = ['seeders', 'leechers', 'size', 'date', 'name'] as const;
 type SortBy = typeof VALID_SORT_BY[number];
@@ -67,8 +68,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const limitParam = searchParams.get('limit');
   let limit = DEFAULT_LIMIT;
   if (limitParam) {
-    const parsed = parseInt(limitParam, 10);
-    if (isNaN(parsed) || parsed < 1 || parsed > MAX_LIMIT) {
+    const parsed = parseIntegerParam(limitParam, { min: 1, max: MAX_LIMIT });
+    if (parsed == null) {
       return NextResponse.json(
         { error: `Limit must be between 1 and ${MAX_LIMIT}` },
         { status: 400 }
@@ -81,8 +82,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const offsetParam = searchParams.get('offset');
   let offset = 0;
   if (offsetParam) {
-    const parsed = parseInt(offsetParam, 10);
-    if (isNaN(parsed) || parsed < 0) {
+    const parsed = parseIntegerParam(offsetParam, { min: 0 });
+    if (parsed == null) {
       return NextResponse.json(
         { error: 'Offset must be a non-negative integer' },
         { status: 400 }
