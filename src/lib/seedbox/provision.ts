@@ -116,7 +116,13 @@ ${dataDirLine}
 mkdir -p "$DATA"
 pkill -f 'torlnk serve' 2>/dev/null || true
 pkill -f 'torlnk files' 2>/dev/null || true
-sleep 1
+# Also free the ports in case an old/renamed/externally-managed daemon still
+# holds them — otherwise the restart below fails with EADDRINUSE and the OLD
+# token keeps answering, which surfaces as a 401 when the app sends the new one.
+for P in "$SERVE_PORT" "$FILES_PORT"; do
+  (sudo -n fuser -k "$P"/tcp 2>/dev/null || fuser -k "$P"/tcp 2>/dev/null) || true
+done
+sleep 2
 
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
@@ -151,6 +157,16 @@ if curl -fsS "http://127.0.0.1:$SERVE_PORT/health" >/tmp/torlnk-health 2>/dev/nu
   emit health ok "$(cat /tmp/torlnk-health 2>/dev/null | tr '\\n' ' ')"
 else
   emit health fail "serve did not answer /health yet — check /tmp/torlnk-serve.log on the box"
+fi
+
+# --- verify the freshly-generated token is the one actually answering ---
+AUTHCODE=$(curl -s -o /dev/null -m 5 -w '%{http_code}' -H "Authorization: Bearer $TOK" "http://127.0.0.1:$FILES_PORT/" 2>/dev/null || echo 000)
+if [ "$AUTHCODE" = "401" ] || [ "$AUTHCODE" = "403" ]; then
+  emit auth fail "file server rejected the new token (HTTP $AUTHCODE) — an old torlink daemon still holds the port; run 'pkill -f torlnk' on the box and retry."
+elif [ "$AUTHCODE" = "000" ]; then
+  emit auth skip "could not verify token locally (curl failed)"
+else
+  emit auth ok "token accepted (HTTP $AUTHCODE) — send + play are wired up"
 fi
 echo "RESULT|ok"
 `;

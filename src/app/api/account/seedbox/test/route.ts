@@ -2,32 +2,51 @@ import { NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
 import { loadAccountSeedboxConfig } from '@/lib/seedbox';
+import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
+import { filesAuthHeaders } from '@/lib/seedbox/files';
 
-// Probe whether the account's seedbox HTTP add-API (:9161) and file server
-// (:9160) are actually reachable from this server. "reachable" means we got an
-// HTTP response at all (even 401) — a network error/timeout means the port is
-// blocked (usually a cloud firewall) or the daemon isn't running. This is what
-// turns "Could not reach seedbox: fetch failed" into an actionable diagnosis.
+// Probe the account's seedbox end to end:
+//  - reachable: did the port answer at all? (network error/timeout => firewall
+//    or daemon down)
+//  - authorized: did the daemon accept the stored bearer token? (401/403 =>
+//    token out of sync — re-run the installer to regenerate + resave it)
+// This turns "fetch failed" / "401 unauthorized" into a clear per-transport
+// readout so nobody has to guess what to put for auth.
 
 export const dynamic = 'force-dynamic';
 
 interface Probe {
+  url: string;
   reachable: boolean;
+  authorized: boolean;
   status?: number;
   error?: string;
 }
 
-async function probe(url: string): Promise<Probe> {
+function classify(status: number): { reachable: boolean; authorized: boolean } {
+  // Any HTTP response means the port is open. 401/403 means reachable but the
+  // token was rejected. Everything else (200, 400 bad-magnet, 404…) means the
+  // token was accepted.
+  return { reachable: true, authorized: status !== 401 && status !== 403 };
+}
+
+async function probe(
+  url: string,
+  init: RequestInit
+): Promise<Omit<Probe, 'url'>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-    // Any HTTP status (200, 401, 404…) means the port is open and answering.
-    return { reachable: true, status: res.status };
+    const res = await fetch(url, { ...init, signal: controller.signal, cache: 'no-store' });
+    return { ...classify(res.status), status: res.status };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const isTimeout = /abort/i.test(message);
-    return { reachable: false, error: isTimeout ? 'timed out (port likely blocked by a firewall)' : message };
+    return {
+      reachable: false,
+      authorized: false,
+      error: isTimeout ? 'timed out (port blocked by a firewall, or daemon down)' : message,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -40,17 +59,36 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const config = await loadAccountSeedboxConfig(user.id);
-  const result: { http?: Probe & { url: string }; files?: Probe & { url: string } } = {};
+  const result: { http?: Probe; files?: Probe } = {};
 
-  if (config?.http?.baseUrl) {
-    const base = config.http.baseUrl.replace(/\/+$/, '');
-    const url = `${base}/health`;
-    result.http = { url, ...(await probe(url)) };
+  // Send path: POST the add endpoint with the token but an EMPTY magnet — the
+  // daemon rejects the body (400) if the token is good, or 401 if it isn't.
+  // No torrent is added.
+  if (config?.http) {
+    const http = config.http;
+    const url = `${http.baseUrl}${http.addPath.startsWith('/') ? '' : '/'}${http.addPath}`;
+    result.http = {
+      url,
+      ...(await probe(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...buildAuthHeaders(http),
+        },
+        body: JSON.stringify({ [http.magnetField]: '' }),
+      })),
+    };
   }
-  if (config?.files?.baseUrl) {
-    const base = config.files.baseUrl.replace(/\/+$/, '');
-    const url = `${base}/`;
-    result.files = { url, ...(await probe(url)) };
+
+  // Play path: GET the file-server root with the configured auth.
+  if (config?.files) {
+    const files = config.files;
+    const url = `${files.baseUrl.replace(/\/+$/, '')}/`;
+    result.files = {
+      url,
+      ...(await probe(url, { method: 'GET', headers: filesAuthHeaders(files) })),
+    };
   }
 
   return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store' } });

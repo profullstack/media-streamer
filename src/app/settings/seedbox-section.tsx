@@ -18,6 +18,7 @@ import { CheckIcon, KeyIcon, LoadingSpinner, TrashIcon } from '@/components/ui/i
 interface SeedboxProbe {
   url: string;
   reachable: boolean;
+  authorized: boolean;
   status?: number;
   error?: string;
 }
@@ -267,6 +268,13 @@ export function SeedboxSection(): React.ReactElement {
           Vultr, Hetzner, AWS security groups, a home router, etc.) — that&rsquo;s outside the box&rsquo;s control. SSH send
           can work while HTTP fails because only port 22 is open. Use <strong>Test connection</strong> below to check.
         </p>
+        <p>
+          <strong>Auth is automatic — you don&rsquo;t type a token.</strong> &ldquo;Install torlink &amp; open ports&rdquo;
+          generates a random <strong>Bearer token</strong>, starts the daemons with it, and stores it here (encrypted).
+          If Test connection shows <span className="text-amber-500">token rejected (401)</span>, an old torlink daemon is
+          still running with a different token — just click <strong>Install torlink &amp; open ports</strong> again to
+          stop it and re-sync. (Setting the HTTP/token fields by hand is only for a non-torlink client.)
+        </p>
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <button
             onClick={() => void testConnection()}
@@ -490,16 +498,28 @@ function SavedHint(): React.ReactElement {
 }
 
 function ReachPill({ label, probe }: { label: string; probe: SeedboxProbe }): React.ReactElement {
+  // Three states: blocked (no response), unauthorized (answered but token
+  // rejected), and ok (answered + token accepted).
+  const state = !probe.reachable ? 'blocked' : !probe.authorized ? 'unauthorized' : 'ok';
+  const styles =
+    state === 'ok'
+      ? 'bg-green-500/15 text-green-500'
+      : state === 'unauthorized'
+        ? 'bg-amber-500/15 text-amber-500'
+        : 'bg-red-500/15 text-red-500';
+  const text =
+    state === 'ok'
+      ? 'ok'
+      : state === 'unauthorized'
+        ? `${probe.status ?? 'auth'} — token rejected`
+        : 'blocked';
   return (
     <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5',
-        probe.reachable ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-500'
-      )}
+      className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5', styles)}
       title={probe.error ?? (probe.status != null ? `HTTP ${probe.status}` : undefined)}
     >
-      {probe.reachable ? <CheckIcon className="h-3 w-3" /> : null}
-      {label}: {probe.reachable ? 'reachable' : 'blocked'}
+      {state === 'ok' ? <CheckIcon className="h-3 w-3" /> : null}
+      {label}: {text}
     </span>
   );
 }
