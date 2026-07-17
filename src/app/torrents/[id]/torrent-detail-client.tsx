@@ -1170,6 +1170,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           torrentName={torrent.cleanTitle || cleanDisplayName(torrent.name)}
           existingProgress={selectedFile && user ? fileProgress.get(selectedFile.id) : undefined}
           onProgressSave={user ? handleProgressSave : undefined}
+          source={seedboxFilesEnabled ? 'platform' : undefined}
         /> : null}
 
       {/* Playlist Player Modal - uses folder-specific metadata when available */}

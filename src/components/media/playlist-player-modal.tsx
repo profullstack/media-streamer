@@ -24,6 +24,7 @@ import {
   RefreshIcon,
 } from '@/components/ui/icons';
 import type { TorrentFile } from '@/types';
+import { PlaybackSourceBadge } from './playback-source-badge';
 import {
   extractTrackInfo,
   extractAlbumFromPath,
@@ -547,6 +548,7 @@ export function PlaylistPlayerModal({
             {torrentName ? (
               <p className="truncate text-sm text-text-muted">{torrentName}</p>
             ) : null}
+            <PlaybackSourceBadge source={playFromSeedbox ? 'seedbox' : 'platform'} className="mt-1" />
           </div>
 
           {/* Refresh Button */}

@@ -27,6 +27,7 @@ import { Modal } from '@/components/ui/modal';
 import { VideoPlayer } from '@/components/video/video-player';
 import { AudioPlayer } from '@/components/audio/audio-player';
 import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
+import { PlaybackSourceBadge } from './playback-source-badge';
 import { RefreshIcon } from '@/components/ui/icons';
 import { getMediaCategory } from '@/lib/utils';
 import { formatProgressTime } from '@/lib/progress/progress';
@@ -76,6 +77,8 @@ export interface MediaPlayerModalProps {
   existingProgress?: FileProgress;
   /** Callback to save progress - called every 15 seconds, on pause, and on close */
   onProgressSave?: (fileId: string, currentTimeSeconds: number, durationSeconds: number) => void;
+  /** Where this stream plays from — shows a source badge when provided. */
+  source?: 'seedbox' | 'platform';
 }
 
 /**
@@ -99,6 +102,7 @@ export function MediaPlayerModal({
   coverArt,
   existingProgress,
   onProgressSave,
+  source,
 }: MediaPlayerModalProps): React.ReactElement | null {
   const { trackPlayback } = useAnalytics();
   const { isTv } = useTvDetection();
@@ -973,6 +977,7 @@ export function MediaPlayerModal({
       className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-3xl"
     >
       <div className="space-y-2 sm:space-y-3">
+        {source ? <PlaybackSourceBadge source={source} /> : null}
         {/* Metadata Header - Artist → Album → Song with Cover Art - compact for TV */}
         <div className="flex items-start gap-2 sm:gap-3 md:gap-4" data-testid="metadata-header">
           {/* Cover Art - smaller on TV/mobile */}

@@ -12,6 +12,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/modal';
+import { PlaybackSourceBadge } from './playback-source-badge';
 import type { TorrentFile } from '@/types';
 
 interface SeedboxPlayerModalProps {
@@ -44,6 +45,9 @@ export function SeedboxPlayerModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={file.name} size="4xl">
       <div className="p-2">
+        <div className="mb-2">
+          <PlaybackSourceBadge source="seedbox" />
+        </div>
         {failed ? (
           <div className="py-8 text-center">
             <p className="text-sm text-text-primary">Couldn&apos;t stream this file from your seedbox.</p>
