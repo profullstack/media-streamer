@@ -4,7 +4,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
+import { createEmailer } from '@profullstack/stack/email';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -17,7 +17,7 @@ async function main() {
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-  const resend = new Resend(process.env.RESEND_API_KEY!);
+  const emailer = createEmailer({ resendApiKey: process.env.RESEND_API_KEY! });
   const from = `${process.env.EMAIL_FROM_NAME || 'BitTorrented'} <${process.env.EMAIL_FROM || 'support@bittorrented.com'}>`;
   const baseUrl = 'https://bittorrented.com';
 
@@ -67,15 +67,15 @@ async function main() {
     }
 
     try {
-      const { error: emailError } = await resend.emails.send({
+      const result = await emailer.send({
         from,
         to: user.email,
         subject: 'Your BitTorrented free trial has ended — upgrade to keep streaming',
         html: getEmailHtml(name, baseUrl),
       });
 
-      if (emailError) {
-        console.error(`  FAIL: ${user.email} — ${emailError.message}`);
+      if (!result.sent) {
+        console.error(`  FAIL: ${user.email} — ${result.error ?? 'unknown error'}`);
         errors++;
       } else {
         console.log(`  SENT: ${user.email}`);

@@ -15,6 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { trackReferralCode } from '@profullstack/stack/referrals';
 
 const AUTH_COOKIE_NAME = 'sb-auth-token';
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
@@ -234,7 +235,7 @@ export default async function middleware(request: NextRequest): Promise<NextResp
   // Without validation, an attacker can inject arbitrary values via a crafted URL,
   // enabling referral fraud and overflowing the cookie header.
   if (ref && /^[a-zA-Z0-9_-]{1,64}$/.test(ref)) {
-    response.cookies.set('referral_code', ref, { httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 30, path: '/' });
+    trackReferralCode(request, response);
   }
   return response;
 }
