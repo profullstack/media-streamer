@@ -133,6 +133,11 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         />
               <Script data-site="dbe5c461-626d-4359-afc7-aea1c79e89bf" src="https://crawlproof.com/stats.js" strategy="afterInteractive" />
       <script async src="https://feedback.profullstack.com/embed/profullstack-feedback.js" data-property="bittorrented.com"></script>
+              <div data-cp-ad="" data-slot="aa961cc7-96e6-4f77-b065-e962cd7bce6f" data-format="banner_300x250" />
+        <div data-cp-ad="" data-slot="aa961cc7-96e6-4f77-b065-e962cd7bce6f" data-format="banner_728x90" />
+        <div data-cp-ad="" data-slot="aa961cc7-96e6-4f77-b065-e962cd7bce6f" data-format="banner_320x50" />
+        <div data-cp-ad="" data-slot="aa961cc7-96e6-4f77-b065-e962cd7bce6f" data-format="text_link" />
+        <Script src="https://crawlproof.com/ad.js" strategy="afterInteractive" />
       </body>
     </html>
   );
