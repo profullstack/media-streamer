@@ -21,8 +21,10 @@ describe('seedbox provisioner', () => {
   describe('buildProvisionScript', () => {
     const script = buildProvisionScript('TOK123_-', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT);
 
-    it('installs torlnk and enforces Node >= 22', () => {
-      expect(script).toContain('npm i -g torlnk');
+    it('installs the torlink fork (with the concurrency cap) and enforces Node >= 22', () => {
+      expect(script).toContain('npm i -g "$PKG"');
+      expect(script).toContain("PKG='@profullstack/torlink'");
+      expect(script).toContain('TORLINK_MAX_DOWNLOADS=2');
       expect(script).toContain('-lt 22');
     });
 
