@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { findPost } from '@/lib/blog/posts';
+import { AdRectangle } from '@/components/ads';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           alt=""
           className="mt-6 w-full rounded-lg border border-border"
         /> : null}
+
+      {/* Ad (logged-out only) */}
+      <AdRectangle className="mt-8" />
+
       {post.html ? (
         <article
           className="blog-prose"
@@ -63,6 +68,9 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       ) : (
         <article className="blog-prose">{post.excerpt}</article>
       )}
+
+      {/* Ad (logged-out only) */}
+      <AdRectangle className="mt-8" />
 
       <style>{`
         .blog-prose {

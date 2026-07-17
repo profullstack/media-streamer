@@ -6,6 +6,7 @@ import { getDhtTorrentDetail } from '@/lib/dht/queries';
 import { formatBytes } from '@/lib/utils';
 import { DhtActions } from '@/components/dht/dht-actions';
 import { DhtIndexCta } from '@/components/dht/dht-index-cta';
+import { AdRectangle } from '@/components/ads';
 
 /**
  * Clean torrent name for display and SEO.
@@ -241,6 +242,9 @@ export default async function DhtTorrentPage({ params }: PageProps) {
           </div>
         </div>
 
+        {/* Ad (logged-out only) */}
+        <AdRectangle />
+
         {/* File list */}
         {torrent.files.length > 0 && (
           <div className="card p-6">
@@ -278,6 +282,9 @@ export default async function DhtTorrentPage({ params }: PageProps) {
           </p>
           <DhtIndexCta infohash={infohash} magnetUri={magnetUri} />
         </div>
+
+        {/* Ad (logged-out only) */}
+        <AdRectangle />
       </div>
     </MainLayout>
   );

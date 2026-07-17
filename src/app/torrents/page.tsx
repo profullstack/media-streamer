@@ -13,6 +13,7 @@ import { MainLayout } from '@/components/layout';
 import { AddMagnetModal } from '@/components/torrents';
 import { PlusIcon, SortIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/ui/icons';
 import { MediaThumbnail } from '@/components/ui/media-placeholder';
+import { AdBanner } from '@/components/ads';
 import { cn, formatBytes } from '@/lib/utils';
 
 interface Torrent {
@@ -237,6 +238,9 @@ export default function TorrentsPage(): React.ReactElement {
             ))}
           </div> : null}
 
+        {/* Ad (logged-out only) */}
+        <AdBanner className="my-2" />
+
         {/* Torrent list with thumbnails */}
         {!isLoading && torrents.length > 0 && (
           <div className="space-y-2">
@@ -349,6 +353,9 @@ export default function TorrentsPage(): React.ReactElement {
             Showing all {torrents.length.toLocaleString()} torrents
           </div>
         )}
+
+        {/* Ad (logged-out only) */}
+        <AdBanner className="my-2" />
       </div>
 
       {/* Add magnet modal */}

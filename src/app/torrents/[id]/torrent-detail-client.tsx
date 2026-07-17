@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/icons';
 import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeholder';
 import { AmazonBuyButton } from '@/components/ui/amazon-buy-button';
+import { AdRectangle } from '@/components/ads';
 import { formatBytes } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
 
@@ -968,6 +969,9 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           </div>
         </div>
 
+        {/* Ad (logged-out only) */}
+        <AdRectangle />
+
         {/* File Browser */}
         <div className="card">
           <div className="border-b border-border-subtle p-4">
@@ -1054,6 +1058,9 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
             )}
           </div>
         </div>
+
+        {/* Ad (logged-out only) */}
+        <AdRectangle />
 
         {/* Comments Section */}
         <div className="card p-6">

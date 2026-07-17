@@ -17,6 +17,7 @@ import { LoadingSpinner, SortIcon, ChevronUpIcon, ChevronDownIcon, PlusIcon } fr
 import { AddMagnetModal } from '@/components/torrents/add-magnet-modal';
 import { TorrentFilterPanel, filtersFromSearchParams, filtersToSearchParams } from '@/components/filters/torrent-filters';
 import type { TorrentFilters } from '@/components/filters/torrent-filters';
+import { AdBanner } from '@/components/ads';
 
 /**
  * DHT torrent result from API
@@ -452,6 +453,9 @@ function DhtPageInner(): React.ReactElement {
           </div>
         ) : null}
 
+        {/* Ad (logged-out only) */}
+        <AdBanner className="my-2" />
+
         {/* Results */}
         <DhtResultsList
           results={results}
@@ -480,6 +484,9 @@ function DhtPageInner(): React.ReactElement {
             </button>
           </div>
         ) : null}
+
+        {/* Ad (logged-out only) */}
+        <AdBanner className="my-2" />
 
         {/* Status when all loaded */}
         {!hasMore && results.length > 0 && !isLoading ? (

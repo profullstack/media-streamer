@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { loadAllPosts } from '@/lib/blog/posts';
+import { AdBanner } from '@/components/ads';
 
 export const metadata = {
   title: 'Blog | BitTorrented',
@@ -21,6 +22,9 @@ export default async function BlogPage() {
       <p className="mt-2 text-muted-foreground">
         Streaming, torrents, IPTV, and media tech.
       </p>
+
+      {/* Ad (logged-out only) */}
+      <AdBanner className="mt-8" />
 
       {posts.length === 0 ? (
         <p className="mt-10 text-muted-foreground">No posts yet.</p>
@@ -57,6 +61,9 @@ export default async function BlogPage() {
           ))}
         </ul>
       )}
+
+      {/* Ad (logged-out only) */}
+      <AdBanner className="mt-10" />
     </main>
   );
 }
