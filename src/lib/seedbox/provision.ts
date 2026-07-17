@@ -193,6 +193,23 @@ elif [ "$AUTHCODE" = "000" ]; then
 else
   emit auth ok "token accepted (HTTP $AUTHCODE) — send + play are wired up"
 fi
+
+# --- auto-purge completed files (DMCA hygiene — limit the seeding window) ---
+# Installs an idempotent user cron that deletes files under the download dir once
+# they're older than 6h, so torrents aren't seeded indefinitely. Fully automatic;
+# no user setup. The absolute path + interval are baked into the cron line.
+RET_MIN=360
+CRON_MARK="# torlink-autopurge-media-streamer"
+PURGE="find \\"$DATA\\" -type f -mmin +$RET_MIN -delete 2>/dev/null; find \\"$DATA\\" -mindepth 1 -type d -empty -delete 2>/dev/null"
+if command -v crontab >/dev/null 2>&1; then
+  if ( crontab -l 2>/dev/null | grep -vF "$CRON_MARK"; echo "*/30 * * * * $PURGE $CRON_MARK" ) | crontab - 2>/dev/null; then
+    emit cleanup ok "auto-deletes completed files older than 6h (cron, every 30m) to limit seeding/DMCA exposure"
+  else
+    emit cleanup skip "could not install the auto-purge cron; delete old downloads manually to limit exposure"
+  fi
+else
+  emit cleanup skip "no crontab on the box; completed files won't auto-delete (install cron to limit DMCA exposure)"
+fi
 echo "RESULT|ok"
 `;
 }
