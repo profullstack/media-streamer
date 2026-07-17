@@ -49,7 +49,6 @@ export default defineConfig({
       // Tests failing after vitest 3→4 migration (pre-existing failures, tracked separately)
       'src/app/api/browse/route.test.ts',
       'src/app/api/ice/turn/route.test.ts',
-      'src/app/api/iptv/channels/route.test.ts',
       'src/app/api/iptv/playlists/[id]/route.test.ts',
       'src/app/api/iptv/playlists/route.test.ts',
       'src/app/api/magnets/route.test.ts',

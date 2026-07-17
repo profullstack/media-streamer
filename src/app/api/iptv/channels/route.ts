@@ -24,6 +24,7 @@ import {
 } from '@/lib/iptv';
 import { getIptvCacheReader } from '@/lib/iptv/cache-reader';
 import { createServerClient } from '@/lib/supabase';
+import { parseIntegerParam } from '@/lib/api/pagination';
 
 /**
  * Undici agent that ignores SSL certificate errors.
@@ -90,11 +91,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   const m3uUrl = searchParams.get('m3uUrl');
   const query = searchParams.get('q') ?? '';
   const group = searchParams.get('group') ?? undefined;
-  const limit = Math.min(
-    parseInt(searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
-    MAX_LIMIT
-  );
-  const offset = parseInt(searchParams.get('offset') ?? '0', 10) || 0;
+  const parsedLimit = parseIntegerParam(searchParams.get('limit'), { min: 1 });
+  const limit = Math.min(parsedLimit ?? DEFAULT_LIMIT, MAX_LIMIT);
+  const offset = parseIntegerParam(searchParams.get('offset'), { min: 0 }) ?? 0;
 
   // Validate that at least one identifier is provided
   if (!playlistId && !m3uUrl) {
