@@ -518,9 +518,13 @@ export function PlaylistPlayerModal({
   // For transcoded audio (FLAC, WMA, etc.), don't wait for fileReady — FFmpeg handles buffering
   // internally via pipe-based transcoding. Waiting for 4MB of raw data first just adds latency.
   // For non-transcoded audio, wait for fileReady (enough raw data buffered for direct playback).
-  const isFileReady = isTranscoding
-    ? (connectionStatus?.ready ?? false) // transcoded: just need torrent metadata ready
-    : (connectionStatus?.fileReady ?? connectionStatus?.ready ?? false);
+  // Seedbox files are already whole on the server (transcoded on the fly), so
+  // there's no swarm buffering to wait for — the player is ready immediately.
+  const isFileReady = playFromSeedbox
+    ? true
+    : isTranscoding
+      ? (connectionStatus?.ready ?? false) // transcoded: just need torrent metadata ready
+      : (connectionStatus?.fileReady ?? connectionStatus?.ready ?? false);
   const isLoading = !isPlayerReady && !error;
   const title = `Playing ${currentIndex + 1} of ${files.length}`;
 
