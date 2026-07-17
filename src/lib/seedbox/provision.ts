@@ -55,7 +55,7 @@ export function buildProvisionScript(
   // Injected single-quoted; a leading ~ is expanded to $HOME on the box.
   const dataDirLine = dataDir
     ? `DATA='${dataDir.replace(/'/g, `'\\''`)}'\nDATA="\${DATA/#\\~/$HOME}"`
-    : `DATA="$HOME/torlnk/downloads"`;
+    : `DATA="$HOME/Downloads/done"`;
   return `set -u
 TOK='${token}'
 SERVE_PORT='${servePort}'
@@ -111,28 +111,53 @@ if [ ! -x "$BIN" ]; then
   echo "RESULT|fail"; exit 0
 fi
 
-# --- data dir + restart daemons (idempotent) ---
+# --- data dirs + fully-automatic daemon (re)start (no manual steps) ---
 ${dataDirLine}
-mkdir -p "$DATA"
-pkill -f 'torlnk serve' 2>/dev/null || true
-pkill -f 'torlnk files' 2>/dev/null || true
-# Also free the ports in case an old/renamed/externally-managed daemon still
-# holds them — otherwise the restart below fails with EADDRINUSE and the OLD
-# token keeps answering, which surfaces as a 401 when the app sends the new one.
-for P in "$SERVE_PORT" "$FILES_PORT"; do
-  (sudo -n fuser -k "$P"/tcp 2>/dev/null || fuser -k "$P"/tcp 2>/dev/null) || true
-done
+WATCH="$HOME/Downloads/watch"
+mkdir -p "$WATCH" "$DATA"
+
+# Stop ANY existing torlink daemon so our fresh token becomes authoritative —
+# however it was started (detached process, systemd system/user unit, or pm2) —
+# then free the ports by PID with whatever tool exists. Match broadly because
+# the real cmdline is like "node .../torlnk/dist/cli.js serve", so
+# \`pkill -f 'torlnk serve'\` misses it.
+stop_torlink(){
+  pkill -f torlnk 2>/dev/null || sudo -n pkill -f torlnk 2>/dev/null || true
+  local U
+  for U in $(systemctl list-units --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
+    sudo -n systemctl stop "$U" 2>/dev/null || true
+  done
+  for U in $(systemctl --user list-units --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
+    systemctl --user stop "$U" 2>/dev/null || true
+  done
+  if command -v pm2 >/dev/null 2>&1; then
+    pm2 delete $(pm2 jlist 2>/dev/null | grep -o '"name":"[^"]*torl[^"]*"' | cut -d'"' -f4) >/dev/null 2>&1 || true
+  fi
+}
+free_port(){
+  local SIG="$1" P="$2" PIDS PID
+  PIDS=$( { command -v fuser >/dev/null 2>&1 && fuser "$P"/tcp 2>/dev/null; }
+          { command -v lsof  >/dev/null 2>&1 && lsof -ti tcp:"$P" 2>/dev/null; }
+          { command -v ss    >/dev/null 2>&1 && ss -tlnpH "sport = :$P" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2; } )
+  for PID in $(printf '%s\\n' $PIDS | sort -u); do
+    kill "$SIG" "$PID" 2>/dev/null || sudo -n kill "$SIG" "$PID" 2>/dev/null || true
+  done
+}
+stop_torlink
+free_port -TERM "$SERVE_PORT"; free_port -TERM "$FILES_PORT"
 sleep 2
+free_port -KILL "$SERVE_PORT"; free_port -KILL "$FILES_PORT"
+sleep 1
 
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
 if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" --daemon >/tmp/torlnk-serve.log 2>&1; then
-  emit serve ok "add-API listening on $SERVE_PORT (downloads: $DATA)"
+  emit serve ok "add-API on $SERVE_PORT (downloads: $DATA)"
 else
   emit serve fail "$(tail -n 3 /tmp/torlnk-serve.log 2>/dev/null | tr '\\n' ' ')"
 fi
 if "$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --token "$TOK" --dir "$DATA" --daemon >/tmp/torlnk-files.log 2>&1; then
-  emit files ok "file server listening on $FILES_PORT"
+  emit files ok "file server on $FILES_PORT (serving: $DATA)"
 else
   emit files fail "$(tail -n 3 /tmp/torlnk-files.log 2>/dev/null | tr '\\n' ' ')"
 fi
@@ -162,7 +187,7 @@ fi
 # --- verify the freshly-generated token is the one actually answering ---
 AUTHCODE=$(curl -s -o /dev/null -m 5 -w '%{http_code}' -H "Authorization: Bearer $TOK" "http://127.0.0.1:$FILES_PORT/" 2>/dev/null || echo 000)
 if [ "$AUTHCODE" = "401" ] || [ "$AUTHCODE" = "403" ]; then
-  emit auth fail "file server rejected the new token (HTTP $AUTHCODE) — an old torlink daemon still holds the port; run 'pkill -f torlnk' on the box and retry."
+  emit auth fail "file server still rejects the new token (HTTP $AUTHCODE) — a process supervisor keeps respawning an old torlink daemon on this port. Check 'systemctl'/'pm2' on the box for a torlink service and remove it, then retry."
 elif [ "$AUTHCODE" = "000" ]; then
   emit auth skip "could not verify token locally (curl failed)"
 else

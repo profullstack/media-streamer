@@ -386,11 +386,11 @@ export function SeedboxSection(): React.ReactElement {
           </div>
           <div className="mt-3">
             <label className={labelCls}>
-              Download directory <span className="text-text-tertiary">(where torlink saves &amp; serves files; default ~/torlnk/downloads)</span>
+              Download directory <span className="text-text-tertiary">(where torlink saves &amp; serves files; default ~/Downloads/done — created automatically)</span>
             </label>
             <input
               className={inputCls}
-              placeholder="~/torlnk/downloads"
+              placeholder="~/Downloads/done"
               value={dataDir}
               onChange={(e) => setDataDir(e.target.value)}
             />
