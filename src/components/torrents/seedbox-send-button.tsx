@@ -26,7 +26,7 @@ interface SeedboxProgress {
   found?: boolean;
   done?: boolean;
   status?: string;
-  progress?: number;
+  progress?: number | null;
   speed?: number;
   peers?: number;
   configured?: boolean;
@@ -153,8 +153,9 @@ export function SeedboxSendButton({
   if (!access?.enabled || access.transports.length === 0) return null;
 
   const showLabels = access.transports.length > 1;
-  const pct = Math.round(Math.min(1, Math.max(0, progress?.progress ?? 0)) * 100);
   const isDone = progress?.done === true;
+  const hasPct = typeof progress?.progress === 'number';
+  const pct = hasPct ? Math.round(Math.min(1, Math.max(0, progress!.progress as number)) * 100) : 0;
 
   return (
     <div className="mt-3">
@@ -185,10 +186,14 @@ export function SeedboxSendButton({
       {progress && (tracking || isDone) ? (
         <div className="mt-2">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
-            <div
-              className={`h-full transition-all duration-500 ${isDone ? 'bg-green-500' : 'bg-accent-primary'}`}
-              style={{ width: `${isDone ? 100 : pct}%` }}
-            />
+            {isDone ? (
+              <div className="h-full w-full bg-green-500" />
+            ) : hasPct ? (
+              <div className="h-full bg-accent-primary transition-all duration-500" style={{ width: `${pct}%` }} />
+            ) : (
+              // torlink doesn't give a reliable %, so show an active (pulsing) bar.
+              <div className="h-full w-full animate-pulse bg-accent-primary" />
+            )}
           </div>
           <div className="mt-1 flex items-center justify-between text-[11px] text-text-muted">
             <span className="flex items-center gap-1">
@@ -198,8 +203,10 @@ export function SeedboxSendButton({
                 </>
               ) : progress.found === false ? (
                 'Queued on seedbox…'
-              ) : (
+              ) : hasPct ? (
                 `Downloading on seedbox — ${pct}%`
+              ) : (
+                'Downloading on seedbox…'
               )}
             </span>
             {!isDone && progress.found && (progress.speed ?? 0) > 0 ? (
