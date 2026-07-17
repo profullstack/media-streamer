@@ -30,6 +30,33 @@ const AUDIO_TRANSCODE_EXTS = new Set([
   'flac', 'ogg', 'oga', 'opus', 'wma', 'aiff', 'aif', 'ape', 'wv', 'tta',
 ]);
 
+// torlink's file server often serves media as application/octet-stream, which
+// strict players (iOS/Safari) reject with a "Format error". For raw-proxied
+// (web-friendly) files we set the Content-Type from the extension instead of
+// trusting upstream.
+const EXT_MIME: Record<string, string> = {
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav',
+  oga: 'audio/ogg', ogg: 'audio/ogg', opus: 'audio/opus', weba: 'audio/webm',
+  mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg',
+};
+
+/**
+ * Is this file actually present + complete on the seedbox? torlink's file server
+ * 404s files it doesn't have on disk (still downloading, or purged), so a cheap
+ * 1-byte GET tells us whether it's ready to play.
+ */
+async function isReady(files: NonNullable<Awaited<ReturnType<typeof loadAccountSeedboxConfig>>>['files'], filePath: string): Promise<boolean> {
+  if (!files) return false;
+  try {
+    const res = await fetchSeedboxFile(files, filePath, { method: 'GET', range: 'bytes=0-0' });
+    // Drain the tiny body so the socket can be reused/closed.
+    await res.arrayBuffer().catch(() => undefined);
+    return res.status === 200 || res.status === 206;
+  } catch {
+    return false;
+  }
+}
+
 async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) {
@@ -43,6 +70,13 @@ async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Resp
   const filePath = request.nextUrl.searchParams.get('path');
   if (!filePath) {
     return NextResponse.json({ error: 'A file path is required' }, { status: 400 });
+  }
+
+  // Readiness probe: `?probe=1` returns 200 if the file is on the seedbox, 404 if
+  // not — the client uses this to decide seedbox vs platform playback up front.
+  if (request.nextUrl.searchParams.get('probe')) {
+    const ok = await isReady(config.files, filePath);
+    return NextResponse.json({ ready: ok }, { status: ok ? 200 : 404, headers: { 'Cache-Control': 'no-store' } });
   }
 
   // Non-web-friendly formats: transcode on the fly instead of proxying raw bytes
@@ -59,6 +93,14 @@ async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Resp
       // progressive playback rather than issuing Range requests.
       'Accept-Ranges': 'none',
     });
+    // Don't start ffmpeg on a file the seedbox doesn't have — that yields an
+    // empty stream and a cryptic DEMUXER error. Report not-ready cleanly.
+    if (!(await isReady(config.files, filePath))) {
+      return NextResponse.json(
+        { error: 'not_ready', message: 'This file is not available on your seedbox yet.' },
+        { status: 404 }
+      );
+    }
     if (method === 'HEAD') {
       return new Response(null, { status: 200, headers });
     }
@@ -102,6 +144,10 @@ async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Resp
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);
   }
+  // Force a correct media Content-Type by extension (torlink usually sends
+  // application/octet-stream, which players reject).
+  const mime = EXT_MIME[ext];
+  if (mime) headers.set('content-type', mime);
   headers.set('Cache-Control', 'private, no-store');
 
   return new Response(method === 'HEAD' ? null : upstream.body, {

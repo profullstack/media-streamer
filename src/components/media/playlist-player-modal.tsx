@@ -190,6 +190,35 @@ export function PlaylistPlayerModal({
   const currentFile = files[currentIndex] ?? null;
   const isTranscoding = currentFile ? needsTranscoding(currentFile.name) : false;
 
+  // Effective source for the CURRENT track. When seedbox is preferred we probe
+  // whether the file is actually on the seedbox (torlink 404s files it doesn't
+  // have) — if not, fall back to the platform swarm so playback still works
+  // instead of erroring. 'checking' shows a spinner while we probe.
+  const [trackSource, setTrackSource] = useState<'checking' | 'seedbox' | 'platform'>(
+    playFromSeedbox ? 'checking' : 'platform'
+  );
+  const currentPath = currentFile?.path;
+  useEffect(() => {
+    if (!playFromSeedbox || !currentPath) {
+      setTrackSource('platform');
+      return;
+    }
+    let cancelled = false;
+    setTrackSource('checking');
+    (async () => {
+      try {
+        const res = await fetch(`/api/seedbox/stream?path=${encodeURIComponent(currentPath)}&probe=1`);
+        if (!cancelled) setTrackSource(res.ok ? 'seedbox' : 'platform');
+      } catch {
+        if (!cancelled) setTrackSource('platform');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [playFromSeedbox, currentPath]);
+  const fromSeedbox = trackSource === 'seedbox';
+
   // Extract track info for Media Session
   const trackInfo = currentFile ? extractTrackInfo(currentFile.name) : null;
   const albumFromPath = currentFile ? extractAlbumFromPath(currentFile.path) : undefined;
@@ -205,7 +234,7 @@ export function PlaylistPlayerModal({
   // hit the seedbox proxy by path; otherwise stream from the swarm.
   const streamUrl = !currentFile
     ? null
-    : playFromSeedbox
+    : fromSeedbox
       ? `/api/seedbox/stream?path=${encodeURIComponent(currentFile.path)}${refreshKey > 0 ? `&_r=${refreshKey}` : ''}`
       : `/api/stream?infohash=${infohash}&fileIndex=${currentFile.fileIndex}${isTranscoding ? '&transcode=auto' : ''}${refreshKey > 0 ? `&_r=${refreshKey}` : ''}`;
 
@@ -367,7 +396,7 @@ export function PlaylistPlayerModal({
   // unnecessary reconnections when the files array reference changes
   const currentFileIndex = currentFile?.fileIndex;
   useEffect(() => {
-    if (playFromSeedbox || !isOpen || !infohash || currentFileIndex === undefined) {
+    if (fromSeedbox || !isOpen || !infohash || currentFileIndex === undefined) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -405,7 +434,7 @@ export function PlaylistPlayerModal({
   // Prefetch upcoming tracks when the current track starts playing
   // This ensures seamless playback by downloading the next tracks in advance
   useEffect(() => {
-    if (playFromSeedbox || !isOpen || !infohash || !isPlayerReady || files.length === 0) return;
+    if (fromSeedbox || !isOpen || !infohash || !isPlayerReady || files.length === 0) return;
 
     // Prefetch the next PREFETCH_AHEAD_COUNT tracks
     const prefetchPromises: Promise<void>[] = [];
@@ -443,7 +472,7 @@ export function PlaylistPlayerModal({
   // Use currentFileIndex instead of currentFile object to avoid unnecessary re-runs
   // prefetchedIndicesVersion triggers re-run when new files are prefetched (refs don't trigger re-renders)
   useEffect(() => {
-    if (playFromSeedbox || !isOpen || !infohash) return;
+    if (fromSeedbox || !isOpen || !infohash) return;
 
     // Subscribe to status updates for all prefetched files (except current file which has its own SSE)
     const prefetchedIndices = Array.from(prefetchedIndicesRef.current);
@@ -521,7 +550,7 @@ export function PlaylistPlayerModal({
   // For non-transcoded audio, wait for fileReady (enough raw data buffered for direct playback).
   // Seedbox files are already whole on the server (transcoded on the fly), so
   // there's no swarm buffering to wait for — the player is ready immediately.
-  const isFileReady = playFromSeedbox
+  const isFileReady = fromSeedbox
     ? true
     : isTranscoding
       ? (connectionStatus?.ready ?? false) // transcoded: just need torrent metadata ready
@@ -548,7 +577,7 @@ export function PlaylistPlayerModal({
             {torrentName ? (
               <p className="truncate text-sm text-text-muted">{torrentName}</p>
             ) : null}
-            <PlaybackSourceBadge source={playFromSeedbox ? 'seedbox' : 'platform'} className="mt-1" />
+            <PlaybackSourceBadge source={fromSeedbox ? 'seedbox' : 'platform'} className="mt-1" />
           </div>
 
           {/* Refresh Button */}
@@ -633,8 +662,16 @@ export function PlaylistPlayerModal({
           </div>
         ) : null}
 
-        {/* Audio Player - only render when file has enough buffer to avoid HTTP errors */}
-        {streamUrl && !error && isFileReady ? (
+        {/* Probing whether this track is available on the seedbox */}
+        {trackSource === 'checking' ? (
+          <div className="flex items-center justify-center rounded-lg bg-bg-tertiary p-8">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent-primary border-t-transparent" />
+              <span className="text-sm text-text-muted">Checking your seedbox…</span>
+            </div>
+          </div>
+        ) : /* Audio Player - only render when file has enough buffer to avoid HTTP errors */
+        streamUrl && !error && isFileReady ? (
           <div className="relative w-full">
             {isLoading ? (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-bg-tertiary">
