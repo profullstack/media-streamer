@@ -1059,9 +1059,6 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           </div>
         </div>
 
-        {/* Ad (logged-out only) */}
-        <AdRectangle />
-
         {/* Comments Section */}
         <div className="card p-6">
           <CommentsSection

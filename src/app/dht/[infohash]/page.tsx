@@ -282,9 +282,6 @@ export default async function DhtTorrentPage({ params }: PageProps) {
           </p>
           <DhtIndexCta infohash={infohash} magnetUri={magnetUri} />
         </div>
-
-        {/* Ad (logged-out only) */}
-        <AdRectangle />
       </div>
     </MainLayout>
   );
