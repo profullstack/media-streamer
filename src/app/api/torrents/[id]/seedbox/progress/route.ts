@@ -64,10 +64,10 @@ export async function GET(
 
     const dl = match(data.downloads);
     if (dl) {
-      // torlink's `progress` is unreliable (can report >100%), so "done" is driven
-      // by status (seeding = fully downloaded), not the percentage.
+      // torlink reports progress as a PERCENT (0-100), not a 0-1 fraction — divide
+      // by 100. "done" is driven by status (seeding = fully downloaded).
       const raw = typeof dl.progress === 'number' ? dl.progress : 0;
-      const progress = raw > 0 && raw <= 1 ? raw : null; // null = unknown %
+      const progress = Math.max(0, Math.min(1, raw / 100));
       const done = dl.status === 'seeding';
       return NextResponse.json(
         { found: true, done, status: dl.status ?? 'downloading', progress, speed: dl.speed ?? 0, peers: dl.peers ?? 0 },

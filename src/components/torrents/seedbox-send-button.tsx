@@ -185,14 +185,21 @@ export function SeedboxSendButton({
       {/* Download progress bar (appears after a send, while torlink downloads) */}
       {progress && (tracking || isDone) ? (
         <div className="mt-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
+          <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
             {isDone ? (
               <div className="h-full w-full bg-green-500" />
             ) : hasPct ? (
               <div className="h-full bg-accent-primary transition-all duration-500" style={{ width: `${pct}%` }} />
             ) : (
-              // torlink doesn't give a reliable %, so show an active (pulsing) bar.
-              <div className="h-full w-full animate-pulse bg-accent-primary" />
+              // torlink gives no reliable %, so show a moving (indeterminate) bar —
+              // NOT a full-width one, which would read as 100% complete.
+              <>
+                <div
+                  className="absolute inset-y-0 w-1/3 rounded-full bg-accent-primary"
+                  style={{ animation: 'sbxIndeterminate 1.3s ease-in-out infinite' }}
+                />
+                <style>{`@keyframes sbxIndeterminate{0%{left:-35%}100%{left:100%}}`}</style>
+              </>
             )}
           </div>
           <div className="mt-1 flex items-center justify-between text-[11px] text-text-muted">
