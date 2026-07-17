@@ -134,6 +134,25 @@ describe('Torrent Comments API', () => {
       expect(mockService.getCommentsWithUserVotes).toHaveBeenCalledWith(TEST_TORRENT_ID, null, 10, 20);
     });
 
+    it('should fall back to safe pagination for malformed params', async () => {
+      const mockService = {
+        getCommentsWithUserVotes: vi.fn().mockResolvedValue([]),
+        getCommentCount: vi.fn().mockResolvedValue(0),
+      };
+
+      (getCommentsService as ReturnType<typeof vi.fn>).mockReturnValue(mockService);
+      (getActiveProfileId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      const request = new NextRequest(
+        `http://localhost/api/torrents/${TEST_TORRENT_ID}/comments?limit=10items&offset=-20`
+      );
+      const response = await GET(request, { params: Promise.resolve({ id: TEST_TORRENT_ID }) });
+
+      expect(response.status).toBe(200);
+      expect(mockService.getCommentsWithUserVotes).toHaveBeenCalledWith(TEST_TORRENT_ID, null, 50, 0);
+      await expect(response.json()).resolves.toMatchObject({ limit: 50, offset: 0 });
+    });
+
     it('should return 400 for missing torrent ID', async () => {
       const request = new NextRequest('http://localhost/api/torrents//comments');
       const response = await GET(request, { params: Promise.resolve({ id: '' }) });

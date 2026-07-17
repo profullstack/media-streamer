@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsService } from '@/lib/comments';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getActiveProfileId } from '@/lib/profiles/profile-utils';
+import { parseIntegerParam } from '@/lib/api/pagination';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -50,8 +51,8 @@ export async function GET(
 
     // Parse pagination params
     const searchParams = request.nextUrl.searchParams;
-    const limit = parseInt(searchParams.get('limit') ?? '50', 10);
-    const offset = parseInt(searchParams.get('offset') ?? '0', 10);
+    const limit = parseIntegerParam(searchParams.get('limit'), { min: 1, max: 100 }) ?? 50;
+    const offset = parseIntegerParam(searchParams.get('offset'), { min: 0 }) ?? 0;
 
     // DHT torrents (non-UUID IDs) don't support comments
     // Return empty results instead of failing
