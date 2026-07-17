@@ -126,7 +126,8 @@ mkdir -p "$WATCH" "$DATA"
 # the real cmdline is like "node .../torlnk/dist/cli.js serve", so
 # \`pkill -f 'torlnk serve'\` misses it.
 stop_torlink(){
-  pkill -f torlnk 2>/dev/null || sudo -n pkill -f torlnk 2>/dev/null || true
+  # Match both spellings: the npm bin ("torlnk") and a local checkout ("torlink").
+  pkill -f 'torli?nk' 2>/dev/null || sudo -n pkill -f 'torli?nk' 2>/dev/null || true
   local U
   for U in $(systemctl list-units --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
     sudo -n systemctl stop "$U" 2>/dev/null || true
