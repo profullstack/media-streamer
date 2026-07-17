@@ -169,6 +169,17 @@ const AUDIO_ONLY_OUTPUT = [
   'pipe:1',
 ];
 
+// Audio file → MP3 (universal: plays on every browser incl. iOS/Safari, which
+// can't do FLAC/OGG/Opus). `-vn` drops any cover-art video stream so it works
+// on audio-only inputs like FLAC. Progressive MP3, streamed as it encodes.
+const AUDIO_STREAM_OUTPUT = [
+  '-vn',
+  '-c:a', 'libmp3lame',
+  '-b:a', '192k',
+  '-f', 'mp3',
+  'pipe:1',
+];
+
 /** Build full-transcode ffmpeg args around any input (`['-i', path]` or URL). */
 export function buildFullTranscodeArgs(inputArgs: string[]): string[] {
   return [...TRANSCODE_INPUT_PREFIX, ...inputArgs, ...FULL_TRANSCODE_OUTPUT];
@@ -177,6 +188,11 @@ export function buildFullTranscodeArgs(inputArgs: string[]): string[] {
 /** Build audio-only-remux ffmpeg args around any input. */
 export function buildAudioOnlyArgs(inputArgs: string[]): string[] {
   return [...TRANSCODE_INPUT_PREFIX, ...inputArgs, ...AUDIO_ONLY_OUTPUT];
+}
+
+/** Build audio→MP3 stream ffmpeg args around any input (FLAC/OGG/Opus/… → mp3). */
+export function buildAudioStreamArgs(inputArgs: string[]): string[] {
+  return [...TRANSCODE_INPUT_PREFIX, ...inputArgs, ...AUDIO_STREAM_OUTPUT];
 }
 
 /** ffmpeg input tokens for a remote HTTP(S) source with optional auth headers. */
@@ -592,8 +608,10 @@ export class FileTranscodingService {
     fileIndex: number;
     filePath?: string;
     cleanupOnComplete: boolean;
+    mimeType?: string;
   }): { stream: PassThrough; mimeType: string } {
     const { ffmpegArgs, key, infohash, fileIndex, filePath, cleanupOnComplete } = opts;
+    const mimeType = opts.mimeType ?? 'video/mp4';
     const transcodeId = randomUUID();
 
     logger.debug('FFmpeg args', { args: ffmpegArgs.join(' ') });
@@ -679,31 +697,35 @@ export class FileTranscodingService {
       ffmpeg.kill('SIGTERM');
     });
 
-    return { stream: outputStream, mimeType: 'video/mp4' };
+    return { stream: outputStream, mimeType };
   }
 
   /**
    * Transcode a remote HTTP(S) source (e.g. a user's seedbox file server) on the
    * fly. ffmpeg reads the URL directly with the given auth headers, so nothing is
-   * downloaded to disk. Full re-encode by default; `audioOnly` copies the video
-   * and only remuxes audio (for browser-compatible video in a non-MP4 container).
+   * downloaded to disk. `kind`:
+   *   - 'video' (default) → H.264/AAC fragmented MP4 (mkv/HEVC/10-bit/…),
+   *   - 'audio'           → MP3 (FLAC/OGG/Opus/… → universally playable incl. iOS).
    * Reuses the exact same pipeline as local-file transcoding.
    */
   transcodeUrl(
     url: string,
     headers: Record<string, string>,
     id: string,
-    options: { audioOnly?: boolean } = {}
+    options: { kind?: 'video' | 'audio' } = {}
   ): { stream: PassThrough; mimeType: string } {
+    const kind = options.kind ?? 'video';
     const inputArgs = buildUrlInputArgs(url, headers);
-    const ffmpegArgs = options.audioOnly ? buildAudioOnlyArgs(inputArgs) : buildFullTranscodeArgs(inputArgs);
-    logger.info('Starting URL transcoding', { id, audioOnly: Boolean(options.audioOnly) });
+    const ffmpegArgs =
+      kind === 'audio' ? buildAudioStreamArgs(inputArgs) : buildFullTranscodeArgs(inputArgs);
+    logger.info('Starting URL transcoding', { id, kind });
     return this.runFfmpegPipe({
       ffmpegArgs,
       key: `url_${id}`,
       infohash: id,
       fileIndex: 0,
       cleanupOnComplete: false,
+      mimeType: kind === 'audio' ? 'audio/mpeg' : 'video/mp4',
     });
   }
 

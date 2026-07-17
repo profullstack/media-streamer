@@ -24,6 +24,12 @@ import { needsTranscoding } from '@/lib/transcoding';
 // platform try to statically optimize or cache it.
 export const dynamic = 'force-dynamic';
 
+// Audio codecs that don't play everywhere (esp. iOS/Safari, which can't do
+// FLAC/OGG/Opus) → transcode to MP3. mp3/aac/m4a/wav are already universal.
+const AUDIO_TRANSCODE_EXTS = new Set([
+  'flac', 'ogg', 'oga', 'opus', 'wma', 'aiff', 'aif', 'ape', 'wv', 'tta',
+]);
+
 async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) {
@@ -41,9 +47,13 @@ async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Resp
 
   // Non-web-friendly formats: transcode on the fly instead of proxying raw bytes
   // the browser can't decode. ffmpeg reads the authenticated seedbox URL itself.
-  if (needsTranscoding(filePath)) {
+  // Audio (FLAC/OGG/Opus/…) → MP3; everything else → H.264/AAC MP4.
+  const ext = (filePath.split('.').pop() ?? '').toLowerCase();
+  const isAudio = AUDIO_TRANSCODE_EXTS.has(ext);
+  if (isAudio || needsTranscoding(filePath)) {
+    const kind = isAudio ? 'audio' : 'video';
     const headers = new Headers({
-      'Content-Type': 'video/mp4',
+      'Content-Type': kind === 'audio' ? 'audio/mpeg' : 'video/mp4',
       'Cache-Control': 'private, no-store',
       // A live transcode isn't byte-seekable; advertise that so the player uses
       // progressive playback rather than issuing Range requests.
@@ -60,7 +70,8 @@ async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Resp
       const { stream, mimeType } = getFileTranscodingService().transcodeUrl(
         url,
         filesAuthHeaders(config.files),
-        randomUUID()
+        randomUUID(),
+        { kind }
       );
       headers.set('Content-Type', mimeType);
       return new Response(Readable.toWeb(stream) as ReadableStream<Uint8Array>, {

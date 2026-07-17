@@ -102,6 +102,12 @@ export interface PlaylistPlayerModalProps {
   coverArt?: string;
   /** Optional artist name for the album/collection */
   artist?: string;
+  /**
+   * Stream each track from the account's seedbox file server instead of the
+   * torrent swarm. The seedbox route transcodes non-web-friendly audio/video
+   * server-side, so the swarm prefetch/status machinery is skipped.
+   */
+  playFromSeedbox?: boolean;
 }
 
 /**
@@ -147,6 +153,7 @@ export function PlaylistPlayerModal({
   startIndex = 0,
   coverArt,
   artist,
+  playFromSeedbox = false,
 }: PlaylistPlayerModalProps): React.ReactElement | null {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
@@ -192,10 +199,14 @@ export function PlaylistPlayerModal({
   const displayAlbum = albumFromPath ?? torrentName;
   const displayTitle = trackInfo?.title ?? currentFile?.name ?? '';
 
-  // Build stream URL for current file (refreshKey forces cache bust on refresh)
-  const streamUrl = currentFile
-    ? `/api/stream?infohash=${infohash}&fileIndex=${currentFile.fileIndex}${isTranscoding ? '&transcode=auto' : ''}${refreshKey > 0 ? `&_r=${refreshKey}` : ''}`
-    : null;
+  // Build stream URL for current file (refreshKey forces cache bust on refresh).
+  // From the seedbox the file is already whole and transcoded server-side, so we
+  // hit the seedbox proxy by path; otherwise stream from the swarm.
+  const streamUrl = !currentFile
+    ? null
+    : playFromSeedbox
+      ? `/api/seedbox/stream?path=${encodeURIComponent(currentFile.path)}${refreshKey > 0 ? `&_r=${refreshKey}` : ''}`
+      : `/api/stream?infohash=${infohash}&fileIndex=${currentFile.fileIndex}${isTranscoding ? '&transcode=auto' : ''}${refreshKey > 0 ? `&_r=${refreshKey}` : ''}`;
 
   // Track retry attempts for automatic recovery
   const retryCountRef = useRef(0);
@@ -355,7 +366,7 @@ export function PlaylistPlayerModal({
   // unnecessary reconnections when the files array reference changes
   const currentFileIndex = currentFile?.fileIndex;
   useEffect(() => {
-    if (!isOpen || !infohash || currentFileIndex === undefined) {
+    if (playFromSeedbox || !isOpen || !infohash || currentFileIndex === undefined) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -393,7 +404,7 @@ export function PlaylistPlayerModal({
   // Prefetch upcoming tracks when the current track starts playing
   // This ensures seamless playback by downloading the next tracks in advance
   useEffect(() => {
-    if (!isOpen || !infohash || !isPlayerReady || files.length === 0) return;
+    if (playFromSeedbox || !isOpen || !infohash || !isPlayerReady || files.length === 0) return;
 
     // Prefetch the next PREFETCH_AHEAD_COUNT tracks
     const prefetchPromises: Promise<void>[] = [];
@@ -431,7 +442,7 @@ export function PlaylistPlayerModal({
   // Use currentFileIndex instead of currentFile object to avoid unnecessary re-runs
   // prefetchedIndicesVersion triggers re-run when new files are prefetched (refs don't trigger re-renders)
   useEffect(() => {
-    if (!isOpen || !infohash) return;
+    if (playFromSeedbox || !isOpen || !infohash) return;
 
     // Subscribe to status updates for all prefetched files (except current file which has its own SSE)
     const prefetchedIndices = Array.from(prefetchedIndicesRef.current);

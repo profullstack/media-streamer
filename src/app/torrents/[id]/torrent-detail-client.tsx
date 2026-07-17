@@ -1181,6 +1181,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           torrentName={playlistFolderMetadata?.album ?? (torrent.cleanTitle || cleanDisplayName(torrent.name))}
           coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
           artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
+          playFromSeedbox={playFromSeedbox && seedboxFilesEnabled}
         /> : null}
 
       <SeedboxPlayerModal
