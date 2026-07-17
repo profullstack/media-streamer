@@ -45,7 +45,17 @@ export function generateSeedboxToken(): string {
  * Build the remote provisioning script. Values are injected as shell variables;
  * the token is base64url (shell-safe) and ports are validated integers.
  */
-export function buildProvisionScript(token: string, servePort: number, filesPort: number): string {
+export function buildProvisionScript(
+  token: string,
+  servePort: number,
+  filesPort: number,
+  dataDir?: string
+): string {
+  // Where torlnk saves downloads (serve --to) and serves files from (files --dir).
+  // Injected single-quoted; a leading ~ is expanded to $HOME on the box.
+  const dataDirLine = dataDir
+    ? `DATA='${dataDir.replace(/'/g, `'\\''`)}'\nDATA="\${DATA/#\\~/$HOME}"`
+    : `DATA="$HOME/torlnk/downloads"`;
   return `set -u
 TOK='${token}'
 SERVE_PORT='${servePort}'
@@ -102,7 +112,7 @@ if [ ! -x "$BIN" ]; then
 fi
 
 # --- data dir + restart daemons (idempotent) ---
-DATA="$HOME/torlnk/downloads"
+${dataDirLine}
 mkdir -p "$DATA"
 pkill -f 'torlnk serve' 2>/dev/null || true
 pkill -f 'torlnk files' 2>/dev/null || true
@@ -169,12 +179,12 @@ export function parseSteps(stdout: string): { steps: ProvisionStep[]; result: 'o
  */
 export async function provisionTorlink(
   ssh: SeedboxSshConfig,
-  options: { token?: string; servePort?: number; filesPort?: number } = {}
+  options: { token?: string; servePort?: number; filesPort?: number; dataDir?: string } = {}
 ): Promise<ProvisionResult> {
   const token = options.token ?? generateSeedboxToken();
   const servePort = options.servePort ?? DEFAULT_SERVE_PORT;
   const filesPort = options.filesPort ?? DEFAULT_FILES_PORT;
-  const script = buildProvisionScript(token, servePort, filesPort);
+  const script = buildProvisionScript(token, servePort, filesPort, options.dataDir);
 
   let raw = '';
   try {

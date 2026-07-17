@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 // Global npm install + daemon startup can take a couple of minutes.
 export const maxDuration = 300;
 
-export async function POST(): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -32,9 +32,21 @@ export async function POST(): Promise<NextResponse> {
     );
   }
 
+  // Optional download directory (torlnk --to/--dir). Restrict to a safe path so
+  // it can't break out of the single-quoted shell injection in the provisioner.
+  const body = (await request.json().catch(() => null)) as { dataDir?: unknown } | null;
+  const rawDir = typeof body?.dataDir === 'string' ? body.dataDir.trim() : '';
+  if (rawDir && !/^[A-Za-z0-9_\-./~ ]+$/.test(rawDir)) {
+    return NextResponse.json(
+      { error: 'Download directory may only contain letters, numbers, spaces, and _ - . / ~' },
+      { status: 400 }
+    );
+  }
+
   const result = await provisionTorlink(config.ssh, {
     servePort: DEFAULT_SERVE_PORT,
     filesPort: DEFAULT_FILES_PORT,
+    dataDir: rawDir || undefined,
   });
 
   if (!result.ok || !result.token) {

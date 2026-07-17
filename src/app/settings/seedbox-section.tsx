@@ -15,6 +15,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { CheckIcon, KeyIcon, LoadingSpinner, TrashIcon } from '@/components/ui/icons';
 
+interface SeedboxProbe {
+  url: string;
+  reachable: boolean;
+  status?: number;
+  error?: string;
+}
+
+interface SeedboxProbeResult {
+  http?: SeedboxProbe;
+  files?: SeedboxProbe;
+}
+
 interface SeedboxSummary {
   configured: boolean;
   http: { baseUrl: string | null; hasToken: boolean; addPath: string | null; auth: string | null; magnetField: string | null; ready: boolean };
@@ -33,6 +45,9 @@ export function SeedboxSection(): React.ReactElement {
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [installSteps, setInstallSteps] = useState<{ name: string; status: string; detail: string }[] | null>(null);
+  const [dataDir, setDataDir] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<SeedboxProbeResult | null>(null);
 
   // HTTP
   const [httpBaseUrl, setHttpBaseUrl] = useState('');
@@ -150,7 +165,11 @@ export function SeedboxSection(): React.ReactElement {
     setStatus(null);
     setInstallSteps(null);
     try {
-      const res = await fetch('/api/account/seedbox/install-torlink', { method: 'POST' });
+      const res = await fetch('/api/account/seedbox/install-torlink', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataDir: dataDir.trim() || undefined }),
+      });
       const data = (await res.json().catch(() => ({}))) as {
         success?: boolean;
         error?: string;
@@ -169,7 +188,22 @@ export function SeedboxSection(): React.ReactElement {
     } finally {
       setInstalling(false);
     }
-  }, [applySummary]);
+  }, [applySummary, dataDir]);
+
+  const testConnection = useCallback(async (): Promise<void> => {
+    setTesting(true);
+    setTestResult(null);
+    setStatus(null);
+    try {
+      const res = await fetch('/api/account/seedbox/test');
+      const data = (await res.json().catch(() => ({}))) as SeedboxProbeResult;
+      setTestResult(data);
+    } catch (err) {
+      setStatus({ ok: false, message: err instanceof Error ? err.message : 'Test failed' });
+    } finally {
+      setTesting(false);
+    }
+  }, []);
 
   const disconnect = useCallback(async (): Promise<void> => {
     if (!window.confirm('Disconnect your seedbox? This removes the stored connection and credentials.')) return;
@@ -215,6 +249,44 @@ export function SeedboxSection(): React.ReactElement {
         ) : (
           <p className="mt-2 text-xs text-text-tertiary">No seedbox connected yet.</p>
         )}
+      </div>
+
+      {/* How it works + firewall requirements — the #1 cause of "Could not reach seedbox". */}
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-text-secondary space-y-2">
+        <p className="font-semibold text-text-primary">How the connection works — and why HTTP can fail</p>
+        <p>
+          The app reaches your seedbox two ways: over <strong>SSH (port 22)</strong> to send magnets, and over{' '}
+          <strong>HTTP</strong> to the torlink daemon — the add-API on <code className="rounded bg-border/40 px-1">9161</code>{' '}
+          (send) and the file server on <code className="rounded bg-border/40 px-1">9160</code> (&ldquo;Play from
+          seedbox&rdquo;), each authenticated with a bearer token created during install.
+        </p>
+        <p>
+          <strong className="text-amber-500">If you see &ldquo;Could not reach seedbox: fetch failed&rdquo;</strong>,
+          ports 9160/9161 are blocked. The installer opens the OS firewall (<code className="rounded bg-border/40 px-1">ufw</code>),
+          but <strong>you must also open TCP 9160 and 9161 in your host&rsquo;s cloud/provider firewall</strong> (DigitalOcean,
+          Vultr, Hetzner, AWS security groups, a home router, etc.) — that&rsquo;s outside the box&rsquo;s control. SSH send
+          can work while HTTP fails because only port 22 is open. Use <strong>Test connection</strong> below to check.
+        </p>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button
+            onClick={() => void testConnection()}
+            disabled={testing || !summary?.configured}
+            title={summary?.configured ? undefined : 'Connect a seedbox first'}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {testing ? <LoadingSpinner className="h-4 w-4" /> : null}
+            {testing ? 'Testing…' : 'Test connection'}
+          </button>
+          {testResult ? (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {testResult.http ? <ReachPill label="HTTP :9161" probe={testResult.http} /> : null}
+              {testResult.files ? <ReachPill label="Files :9160" probe={testResult.files} /> : null}
+              {!testResult.http && !testResult.files ? (
+                <span className="text-text-tertiary">No HTTP endpoints configured yet — run the installer below.</span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* HTTP transport */}
@@ -284,12 +356,14 @@ export function SeedboxSection(): React.ReactElement {
         {/* One-click torlink provisioning — needs a working SSH connection saved first. */}
         <div className="rounded-md border border-dashed border-border p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-text-primary">Install torlink on this seedbox</p>
               <p className="text-xs text-text-tertiary">
-                Runs <code className="rounded bg-border/40 px-1">npm i -g torlnk</code>, starts the add-API (9161) and file
-                server (9160), opens those ports, and connects them here automatically. Requires a saved SSH connection and
-                Node.js 22+ on the box.
+                Runs <code className="rounded bg-border/40 px-1">npm i -g torlnk</code> (auto-installing the latest Node LTS
+                via <code className="rounded bg-border/40 px-1">mise</code> if the box has no Node), starts the add-API (9161)
+                and file server (9160), tries to open those ports in <code className="rounded bg-border/40 px-1">ufw</code>,
+                and connects them here automatically. Requires a saved SSH connection. <strong>You must still open 9160/9161
+                in any cloud/provider firewall yourself.</strong>
               </p>
             </div>
             <button
@@ -301,6 +375,17 @@ export function SeedboxSection(): React.ReactElement {
               {installing ? <LoadingSpinner className="h-4 w-4" /> : null}
               {installing ? 'Installing…' : 'Install torlink & open ports'}
             </button>
+          </div>
+          <div className="mt-3">
+            <label className={labelCls}>
+              Download directory <span className="text-text-tertiary">(where torlink saves &amp; serves files; default ~/torlnk/downloads)</span>
+            </label>
+            <input
+              className={inputCls}
+              placeholder="~/torlnk/downloads"
+              value={dataDir}
+              onChange={(e) => setDataDir(e.target.value)}
+            />
           </div>
           {installSteps ? (
             <ul className="mt-3 space-y-1 border-t border-border pt-2 text-xs">
@@ -402,4 +487,19 @@ function StatusPill({ on, label }: { on: boolean; label: string }): React.ReactE
 
 function SavedHint(): React.ReactElement {
   return <span className="ml-1 text-[10px] font-normal text-green-500">saved</span>;
+}
+
+function ReachPill({ label, probe }: { label: string; probe: SeedboxProbe }): React.ReactElement {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5',
+        probe.reachable ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-500'
+      )}
+      title={probe.error ?? (probe.status != null ? `HTTP ${probe.status}` : undefined)}
+    >
+      {probe.reachable ? <CheckIcon className="h-3 w-3" /> : null}
+      {label}: {probe.reachable ? 'reachable' : 'blocked'}
+    </span>
+  );
 }
