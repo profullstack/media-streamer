@@ -93,11 +93,15 @@ else
   emit node ok "$(node -v)"
 fi
 
-# --- install torlnk (try user-global, fall back to sudo) ---
-if npm i -g torlnk >/tmp/torlnk-install.log 2>&1; then
-  emit install ok "npm i -g torlnk"
-elif command -v sudo >/dev/null 2>&1 && sudo -n npm i -g torlnk >>/tmp/torlnk-install.log 2>&1; then
-  emit install ok "npm i -g torlnk (sudo)"
+# --- install torlink (profullstack fork w/ TORLINK_MAX_DOWNLOADS cap; ships the
+#     same 'torlnk' binary — switch back to official 'torlnk' once baairon#102
+#     is merged + published). Remove the official pkg first to avoid a bin clash.
+PKG='@profullstack/torlink'
+(npm rm -g torlnk >/dev/null 2>&1 || sudo -n npm rm -g torlnk >/dev/null 2>&1) || true
+if npm i -g "$PKG" >/tmp/torlnk-install.log 2>&1; then
+  emit install ok "npm i -g $PKG"
+elif command -v sudo >/dev/null 2>&1 && sudo -n npm i -g "$PKG" >>/tmp/torlnk-install.log 2>&1; then
+  emit install ok "npm i -g $PKG (sudo)"
 else
   emit install fail "$(tail -n 3 /tmp/torlnk-install.log 2>/dev/null | tr '\\n' ' ')"
   echo "RESULT|fail"; exit 0
