@@ -110,9 +110,11 @@ async function withPrivateKeyFile<T>(
   const dir = await mkdtemp(join(tmpdir(), 'seedbox-key-'));
   const keyPath = join(dir, 'id');
   try {
-    const material = config.privateKey.endsWith('\n')
-      ? config.privateKey
-      : `${config.privateKey}\n`;
+    // OpenSSH/OpenSSL reject a key with CRLF (or lone CR) line endings or a
+    // missing trailing newline with a cryptic "error in libcrypto". Textarea
+    // pastes routinely carry CRLF, so normalize to LF + exactly one trailing
+    // newline before handing the file to ssh/ssh-keygen.
+    const material = `${config.privateKey.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`;
     await writeFile(keyPath, material, { mode: 0o600 });
     await chmod(keyPath, 0o600);
     return await fn(keyPath);
