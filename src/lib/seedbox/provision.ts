@@ -52,17 +52,36 @@ SERVE_PORT='${servePort}'
 FILES_PORT='${filesPort}'
 emit(){ echo "STEP|$1|$2|$3"; }
 
-# --- Node.js >= 22 (torlnk requirement) ---
+# --- Node.js (torlnk needs >=22) — install latest LTS via mise if missing/old ---
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 if command -v node >/dev/null 2>&1; then
   NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
 else
   NODE_MAJOR=0
 fi
 if [ "\${NODE_MAJOR:-0}" -lt 22 ]; then
-  emit node fail "Node.js >=22 required on the seedbox (found: $(node -v 2>/dev/null || echo none)). Install Node 22+ then retry."
-  echo "RESULT|fail"; exit 0
+  if ! command -v mise >/dev/null 2>&1; then
+    if curl -fsSL https://mise.run | sh >/tmp/mise-install.log 2>&1; then
+      export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+      emit mise ok "installed mise"
+    else
+      emit mise fail "could not install mise: $(tail -n 3 /tmp/mise-install.log 2>/dev/null | tr '\\n' ' ')"
+      echo "RESULT|fail"; exit 0
+    fi
+  fi
+  MISE=$(command -v mise 2>/dev/null || echo "$HOME/.local/bin/mise")
+  if "$MISE" use -g node@lts >/tmp/mise-node.log 2>&1; then
+    "$MISE" reshim >/dev/null 2>&1 || true
+    export PATH="$HOME/.local/share/mise/shims:$PATH"
+    hash -r 2>/dev/null || true
+    emit node ok "installed Node $(node -v 2>/dev/null || echo lts) via mise (node@lts)"
+  else
+    emit node fail "mise could not install node@lts: $(tail -n 3 /tmp/mise-node.log 2>/dev/null | tr '\\n' ' ')"
+    echo "RESULT|fail"; exit 0
+  fi
+else
+  emit node ok "$(node -v)"
 fi
-emit node ok "$(node -v)"
 
 # --- install torlnk (try user-global, fall back to sudo) ---
 if npm i -g torlnk >/tmp/torlnk-install.log 2>&1; then
@@ -74,6 +93,7 @@ else
   echo "RESULT|fail"; exit 0
 fi
 
+command -v mise >/dev/null 2>&1 && mise reshim >/dev/null 2>&1 || true
 BIN=$(command -v torlnk 2>/dev/null || true)
 if [ -z "\${BIN:-}" ]; then BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"; fi
 if [ ! -x "$BIN" ]; then
@@ -158,8 +178,8 @@ export async function provisionTorlink(
 
   let raw = '';
   try {
-    // Global npm install can take a while — allow up to 4 minutes.
-    const { stdout, stderr } = await execRemote(ssh, { input: script, timeoutMs: 240_000 });
+    // mise + Node install and the global npm install can take a while — allow up to 5 minutes.
+    const { stdout, stderr } = await execRemote(ssh, { input: script, timeoutMs: 300_000 });
     raw = `${stdout}\n${stderr}`;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
