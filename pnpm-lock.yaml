@@ -31,6 +31,9 @@ importers:
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.2.5)
+      '@profullstack/stack':
+        specifier: ^0.1.0
+        version: 0.1.0(next@16.2.4(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -1004,6 +1007,21 @@ packages:
     peerDependencies:
       react: '>=18'
     peerDependenciesMeta:
+      react:
+        optional: true
+
+  '@profullstack/stack@0.1.0':
+    resolution: {integrity: sha512-351fCM4if1CtEU34nE/jYNEKVMfkQT5tEPfqx5DyyfafSUCf7DNvyoBdopRRP00bhnWwSjp8SkPiVUwXbHmf/Q==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@supabase/ssr': '>=0.5.0'
+      next: '>=13.0.0'
+      react: '>=18.0.0'
+    peerDependenciesMeta:
+      '@supabase/ssr':
+        optional: true
+      next:
+        optional: true
       react:
         optional: true
 
@@ -5903,6 +5921,14 @@ snapshots:
 
   '@profullstack/referrals@0.1.0(react@19.2.5)':
     optionalDependencies:
+      react: 19.2.5
+
+  '@profullstack/stack@0.1.0(next@16.2.4(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)':
+    dependencies:
+      '@profullstack/emailer': 1.0.1
+      '@profullstack/referrals': 0.1.0(react@19.2.5)
+    optionalDependencies:
+      next: 16.2.4(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       react: 19.2.5
 
   '@puppeteer/browsers@2.13.0':
