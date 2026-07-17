@@ -151,6 +151,10 @@ sleep 1
 
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
+# Cap concurrent downloads so each active torrent gets fair bandwidth on a
+# limited seedbox line (torlink >= the version with TORLINK_MAX_DOWNLOADS;
+# harmlessly ignored by older builds).
+export TORLINK_MAX_DOWNLOADS=2
 if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" --daemon >/tmp/torlnk-serve.log 2>&1; then
   emit serve ok "add-API on $SERVE_PORT (downloads: $DATA)"
 else
