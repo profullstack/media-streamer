@@ -30,7 +30,7 @@ import {
 import { MediaPoster, type MediaContentType } from '@/components/ui/media-placeholder';
 import { AmazonBuyButton } from '@/components/ui/amazon-buy-button';
 import { AdRectangle } from '@/components/ads';
-import { formatBytes } from '@/lib/utils';
+import { formatBytes, cn } from '@/lib/utils';
 import { extractArtistFromTorrentName } from '@/lib/torrent-name';
 
 function cleanDisplayName(raw: string): string {
@@ -146,7 +146,7 @@ interface TorrentDetailClientProps {
 
 export default function TorrentDetailClient({ initialTorrent, initialFiles, torrentId }: TorrentDetailClientProps): React.ReactElement {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isPremium } = useAuth();
 
   const [torrent, setTorrent] = useState<Torrent | null>(initialTorrent);
   const [files, setFiles] = useState<TorrentFile[]>(initialFiles);
@@ -210,7 +210,13 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
         const res = await fetch(`/api/torrents/${torrentId}/seedbox`);
         if (!res.ok) return;
         const data = (await res.json()) as { filesConfigured?: boolean };
-        if (!cancelled) setSeedboxFilesEnabled(Boolean(data.filesConfigured));
+        if (cancelled) return;
+        const configured = Boolean(data.filesConfigured);
+        setSeedboxFilesEnabled(configured);
+        // When a seedbox file server is connected, prefer streaming from it by
+        // default instead of the server-side swarm fallback (the whole point of
+        // connecting one). The user can still toggle back to the swarm.
+        if (configured) setPlayFromSeedbox(true);
       } catch {
         // Stay hidden if access can't be resolved.
       }
@@ -979,15 +985,33 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
               <h2 className="font-semibold text-text-primary">Files</h2>
               <div className="flex items-center gap-3">
                 {seedboxFilesEnabled ? (
-                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-secondary" title="Play files by streaming them from your seedbox instead of the torrent swarm">
-                    <input
-                      type="checkbox"
-                      checked={playFromSeedbox}
-                      onChange={(e) => setPlayFromSeedbox(e.target.checked)}
-                      className="h-3.5 w-3.5"
-                    />
-                    Play from seedbox
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setPlayFromSeedbox((v) => !v)}
+                    title={
+                      playFromSeedbox
+                        ? 'Playback streams from your seedbox. Click to use the torrent swarm instead.'
+                        : 'Click to stream playback from your seedbox instead of the swarm.'
+                    }
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                      playFromSeedbox
+                        ? 'bg-accent-primary text-white'
+                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                    )}
+                  >
+                    <DownloadIcon className="h-3.5 w-3.5" />
+                    {playFromSeedbox ? 'Playing from seedbox' : 'Play from seedbox'}
+                  </button>
+                ) : isPremium ? (
+                  <Link
+                    href="/seedboxes"
+                    title="Connect your own seedbox to stream completed downloads instantly"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-accent-primary/40 bg-accent-primary/10 px-3 py-1 text-xs font-medium text-accent-primary hover:bg-accent-primary/20"
+                  >
+                    <DownloadIcon className="h-3.5 w-3.5" />
+                    Play from your seedbox →
+                  </Link>
                 ) : null}
                 <span className="text-sm text-text-muted">
                   {filteredFiles.length} of {files.length} files
@@ -1166,6 +1190,10 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           setSelectedFile(null);
         }}
         file={selectedFile}
+        onPlayFromSwarm={() => {
+          setIsSeedboxPlayerOpen(false);
+          setIsModalOpen(true);
+        }}
       />
 
       {torrent ? <ImageGalleryModal
