@@ -1,13 +1,24 @@
+import { Readable } from 'node:stream';
+import { randomUUID } from 'node:crypto';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { fetchSeedboxFile, loadAccountSeedboxConfig } from '@/lib/seedbox';
+import {
+  buildSeedboxFileUrl,
+  fetchSeedboxFile,
+  filesAuthHeaders,
+  loadAccountSeedboxConfig,
+} from '@/lib/seedbox';
+import { getFileTranscodingService } from '@/lib/file-transcoding';
+import { needsTranscoding } from '@/lib/transcoding';
 
 // Stream a completed file from the seedbox file server (torlnk files) back to the
-// browser. We proxy rather than redirect so the seedbox's token stays server-side
-// and there's no CORS/mixed-content issue. Range headers are forwarded, and the
-// upstream body is piped through un-buffered — never the whole-file memory path
-// that the WebTorrent stream route has to avoid.
+// browser. Web-friendly files are proxied byte-for-byte (Range forwarded for
+// seeking); non-web-friendly containers/codecs (mkv, HEVC/10-bit, avi, …) are
+// transcoded on the fly to H.264/AAC fragmented MP4 by ffmpeg reading the
+// seedbox URL directly — the same transcode pipeline the swarm player uses. We
+// proxy rather than redirect so the seedbox token stays server-side.
 
 // A single completed-file stream is a slow, long-lived response; don't let the
 // platform try to statically optimize or cache it.
@@ -26,6 +37,40 @@ async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Resp
   const filePath = request.nextUrl.searchParams.get('path');
   if (!filePath) {
     return NextResponse.json({ error: 'A file path is required' }, { status: 400 });
+  }
+
+  // Non-web-friendly formats: transcode on the fly instead of proxying raw bytes
+  // the browser can't decode. ffmpeg reads the authenticated seedbox URL itself.
+  if (needsTranscoding(filePath)) {
+    const headers = new Headers({
+      'Content-Type': 'video/mp4',
+      'Cache-Control': 'private, no-store',
+      // A live transcode isn't byte-seekable; advertise that so the player uses
+      // progressive playback rather than issuing Range requests.
+      'Accept-Ranges': 'none',
+    });
+    if (method === 'HEAD') {
+      return new Response(null, { status: 200, headers });
+    }
+    const url = buildSeedboxFileUrl(config.files.baseUrl, filePath);
+    if (!url) {
+      return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
+    }
+    try {
+      const { stream, mimeType } = getFileTranscodingService().transcodeUrl(
+        url,
+        filesAuthHeaders(config.files),
+        randomUUID()
+      );
+      headers.set('Content-Type', mimeType);
+      return new Response(Readable.toWeb(stream) as ReadableStream<Uint8Array>, {
+        status: 200,
+        headers,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return NextResponse.json({ error: `Could not transcode from seedbox: ${detail}` }, { status: 502 });
+    }
   }
 
   let upstream: Response;

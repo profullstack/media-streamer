@@ -123,6 +123,78 @@ export function isFileBasedTranscodingRequired(fileName: string): boolean {
 }
 
 /**
+ * FFmpeg argument fragments shared by every transcode source (a local temp file
+ * OR a remote authenticated URL such as a user's seedbox file server). The input
+ * tokens (`-i file` / `-headers … -i url`) are injected by the caller, so the
+ * exact same pipeline serves swarm files and seedbox files — keeping it DRY.
+ */
+const TRANSCODE_INPUT_PREFIX = [
+  '-threads', '2',
+  '-err_detect', 'ignore_err',
+  '-fflags', '+genpts+discardcorrupt',
+];
+
+// Full re-encode → H.264/AAC fragmented MP4 (for HEVC/10-bit/mkv and friends).
+const FULL_TRANSCODE_OUTPUT = [
+  '-map', '0:v:0',
+  '-map', '0:a:0?',
+  '-acodec', 'aac',
+  '-vcodec', 'libx264',
+  '-vf', "scale=-2:'min(720,ceil(ih/2)*2)':flags=bilinear",
+  '-preset', 'fast',
+  '-tune', 'zerolatency',
+  '-profile:v', 'main',
+  '-level:v', '3.1',
+  '-pix_fmt', 'yuv420p',
+  '-g', '60',
+  '-bf', '0',
+  '-crf', '26',
+  '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+  '-maxrate', '2.5M',
+  '-bufsize', '5M',
+  '-b:a', '128k',
+  '-f', 'mp4',
+  'pipe:1',
+];
+
+// Audio-only remux: copy the (browser-compatible) video, transcode audio to AAC.
+const AUDIO_ONLY_OUTPUT = [
+  '-map', '0:v:0',
+  '-map', '0:a:0?',
+  '-c:v', 'copy',
+  '-c:a', 'aac',
+  '-b:a', '192k',
+  '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+  '-f', 'mp4',
+  'pipe:1',
+];
+
+/** Build full-transcode ffmpeg args around any input (`['-i', path]` or URL). */
+export function buildFullTranscodeArgs(inputArgs: string[]): string[] {
+  return [...TRANSCODE_INPUT_PREFIX, ...inputArgs, ...FULL_TRANSCODE_OUTPUT];
+}
+
+/** Build audio-only-remux ffmpeg args around any input. */
+export function buildAudioOnlyArgs(inputArgs: string[]): string[] {
+  return [...TRANSCODE_INPUT_PREFIX, ...inputArgs, ...AUDIO_ONLY_OUTPUT];
+}
+
+/** ffmpeg input tokens for a remote HTTP(S) source with optional auth headers. */
+export function buildUrlInputArgs(url: string, headers: Record<string, string> = {}): string[] {
+  const headerLines = Object.entries(headers)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\r\n');
+  return [
+    // Survive brief network blips on the long-lived seedbox connection.
+    '-reconnect', '1',
+    '-reconnect_streamed', '1',
+    '-reconnect_delay_max', '5',
+    ...(headerLines ? ['-headers', `${headerLines}\r\n`] : []),
+    '-i', url,
+  ];
+}
+
+/**
  * Clean up a temp file
  */
 export async function cleanupTempFile(filePath: string): Promise<void> {
@@ -495,102 +567,72 @@ export class FileTranscodingService {
     cleanupOnComplete: boolean,
     key: string
   ): { stream: PassThrough; mimeType: string } {
-    const transcodeId = randomUUID();
-
-    logger.info('Starting file transcoding', {
+    logger.info('Starting file transcoding', { infohash, fileIndex, filePath, cleanupOnComplete });
+    return this.runFfmpegPipe({
+      ffmpegArgs: buildFullTranscodeArgs(['-i', filePath]),
+      key,
       infohash,
       fileIndex,
       filePath,
       cleanupOnComplete,
     });
+  }
 
-    // Build FFmpeg args for file input (not pipe)
-    // Since we have a file, FFmpeg can seek and read the moov atom
-    // Limit to 2 threads to prevent CPU spikes with concurrent streams
-    // -err_detect ignore_err: tolerate partial/growing files
-    // -fflags +genpts+discardcorrupt: handle incomplete data gracefully
-    const ffmpegArgs = [
-      '-threads', '2',
-      '-err_detect', 'ignore_err',
-      '-fflags', '+genpts+discardcorrupt',
-      '-i', filePath,
-      '-map', '0:v:0',
-      '-map', '0:a:0?',
-      '-acodec', 'aac',
-      '-vcodec', 'libx264',
-      // Scale to 720p max for quality, -2 ensures even dimensions
-      '-vf', "scale=-2:'min(720,ceil(ih/2)*2)':flags=bilinear",
-      '-preset', 'fast',
-      '-tune', 'zerolatency',
-      '-profile:v', 'main',
-      '-level:v', '3.1',
-      '-pix_fmt', 'yuv420p',
-      '-g', '60',
-      '-bf', '0',
-      '-crf', '26',
-      '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-      '-maxrate', '2.5M',
-      '-bufsize', '5M',
-      '-b:a', '128k',
-      '-f', 'mp4',
-      'pipe:1',
-    ];
+  /**
+   * Shared ffmpeg → PassThrough pipeline used by every transcode source (a local
+   * temp file OR a remote URL). Tracks the process, streams stdout, guards the
+   * stderr buffer size, and on completion/error/client-disconnect removes the
+   * tracking entry, cleans up the temp file (only when `filePath` is set), and
+   * kills ffmpeg. Output is always fragmented MP4 (video/mp4).
+   */
+  private runFfmpegPipe(opts: {
+    ffmpegArgs: string[];
+    key: string;
+    infohash: string;
+    fileIndex: number;
+    filePath?: string;
+    cleanupOnComplete: boolean;
+  }): { stream: PassThrough; mimeType: string } {
+    const { ffmpegArgs, key, infohash, fileIndex, filePath, cleanupOnComplete } = opts;
+    const transcodeId = randomUUID();
 
-    logger.debug('FFmpeg args for file transcoding', {
-      args: ffmpegArgs.join(' '),
-    });
+    logger.debug('FFmpeg args', { args: ffmpegArgs.join(' ') });
 
-    const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
+    const ffmpeg = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
     const outputStream = new PassThrough();
 
     const transcode: ActiveTranscode = {
       id: transcodeId,
       infohash,
       fileIndex,
-      filePath,
+      filePath: filePath ?? '',
       ffmpegProcess: ffmpeg,
       outputStream,
       startedAt: new Date(),
     };
-
     this.activeTranscodes.set(key, transcode);
 
     // Track FFmpeg output
     let bytesOutput = 0;
     let lastLoggedOutputMB = 0;
-
     ffmpeg.stdout.on('data', (chunk: Buffer) => {
       bytesOutput += chunk.length;
       const outputMB = bytesOutput / (1024 * 1024);
-
       if (outputMB - lastLoggedOutputMB >= 5) {
-        logger.info('Transcode output progress', {
-          infohash,
-          fileIndex,
-          bytesOutput,
-          outputMB: outputMB.toFixed(2),
-        });
+        logger.info('Transcode output progress', { infohash, fileIndex, bytesOutput, outputMB: outputMB.toFixed(2) });
         lastLoggedOutputMB = outputMB;
       }
     });
-
-    // Pipe FFmpeg output to PassThrough
     ffmpeg.stdout.pipe(outputStream);
 
-    // Handle FFmpeg stderr (progress/errors)
-    // Limit buffer size to prevent memory leaks during long transcoding sessions
+    // Handle FFmpeg stderr (progress/errors); cap the buffer to avoid leaks.
     const MAX_STDERR_BUFFER = 10000; // 10KB max
     let stderrBuffer = '';
     ffmpeg.stderr.on('data', (data: Buffer) => {
       stderrBuffer += data.toString();
-      // Limit buffer size to prevent memory leaks
       if (stderrBuffer.length > MAX_STDERR_BUFFER) {
         stderrBuffer = stderrBuffer.slice(-MAX_STDERR_BUFFER);
       }
-      // Log progress periodically
       if (stderrBuffer.includes('frame=') || stderrBuffer.includes('time=')) {
         const lines = stderrBuffer.split('\n');
         const lastLine = lines[lines.length - 2] || lines[lines.length - 1];
@@ -601,17 +643,18 @@ export class FileTranscodingService {
       }
     });
 
-    // Handle FFmpeg close
+    const cleanup = (): void => {
+      if (cleanupOnComplete && filePath) {
+        cleanupTempFile(filePath).catch((err) => {
+          logger.warn('Failed to cleanup temp file after transcode', { filePath, error: String(err) });
+        });
+      }
+    };
+
     ffmpeg.on('close', (code) => {
       this.activeTranscodes.delete(key);
-
       if (code !== 0 && code !== null) {
-        logger.warn('FFmpeg exited with non-zero code', {
-          code,
-          stderr: stderrBuffer.slice(-500),
-          infohash,
-          fileIndex,
-        });
+        logger.warn('FFmpeg exited with non-zero code', { code, stderr: stderrBuffer.slice(-500), infohash, fileIndex });
       } else {
         logger.info('FFmpeg transcoding completed', {
           infohash,
@@ -621,39 +664,47 @@ export class FileTranscodingService {
           elapsed: `${Date.now() - transcode.startedAt.getTime()}ms`,
         });
       }
-
-      // Cleanup temp file if requested
-      if (cleanupOnComplete) {
-        cleanupTempFile(filePath).catch((err) => {
-          logger.warn('Failed to cleanup temp file after transcode', {
-            filePath,
-            error: String(err),
-          });
-        });
-      }
+      cleanup();
     });
 
-    // Handle FFmpeg errors
     ffmpeg.on('error', (err) => {
       this.activeTranscodes.delete(key);
       logger.error('FFmpeg process error', err, { infohash, fileIndex });
       outputStream.destroy(err);
-
-      if (cleanupOnComplete) {
-        cleanupTempFile(filePath).catch(() => {});
-      }
+      cleanup();
     });
 
-    // Handle output stream close (client disconnected)
     outputStream.on('close', () => {
       logger.debug('Output stream closed, killing FFmpeg', { infohash, fileIndex });
       ffmpeg.kill('SIGTERM');
     });
 
-    return {
-      stream: outputStream,
-      mimeType: 'video/mp4',
-    };
+    return { stream: outputStream, mimeType: 'video/mp4' };
+  }
+
+  /**
+   * Transcode a remote HTTP(S) source (e.g. a user's seedbox file server) on the
+   * fly. ffmpeg reads the URL directly with the given auth headers, so nothing is
+   * downloaded to disk. Full re-encode by default; `audioOnly` copies the video
+   * and only remuxes audio (for browser-compatible video in a non-MP4 container).
+   * Reuses the exact same pipeline as local-file transcoding.
+   */
+  transcodeUrl(
+    url: string,
+    headers: Record<string, string>,
+    id: string,
+    options: { audioOnly?: boolean } = {}
+  ): { stream: PassThrough; mimeType: string } {
+    const inputArgs = buildUrlInputArgs(url, headers);
+    const ffmpegArgs = options.audioOnly ? buildAudioOnlyArgs(inputArgs) : buildFullTranscodeArgs(inputArgs);
+    logger.info('Starting URL transcoding', { id, audioOnly: Boolean(options.audioOnly) });
+    return this.runFfmpegPipe({
+      ffmpegArgs,
+      key: `url_${id}`,
+      infohash: id,
+      fileIndex: 0,
+      cleanupOnComplete: false,
+    });
   }
 
   /**
@@ -860,104 +911,15 @@ export class FileTranscodingService {
     uniqueKey?: string
   ): { stream: PassThrough; mimeType: string } {
     const key = uniqueKey ? `${uniqueKey}_audioremux` : `${infohash}_${fileIndex}_audioremux`;
-    const transcodeId = randomUUID();
-
-    logger.info('Starting audio-only remux', {
+    logger.info('Starting audio-only remux', { infohash, fileIndex, filePath });
+    return this.runFfmpegPipe({
+      ffmpegArgs: buildAudioOnlyArgs(['-i', filePath]),
+      key,
       infohash,
       fileIndex,
       filePath,
+      cleanupOnComplete,
     });
-
-    // Audio-only remux: copy video, transcode audio to AAC
-    const ffmpegArgs = [
-      '-threads', '2',
-      '-err_detect', 'ignore_err',
-      '-fflags', '+genpts+discardcorrupt',
-      '-i', filePath,
-      '-map', '0:v:0',
-      '-map', '0:a:0?',
-      '-c:v', 'copy',           // Copy video stream as-is (no re-encoding)
-      '-c:a', 'aac',            // Transcode audio to AAC
-      '-b:a', '192k',           // Audio bitrate
-      '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-      '-f', 'mp4',
-      'pipe:1',
-    ];
-
-    logger.debug('FFmpeg args for audio-only remux', {
-      args: ffmpegArgs.join(' '),
-    });
-
-    const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    const outputStream = new PassThrough();
-
-    const transcode: ActiveTranscode = {
-      id: transcodeId,
-      infohash,
-      fileIndex,
-      filePath,
-      ffmpegProcess: ffmpeg,
-      outputStream,
-      startedAt: new Date(),
-    };
-
-    this.activeTranscodes.set(key, transcode);
-
-    let bytesOutput = 0;
-    let lastLoggedOutputMB = 0;
-
-    ffmpeg.stdout.on('data', (chunk: Buffer) => {
-      bytesOutput += chunk.length;
-      const outputMB = bytesOutput / (1024 * 1024);
-      if (outputMB - lastLoggedOutputMB >= 5) {
-        logger.info('Audio remux output progress', {
-          infohash, fileIndex, outputMB: outputMB.toFixed(2),
-        });
-        lastLoggedOutputMB = outputMB;
-      }
-    });
-
-    ffmpeg.stdout.pipe(outputStream);
-
-    const MAX_STDERR_BUFFER = 10000;
-    let stderrBuffer = '';
-    ffmpeg.stderr.on('data', (data: Buffer) => {
-      stderrBuffer += data.toString();
-      if (stderrBuffer.length > MAX_STDERR_BUFFER) {
-        stderrBuffer = stderrBuffer.slice(-MAX_STDERR_BUFFER);
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      logger.error('Audio remux FFmpeg error', err, { infohash, fileIndex });
-      this.activeTranscodes.delete(key);
-      outputStream.destroy(err);
-    });
-
-    ffmpeg.on('close', (code) => {
-      this.activeTranscodes.delete(key);
-      if (code !== 0 && code !== null) {
-        logger.warn('Audio remux FFmpeg exited with non-zero code', { code, stderr: stderrBuffer.slice(-500) });
-      } else {
-        logger.info('Audio remux completed', { infohash, fileIndex, bytesOutput });
-      }
-      if (cleanupOnComplete) {
-        cleanupTempFile(filePath).catch((err) => {
-          logger.warn('Failed to cleanup temp file after audio remux', { error: String(err), filePath });
-        });
-      }
-    });
-
-    outputStream.on('close', () => {
-      if (!ffmpeg.killed) {
-        ffmpeg.kill('SIGTERM');
-      }
-    });
-
-    return { stream: outputStream, mimeType: 'video/mp4' };
   }
 
   /**
