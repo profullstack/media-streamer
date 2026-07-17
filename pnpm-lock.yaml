@@ -32,8 +32,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0(react@19.2.5)
       '@profullstack/stack':
-        specifier: ^0.1.1
-        version: 0.1.1(next@16.2.4(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
+        specifier: ^0.1.2
+        version: 0.1.2(next@16.2.4(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -1166,8 +1166,8 @@ packages:
       react:
         optional: true
 
-  '@profullstack/stack@0.1.1':
-    resolution: {integrity: sha512-6C7YFywti8wbIFmHvY0CZQPThWJRMjn06a6zaR4RyfHkekR5g4x+x5sL61ht5VCWWGgn3n5grQUxWrVMacgU/g==}
+  '@profullstack/stack@0.1.2':
+    resolution: {integrity: sha512-MDWdP+Jzb8gEIVVn2je4SIjSLLRsAdtK6B/V2gMbKB6qTh9vCjQlbTCdF7qzZjIZMko95RDtYKMy6BtfNNCaqg==}
     engines: {node: '>=18'}
     peerDependencies:
       '@supabase/ssr': '>=0.5.0'
@@ -6182,7 +6182,7 @@ snapshots:
     optionalDependencies:
       react: 19.2.5
 
-  '@profullstack/stack@0.1.1(next@16.2.4(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)':
+  '@profullstack/stack@0.1.2(next@16.2.4(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)':
     dependencies:
       '@profullstack/emailer': 1.0.1
       '@profullstack/referrals': 0.1.0(react@19.2.5)
