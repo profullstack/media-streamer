@@ -22,10 +22,25 @@ describe('seedbox provisioner', () => {
     const script = buildProvisionScript('TOK123_-', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT);
 
     it('installs the torlink fork (with the concurrency cap) and enforces Node >= 22', () => {
-      expect(script).toContain('npm i -g "$PKG"');
+      expect(script).toContain('npm i -g "$PKG@latest"'); // @latest so a cached global actually upgrades
       expect(script).toContain("PKG='@profullstack/torlink'");
       expect(script).toContain('TORLINK_MAX_DOWNLOADS=2');
       expect(script).toContain('-lt 22');
+    });
+
+    it('resolves the daemon from the global bin, not PATH (a ~/.local/bin shadow must not win)', () => {
+      // The "older torlink without torrent controls" bug: a stale ~/.local/bin/torlnk
+      // wrapper shadowed the freshly-installed global build. Resolve via npm prefix,
+      // and repoint the shadow wrapper.
+      expect(script).toContain('GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"');
+      expect(script).toContain('.local/bin/torlnk');
+      expect(script).not.toContain('BIN=$(command -v torlnk 2>/dev/null || true)');
+    });
+
+    it('verifies /control is actually served (catches a stale build that only has /add,/status)', () => {
+      expect(script).toContain('/control');
+      expect(script).toContain('no such torrent'); // present route
+      expect(script).toContain('not found'); // missing route -> emit controls fail
     });
 
     it('starts serve and files daemons bound to the token and public host', () => {

@@ -103,21 +103,52 @@ fi
 #     same 'torlnk' binary — switch back to official 'torlnk' once baairon#102
 #     is merged + published). Remove the official pkg first to avoid a bin clash.
 PKG='@profullstack/torlink'
+# Pin @latest so an old cached global is actually upgraded (a bare name can be a
+# no-op when something is already installed under that name).
 (npm rm -g torlnk >/dev/null 2>&1 || sudo -n npm rm -g torlnk >/dev/null 2>&1) || true
-if npm i -g "$PKG" >/tmp/torlnk-install.log 2>&1; then
-  emit install ok "npm i -g $PKG"
-elif command -v sudo >/dev/null 2>&1 && sudo -n npm i -g "$PKG" >>/tmp/torlnk-install.log 2>&1; then
-  emit install ok "npm i -g $PKG (sudo)"
+if npm i -g "$PKG@latest" >/tmp/torlnk-install.log 2>&1; then
+  emit install ok "npm i -g $PKG@latest"
+elif command -v sudo >/dev/null 2>&1 && sudo -n npm i -g "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; then
+  emit install ok "npm i -g $PKG@latest (sudo)"
 else
   emit install fail "$(tail -n 3 /tmp/torlnk-install.log 2>/dev/null | tr '\\n' ' ')"
   echo "RESULT|fail"; exit 0
 fi
 
 command -v mise >/dev/null 2>&1 && mise reshim >/dev/null 2>&1 || true
-BIN=$(command -v torlnk 2>/dev/null || true)
-if [ -z "\${BIN:-}" ]; then BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"; fi
-if [ ! -x "$BIN" ]; then
-  emit install fail "torlnk installed but binary not found on PATH ($BIN)"
+
+# CRITICAL: resolve the binary from the *global package* we just installed, NOT
+# from \`command -v torlnk\`. A stale hand-rolled ~/.local/bin/torlnk wrapper (from
+# an old manual checkout install) shadows the global bin on PATH and re-execs an
+# ancient ~/torlink/dist/index.js that predates /control — so npm i -g "succeeds"
+# but the daemon that runs is the old build. That is exactly the "older torlink
+# without torrent controls" trap. Run the freshly-installed dist directly.
+PKG_ROOT="$(npm root -g 2>/dev/null)/@profullstack/torlink"
+CLI_JS="$PKG_ROOT/dist/cli.cjs"
+# Neutralize a shadowing wrapper so interactive \`torlnk\` also gets the fresh build
+# (harmless if it doesn't exist).
+if [ -f "$HOME/.local/bin/torlnk" ] && ! grep -q "$PKG_ROOT" "$HOME/.local/bin/torlnk" 2>/dev/null; then
+  printf '#!/usr/bin/env bash\nexec %s "%s" "$@"\n' "$(command -v node)" "$CLI_JS" > "$HOME/.local/bin/torlnk" 2>/dev/null || true
+  chmod +x "$HOME/.local/bin/torlnk" 2>/dev/null || true
+  emit shadow ok "repointed stale ~/.local/bin/torlnk wrapper at the global build"
+fi
+# Resolve a SINGLE executable path to the freshly-installed global build. Prefer
+# the global npm bin symlink ("\$(npm prefix -g)/bin/torlnk" -> the package's
+# cli.cjs) — it bypasses PATH (so a ~/.local/bin shadow can't win) yet stays one
+# path, which the auto-update cron below needs (it does \`dirname "\$BIN"\` and runs
+# \`"\$BIN" update\`).
+GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"
+if [ -x "$GLOBAL_BIN" ]; then
+  BIN="$GLOBAL_BIN"
+elif [ -f "$CLI_JS" ]; then
+  BIN="$CLI_JS"                     # node-shebang'd; PATH has node via mise shims
+elif command -v torlnk >/dev/null 2>&1; then
+  BIN="$(command -v torlnk)"        # last resort
+else
+  BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"
+fi
+if [ ! -e "$BIN" ]; then
+  emit install fail "torlnk installed but no runnable binary found (looked for $GLOBAL_BIN and $CLI_JS)"
   echo "RESULT|fail"; exit 0
 fi
 
@@ -134,13 +165,21 @@ mkdir -p "$WATCH" "$DATA"
 stop_torlink(){
   # Match both spellings: the npm bin ("torlnk") and a local checkout ("torlink").
   pkill -f 'torli?nk' 2>/dev/null || sudo -n pkill -f 'torli?nk' 2>/dev/null || true
+  # Stop AND disable+remove any torlink unit: a leftover unit (from an old manual
+  # install) that points at a stale checkout/token would otherwise resurrect the
+  # wrong build on reboot and fight this provisioner's daemons for the ports. The
+  # provisioner owns the --daemon processes, so it must be the single authority.
   local U
-  for U in $(systemctl list-units --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
-    sudo -n systemctl stop "$U" 2>/dev/null || true
+  for U in $(systemctl list-units --all --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
+    sudo -n systemctl disable --now "$U" 2>/dev/null || sudo -n systemctl stop "$U" 2>/dev/null || true
+    sudo -n rm -f "/etc/systemd/system/$U" 2>/dev/null || true
   done
-  for U in $(systemctl --user list-units --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
-    systemctl --user stop "$U" 2>/dev/null || true
+  sudo -n systemctl daemon-reload 2>/dev/null || true
+  for U in $(systemctl --user list-units --all --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
+    systemctl --user disable --now "$U" 2>/dev/null || systemctl --user stop "$U" 2>/dev/null || true
+    rm -f "$HOME/.config/systemd/user/$U" 2>/dev/null || true
   done
+  systemctl --user daemon-reload 2>/dev/null || true
   if command -v pm2 >/dev/null 2>&1; then
     pm2 delete $(pm2 jlist 2>/dev/null | grep -o '"name":"[^"]*torl[^"]*"' | cut -d'"' -f4) >/dev/null 2>&1 || true
   fi
@@ -207,6 +246,21 @@ elif [ "$AUTHCODE" = "000" ]; then
   emit auth skip "could not verify token locally (curl failed)"
 else
   emit auth ok "token accepted (HTTP $AUTHCODE) — send + play are wired up"
+fi
+
+# --- verify per-torrent controls (POST /control) are actually served ---
+# Catches a stale/old build that answers /health + /status but 404s the controls
+# route (the "older torlink without torrent controls" trap): a PRESENT route
+# replies "no such torrent" for a bogus id; a MISSING route replies "not found".
+CTRL=$(curl -s -m 5 -X POST -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
+  -d '{"id":"0000000000000000000000000000000000000000","action":"pause"}' \
+  "http://127.0.0.1:$SERVE_PORT/control" 2>/dev/null || echo '')
+if printf '%s' "$CTRL" | grep -qi 'no such torrent'; then
+  emit controls ok "per-torrent controls (/control) are live"
+elif printf '%s' "$CTRL" | grep -qi 'not found'; then
+  emit controls fail "daemon lacks /control — an OLD torlink is answering on $SERVE_PORT. A stale ~/.local/bin/torlnk wrapper or systemd unit is shadowing the global build; the new build did not take. Check 'command -v torlnk' and ~/torlink on the box."
+else
+  emit controls skip "could not confirm /control locally (response: $(printf '%s' "$CTRL" | head -c 60))"
 fi
 
 # --- limit the seeding window WITHOUT deleting files ---
