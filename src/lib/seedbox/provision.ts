@@ -49,13 +49,19 @@ export function buildProvisionScript(
   token: string,
   servePort: number,
   filesPort: number,
-  dataDir?: string
+  dataDir?: string,
+  seedTimeHours: number = 2
 ): string {
   // Where torlnk saves downloads (serve --to) and serves files from (files --dir).
   // Injected single-quoted; a leading ~ is expanded to $HOME on the box.
   const dataDirLine = dataDir
     ? `DATA='${dataDir.replace(/'/g, `'\\''`)}'\nDATA="\${DATA/#\\~/$HOME}"`
     : `DATA="$HOME/Downloads/done"`;
+  // torlink's own --seed-time stops seeding a torrent after this window but KEEPS
+  // its files on disk (we deliberately omit --delete-files). 0 = seed forever.
+  const seedHours = Number.isFinite(seedTimeHours) && seedTimeHours >= 0 ? Math.floor(seedTimeHours) : 2;
+  const seedFlag = seedHours > 0 ? `--seed-time ${seedHours}h ` : '';
+  const seedDesc = seedHours > 0 ? `stops seeding after ${seedHours}h, keeps files` : 'seeds indefinitely (no time limit)';
   return `set -u
 TOK='${token}'
 SERVE_PORT='${servePort}'
@@ -160,8 +166,8 @@ export TORLINK_FILES_TOKEN="$TOK"
 # limited seedbox line (torlink >= the version with TORLINK_MAX_DOWNLOADS;
 # harmlessly ignored by older builds).
 export TORLINK_MAX_DOWNLOADS=2
-if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" --daemon >/tmp/torlnk-serve.log 2>&1; then
-  emit serve ok "add-API on $SERVE_PORT (downloads: $DATA)"
+if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" ${seedFlag}--daemon >/tmp/torlnk-serve.log 2>&1; then
+  emit serve ok "add-API on $SERVE_PORT (downloads: $DATA; ${seedDesc})"
 else
   emit serve fail "$(tail -n 3 /tmp/torlnk-serve.log 2>/dev/null | tr '\\n' ' ')"
 fi
@@ -203,21 +209,20 @@ else
   emit auth ok "token accepted (HTTP $AUTHCODE) — send + play are wired up"
 fi
 
-# --- auto-purge completed files (DMCA hygiene — limit the seeding window) ---
-# Installs an idempotent user cron that deletes files under the download dir once
-# they're older than 6h, so torrents aren't seeded indefinitely. Fully automatic;
-# no user setup. The absolute path + interval are baked into the cron line.
-RET_MIN=360
+# --- limit the seeding window WITHOUT deleting files ---
+# Seeding is time-limited by torlink's own --seed-time on the serve daemon above:
+# each torrent stops seeding once past its window, but the downloaded files stay
+# on disk (we don't pass --delete-files). Older installs shipped a cron that
+# DELETED downloads after 6h — strip it so re-provisioning stops deleting files.
 CRON_MARK="# torlink-autopurge-media-streamer"
-PURGE="find \\"$DATA\\" -type f -mmin +$RET_MIN -delete 2>/dev/null; find \\"$DATA\\" -mindepth 1 -type d -empty -delete 2>/dev/null"
-if command -v crontab >/dev/null 2>&1; then
-  if ( crontab -l 2>/dev/null | grep -vF "$CRON_MARK"; echo "*/30 * * * * $PURGE $CRON_MARK" ) | crontab - 2>/dev/null; then
-    emit cleanup ok "auto-deletes completed files older than 6h (cron, every 30m) to limit seeding/DMCA exposure"
+if command -v crontab >/dev/null 2>&1 && crontab -l >/dev/null 2>&1 && crontab -l 2>/dev/null | grep -qF "$CRON_MARK"; then
+  if crontab -l 2>/dev/null | grep -vF "$CRON_MARK" | crontab - 2>/dev/null; then
+    emit cleanup ok "removed legacy delete-after-6h cron — now ${seedDesc}"
   else
-    emit cleanup skip "could not install the auto-purge cron; delete old downloads manually to limit exposure"
+    emit cleanup skip "run 'crontab -e' and delete the torlink-autopurge line so downloads stop being auto-deleted"
   fi
 else
-  emit cleanup skip "no crontab on the box; completed files won't auto-delete (install cron to limit DMCA exposure)"
+  emit cleanup ok "torlink ${seedDesc}"
 fi
 echo "RESULT|ok"
 `;
@@ -246,12 +251,12 @@ export function parseSteps(stdout: string): { steps: ProvisionStep[]; result: 'o
  */
 export async function provisionTorlink(
   ssh: SeedboxSshConfig,
-  options: { token?: string; servePort?: number; filesPort?: number; dataDir?: string } = {}
+  options: { token?: string; servePort?: number; filesPort?: number; dataDir?: string; seedTimeHours?: number } = {}
 ): Promise<ProvisionResult> {
   const token = options.token ?? generateSeedboxToken();
   const servePort = options.servePort ?? DEFAULT_SERVE_PORT;
   const filesPort = options.filesPort ?? DEFAULT_FILES_PORT;
-  const script = buildProvisionScript(token, servePort, filesPort, options.dataDir);
+  const script = buildProvisionScript(token, servePort, filesPort, options.dataDir, options.seedTimeHours);
 
   let raw = '';
   try {

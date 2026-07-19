@@ -34,7 +34,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // Optional download directory (torlnk --to/--dir). Restrict to a safe path so
   // it can't break out of the single-quoted shell injection in the provisioner.
-  const body = (await request.json().catch(() => null)) as { dataDir?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { dataDir?: unknown; seedHours?: unknown } | null;
   const rawDir = typeof body?.dataDir === 'string' ? body.dataDir.trim() : '';
   if (rawDir && !/^[A-Za-z0-9_\-./~ ]+$/.test(rawDir)) {
     return NextResponse.json(
@@ -43,10 +43,21 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  // How long each torrent keeps seeding before torlink stops it (files are kept).
+  // 0 = seed indefinitely. Default 2h. Cap at 720h (30d) to keep it sane.
+  const seedHours = body?.seedHours === undefined || body?.seedHours === null ? 2 : Number(body.seedHours);
+  if (!Number.isInteger(seedHours) || seedHours < 0 || seedHours > 720) {
+    return NextResponse.json(
+      { error: 'Seeding time must be a whole number of hours between 0 and 720 (0 = seed indefinitely).' },
+      { status: 400 }
+    );
+  }
+
   const result = await provisionTorlink(config.ssh, {
     servePort: DEFAULT_SERVE_PORT,
     filesPort: DEFAULT_FILES_PORT,
     dataDir: rawDir || undefined,
+    seedTimeHours: seedHours,
   });
 
   if (!result.ok || !result.token) {

@@ -37,6 +37,30 @@ describe('seedbox provisioner', () => {
       expect(script).toContain("FILES_PORT='9160'");
     });
 
+    // Pull out just the `serve ... --daemon` invocation so assertions target the
+    // real command, not the surrounding explanatory comments.
+    const serveCmd = (s: string): string => (s.match(/serve --host[^\n]*--daemon/)?.[0] ?? '');
+
+    it('time-limits seeding via torlink --seed-time (default 2h) and keeps files', () => {
+      // Defaults to 2h; the serve daemon never passes --delete-files.
+      expect(serveCmd(script)).toContain('--seed-time 2h');
+      expect(serveCmd(script)).not.toContain('--delete-files');
+      // The old delete-after-6h cron (find -mmin +N -delete every 30m) is gone.
+      expect(script).not.toContain('-mmin');
+      expect(script).not.toContain('*/30 * * * *');
+      // …but re-provisioning still strips that cron off boxes that already have it.
+      expect(script).toContain('torlink-autopurge-media-streamer');
+    });
+
+    it('honors a custom seeding window and supports 0 = seed indefinitely', () => {
+      expect(
+        serveCmd(buildProvisionScript('T', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT, undefined, 6))
+      ).toContain('--seed-time 6h');
+      const forever = buildProvisionScript('T', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT, undefined, 0);
+      expect(serveCmd(forever)).not.toContain('--seed-time');
+      expect(forever).toContain('seeds indefinitely');
+    });
+
     it('opens firewall ports via ufw or firewalld', () => {
       expect(script).toContain('ufw allow "$SERVE_PORT"/tcp');
       expect(script).toContain('firewall-cmd');
