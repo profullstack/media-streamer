@@ -52,6 +52,13 @@ describe('seedbox provisioner', () => {
       expect(script).toContain('torlink-autopurge-media-streamer');
     });
 
+    it('installs a cron that self-updates torlink via `torlnk update`', () => {
+      expect(script).toContain('torlink-autoupdate-media-streamer');
+      expect(script).toContain('update >>'); // `"$BIN" update >> ...log`
+      expect(script).toContain('47 */6 * * *'); // every 6h
+      expect(script).toContain('NODE_BIN_DIR='); // pins PATH for cron
+    });
+
     it('honors a custom seeding window and supports 0 = seed indefinitely', () => {
       expect(
         serveCmd(buildProvisionScript('T', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT, undefined, 6))
