@@ -55,7 +55,7 @@ describe('seedbox provisioner', () => {
     it('installs a cron that self-updates torlink via `torlnk update`', () => {
       expect(script).toContain('torlink-autoupdate-media-streamer');
       expect(script).toContain('update >>'); // `"$BIN" update >> ...log`
-      expect(script).toContain('47 */6 * * *'); // every 6h
+      expect(script).toContain('*/5 * * * *'); // every 5 min
       expect(script).toContain('NODE_BIN_DIR='); // pins PATH for cron
     });
 

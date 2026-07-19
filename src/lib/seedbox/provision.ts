@@ -235,10 +235,10 @@ fi
 NODE_BIN_DIR=$(dirname "$(command -v node 2>/dev/null)" 2>/dev/null)
 GLOBAL_BIN_DIR=$(dirname "$BIN")
 UPD_MARK="# torlink-autoupdate-media-streamer"
-UPD_LINE="47 */6 * * * PATH=\\"$NODE_BIN_DIR:$GLOBAL_BIN_DIR:/usr/local/bin:/usr/bin:/bin\\" \\"$BIN\\" update >> \\"$HOME/.torlnk-update.log\\" 2>&1 $UPD_MARK"
+UPD_LINE="*/5 * * * * PATH=\\"$NODE_BIN_DIR:$GLOBAL_BIN_DIR:/usr/local/bin:/usr/bin:/bin\\" \\"$BIN\\" update >> \\"$HOME/.torlnk-update.log\\" 2>&1 $UPD_MARK"
 if command -v crontab >/dev/null 2>&1; then
   if ( crontab -l 2>/dev/null | grep -vF "$UPD_MARK"; echo "$UPD_LINE" ) | crontab - 2>/dev/null; then
-    emit autoupdate ok "torlnk update runs every 6h (self-installs new releases + restarts daemons)"
+    emit autoupdate ok "torlnk update runs every 5 min (self-installs new releases + restarts daemons)"
   else
     emit autoupdate skip "couldn't install the auto-update cron; run 'torlnk update' to upgrade manually"
   fi
