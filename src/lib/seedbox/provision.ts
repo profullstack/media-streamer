@@ -224,6 +224,27 @@ if command -v crontab >/dev/null 2>&1 && crontab -l >/dev/null 2>&1 && crontab -
 else
   emit cleanup ok "torlink ${seedDesc}"
 fi
+
+# --- keep torlink up to date automatically ---
+# \`torlnk update\` checks npm for a newer release, installs it (npm i -g @latest)
+# and restarts the serve/files daemons in place — each daemon relaunches from the
+# argv recorded in its .run.json, so the token + --seed-time flags survive. Run
+# it on a cron so the seedbox self-updates without re-provisioning; it's a no-op
+# when already current, and bails gracefully if the global prefix isn't writable.
+# cron has a bare PATH, so pin node + npm (same dir) + the global-bin dir.
+NODE_BIN_DIR=$(dirname "$(command -v node 2>/dev/null)" 2>/dev/null)
+GLOBAL_BIN_DIR=$(dirname "$BIN")
+UPD_MARK="# torlink-autoupdate-media-streamer"
+UPD_LINE="47 */6 * * * PATH=\\"$NODE_BIN_DIR:$GLOBAL_BIN_DIR:/usr/local/bin:/usr/bin:/bin\\" \\"$BIN\\" update >> \\"$HOME/.torlnk-update.log\\" 2>&1 $UPD_MARK"
+if command -v crontab >/dev/null 2>&1; then
+  if ( crontab -l 2>/dev/null | grep -vF "$UPD_MARK"; echo "$UPD_LINE" ) | crontab - 2>/dev/null; then
+    emit autoupdate ok "torlnk update runs every 6h (self-installs new releases + restarts daemons)"
+  else
+    emit autoupdate skip "couldn't install the auto-update cron; run 'torlnk update' to upgrade manually"
+  fi
+else
+  emit autoupdate skip "no crontab on the box; run 'torlnk update' to upgrade manually"
+fi
 echo "RESULT|ok"
 `;
 }
