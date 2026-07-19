@@ -47,6 +47,7 @@ export function SeedboxSection(): React.ReactElement {
   const [installing, setInstalling] = useState(false);
   const [installSteps, setInstallSteps] = useState<{ name: string; status: string; detail: string }[] | null>(null);
   const [dataDir, setDataDir] = useState('');
+  const [seedHours, setSeedHours] = useState('2');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<SeedboxProbeResult | null>(null);
 
@@ -169,7 +170,10 @@ export function SeedboxSection(): React.ReactElement {
       const res = await fetch('/api/account/seedbox/install-torlink', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataDir: dataDir.trim() || undefined }),
+        body: JSON.stringify({
+          dataDir: dataDir.trim() || undefined,
+          seedHours: seedHours.trim() === '' ? 2 : Number(seedHours),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         success?: boolean;
@@ -189,7 +193,7 @@ export function SeedboxSection(): React.ReactElement {
     } finally {
       setInstalling(false);
     }
-  }, [applySummary, dataDir]);
+  }, [applySummary, dataDir, seedHours]);
 
   const testConnection = useCallback(async (): Promise<void> => {
     setTesting(true);
@@ -393,6 +397,21 @@ export function SeedboxSection(): React.ReactElement {
               placeholder="~/Downloads/done"
               value={dataDir}
               onChange={(e) => setDataDir(e.target.value)}
+            />
+          </div>
+          <div className="mt-3">
+            <label className={labelCls}>
+              Seeding time <span className="text-text-tertiary">(hours to keep seeding each download before torlink stops — files are kept either way; 0 = seed indefinitely; default 2)</span>
+            </label>
+            <input
+              className={inputCls}
+              type="number"
+              min={0}
+              max={720}
+              step={1}
+              placeholder="2"
+              value={seedHours}
+              onChange={(e) => setSeedHours(e.target.value)}
             />
           </div>
           {installSteps ? (
