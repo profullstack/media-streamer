@@ -48,6 +48,7 @@ export interface Torrent {
   peers: number;
   speed: number; // bytes/s (download)
   uploaded: number; // bytes total uploaded
+  kind: 'download' | 'seed'; // which torlink list it came from (disambiguates "paused")
 }
 
 // Sort/priority so the most "active" work floats to the top of the list.
@@ -76,6 +77,7 @@ export function mergeTorrents(downloads: RawDownload[] = [], seeds: RawSeed[] = 
       peers: d.peers,
       speed: d.speed,
       uploaded: 0,
+      kind: 'download',
     });
   }
   for (const s of seeds) {
@@ -94,6 +96,7 @@ export function mergeTorrents(downloads: RawDownload[] = [], seeds: RawSeed[] = 
         peers: s.peers,
         speed: 0,
         uploaded: s.uploaded,
+        kind: 'seed',
       });
     }
   }
@@ -150,7 +153,29 @@ function StatTile({ label, value }: { label: string; value: string }): React.Rea
   );
 }
 
-function TorrentRow({ t }: { t: Torrent }): React.ReactElement {
+export type TorrentAction = 'pause' | 'resume' | 'start-seed' | 'stop-seed' | 'remove' | 'delete';
+
+/** The control buttons that make sense for a torrent in its current state. */
+export function actionsFor(t: Torrent): { label: string; action: TorrentAction; danger?: boolean }[] {
+  const acts: { label: string; action: TorrentAction; danger?: boolean }[] = [];
+  if (t.status === 'downloading' || t.status === 'queued') acts.push({ label: 'Pause', action: 'pause' });
+  else if (t.status === 'paused' && t.kind === 'download') acts.push({ label: 'Resume', action: 'resume' });
+  else if (t.status === 'seeding') acts.push({ label: 'Stop seeding', action: 'stop-seed' });
+  else if (t.status === 'paused' && t.kind === 'seed') acts.push({ label: 'Start seeding', action: 'start-seed' });
+  else if (t.status === 'failed') acts.push({ label: 'Remove', action: 'remove' });
+  acts.push({ label: 'Delete', action: 'delete', danger: true });
+  return acts;
+}
+
+function TorrentRow({
+  t,
+  busy,
+  onAction,
+}: {
+  t: Torrent;
+  busy: boolean;
+  onAction: (action: TorrentAction, t: Torrent) => void;
+}): React.ReactElement {
   const seeding = t.status === 'seeding';
   const barColor = t.status === 'failed' ? 'bg-status-error' : seeding ? 'bg-green-500' : 'bg-accent-primary';
   return (
@@ -167,17 +192,37 @@ function TorrentRow({ t }: { t: Torrent }): React.ReactElement {
           style={{ width: `${Math.round(t.progress)}%` }}
         />
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary tabular-nums">
-        <span className="text-text-primary">{Math.round(t.progress)}%</span>
-        {!seeding && t.speed > 0 ? (
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary tabular-nums">
+          <span className="text-text-primary">{Math.round(t.progress)}%</span>
+          {!seeding && t.speed > 0 ? (
+            <span className="flex items-center gap-1">
+              <DownloadIcon size={13} /> {fmtSpeed(t.speed)}
+            </span>
+          ) : null}
+          {t.uploaded > 0 ? <span>↑ {fmtBytes(t.uploaded)}</span> : null}
           <span className="flex items-center gap-1">
-            <DownloadIcon size={13} /> {fmtSpeed(t.speed)}
+            <UsersIcon size={13} /> {t.peers} {t.peers === 1 ? 'peer' : 'peers'}
           </span>
-        ) : null}
-        {t.uploaded > 0 ? <span>↑ {fmtBytes(t.uploaded)}</span> : null}
-        <span className="flex items-center gap-1">
-          <UsersIcon size={13} /> {t.peers} {t.peers === 1 ? 'peer' : 'peers'}
-        </span>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          {busy ? <LoadingSpinner size={13} className="text-text-tertiary" /> : null}
+          {actionsFor(t).map((a) => (
+            <button
+              key={a.action}
+              disabled={busy}
+              onClick={() => onAction(a.action, t)}
+              className={cn(
+                'rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-50',
+                a.danger
+                  ? 'border-status-error/40 text-status-error hover:bg-status-error/10'
+                  : 'border-border text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+              )}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
       </div>
     </li>
   );
@@ -188,6 +233,8 @@ export function TorlinkStatus(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   // Guard against overlapping/late responses when polling.
   const inFlight = useRef(false);
 
@@ -207,6 +254,34 @@ export function TorlinkStatus(): React.ReactElement {
       setLoading(false);
     }
   }, []);
+
+  const runAction = useCallback(
+    async (action: TorrentAction, t: Torrent): Promise<void> => {
+      if (action === 'delete' && !window.confirm(`Delete "${t.name}" and its files from the seedbox? This can't be undone.`)) {
+        return;
+      }
+      setBusyId(t.id);
+      setActionError(null);
+      try {
+        const res = await fetch('/api/account/seedbox/control', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: t.id, action, deleteFiles: action === 'delete' }),
+        });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          setActionError(data.error ?? `Action failed (${res.status})`);
+        } else {
+          await refresh(); // reflect the new state immediately
+        }
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Action failed');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [refresh]
+  );
 
   useEffect(() => {
     void refresh();
@@ -263,6 +338,12 @@ export function TorlinkStatus(): React.ReactElement {
         </button>
       </div>
 
+      {actionError ? (
+        <div className="rounded-lg border border-status-error/40 bg-status-error/5 p-3 text-sm text-status-error">
+          {actionError}
+        </div>
+      ) : null}
+
       {unreachable ? (
         <div className="rounded-lg border border-status-error/40 bg-status-error/5 p-3 text-sm text-status-error">
           Couldn&apos;t reach torlink: {errorText}. Check the seedbox is up and the ports are open (Setup → Test
@@ -286,7 +367,7 @@ export function TorlinkStatus(): React.ReactElement {
           ) : (
             <ul className="space-y-2">
               {torrents.map((t) => (
-                <TorrentRow key={t.id || t.name} t={t} />
+                <TorrentRow key={t.id || t.name} t={t} busy={busyId === t.id} onAction={(a) => void runAction(a, t)} />
               ))}
             </ul>
           )}

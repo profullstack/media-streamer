@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fmtBytes, fmtSpeed, mergeTorrents } from './torlink-status';
+import { actionsFor, fmtBytes, fmtSpeed, mergeTorrents, type Torrent } from './torlink-status';
 
 describe('fmtBytes', () => {
   it('formats byte magnitudes 1024-based', () => {
@@ -47,8 +47,15 @@ describe('mergeTorrents', () => {
   it('includes seed-only torrents (finished + moved out of downloads)', () => {
     const merged = mergeTorrents([], [{ id: 'y', name: 'Y', status: 'seeding', peers: 0, uploaded: 500 }]);
     expect(merged).toEqual([
-      { id: 'y', name: 'Y', status: 'seeding', progress: 100, peers: 0, speed: 0, uploaded: 500 },
+      { id: 'y', name: 'Y', status: 'seeding', progress: 100, peers: 0, speed: 0, uploaded: 500, kind: 'seed' },
     ]);
+  });
+
+  it('tags kind by source list so "paused" can be disambiguated', () => {
+    const dl = mergeTorrents([{ id: 'a', name: 'A', status: 'paused', progress: 30, peers: 0, speed: 0 }], []);
+    expect(dl[0].kind).toBe('download');
+    const seed = mergeTorrents([], [{ id: 'b', name: 'B', status: 'paused', peers: 0, uploaded: 0 }]);
+    expect(seed[0].kind).toBe('seed');
   });
 
   it('treats seeding downloads as 100% and keeps active progress otherwise', () => {
@@ -70,5 +77,27 @@ describe('mergeTorrents', () => {
       []
     );
     expect(merged.map((t) => t.status)).toEqual(['downloading', 'queued', 'paused', 'seeding', 'failed']);
+  });
+});
+
+describe('actionsFor', () => {
+  const t = (over: Partial<Torrent>): Torrent => ({
+    id: 'i', name: 'N', status: 'downloading', progress: 0, peers: 0, speed: 0, uploaded: 0, kind: 'download', ...over,
+  });
+  const labels = (x: Torrent): string[] => actionsFor(x).map((a) => a.label);
+
+  it('offers Pause while downloading/queued', () => {
+    expect(labels(t({ status: 'downloading' }))).toEqual(['Pause', 'Delete']);
+    expect(labels(t({ status: 'queued' }))).toEqual(['Pause', 'Delete']);
+  });
+
+  it('distinguishes a paused download (Resume) from a paused seed (Start seeding)', () => {
+    expect(labels(t({ status: 'paused', kind: 'download' }))).toEqual(['Resume', 'Delete']);
+    expect(labels(t({ status: 'paused', kind: 'seed' }))).toEqual(['Start seeding', 'Delete']);
+  });
+
+  it('offers Stop seeding while seeding, and always a Delete', () => {
+    expect(labels(t({ status: 'seeding', kind: 'seed' }))).toEqual(['Stop seeding', 'Delete']);
+    expect(actionsFor(t({ status: 'seeding' })).find((a) => a.action === 'delete')?.danger).toBe(true);
   });
 });
