@@ -9,7 +9,7 @@
 import { redirect } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { getCurrentUser } from '@/lib/auth';
-import { SeedboxSection } from '@/app/settings/seedbox-section';
+import { SeedboxTabs } from './seedbox-tabs';
 
 // Always check auth status server-side.
 export const dynamic = 'force-dynamic';
@@ -28,14 +28,14 @@ export default async function SeedboxesPage(): Promise<React.ReactElement> {
 
   return (
     <MainLayout>
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-5xl">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-text-primary">Seedboxes</h1>
           <p className="text-sm text-text-secondary">
             Connect your own seedbox to push torrents to it and stream completed files back.
           </p>
         </div>
-        <SeedboxSection />
+        <SeedboxTabs />
       </div>
     </MainLayout>
   );
