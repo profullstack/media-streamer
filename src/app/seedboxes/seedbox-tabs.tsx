@@ -10,15 +10,17 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { DownloadIcon, SettingsIcon } from '@/components/ui/icons';
+import { DownloadIcon, SettingsIcon, CreditCardIcon } from '@/components/ui/icons';
 import { SeedboxSection } from '@/app/settings/seedbox-section';
 import { TorlinkStatus } from './torlink-status';
+import { RentOut } from './rent-out';
 
-type SeedboxTab = 'setup' | 'status';
+type SeedboxTab = 'setup' | 'status' | 'rent';
 
 const TABS: { id: SeedboxTab; label: string; icon: typeof SettingsIcon }[] = [
   { id: 'setup', label: 'Setup', icon: SettingsIcon },
   { id: 'status', label: 'Torlink status', icon: DownloadIcon },
+  { id: 'rent', label: 'Rent Out', icon: CreditCardIcon },
 ];
 
 export function SeedboxTabs(): React.ReactElement {
@@ -45,7 +47,9 @@ export function SeedboxTabs(): React.ReactElement {
       </nav>
 
       <div className="min-w-0 flex-1">
-        {tab === 'setup' ? <SeedboxSection /> : <TorlinkStatus />}
+        {tab === 'setup' && <SeedboxSection />}
+        {tab === 'status' && <TorlinkStatus />}
+        {tab === 'rent' && <RentOut />}
       </div>
     </div>
   );
