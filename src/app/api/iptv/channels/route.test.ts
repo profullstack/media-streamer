@@ -14,7 +14,9 @@ const mockCacheSet = vi.fn();
 // Mock undici fetch
 const mockFetch = vi.fn();
 vi.mock('undici', () => ({
-  Agent: vi.fn().mockImplementation(() => ({})),
+  Agent: vi.fn(function MockAgent() {
+    return {};
+  }),
   fetch: mockFetch,
 }));
 
@@ -231,6 +233,38 @@ describe('IPTV Channels API', () => {
       expect(data.total).toBe(100);
       expect(data.offset).toBe(20);
       expect(data.limit).toBe(10);
+    });
+
+    it.each([
+      ['negative', '-5', '-20'],
+      ['partially numeric', '10items', '20items'],
+    ])('uses pagination defaults for %s values', async (_label, limit, offset) => {
+      const allChannels = Array.from({ length: 100 }, (_, i) => ({
+        id: String(i),
+        name: `Channel ${i}`,
+        url: `https://example.com/ch${i}.m3u8`,
+        group: 'General',
+      }));
+      mockCacheGet.mockResolvedValue({
+        channels: allChannels,
+        groups: ['General'],
+        fetchedAt: Date.now(),
+        m3uUrl: 'http://example.com/playlist.m3u',
+      });
+      vi.mocked(searchChannels).mockReturnValue(allChannels);
+
+      const request = new NextRequest(
+        `http://localhost/api/iptv/channels?m3uUrl=http://example.com/playlist.m3u&limit=${limit}&offset=${offset}`
+      );
+
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.channels).toHaveLength(50);
+      expect(data.limit).toBe(50);
+      expect(data.offset).toBe(0);
+      expect(data.channels[0].id).toBe('0');
     });
 
     it('returns 502 when upstream fetch fails', async () => {
