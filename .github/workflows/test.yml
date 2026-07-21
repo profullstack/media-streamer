@@ -24,7 +24,7 @@ jobs:
       # with ERR_PNPM_BAD_PM_VERSION.
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
