@@ -6,6 +6,7 @@
 
 import { resolveSource } from './config';
 import * as adapters from './adapters';
+import { enrichPosters } from './enrich';
 import { VodError } from './errors';
 import * as repo from './repository';
 
@@ -16,6 +17,8 @@ export interface SyncResult {
   fetched: number;
   total: number;
   truncated: boolean;
+  /** Posters filled from TMDB this run (0 when TMDB_API_KEY is unset). */
+  enriched: number;
 }
 
 export async function syncProviderCatalog(providerId: string): Promise<SyncResult> {
@@ -25,9 +28,11 @@ export async function syncProviderCatalog(providerId: string): Promise<SyncResul
   if (!source) throw new VodError('Provider source is not fully configured', 400);
 
   const items = await adapters.listCatalog(source, { limit: MAX_SYNC_TITLES });
+  // Best-effort: fill missing posters/plots from TMDB before persisting.
+  const enriched = await enrichPosters(items);
   await repo.upsertTitles(providerId, items);
   const total = await repo.countTitles(providerId);
   await repo.setProviderSyncResult(providerId, total);
 
-  return { fetched: items.length, total, truncated: items.length >= MAX_SYNC_TITLES };
+  return { fetched: items.length, total, truncated: items.length >= MAX_SYNC_TITLES, enriched };
 }

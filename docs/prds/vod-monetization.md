@@ -138,7 +138,9 @@ sets viewer cookie), `GET …/access` (what the viewer holds), `GET …/grant/[g
 - **M2 — payment + access + streaming:** grants + checkout (weekly + title) + webhook; viewer
   cookie + access resolution; `streamRemoteMedia` generalization; pass-gated stream/download
   routes; `/vod/[slug]` paywall + player. End-to-end: browse → pay $1 → watch/download.
-- **M3 — payouts + polish:** CoinPay forwarding to provider — ✅ DONE (2026-07-22). Remaining: TMDB/IMDB poster
+- **M3 — payouts + polish:** CoinPay forwarding to provider — ✅ DONE; TMDB poster enrichment during
+  sync — ✅ DONE (2026-07-22, `src/lib/vod/enrich.ts`, best-effort/capped/no-op without `TMDB_API_KEY`).
+  Remaining: IMDB poster
   enrichment, catalog incremental sync + size caps surfaced, abuse controls, expiry sweep.
 
 ## 12. Notes / risk
