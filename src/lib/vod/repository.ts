@@ -256,6 +256,24 @@ export async function upsertTitles(providerId: string, items: CatalogItem[]): Pr
   return written;
 }
 
+/** All external_ids already indexed for a provider (for incremental sync). */
+export async function getExistingExternalIds(providerId: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  const pageSize = 1000; // Supabase caps rows per request; page through.
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await db()
+      .from('vod_titles')
+      .select('external_id')
+      .eq('provider_id', providerId)
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Failed to load existing titles: ${error.message}`);
+    const rows = (data as { external_id: string }[]) ?? [];
+    for (const r of rows) ids.add(String(r.external_id));
+    if (rows.length < pageSize) break;
+  }
+  return ids;
+}
+
 export async function countTitles(providerId: string): Promise<number> {
   const { count, error } = await db()
     .from('vod_titles')

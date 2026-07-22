@@ -138,11 +138,15 @@ export function deleteProvider(id: string, ownerId: string): Promise<boolean> {
   return repo.deleteProvider(id, ownerId);
 }
 
-/** Sync after verifying the caller owns the provider. */
-export async function syncProvider(id: string, ownerId: string): Promise<SyncResult> {
+/** Sync after verifying the caller owns the provider. Incremental unless `full`. */
+export async function syncProvider(
+  id: string,
+  ownerId: string,
+  opts: { full?: boolean } = {}
+): Promise<SyncResult> {
   const provider = await repo.getProviderByIdForOwner(id, ownerId);
   if (!provider) throw new VodError('Provider not found', 404);
-  return syncProviderCatalog(provider.id);
+  return syncProviderCatalog(provider.id, opts);
 }
 
 export async function getProviderActivity(
