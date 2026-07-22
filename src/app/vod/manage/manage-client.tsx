@@ -147,7 +147,8 @@ export function VodManageClient(): React.ReactElement {
         return;
       }
       const r = data.result;
-      setNotice(`Synced ${r.total} titles${r.truncated ? ' (capped)' : ''}.`);
+      const posters = r.enriched > 0 ? `, ${r.enriched} posters via TMDB` : '';
+      setNotice(`Synced ${r.total} titles${r.truncated ? ' (capped)' : ''}${posters}.`);
       await load();
     } finally {
       setBusy(false);
