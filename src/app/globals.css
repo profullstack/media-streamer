@@ -881,5 +881,16 @@ html.tv .max-w-md {
   max-width: 20rem;
 }
 
+/*
+ * Native <select> dropdowns: the option popup doesn't inherit the control's
+ * colors, so on the dark theme it rendered white-on-white and was unreadable.
+ * Force theme colors (these vars flip per theme, so both stay readable).
+ */
+select option,
+select optgroup {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 
 

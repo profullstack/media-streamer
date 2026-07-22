@@ -140,6 +140,8 @@ sets viewer cookie), `GET …/access` (what the viewer holds), `GET …/grant/[g
   routes; `/vod/[slug]` paywall + player. End-to-end: browse → pay $1 → watch/download.
 - **M3 — payouts + polish:** CoinPay forwarding to provider — ✅ DONE; TMDB poster enrichment during
   sync — ✅ DONE (2026-07-22, `src/lib/vod/enrich.ts`, best-effort/capped/no-op without `TMDB_API_KEY`).
+  Incremental sync — ✅ DONE (2026-07-22): only new external_ids are enriched + written
+  (existing rows/posters untouched), `?full=1` forces a full re-process.
   Remaining: IMDB poster
   enrichment, catalog incremental sync + size caps surfaced, abuse controls, expiry sweep.
 

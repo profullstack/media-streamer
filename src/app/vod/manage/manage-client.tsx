@@ -135,12 +135,12 @@ export function VodManageClient(): React.ReactElement {
     sourceHeaderName, weeklyPrice, perTitlePrice, defaultAccessMode, payoutWallet, payoutChain, load,
   ]);
 
-  const sync = useCallback(async (id: string): Promise<void> => {
+  const sync = useCallback(async (id: string, full = false): Promise<void> => {
     setNotice(null);
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/vod/providers/${id}/sync`, { method: 'POST' });
+      const res = await fetch(`/api/vod/providers/${id}/sync${full ? '?full=1' : ''}`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? 'Sync failed.');
@@ -148,7 +148,10 @@ export function VodManageClient(): React.ReactElement {
       }
       const r = data.result;
       const posters = r.enriched > 0 ? `, ${r.enriched} posters via TMDB` : '';
-      setNotice(`Synced ${r.total} titles${r.truncated ? ' (capped)' : ''}${posters}.`);
+      const head = r.full
+        ? `Full re-sync: ${r.total} titles`
+        : `Synced ${r.added} new title${r.added === 1 ? '' : 's'} (${r.total} total)`;
+      setNotice(`${head}${r.truncated ? ' — source capped' : ''}${posters}.`);
       await load();
     } finally {
       setBusy(false);
@@ -323,8 +326,21 @@ export function VodManageClient(): React.ReactElement {
                 </button>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <button className={cn(btn, 'bg-accent-primary/10 text-accent-primary')} onClick={() => void sync(p.id)} disabled={busy}>
-                  Sync catalog
+                <button
+                  className={cn(btn, 'bg-accent-primary/10 text-accent-primary')}
+                  onClick={() => void sync(p.id)}
+                  disabled={busy}
+                  title="Fetch only titles not already indexed"
+                >
+                  Sync new
+                </button>
+                <button
+                  className={cn(btn, 'bg-bg-hover text-text-secondary')}
+                  onClick={() => void sync(p.id, true)}
+                  disabled={busy}
+                  title="Re-process and refresh the whole catalog"
+                >
+                  Full re-sync
                 </button>
                 {p.status === 'active' && (
                   <button className={cn(btn, 'bg-bg-hover text-text-primary')} onClick={() => void patchStatus(p.id, 'paused')}>Pause</button>
