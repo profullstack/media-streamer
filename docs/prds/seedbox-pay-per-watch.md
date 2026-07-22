@@ -1,6 +1,6 @@
 # PRD — Seedbox Rental (pay $0.25 to download + watch on someone's seedbox)
 
-Status: M1 + M2 implemented (2026-07-20). Migration APPLIED to prod (bittorrented.com, ussbjnpovrynxyztjeeb) 2026-07-20 as versions 20260720061546 + 20260720061700. M3 (payouts) pending.
+Status: M1 + M2 SHIPPED (2026-07-20, migration applied to prod & merged). Payout (M3) WIRED 2026-07-22 via CoinPay per-payment forwarding. Remaining M3 = abuse controls, expiry sweep.
 Owner: anthony@profullstack.com
 Related: `docs/prds/managed-seedbox-reseller.md`, `src/lib/seedbox/`, `src/lib/coinpayportal/`, `src/lib/payments/`
 
@@ -177,19 +177,16 @@ Both the authed personal route and the public rental route become thin wrappers:
 `files` (session vs. share owner) + authorize, then delegate. No behavior change to the
 personal route — guard with existing tests + a new share-route test.
 
-## 7. Payouts (owner gets paid) — DECIDED: CoinPay forwarding to owner wallet
+## 7. Payouts (owner gets paid) — WIRED: CoinPay per-payment forwarding
 
-Owner supplies `payout_wallet_address`; funds forward (minus platform fee) to it; platform
-never custodies; `payment.forwarded` webhook records payout.
-
-**Gap found in code:** the current `CoinPayPortalClient.createPayment` has **no per-payment
-destination/forwarding param** — CoinPay forwards to the merchant-level wallet. So true
-per-owner forwarding needs a CoinPayPortal API capability the client doesn't expose yet.
-**Therefore payout is M3.** In M1/M2 we capture `payout_wallet_address` and payments collect
-to the platform merchant; owner earnings are tracked in `earnings_usd`. Verify the CoinPay
-forwarding API, then wire M3.
-
-Platform fee: default 20% (`SEEDBOX_SHARE_PLATFORM_FEE_PCT`).
+Owner supplies `payout_wallet_address` (+ `payout_blockchain`). Checkout passes it as
+`merchant_wallet_address` to `CoinPayPortalClient.createPayment` (added), so CoinPayPortal
+forwards the net funds straight to the owner's wallet on the payout chain; the platform never
+custodies. **CoinPay keeps its ~1% (0.5% paid-tier) fee — there is no separate media-streamer
+platform cut in this model** (direct forwarding supports only a 2-leg net/CoinPay-fee split).
+When no payout wallet is set, funds land in the platform's business wallet (operator default).
+The payment runs on the wallet's chain, so checkout uses `payout_blockchain` when forwarding.
+`payment.forwarded` reports `merchant_tx_hash`.
 Micro-payment fee caveat: on-chain fees on $0.25 can rival the amount — restrict checkout to
 **low-fee chains** (SOL / USDC_SOL / POL / USDC_POL from `getSupportedCoins()`).
 
@@ -226,10 +223,10 @@ payment.
 
 1. **Model — DECIDED:** pay $0.25 → time-boxed session pass → add own magnet → owner's box
    downloads → stream. Payer-scoped (stream only what you added), capped, expiring.
-2. **Payout — DECIDED:** CoinPay forwarding to owner wallet (implementation deferred to M3 —
-   client API gap, §7).
+2. **Payout — DONE:** CoinPay per-payment forwarding to the owner's wallet via
+   `merchant_wallet_address` (§7). CoinPay keeps ~1%; no separate platform cut.
 3. **Viewer identity — anonymous** (signed cookie pass, no login).
-4. **Platform fee %** — default 20%.
+4. **Platform fee** — none in the direct-forwarding model; CoinPay's ~1% is the only cut.
 5. **Owners never pay.** An owner opening their own `/rent/<slug>` link is auto-granted a
    free session pass (`POST /owner-pass` mints a $0 `paid` grant scoped to the owner) instead
    of the paywall. Owners otherwise use their box free via the normal authed Seedboxes UI.
@@ -243,5 +240,5 @@ payment.
   issuance + signed cookie, add-magnet + downloads-progress routes, stream-core refactor (§6),
   public payer-scoped stream route, `/rent/[slug]` page (pay → add magnet → progress → play).
   End-to-end: pay $0.25 → download → watch.
-- **M3 — Payouts + polish:** owner payout via CoinPay forwarding, platform fee, earnings
-  dashboard, abuse/IP binding, concurrent-stream cap, expiry sweep, low-fee-chain restriction.
+- **M3 — Payouts + polish:** owner payout via CoinPay forwarding — ✅ DONE (2026-07-22).
+  Remaining: abuse/IP binding, concurrent-stream cap, expiry sweep.

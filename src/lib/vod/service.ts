@@ -268,14 +268,22 @@ export async function createCheckout(
     amountUsd: amount,
   });
 
+  // Forward straight to the provider's payout wallet (on its chain) when set, so
+  // they're paid directly — CoinPay keeps its ~1% fee. Otherwise funds land in
+  // the platform's business wallet.
+  const blockchain = provider.payoutWalletAddress
+    ? pickBlockchain(provider.payoutBlockchain ?? undefined)
+    : pickBlockchain(opts.blockchain);
+
   const base = appBaseUrl(opts.origin);
   const payment = await getCoinPayPortalClient().createPayment({
     amount,
-    blockchain: pickBlockchain(opts.blockchain),
+    blockchain,
     description: `${provider.title}: ${opts.kind === 'weekly' ? 'weekly pass' : 'title'}`.slice(0, 140),
     metadata: { type: 'vod', providerId: provider.id, grantId: grant.id },
     webhookUrl: base ? `${base}/api/webhooks/coinpayportal/vod` : undefined,
     redirectUrl: base ? `${base}/vod/${provider.slug}?grant=${grant.id}` : undefined,
+    merchantWalletAddress: provider.payoutWalletAddress ?? undefined,
   });
   await repo.setGrantPaymentId(grant.id, payment.payment.id);
 
