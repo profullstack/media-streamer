@@ -62,6 +62,7 @@ export function RentOut(): React.ReactElement {
   const [maxDownloads, setMaxDownloads] = useState('2');
   const [expiryDays, setExpiryDays] = useState('7');
   const [payoutWallet, setPayoutWallet] = useState('');
+  const [payoutChain, setPayoutChain] = useState('SOL');
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -99,6 +100,7 @@ export function RentOut(): React.ReactElement {
           maxDownloadsPerPass: Number(maxDownloads),
           expiresAt,
           payoutWalletAddress: payoutWallet.trim() || null,
+          payoutBlockchain: payoutWallet.trim() ? payoutChain : null,
         }),
       });
       const data = await res.json();
@@ -110,7 +112,7 @@ export function RentOut(): React.ReactElement {
     } finally {
       setCreating(false);
     }
-  }, [title, price, windowHours, maxDownloads, expiryDays, payoutWallet, load]);
+  }, [title, price, windowHours, maxDownloads, expiryDays, payoutWallet, payoutChain, load]);
 
   const patchStatus = useCallback(
     async (id: string, status: Rental['status']): Promise<void> => {
@@ -216,14 +218,23 @@ export function RentOut(): React.ReactElement {
                 onChange={(e) => setExpiryDays(e.target.value)}
               />
             </div>
-            <div className="sm:col-span-2">
-              <label className={labelCls}>Payout wallet (optional — for future owner payouts)</label>
+            <div>
+              <label className={labelCls}>Payout wallet (optional — paid directly, minus ~1% CoinPay fee)</label>
               <input
                 className={inputCls}
-                placeholder="e.g. your SOL address"
+                placeholder="your wallet address"
                 value={payoutWallet}
                 onChange={(e) => setPayoutWallet(e.target.value)}
               />
+            </div>
+            <div>
+              <label className={labelCls}>Payout chain</label>
+              <select className={inputCls} value={payoutChain} onChange={(e) => setPayoutChain(e.target.value)}>
+                <option value="SOL">SOL</option>
+                <option value="USDC_SOL">USDC (Solana)</option>
+                <option value="POL">POL</option>
+                <option value="USDC_POL">USDC (Polygon)</option>
+              </select>
             </div>
           </div>
           <button

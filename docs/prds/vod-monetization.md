@@ -1,6 +1,6 @@
 # PRD — VOD Monetization (providers connect a media server, charge $1/week or $1/title)
 
-Status: M1 + M2 implemented (2026-07-20) — migration NOT yet applied to prod; not yet committed. M3 pending.
+Status: M1 + M2 SHIPPED (2026-07-22, migration applied to prod & merged). Payout (M3) WIRED 2026-07-22 via CoinPay per-payment forwarding + sidebar nav link added.
 Owner: anthony@profullstack.com
 Related: `docs/prds/seedbox-pay-per-watch.md` (reuses its monetization spine), `src/lib/xtream/`,
 `src/lib/iptv/`, `src/lib/iptv-proxy/`, `src/lib/seedbox/stream.ts`, `src/lib/coinpayportal/`
@@ -23,8 +23,9 @@ existing catalog* (browse & play), not renter-supplied torrents.
    7-day window; buy again to continue.
 3. **$1/title = provider chooses** per catalog: a purchase grants **stream-unlock** or a
    **file download**.
-4. Payout to providers = CoinPay forwarding (deferred to M3, same client-API gap as seedbox).
-5. Platform fee default 20%.
+4. Payout to providers = CoinPay per-payment forwarding via `merchant_wallet_address` — ✅ WIRED
+   (2026-07-22). Provider is paid directly on their payout chain; CoinPay keeps ~1%.
+5. No separate platform fee in the direct-forwarding model (CoinPay's ~1% is the only cut).
 
 ## 3. Personas & flow
 
@@ -137,7 +138,7 @@ sets viewer cookie), `GET …/access` (what the viewer holds), `GET …/grant/[g
 - **M2 — payment + access + streaming:** grants + checkout (weekly + title) + webhook; viewer
   cookie + access resolution; `streamRemoteMedia` generalization; pass-gated stream/download
   routes; `/vod/[slug]` paywall + player. End-to-end: browse → pay $1 → watch/download.
-- **M3 — payouts + polish:** CoinPay forwarding to provider, platform fee, TMDB/IMDB poster
+- **M3 — payouts + polish:** CoinPay forwarding to provider — ✅ DONE (2026-07-22). Remaining: TMDB/IMDB poster
   enrichment, catalog incremental sync + size caps surfaced, abuse controls, expiry sweep.
 
 ## 12. Notes / risk

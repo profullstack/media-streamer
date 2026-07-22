@@ -226,7 +226,12 @@ export async function createCheckout(
   if (!share) throw new RentalError('Rental not found', 404);
   if (!isShareOpen(share)) throw new RentalError('This rental is not currently available', 410);
 
-  const blockchain = pickBlockchain(opts.blockchain);
+  // If the owner set a payout wallet, forward the payment straight to it (on the
+  // wallet's chain) so they're paid directly — CoinPay keeps its ~1% fee. With
+  // no payout wallet, funds go to the platform's business wallet.
+  const blockchain = share.payoutWalletAddress
+    ? pickBlockchain(share.payoutBlockchain ?? undefined)
+    : pickBlockchain(opts.blockchain);
   const token = generateGrantToken();
   const grant = await repo.insertPendingGrant({
     shareId: share.id,
@@ -244,6 +249,7 @@ export async function createCheckout(
     metadata: { type: 'seedbox_share', shareId: share.id, grantId: grant.id },
     webhookUrl: base ? `${base}/api/webhooks/coinpayportal/share` : undefined,
     redirectUrl: base ? `${base}/rent/${share.slug}?grant=${grant.id}` : undefined,
+    merchantWalletAddress: share.payoutWalletAddress ?? undefined,
   });
 
   await repo.setGrantPaymentId(grant.id, payment.payment.id);

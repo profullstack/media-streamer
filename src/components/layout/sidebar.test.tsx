@@ -349,7 +349,7 @@ describe('Sidebar Navigation', () => {
       // Pricing, Settings = 2 account
       // Logo = 1
       // External: The Pirate Bay, LimeTorrents, 1337x, IMDB = 4
-      expect(links.length).toBe(22);
+      expect(links.length).toBe(23);
     });
 
     it('should show all nav items when logged in', () => {
@@ -357,7 +357,7 @@ describe('Sidebar Navigation', () => {
 
       const links = screen.getAllByRole('link');
       // Logo link + 14 main nav items + 2 account items + 4 external sites = 21
-      expect(links.length).toBe(22);
+      expect(links.length).toBe(23);
     });
   });
 

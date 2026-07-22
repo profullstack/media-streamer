@@ -67,6 +67,7 @@ export function VodManageClient(): React.ReactElement {
   const [perTitlePrice, setPerTitlePrice] = useState('1');
   const [defaultAccessMode, setDefaultAccessMode] = useState<'stream' | 'download'>('stream');
   const [payoutWallet, setPayoutWallet] = useState('');
+  const [payoutChain, setPayoutChain] = useState('SOL');
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -113,6 +114,7 @@ export function VodManageClient(): React.ReactElement {
           perTitlePriceUsd: priceOrNull(perTitlePrice),
           defaultAccessMode,
           payoutWalletAddress: payoutWallet.trim() || null,
+          payoutBlockchain: payoutWallet.trim() ? payoutChain : null,
         }),
       });
       const data = await res.json();
@@ -130,7 +132,7 @@ export function VodManageClient(): React.ReactElement {
     }
   }, [
     title, sourceKind, sourceUrl, sourceUsername, sourcePassword, sourceAuth, sourceToken,
-    sourceHeaderName, weeklyPrice, perTitlePrice, defaultAccessMode, payoutWallet, load,
+    sourceHeaderName, weeklyPrice, perTitlePrice, defaultAccessMode, payoutWallet, payoutChain, load,
   ]);
 
   const sync = useCallback(async (id: string): Promise<void> => {
@@ -272,8 +274,17 @@ export function VodManageClient(): React.ReactElement {
             </select>
           </div>
           <div>
-            <label className={labelCls}>Payout wallet (optional)</label>
-            <input className={inputCls} placeholder="your SOL address" value={payoutWallet} onChange={(e) => setPayoutWallet(e.target.value)} />
+            <label className={labelCls}>Payout wallet (optional — paid directly, minus ~1% CoinPay fee)</label>
+            <input className={inputCls} placeholder="your wallet address" value={payoutWallet} onChange={(e) => setPayoutWallet(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Payout chain</label>
+            <select className={inputCls} value={payoutChain} onChange={(e) => setPayoutChain(e.target.value)}>
+              <option value="SOL">SOL</option>
+              <option value="USDC_SOL">USDC (Solana)</option>
+              <option value="POL">POL</option>
+              <option value="USDC_POL">USDC (Polygon)</option>
+            </select>
           </div>
         </div>
         <button className={cn(btn, 'mt-4 bg-accent-primary text-white hover:opacity-90')} onClick={() => void create()} disabled={busy}>

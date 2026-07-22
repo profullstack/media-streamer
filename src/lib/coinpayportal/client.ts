@@ -77,6 +77,14 @@ export class CoinPayPortalClient {
     metadata?: Record<string, string>;
     webhookUrl?: string;
     redirectUrl?: string;
+    /**
+     * Per-payment forwarding destination. When set, CoinPayPortal forwards the
+     * net (post-fee) funds of THIS payment to this wallet instead of the
+     * business's own wallet — the platform fee is still split off to CoinPay's
+     * commission wallet. The address must be valid for `blockchain`. Used to pay
+     * a seedbox/VOD owner directly. `payment.forwarded` reports `merchant_tx_hash`.
+     */
+    merchantWalletAddress?: string;
   }): Promise<PaymentResponse & { paymentUrl: string }> {
     const payload = {
       business_id: this.businessId,
@@ -87,6 +95,9 @@ export class CoinPayPortalClient {
       metadata: params.metadata,
       webhook_url: params.webhookUrl,
       redirect_url: params.redirectUrl,
+      ...(params.merchantWalletAddress
+        ? { merchant_wallet_address: params.merchantWalletAddress }
+        : {}),
     };
 
     const response = await this.request<PaymentResponse>('/payments/create', {
