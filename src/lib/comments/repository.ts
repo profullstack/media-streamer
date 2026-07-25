@@ -26,10 +26,11 @@ export type { VoteValue };
 export type CommentRow = TorrentComment;
 
 /**
- * Comment with user email from join
+ * Comment joined with its author's profile (from bt_torrent_comments_with_author)
  */
 export interface CommentWithUserRow extends CommentRow {
-  user_email: string;
+  author_name: string;
+  author_avatar_emoji: string | null;
 }
 
 /**
@@ -46,7 +47,10 @@ export type TorrentVoteRow = TorrentVoteType;
  * Comment insert data
  */
 export interface CommentInsert {
-  torrent_id: string;
+  /** Thread key — every torrent has one, DHT or indexed */
+  infohash: string;
+  /** Denormalized pointer, only set for torrents present in bt_torrents */
+  torrent_id: string | null;
   profile_id: string;
   content: string;
   parent_id: string | null;
@@ -66,17 +70,17 @@ export interface VoteCounts {
 export interface CommentsRepository {
   // Comment operations
   getCommentById(id: string): Promise<CommentRow | null>;
-  getCommentsByTorrentId(torrentId: string, limit?: number, offset?: number): Promise<CommentWithUserRow[]>;
+  getCommentsByInfohash(infohash: string, limit?: number, offset?: number): Promise<CommentWithUserRow[]>;
   createComment(data: CommentInsert): Promise<CommentRow>;
   updateComment(id: string, content: string): Promise<CommentRow>;
   deleteComment(id: string): Promise<void>;
-  getCommentCount(torrentId: string): Promise<number>;
+  getCommentCount(infohash: string): Promise<number>;
 
   // Comment vote operations
   getCommentVote(commentId: string, profileId: string): Promise<CommentVoteRow | null>;
   upsertCommentVote(commentId: string, profileId: string, voteValue: VoteValue): Promise<CommentVoteRow>;
   deleteCommentVote(commentId: string, profileId: string): Promise<void>;
-  getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVoteRow[]>;
+  getUserCommentVotes(infohash: string, profileId: string): Promise<CommentVoteRow[]>;
 
   // Torrent vote operations
   getTorrentVote(torrentId: string, profileId: string): Promise<TorrentVoteRow | null>;
@@ -118,18 +122,19 @@ export function createCommentsRepository(
     },
 
     /**
-     * Get comments for a torrent with user info
+     * Get a torrent's comments, newest first, with each author's profile name.
+     *
+     * Keyed on infohash so DHT and indexed torrents share one thread.
      */
-    async getCommentsByTorrentId(
-      torrentId: string,
+    async getCommentsByInfohash(
+      infohash: string,
       limit: number = 50,
       offset: number = 0
     ): Promise<CommentWithUserRow[]> {
-      // First get comments
       const { data: comments, error: commentsError } = await client
-        .from('bt_torrent_comments')
+        .from('bt_torrent_comments_with_author' as never)
         .select('*')
-        .eq('torrent_id', torrentId)
+        .eq('infohash', infohash.toLowerCase())
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -138,16 +143,7 @@ export function createCommentsRepository(
         throw new Error(commentsError.message);
       }
 
-      if (!comments || comments.length === 0) {
-        return [];
-      }
-
-      // For now, we'll return comments with a placeholder email
-      // In production, you'd want to create an RPC function or store user info
-      return comments.map(comment => ({
-        ...comment,
-        user_email: 'user@example.com', // Placeholder - will be replaced with actual user lookup
-      }));
+      return (comments ?? []) as unknown as CommentWithUserRow[];
     },
 
     /**
@@ -157,6 +153,7 @@ export function createCommentsRepository(
       const { data: comment, error } = await client
         .from('bt_torrent_comments')
         .insert({
+          infohash: data.infohash.toLowerCase(),
           torrent_id: data.torrent_id,
           profile_id: data.profile_id,
           content: data.content,
@@ -207,11 +204,11 @@ export function createCommentsRepository(
     /**
      * Get comment count for a torrent
      */
-    async getCommentCount(torrentId: string): Promise<number> {
+    async getCommentCount(infohash: string): Promise<number> {
       const { count, error } = await client
         .from('bt_torrent_comments')
         .select('*', { count: 'exact', head: true })
-        .eq('torrent_id', torrentId)
+        .eq('infohash', infohash.toLowerCase())
         .is('deleted_at', null);
 
       if (error) {
@@ -289,12 +286,12 @@ export function createCommentsRepository(
     /**
      * Get all user votes for comments on a torrent
      */
-    async getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVoteRow[]> {
+    async getUserCommentVotes(infohash: string, profileId: string): Promise<CommentVoteRow[]> {
       // First get comment IDs for this torrent
       const { data: comments, error: commentsError } = await client
         .from('bt_torrent_comments')
         .select('id')
-        .eq('torrent_id', torrentId);
+        .eq('infohash', infohash.toLowerCase());
 
       if (commentsError) {
         throw new Error(commentsError.message);

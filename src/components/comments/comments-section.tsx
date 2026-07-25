@@ -20,8 +20,9 @@ import {
 
 interface Comment {
   id: string;
-  torrentId: string;
-  userId: string;
+  infohash: string;
+  torrentId: string | null;
+  profileId: string;
   content: string;
   parentId: string | null;
   upvotes: number;
@@ -29,17 +30,20 @@ interface Comment {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  userEmail: string;
+  authorName: string;
+  authorAvatarEmoji: string | null;
   userVote: 1 | -1 | null;
 }
 
 interface User {
   id: string;
   email: string;
+  /** Active profile id, used to decide which comments are editable */
+  profileId?: string | null;
 }
 
 interface CommentsSectionProps {
-  /** Torrent ID */
+  /** Torrent identifier from the detail route — a bt_torrents UUID or an infohash */
   torrentId: string;
   /** Current authenticated user (null if not logged in) */
   user: User | null;
@@ -70,13 +74,6 @@ function formatRelativeTime(dateString: string): string {
   }
 }
 
-/**
- * Get display name from email
- */
-function getDisplayName(email: string): string {
-  return email.split('@')[0];
-}
-
 export function CommentsSection({ torrentId, user }: CommentsSectionProps): React.ReactElement {
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,7 +85,6 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [total, setTotal] = useState(0);
-  const [isDhtTorrent, setIsDhtTorrent] = useState(false);
 
   // Fetch comments
   const fetchComments = useCallback(async () => {
@@ -102,10 +98,9 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
         throw new Error(errorData.error ?? 'Failed to load comments');
       }
 
-      const data = await response.json() as { comments: Comment[]; total: number; isDhtTorrent?: boolean };
+      const data = await response.json() as { comments: Comment[]; total: number };
       setComments(data.comments);
       setTotal(data.total);
-      setIsDhtTorrent(data.isDhtTorrent ?? false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -289,7 +284,7 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
 
   // Render a single comment
   const renderComment = (comment: Comment, depth: number = 0) => {
-    const isOwner = user?.id === comment.userId;
+    const isOwner = !!user?.profileId && user.profileId === comment.profileId;
     const isEditing = editingId === comment.id;
     const isReplying = replyingTo === comment.id;
     const replies = getReplies(comment.id);
@@ -300,10 +295,14 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
           {/* Comment header */}
           <div className="flex items-center gap-2 text-sm">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-bg-tertiary">
-              <UserIcon size={14} className="text-text-muted" />
+              {comment.authorAvatarEmoji ? (
+                <span aria-hidden="true" className="text-xs">{comment.authorAvatarEmoji}</span>
+              ) : (
+                <UserIcon size={14} className="text-text-muted" />
+              )}
             </div>
             <span className="font-medium text-text-primary">
-              {getDisplayName(comment.userEmail)}
+              {comment.authorName}
             </span>
             <span className="text-text-muted">•</span>
             <span className="text-text-muted">
@@ -440,72 +439,55 @@ export function CommentsSection({ torrentId, user }: CommentsSectionProps): Reac
       </div>
 
       <div className="p-4">
-        {/* DHT torrent notice */}
-        {isDhtTorrent ? (
-          <div className="py-8 text-center">
-            <div className="mb-2 text-text-muted">
-              <MessageCircleIcon size={32} className="mx-auto mb-3 opacity-50" />
+        {/* New comment form */}
+        {user ? (
+          <form onSubmit={handleSubmitComment} className="mb-6">
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Write a comment..."
+              className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden"
+              rows={3}
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSubmitting || !newComment.trim()}
+                className="flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50"
+              >
+                {isSubmitting ? <LoadingSpinner size={14} /> : null}
+                Post Comment
+              </button>
             </div>
+          </form>
+        ) : (
+          <div className="mb-6 rounded-lg border border-border-subtle bg-bg-secondary p-4 text-center">
             <p className="text-sm text-text-muted">
-              Comments are not available for DHT torrents.
-            </p>
-            <p className="mt-1 text-xs text-text-muted">
-              Add this torrent to your library to enable comments.
+              <a href="/login" className="text-accent-primary hover:underline">Log in</a>
+              {' '}to leave a comment
             </p>
           </div>
+        )}
+
+        {/* Error message */}
+        {error ? <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">
+            {error}
+          </div> : null}
+
+        {/* Comments list */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <LoadingSpinner size={24} className="text-accent-primary" />
+            <span className="ml-2 text-text-muted">Loading comments...</span>
+          </div>
+        ) : rootComments.length > 0 ? (
+          <div className="divide-y divide-border-subtle">
+            {rootComments.map(comment => renderComment(comment))}
+          </div>
         ) : (
-          <>
-            {/* New comment form */}
-            {user ? (
-              <form onSubmit={handleSubmitComment} className="mb-6">
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Write a comment..."
-                  className="w-full rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-text-primary placeholder-text-muted focus:border-accent-primary focus:outline-hidden"
-                  rows={3}
-                />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !newComment.trim()}
-                    className="flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50"
-                  >
-                    {isSubmitting ? <LoadingSpinner size={14} /> : null}
-                    Post Comment
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="mb-6 rounded-lg border border-border-subtle bg-bg-secondary p-4 text-center">
-                <p className="text-sm text-text-muted">
-                  <a href="/login" className="text-accent-primary hover:underline">Log in</a>
-                  {' '}to leave a comment
-                </p>
-              </div>
-            )}
-
-            {/* Error message */}
-            {error ? <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">
-                {error}
-              </div> : null}
-
-            {/* Comments list */}
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <LoadingSpinner size={24} className="text-accent-primary" />
-                <span className="ml-2 text-text-muted">Loading comments...</span>
-              </div>
-            ) : rootComments.length > 0 ? (
-              <div className="divide-y divide-border-subtle">
-                {rootComments.map(comment => renderComment(comment))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-text-muted">
-                No comments yet. Be the first to comment!
-              </div>
-            )}
-          </>
+          <div className="py-8 text-center text-text-muted">
+            No comments yet. Be the first to comment!
+          </div>
         )}
       </div>
     </div>

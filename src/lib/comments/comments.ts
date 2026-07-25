@@ -26,7 +26,10 @@ export type { VoteValue };
  */
 export interface Comment {
   id: string;
-  torrentId: string;
+  /** Thread key — shared by DHT and indexed views of the same torrent */
+  infohash: string;
+  /** Set only when the torrent is present in bt_torrents */
+  torrentId: string | null;
   profileId: string;
   content: string;
   parentId: string | null;
@@ -41,7 +44,9 @@ export interface Comment {
  * Comment with user info
  */
 export interface CommentWithUser extends Comment {
-  userEmail: string;
+  /** Author's profile name, or 'Anonymous' */
+  authorName: string;
+  authorAvatarEmoji: string | null;
 }
 
 /**
@@ -49,6 +54,19 @@ export interface CommentWithUser extends Comment {
  */
 export interface CommentWithUserVote extends CommentWithUser {
   userVote: VoteValue | null;
+}
+
+/**
+ * Arguments for creating a comment
+ */
+export interface CreateCommentInput {
+  /** 40-char infohash of the torrent being commented on */
+  infohash: string;
+  /** bt_torrents UUID when the torrent is indexed, null for DHT-only torrents */
+  torrentId?: string | null;
+  profileId: string;
+  content: string;
+  parentId?: string;
 }
 
 /**
@@ -81,6 +99,7 @@ export interface TorrentVote {
 
 const MAX_COMMENT_LENGTH = 10000;
 const DEFAULT_COMMENTS_LIMIT = 50;
+const INFOHASH_REGEX = /^[0-9a-f]{40}$/i;
 
 // ============================================================================
 // Mappers
@@ -89,6 +108,7 @@ const DEFAULT_COMMENTS_LIMIT = 50;
 function mapCommentRowToComment(row: CommentRow): Comment {
   return {
     id: row.id,
+    infohash: (row as any).infohash,
     torrentId: row.torrent_id,
     profileId: (row as any).profile_id || row.user_id, // Fallback during migration
     content: row.content,
@@ -104,7 +124,8 @@ function mapCommentRowToComment(row: CommentRow): Comment {
 function mapCommentWithUserRowToCommentWithUser(row: CommentWithUserRow): CommentWithUser {
   return {
     ...mapCommentRowToComment(row),
-    userEmail: row.user_email,
+    authorName: row.author_name,
+    authorAvatarEmoji: row.author_avatar_emoji,
   };
 }
 
@@ -139,16 +160,16 @@ function mapTorrentVoteRowToTorrentVote(row: TorrentVoteRow): TorrentVote {
  */
 export interface CommentsService {
   // Comment operations
-  getCommentsByTorrentId(torrentId: string, limit?: number, offset?: number): Promise<CommentWithUser[]>;
-  createComment(torrentId: string, profileId: string, content: string, parentId?: string): Promise<Comment>;
+  getCommentsByInfohash(infohash: string, limit?: number, offset?: number): Promise<CommentWithUser[]>;
+  createComment(input: CreateCommentInput): Promise<Comment>;
   updateComment(commentId: string, profileId: string, content: string): Promise<Comment>;
   deleteComment(commentId: string, profileId: string): Promise<void>;
-  getCommentCount(torrentId: string): Promise<number>;
+  getCommentCount(infohash: string): Promise<number>;
 
   // Comment vote operations
   voteOnComment(commentId: string, profileId: string, voteValue: VoteValue): Promise<CommentVote>;
   removeCommentVote(commentId: string, profileId: string): Promise<void>;
-  getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVote[]>;
+  getUserCommentVotes(infohash: string, profileId: string): Promise<CommentVote[]>;
 
   // Torrent vote operations
   voteOnTorrent(torrentId: string, profileId: string, voteValue: VoteValue): Promise<TorrentVote>;
@@ -157,7 +178,7 @@ export interface CommentsService {
   getUserTorrentVote(torrentId: string, profileId: string): Promise<TorrentVote | null>;
 
   // Combined operations
-  getCommentsWithUserVotes(torrentId: string, profileId: string | null, limit?: number, offset?: number): Promise<CommentWithUserVote[]>;
+  getCommentsWithUserVotes(infohash: string, profileId: string | null, limit?: number, offset?: number): Promise<CommentWithUserVote[]>;
 }
 
 // ============================================================================
@@ -172,24 +193,25 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
     /**
      * Get comments for a torrent
      */
-    async getCommentsByTorrentId(
-      torrentId: string,
+    async getCommentsByInfohash(
+      infohash: string,
       limit: number = DEFAULT_COMMENTS_LIMIT,
       offset: number = 0
     ): Promise<CommentWithUser[]> {
-      const rows = await repository.getCommentsByTorrentId(torrentId, limit, offset);
+      const rows = await repository.getCommentsByInfohash(infohash, limit, offset);
       return rows.map(mapCommentWithUserRowToCommentWithUser);
     },
 
     /**
      * Create a new comment
      */
-    async createComment(
-      torrentId: string,
-      profileId: string,
-      content: string,
-      parentId?: string
-    ): Promise<Comment> {
+    async createComment(input: CreateCommentInput): Promise<Comment> {
+      const { infohash, torrentId, profileId, content, parentId } = input;
+
+      if (!INFOHASH_REGEX.test(infohash)) {
+        throw new Error('Invalid infohash');
+      }
+
       // Validate content
       const trimmedContent = content.trim();
       if (!trimmedContent) {
@@ -199,8 +221,18 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
         throw new Error('Comment content exceeds maximum length');
       }
 
+      // A reply must belong to the thread it claims to be in, otherwise a
+      // parentId from another torrent would silently graft comments across threads.
+      if (parentId) {
+        const parent = await repository.getCommentById(parentId);
+        if (!parent || (parent as { infohash?: string }).infohash?.toLowerCase() !== infohash.toLowerCase()) {
+          throw new Error('Parent comment not found');
+        }
+      }
+
       const row = await repository.createComment({
-        torrent_id: torrentId,
+        infohash: infohash.toLowerCase(),
+        torrent_id: torrentId ?? null,
         profile_id: profileId,
         content: trimmedContent,
         parent_id: parentId ?? null,
@@ -267,8 +299,8 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
     /**
      * Get comment count for a torrent
      */
-    async getCommentCount(torrentId: string): Promise<number> {
-      return repository.getCommentCount(torrentId);
+    async getCommentCount(infohash: string): Promise<number> {
+      return repository.getCommentCount(infohash);
     },
 
     /**
@@ -298,8 +330,8 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
     /**
      * Get user's votes on comments for a torrent
      */
-    async getUserCommentVotes(torrentId: string, profileId: string): Promise<CommentVote[]> {
-      const rows = await repository.getUserCommentVotes(torrentId, profileId);
+    async getUserCommentVotes(infohash: string, profileId: string): Promise<CommentVote[]> {
+      const rows = await repository.getUserCommentVotes(infohash, profileId);
       return rows.map(mapCommentVoteRowToCommentVote);
     },
 
@@ -346,12 +378,12 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
      * Get comments with user vote status
      */
     async getCommentsWithUserVotes(
-      torrentId: string,
+      infohash: string,
       profileId: string | null,
       limit: number = DEFAULT_COMMENTS_LIMIT,
       offset: number = 0
     ): Promise<CommentWithUserVote[]> {
-      const comments = await this.getCommentsByTorrentId(torrentId, limit, offset);
+      const comments = await this.getCommentsByInfohash(infohash, limit, offset);
 
       if (!profileId) {
         // No profile selected, return comments without vote status
@@ -362,7 +394,7 @@ export function createCommentsService(repository: CommentsRepository): CommentsS
       }
 
       // Get user's votes for these comments
-      const userVotes = await this.getUserCommentVotes(torrentId, profileId);
+      const userVotes = await this.getUserCommentVotes(infohash, profileId);
       const voteMap = new Map(userVotes.map(v => [v.commentId, v.voteValue]));
 
       return comments.map(comment => ({

@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useModalOpen } from '@/hooks/use-modal-open';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
@@ -146,7 +147,7 @@ interface TorrentDetailClientProps {
 
 export default function TorrentDetailClient({ initialTorrent, initialFiles, torrentId }: TorrentDetailClientProps): React.ReactElement {
   const router = useRouter();
-  const { user, isPremium } = useAuth();
+  const { user, isPremium, activeProfileId } = useAuth();
 
   const [torrent, setTorrent] = useState<Torrent | null>(initialTorrent);
   const [files, setFiles] = useState<TorrentFile[]>(initialFiles);
@@ -180,6 +181,9 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
   const [reportReason, setReportReason] = useState<'animal-abuse' | 'child-abuse' | 'copyright' | 'malware-scam' | 'other'>('copyright');
   const [reportDetails, setReportDetails] = useState('');
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  // Hide page-level chrome (e.g. the floating feedback button) while open
+  useModalOpen(isReportModalOpen);
   const [isReportingTorrent, setIsReportingTorrent] = useState(false);
   const [reportTorrentStatus, setReportTorrentStatus] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus | null>(null);
@@ -1087,7 +1091,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
         <div className="card p-6">
           <CommentsSection
             torrentId={torrentId}
-            user={user ? { id: user.id, email: user.email ?? '' } : null}
+            user={user ? { id: user.id, email: user.email ?? '', profileId: activeProfileId } : null}
           />
         </div>
       </div>
@@ -1182,7 +1186,7 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
           torrentName={playlistFolderMetadata?.album ?? (torrent.cleanTitle || cleanDisplayName(torrent.name))}
           coverArt={playlistFolderMetadata?.coverUrl ?? torrent.coverUrl ?? torrent.posterUrl ?? undefined}
           artist={playlistFolderMetadata?.artist ?? extractArtistFromTorrentName(torrent.name)}
-          playFromSeedbox={playFromSeedbox && seedboxFilesEnabled}
+          playFromSeedbox={playFromSeedbox ? seedboxFilesEnabled : false}
         /> : null}
 
       <SeedboxPlayerModal

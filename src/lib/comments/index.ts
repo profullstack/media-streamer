@@ -10,6 +10,7 @@ export {
   resetCommentsService,
   type CommentsService,
   type Comment,
+  type CreateCommentInput,
   type CommentWithUser,
   type CommentWithUserVote,
   type CommentVote,

@@ -4,8 +4,9 @@
  * GET /api/torrents/:id/comments - Get comments for a torrent
  * POST /api/torrents/:id/comments - Create a new comment (requires auth)
  *
- * Note: Comments are only supported for user-submitted torrents (bt_torrents).
- * DHT torrents (identified by infohash) return empty results.
+ * `:id` is whatever the detail page was linked with — a bt_torrents UUID or a
+ * 40-char infohash. Both resolve to the infohash, which is the comment thread
+ * key, so DHT and indexed torrents share one thread and both accept comments.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,18 +14,11 @@ import { getCommentsService } from '@/lib/comments';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { parseIntegerParam } from '@/lib/api/pagination';
+import { resolveInfohash } from '@/lib/torrents/resolve-infohash';
+import { getTorrentByInfohash } from '@/lib/supabase/queries';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
-}
-
-/**
- * Check if a string is a valid UUID v4
- * User torrents use UUIDs, DHT torrents use 40-char hex infohashes
- */
-function isValidUUID(str: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(str);
 }
 
 /**
@@ -40,9 +34,9 @@ export async function GET(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const { id: torrentId } = await params;
+    const { id } = await params;
 
-    if (!torrentId) {
+    if (!id) {
       return NextResponse.json(
         { error: 'Torrent ID is required' },
         { status: 400 }
@@ -54,16 +48,12 @@ export async function GET(
     const limit = parseIntegerParam(searchParams.get('limit'), { min: 1, max: 100 }) ?? 50;
     const offset = parseIntegerParam(searchParams.get('offset'), { min: 0 }) ?? 0;
 
-    // DHT torrents (non-UUID IDs) don't support comments
-    // Return empty results instead of failing
-    if (!isValidUUID(torrentId)) {
-      return NextResponse.json({
-        comments: [],
-        total: 0,
-        limit,
-        offset,
-        isDhtTorrent: true,
-      });
+    const infohash = await resolveInfohash(id);
+    if (!infohash) {
+      return NextResponse.json(
+        { error: 'Torrent not found' },
+        { status: 404 }
+      );
     }
 
     // Get active profile (optional - for showing user's vote status)
@@ -77,8 +67,8 @@ export async function GET(
     // Get comments with user vote status
     const service = getCommentsService();
     const [comments, total] = await Promise.all([
-      service.getCommentsWithUserVotes(torrentId, profileId, limit, offset),
-      service.getCommentCount(torrentId),
+      service.getCommentsWithUserVotes(infohash, profileId, limit, offset),
+      service.getCommentCount(infohash),
     ]);
 
     return NextResponse.json({
@@ -109,19 +99,11 @@ export async function POST(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const { id: torrentId } = await params;
+    const { id } = await params;
 
-    if (!torrentId) {
+    if (!id) {
       return NextResponse.json(
         { error: 'Torrent ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // DHT torrents (non-UUID IDs) don't support comments
-    if (!isValidUUID(torrentId)) {
-      return NextResponse.json(
-        { error: 'Comments are not available for DHT torrents. Add this torrent to your library first.' },
         { status: 400 }
       );
     }
@@ -139,8 +121,16 @@ export async function POST(
     const profileId = await getActiveProfileId();
     if (!profileId) {
       return NextResponse.json(
-        { error: 'No active profile' },
+        { error: 'Select a profile before commenting' },
         { status: 400 }
+      );
+    }
+
+    const infohash = await resolveInfohash(id);
+    if (!infohash) {
+      return NextResponse.json(
+        { error: 'Torrent not found' },
+        { status: 404 }
       );
     }
 
@@ -155,9 +145,19 @@ export async function POST(
       );
     }
 
+    // Link the comment to the indexed torrent when there is one. DHT-only
+    // torrents leave this null and are identified by infohash alone.
+    const indexed = await getTorrentByInfohash(infohash);
+
     // Create comment
     const service = getCommentsService();
-    const comment = await service.createComment(torrentId, profileId, content, parentId);
+    const comment = await service.createComment({
+      infohash,
+      torrentId: indexed?.id ?? null,
+      profileId,
+      content,
+      parentId,
+    });
 
     return NextResponse.json(
       { comment },
@@ -168,6 +168,12 @@ export async function POST(
 
     // Handle validation errors
     if (error instanceof Error) {
+      if (error.message === 'Parent comment not found') {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 404 }
+        );
+      }
       if (error.message.includes('cannot be empty') || error.message.includes('exceeds maximum')) {
         return NextResponse.json(
           { error: error.message },

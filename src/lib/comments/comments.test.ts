@@ -22,7 +22,7 @@ function createMockRepository(): CommentsRepository {
   return {
     // Comment operations
     getCommentById: vi.fn(),
-    getCommentsByTorrentId: vi.fn(),
+    getCommentsByInfohash: vi.fn(),
     createComment: vi.fn(),
     updateComment: vi.fn(),
     deleteComment: vi.fn(),
@@ -43,6 +43,9 @@ function createMockRepository(): CommentsRepository {
   };
 }
 
+const TEST_INFOHASH = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const TEST_TORRENT_UUID = '12345678-1234-4123-8123-123456789abc';
+
 describe('CommentsService', () => {
   let mockRepository: ReturnType<typeof createMockRepository>;
   let service: CommentsService;
@@ -57,7 +60,7 @@ describe('CommentsService', () => {
   // Comment Operations
   // ============================================================================
 
-  describe('getCommentsByTorrentId', () => {
+  describe('getCommentsByInfohash', () => {
     it('should return comments for a torrent', async () => {
       const torrentId = 'torrent-123';
       const mockCommentRows: CommentWithUserRow[] = [
@@ -72,7 +75,8 @@ describe('CommentsService', () => {
           deleted_at: null,
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
-          user_email: 'user1@example.com',
+          author_name: 'Tester',
+          author_avatar_emoji: null,
         },
         {
           id: 'comment-2',
@@ -85,37 +89,38 @@ describe('CommentsService', () => {
           deleted_at: null,
           created_at: '2026-01-01T01:00:00Z',
           updated_at: '2026-01-01T01:00:00Z',
-          user_email: 'user2@example.com',
+          author_name: 'Tester',
+          author_avatar_emoji: null,
         },
       ];
 
-      (mockRepository.getCommentsByTorrentId as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRows);
+      (mockRepository.getCommentsByInfohash as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRows);
 
-      const result = await service.getCommentsByTorrentId(torrentId);
+      const result = await service.getCommentsByInfohash(torrentId);
 
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe('comment-1');
       expect(result[0].torrentId).toBe(torrentId);
       expect(result[0].profileId).toBe('user-1');
       expect(result[0].content).toBe('Great torrent!');
-      expect(result[0].userEmail).toBe('user1@example.com');
-      expect(mockRepository.getCommentsByTorrentId).toHaveBeenCalledWith(torrentId, 50, 0);
+      expect(result[0].authorName).toBe('Tester');
+      expect(mockRepository.getCommentsByInfohash).toHaveBeenCalledWith(torrentId, 50, 0);
     });
 
     it('should support pagination', async () => {
       const torrentId = 'torrent-123';
 
-      (mockRepository.getCommentsByTorrentId as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (mockRepository.getCommentsByInfohash as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
-      await service.getCommentsByTorrentId(torrentId, 10, 20);
+      await service.getCommentsByInfohash(torrentId, 10, 20);
 
-      expect(mockRepository.getCommentsByTorrentId).toHaveBeenCalledWith(torrentId, 10, 20);
+      expect(mockRepository.getCommentsByInfohash).toHaveBeenCalledWith(torrentId, 10, 20);
     });
 
     it('should return empty array when no comments exist', async () => {
-      (mockRepository.getCommentsByTorrentId as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (mockRepository.getCommentsByInfohash as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
-      const result = await service.getCommentsByTorrentId('torrent-no-comments');
+      const result = await service.getCommentsByInfohash('torrent-no-comments');
 
       expect(result).toEqual([]);
     });
@@ -142,7 +147,12 @@ describe('CommentsService', () => {
 
       (mockRepository.createComment as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRow);
 
-      const result = await service.createComment(torrentId, profileId, content);
+      const result = await service.createComment({
+        infohash: TEST_INFOHASH,
+        torrentId,
+        profileId,
+        content,
+      });
 
       expect(result.id).toBe('comment-new');
       expect(result.torrentId).toBe(torrentId);
@@ -150,6 +160,7 @@ describe('CommentsService', () => {
       expect(result.content).toBe(content);
       expect(result.parentId).toBeNull();
       expect(mockRepository.createComment).toHaveBeenCalledWith({
+        infohash: TEST_INFOHASH,
         torrent_id: torrentId,
         profile_id: profileId,
         content,
@@ -178,11 +189,23 @@ describe('CommentsService', () => {
 
       (mockRepository.createComment as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRow);
 
-      const result = await service.createComment(torrentId, profileId, content, parentId);
+      (mockRepository.getCommentById as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: parentId,
+        infohash: TEST_INFOHASH,
+      });
+
+      const result = await service.createComment({
+        infohash: TEST_INFOHASH,
+        torrentId,
+        profileId,
+        content,
+        parentId,
+      });
 
       expect(result.id).toBe('comment-reply');
       expect(result.parentId).toBe(parentId);
       expect(mockRepository.createComment).toHaveBeenCalledWith({
+        infohash: TEST_INFOHASH,
         torrent_id: torrentId,
         profile_id: profileId,
         content,
@@ -192,13 +215,23 @@ describe('CommentsService', () => {
 
     it('should throw error for empty content', async () => {
       await expect(
-        service.createComment('torrent-123', 'user-456', '')
+        service.createComment({
+          infohash: TEST_INFOHASH,
+          torrentId: TEST_TORRENT_UUID,
+          profileId: 'user-456',
+          content: '',
+        })
       ).rejects.toThrow('Comment content cannot be empty');
     });
 
     it('should throw error for whitespace-only content', async () => {
       await expect(
-        service.createComment('torrent-123', 'user-456', '   \n\t  ')
+        service.createComment({
+          infohash: TEST_INFOHASH,
+          torrentId: TEST_TORRENT_UUID,
+          profileId: 'user-456',
+          content: '   \n\t  ',
+        })
       ).rejects.toThrow('Comment content cannot be empty');
     });
 
@@ -206,7 +239,12 @@ describe('CommentsService', () => {
       const longContent = 'a'.repeat(10001);
 
       await expect(
-        service.createComment('torrent-123', 'user-456', longContent)
+        service.createComment({
+          infohash: TEST_INFOHASH,
+          torrentId: TEST_TORRENT_UUID,
+          profileId: 'user-456',
+          content: longContent,
+        })
       ).rejects.toThrow('Comment content exceeds maximum length');
     });
   });
@@ -637,7 +675,8 @@ describe('CommentsService', () => {
           deleted_at: null,
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
-          user_email: 'user1@example.com',
+          author_name: 'Tester',
+          author_avatar_emoji: null,
         },
         {
           id: 'comment-2',
@@ -650,7 +689,8 @@ describe('CommentsService', () => {
           deleted_at: null,
           created_at: '2026-01-01T01:00:00Z',
           updated_at: '2026-01-01T01:00:00Z',
-          user_email: 'user2@example.com',
+          author_name: 'Tester',
+          author_avatar_emoji: null,
         },
       ];
 
@@ -665,7 +705,7 @@ describe('CommentsService', () => {
         },
       ];
 
-      (mockRepository.getCommentsByTorrentId as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRows);
+      (mockRepository.getCommentsByInfohash as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRows);
       (mockRepository.getUserCommentVotes as ReturnType<typeof vi.fn>).mockResolvedValue(mockUserVoteRows);
 
       const result = await service.getCommentsWithUserVotes(torrentId, profileId);
@@ -690,11 +730,12 @@ describe('CommentsService', () => {
           deleted_at: null,
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
-          user_email: 'user1@example.com',
+          author_name: 'Tester',
+          author_avatar_emoji: null,
         },
       ];
 
-      (mockRepository.getCommentsByTorrentId as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRows);
+      (mockRepository.getCommentsByInfohash as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommentRows);
 
       const result = await service.getCommentsWithUserVotes(torrentId, null);
 
