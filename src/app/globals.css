@@ -565,6 +565,23 @@ html.tv main {
   padding: 0.75rem;
 }
 
+/*
+ * Hide the floating feedback widget (feedback.profullstack.com embed) while a
+ * modal is open — its lower-right FAB covers the video player's maximize /
+ * fullscreen button, which is especially painful on TV screens.
+ * `body.modal-open` is set by the useModalOpen hook; the :has() rule is a
+ * belt-and-braces fallback for any dialog that doesn't use the hook.
+ */
+body.modal-open #pf-fab,
+body.modal-open #pf-panel {
+  display: none !important;
+}
+
+body:has([role="dialog"][aria-modal="true"]) #pf-fab,
+body:has([role="dialog"][aria-modal="true"]) #pf-panel {
+  display: none !important;
+}
+
 /* TV-specific modal adjustments */
 html.tv [role="dialog"] {
   max-width: 90vw;

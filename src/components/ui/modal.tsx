@@ -12,6 +12,7 @@ import { useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { CloseIcon } from './icons';
 import { useTvDetection } from '@/hooks/use-tv-detection';
+import { useModalOpen } from '@/hooks/use-modal-open';
 
 interface ModalProps {
   isOpen: boolean;
@@ -55,7 +56,10 @@ export function Modal({
   size = 'md',
 }: ModalProps): React.ReactElement | null {
   const { isTv } = useTvDetection();
-  
+
+  // Hide page-level chrome (e.g. the floating feedback button) while open
+  useModalOpen(isOpen);
+
   // Handle escape key
   const handleEscape = useCallback(
     (e: KeyboardEvent): void => {

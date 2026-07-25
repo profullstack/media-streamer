@@ -18,6 +18,7 @@ import {
   LoadingSpinner,
 } from '@/components/ui/icons';
 import { useRadioStream, type RadioStation } from '@/hooks/use-radio';
+import { useModalOpen } from '@/hooks/use-modal-open';
 import {
   setMediaSessionMetadata,
   updateMediaSessionPlaybackState,
@@ -46,6 +47,9 @@ export function RadioPlayerModal({
   const [isMuted, setIsMuted] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isBuffering, setIsBuffering] = useState(false);
+
+  // Hide page-level chrome (e.g. the floating feedback button) while open
+  useModalOpen(isOpen);
 
   const togglePlayPause = useCallback((): void => {
     if (!audioRef.current) return;

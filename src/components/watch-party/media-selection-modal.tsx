@@ -13,6 +13,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
 import { useTvDetection } from '@/hooks/use-tv-detection';
+import { useModalOpen } from '@/hooks/use-modal-open';
 
 interface TorrentItem {
   id: string;
@@ -84,6 +85,9 @@ export function MediaSelectionModal({ isOpen, onClose, onSelect }: MediaSelectio
   const [isLoadingTorrents, setIsLoadingTorrents] = useState(false);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Hide page-level chrome (e.g. the floating feedback button) while open
+  useModalOpen(isOpen);
 
   // Fetch torrents when modal opens
   useEffect(() => {

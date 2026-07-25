@@ -17,6 +17,7 @@ import Hls from 'hls.js';
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
 import { useTvDetection } from '@/hooks/use-tv-detection';
+import { useModalOpen } from '@/hooks/use-modal-open';
 import { IptvChannelFavoriteButton } from '@/components/ui/iptv-channel-favorite-button';
 
 // Type for mpegts.js player - dynamically imported
@@ -107,6 +108,9 @@ export function HlsPlayerModal({
       decodeURIComponent(streamUrl).includes('.m3u')
     ))
   ) : false;
+
+  // Hide page-level chrome (e.g. the floating feedback button) while open
+  useModalOpen(isOpen);
 
   // Handle escape key and overflow
   useEffect(() => {

@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useModalOpen } from '@/hooks/use-modal-open';
 
 export interface AddMagnetModalProps {
   isOpen: boolean;
@@ -54,6 +55,9 @@ export function AddMagnetModal({ isOpen, onClose, onSuccess }: AddMagnetModalPro
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<string>('');
+
+  // Hide page-level chrome (e.g. the floating feedback button) while open
+  useModalOpen(isOpen);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
