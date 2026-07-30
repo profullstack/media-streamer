@@ -8,7 +8,7 @@ import {
   type SeedboxTransport,
 } from './config';
 import { sendMagnetViaHttp, type SendResult } from './http-transport';
-import { getSeedboxPublicKey, sendMagnetViaSsh } from './ssh-transport';
+import { getSeedboxPublicKey, sendMagnetViaSsh, sendMagnetViaSshToLocalApi } from './ssh-transport';
 
 export interface SeedboxAccess {
   /** True when this account may push to a configured seedbox transport. */
@@ -69,6 +69,19 @@ export async function sendTorrentToSeedbox(
     return sendMagnetViaHttp(config.http, magnet, name);
   }
   if (chosen === 'ssh' && config.ssh) {
+    // When the box also runs torlink's add-API, hand the magnet to that daemon
+    // over loopback rather than dropping a file in a watch dir. The watch dir is
+    // a different torlink subcommand (`torlnk watch`) that the provisioner never
+    // starts — and even when started it keeps a separate queue, so torrents sent
+    // that way never appear in the /status the UI polls. Same daemon = one queue
+    // = progress and the status page both work. The token is read from the live
+    // config here, so it is never persisted into the SSH command.
+    if (config.http) {
+      const addUrl = `http://127.0.0.1:${new URL(config.http.baseUrl).port || '9161'}${
+        config.http.addPath.startsWith('/') ? '' : '/'
+      }${config.http.addPath}`;
+      return sendMagnetViaSshToLocalApi(config.ssh, addUrl, config.http.token, magnet);
+    }
     return sendMagnetViaSsh(config.ssh, magnet, name);
   }
   return { ok: false, transport: chosen, message: `Seedbox transport "${chosen}" is not configured` };

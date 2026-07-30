@@ -63,3 +63,43 @@ describe('sendMagnetViaHttp', () => {
     expect(result.message).toContain('Could not reach seedbox');
   });
 });
+
+describe('sendMagnetViaHttp — torlink add outcomes', () => {
+  it('reports a duplicate distinctly (a 200 does not mean this call queued anything)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, outcome: 'duplicate' }), { status: 200 }));
+    const result = await sendMagnetViaHttp(httpConfig(), MAGNET, 'Example', fetchMock as unknown as typeof fetch);
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toMatch(/already on the seedbox/i);
+  });
+
+  it('reports a fresh add as sent', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, outcome: 'added' }), { status: 200 }));
+    const result = await sendMagnetViaHttp(httpConfig(), MAGNET, 'Example', fetchMock as unknown as typeof fetch);
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toMatch(/sent to seedbox/i);
+  });
+
+  it('still succeeds when the body is not JSON (non-torlink clients)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('OK', { status: 200 }));
+    const result = await sendMagnetViaHttp(httpConfig(), MAGNET, 'Example', fetchMock as unknown as typeof fetch);
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toMatch(/sent to seedbox/i);
+  });
+
+  it('surfaces the underlying connect error rather than "fetch failed"', async () => {
+    const cause = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed', { cause }));
+    const result = await sendMagnetViaHttp(httpConfig(), MAGNET, 'Example', fetchMock as unknown as typeof fetch);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('ECONNREFUSED');
+    expect(result.message).not.toMatch(/fetch failed$/);
+  });
+});

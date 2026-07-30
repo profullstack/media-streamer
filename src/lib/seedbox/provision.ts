@@ -161,8 +161,13 @@ fi
 
 # --- data dirs + fully-automatic daemon (re)start (no manual steps) ---
 ${dataDirLine}
-WATCH="$HOME/Downloads/watch"
-mkdir -p "$WATCH" "$DATA"
+# NOTE: no watch dir is created. torlink's blackhole feature is a separate
+# subcommand (\`torlnk watch <dir>\`) that this provisioner never started, so a
+# watch dir here was only ever a place for magnets to rot unread. It also would
+# not help: \`watch\` runs as its own process with its own queue, invisible to the
+# \`serve\` /status that the status page and progress bars poll. SSH sends now go
+# through serve's add-API over loopback instead (see sendMagnetViaSshToLocalApi).
+mkdir -p "$DATA"
 
 # Stop ANY existing torlink daemon so our fresh token becomes authoritative —
 # however it was started (detached process, systemd system/user unit, or pm2) —

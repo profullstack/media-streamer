@@ -60,5 +60,23 @@ export async function sendMagnetViaHttp(
     };
   }
 
-  return { ok: true, transport: 'http', message: 'Sent to seedbox via HTTP API' };
+  // torlink answers 200 {"ok":true,"outcome":"added"|"duplicate"} — a 200 alone
+  // does not mean this call queued anything, so report which one happened.
+  const outcome = await response
+    .json()
+    .then((body: unknown) =>
+      body && typeof body === 'object' && typeof (body as { outcome?: unknown }).outcome === 'string'
+        ? (body as { outcome: string }).outcome
+        : null
+    )
+    .catch(() => null);
+
+  return {
+    ok: true,
+    transport: 'http',
+    message:
+      outcome === 'duplicate'
+        ? 'Already on the seedbox — torlink is tracking it'
+        : 'Sent to seedbox via HTTP API',
+  };
 }

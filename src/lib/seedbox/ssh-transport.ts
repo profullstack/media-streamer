@@ -150,6 +150,59 @@ export async function getSeedboxPublicKey(config: SeedboxSshConfig): Promise<str
   }
 }
 
+/**
+ * Node one-liner run on the seedbox that POSTs a magnet to torlink's *local*
+ * add-API. Input (url/token/magnet) arrives as JSON on stdin, so neither the
+ * token nor the magnet ever appears in the box's process list.
+ */
+const REMOTE_ADD_SCRIPT = `let s='';process.stdin.on('data',d=>s+=d).on('end',async()=>{try{const{u,t,m}=JSON.parse(s);const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({magnet:m})});const b=await r.text();process.stdout.write(String(r.status)+' '+b);if(!r.ok)process.exit(1)}catch(e){process.stderr.write(String(e&&e.message||e));process.exit(1)}})`;
+
+/**
+ * Deliver a magnet by asking the box to hand it to torlink's own add-API over
+ * loopback.
+ *
+ * Why not the watch dir: torlink's watch-folder feature is a separate
+ * subcommand (`torlnk watch <dir>`), not part of `serve` — the provisioner only
+ * ever ran `serve` and `files`, so files dropped into the watch dir were read by
+ * nobody. And even with a watch daemon running it would be a *separate process
+ * with its own queue*, invisible to the `serve` /status that the status page and
+ * progress bar poll. Going through the same daemon keeps one queue, so SSH-sent
+ * torrents show up exactly like HTTP-sent ones.
+ */
+export async function sendMagnetViaSshToLocalApi(
+  ssh: SeedboxSshConfig,
+  addUrl: string,
+  token: string,
+  magnet: string
+): Promise<SendResult> {
+  try {
+    return await withPrivateKeyFile(ssh, async (keyPath) => {
+      const target = `${ssh.user}@${ssh.host}`;
+      const sshArgs = baseSshArgs(ssh, keyPath);
+      // Non-interactive SSH gets a minimal PATH; torlink requires Node, and the
+      // provisioner installs it via mise, so look there too.
+      const remoteCmd =
+        `export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"; ` +
+        `exec node -e ${shellQuote(REMOTE_ADD_SCRIPT)}`;
+      const payload = JSON.stringify({ u: addUrl, t: token, m: magnet });
+      const { stdout } = await runExecFile('ssh', [...sshArgs, target, remoteCmd], payload);
+      // torlink answers 200 {"ok":true,"outcome":"added"|"duplicate"}.
+      const outcome = /"outcome"\s*:\s*"([a-z]+)"/i.exec(stdout)?.[1];
+      return {
+        ok: true,
+        transport: 'ssh',
+        message:
+          outcome === 'duplicate'
+            ? 'Already on the seedbox — torlink is tracking it'
+            : 'Handed to torlink on the seedbox via SSH',
+      };
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return { ok: false, transport: 'ssh', message: `SSH delivery failed: ${detail}` };
+  }
+}
+
 export async function sendMagnetViaSsh(
   config: SeedboxSshConfig,
   magnet: string,
