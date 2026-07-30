@@ -37,6 +37,8 @@ interface StatusResponse {
   error?: string;
   downloads?: RawDownload[];
   seeds?: RawSeed[];
+  /** Unfiltered view of what torlink itself reported, for diagnosing gaps. */
+  raw?: { downloads: number; seeds: number; hidden: { name: string; status: string }[] };
 }
 
 /** A torrent merged from torlink's `downloads` + `seeds` arrays (by infohash). */
@@ -340,6 +342,13 @@ export function TorlinkStatus(): React.ReactElement {
           {updatedAt ? (
             <span>· updated {new Date(updatedAt).toLocaleTimeString()}</span>
           ) : null}
+          {/* What torlink itself reported, before any filtering. Makes "torlink
+              never got it" distinguishable from "the app hid it" at a glance. */}
+          {data?.raw ? (
+            <span title="Raw counts reported by torlink, before reconciliation">
+              · torlink reports {data.raw.downloads + data.raw.seeds} ({data.raw.downloads} dl / {data.raw.seeds} seed)
+            </span>
+          ) : null}
         </div>
         <button
           onClick={() => void refresh()}
@@ -348,6 +357,24 @@ export function TorlinkStatus(): React.ReactElement {
           <RefreshIcon size={14} /> Refresh
         </button>
       </div>
+
+      {/* Anything torlink reported that reconciliation dropped. Should normally
+          be empty; when it isn't, this names exactly what is being hidden. */}
+      {data?.raw?.hidden?.length ? (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-text-secondary">
+          <strong className="text-amber-500">
+            {data.raw.hidden.length} torrent(s) reported by torlink but hidden here
+          </strong>{' '}
+          (their files are not on the seedbox):
+          <ul className="mt-1 list-inside list-disc">
+            {data.raw.hidden.map((h, i) => (
+              <li key={`${h.name}-${i}`}>
+                {h.name} — <span className="text-text-tertiary">{h.status}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {actionError ? (
         <div className="rounded-lg border border-status-error/40 bg-status-error/5 p-3 text-sm text-status-error">

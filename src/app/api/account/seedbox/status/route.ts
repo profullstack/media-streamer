@@ -124,8 +124,27 @@ export async function GET(): Promise<NextResponse> {
         uploaded: s.uploaded ?? 0,
       }))
       .filter((s) => isLiveTorrent(s.status, s.name, onDisk));
+    // Raw, UNFILTERED counts straight from torlink, plus anything the
+    // reconciliation dropped. Without this the page can only ever show what
+    // survived the filter, so "torlink doesn't have it" and "the app hid it"
+    // look identical — which is exactly the ambiguity that made a missing
+    // torrent impossible to diagnose from the UI.
+    const rawDownloads = data.downloads ?? [];
+    const rawSeeds = data.seeds ?? [];
+    const keptIds = new Set([...downloads, ...seeds].map((t) => t.id));
+    const hidden = [...rawDownloads, ...rawSeeds]
+      .filter((t) => !keptIds.has((t.id ?? '').toLowerCase()))
+      .map((t) => ({ name: t.name ?? '(unknown)', status: t.status ?? '(none)' }));
+
     return NextResponse.json(
-      { configured: true, reachable: true, reconciled: onDisk !== null, downloads, seeds },
+      {
+        configured: true,
+        reachable: true,
+        reconciled: onDisk !== null,
+        downloads,
+        seeds,
+        raw: { downloads: rawDownloads.length, seeds: rawSeeds.length, hidden },
+      },
       { status: 200, headers: NO_STORE }
     );
   } catch (error) {
