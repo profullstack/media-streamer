@@ -43,6 +43,9 @@ const TRANSPORT_LABEL: Record<SeedboxTransport, string> = {
   ssh: 'SSH',
 };
 
+/** Polls (2.5s apart) to wait for torlink to register a sent torrent (~30s). */
+const NEVER_REGISTERED_POLLS = 12;
+
 /** Pull the 40-hex infohash out of a magnet URI (needed to poll progress). */
 function infohashFromMagnet(magnet: string): string | null {
   const m = magnet.match(/urn:btih:([0-9a-fA-F]{40})/);
@@ -60,6 +63,10 @@ export function SeedboxSendButton({
   const [progress, setProgress] = useState<SeedboxProgress | null>(null);
   const [tracking, setTracking] = useState(false);
   const sawFoundRef = useRef(false);
+  // Consecutive polls where torlink answered but did not know this infohash.
+  // Without a bound, a torrent that never registers shows "Queued on seedbox…"
+  // forever — which is how a silently-failed delivery used to look.
+  const missesRef = useRef(0);
 
   const infohash = infohashFromMagnet(magnetUri);
 
@@ -98,6 +105,22 @@ export function SeedboxSendButton({
         }
         setProgress(data);
         if (data.found) sawFoundRef.current = true;
+        // torlink is reachable (it answered) but has never heard of this
+        // torrent. Give it a grace period, then say so instead of pretending
+        // it is queued.
+        if (!sawFoundRef.current && data.found === false) {
+          missesRef.current += 1;
+          if (missesRef.current >= NEVER_REGISTERED_POLLS) {
+            setTracking(false);
+            setProgress(null);
+            setStatus({
+              ok: false,
+              message:
+                'Sent, but torlink never registered it. Check the Torlink status page, or re-run Setup → Install torlink & open ports.',
+            });
+            return;
+          }
+        }
         // Done when torlink reports it, or when it vanished from the queue after
         // we'd seen it (completed + cleared).
         if (data.done || (sawFoundRef.current && data.found === false)) {
@@ -123,6 +146,7 @@ export function SeedboxSendButton({
       setStatus(null);
       setProgress(null);
       sawFoundRef.current = false;
+      missesRef.current = 0;
       try {
         const res = await fetch(`/api/torrents/${torrentId}/seedbox`, {
           method: 'POST',
