@@ -241,15 +241,26 @@ export function TorlinkStatus(): React.ReactElement {
   const refresh = useCallback(async (): Promise<void> => {
     if (inFlight.current) return;
     inFlight.current = true;
+    // A hung request must never wedge the poller. Without a timeout the fetch
+    // promise can stay pending indefinitely, so `finally` never runs, inFlight
+    // stays true, and every later tick returns early — the page then freezes on
+    // its last snapshot forever, showing a stale timestamp and no error at all.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), POLL_MS * 3);
     try {
-      const res = await fetch('/api/account/seedbox/status', { cache: 'no-store' });
+      const res = await fetch('/api/account/seedbox/status', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       const json = (await res.json().catch(() => ({}))) as StatusResponse;
       setData(json);
       setFetchError(null);
       setUpdatedAt(Date.now());
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to load status');
+      const aborted = err instanceof Error && /abort/i.test(err.message);
+      setFetchError(aborted ? 'Status request timed out — retrying…' : err instanceof Error ? err.message : 'Failed to load status');
     } finally {
+      clearTimeout(timeout);
       inFlight.current = false;
       setLoading(false);
     }
