@@ -30,10 +30,22 @@ export function isOnDisk(name: string, onDiskNames: string[]): boolean {
 }
 
 /**
+ * States that describe live activity rather than stored data. None of these
+ * imply anything is on disk yet, so they must never be disk-reconciled.
+ *
+ * `failed` belongs here despite not being "active": a torrent that errored has
+ * no files by definition, so requiring files on disk hid every failure. That
+ * made a torrent added successfully but unable to start simply *vanish* from
+ * the page — the single most confusing way this can break, and precisely the
+ * state you most need to see. Surfacing it is the whole point.
+ */
+const DISK_BACKED = new Set(['seeding', 'paused']);
+
+/**
  * Keep only torrents that reflect the seedbox's *current* state:
  *  - drop torlink's `missing` records (data confirmed gone),
- *  - always keep active transfers (downloading / queued) — inherently realtime,
- *  - for the rest (seeding / paused / failed) keep only if the files are still
+ *  - always keep in-flight or errored torrents — none of them have files yet,
+ *  - for stored torrents (seeding / paused) keep only if the files are still
  *    on disk.
  *
  * `onDiskNames === null` means the listing couldn't be fetched, so we can't
@@ -41,7 +53,11 @@ export function isOnDisk(name: string, onDiskNames: string[]): boolean {
  */
 export function isLiveTorrent(status: string, name: string, onDiskNames: string[] | null): boolean {
   if (status === 'missing') return false;
-  if (status === 'downloading' || status === 'queued') return true;
+  // Reconcile ONLY the states that imply stored data. Anything else — including
+  // a status this code has never heard of — is shown. Allow-listing the visible
+  // states instead would make any new torlink status silently disappear, which
+  // is the failure mode this whole filter keeps producing.
+  if (!DISK_BACKED.has(status)) return true;
   if (onDiskNames === null) return true;
   return isOnDisk(name, onDiskNames);
 }
