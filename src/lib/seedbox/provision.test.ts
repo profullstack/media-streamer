@@ -171,3 +171,49 @@ describe('seedbox provisioner', () => {
     });
   });
 });
+
+describe('seedbox provisioner — install must leave a daemon that stays up', () => {
+  const script = buildProvisionScript('TOK123_-', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT);
+
+  it('disables systemd’s start rate limit so a crash loop never lands in failed', () => {
+    // Default is 5 starts / 10s, after which systemd gives up permanently —
+    // recreating the exact dead-daemon state these units exist to prevent.
+    expect(script).toContain('StartLimitIntervalSec=0');
+    // Once per unit ([Unit] section of serve and files).
+    expect(script.match(/StartLimitIntervalSec=0/g)).toHaveLength(2);
+  });
+
+  it('clears failed state before the watchdog restarts (restart refuses otherwise)', () => {
+    const wd = script.match(/cat > "\$WD" <<WDEOF[\s\S]*?WDEOF/)?.[0] ?? '';
+    expect(wd).toContain('reset-failed');
+    expect(wd.indexOf('reset-failed')).toBeLessThan(wd.indexOf('systemctl --user restart'));
+  });
+
+  it('re-probes after a delay so a daemon that dies immediately is not reported ok', () => {
+    expect(script).toContain('emit stable ok');
+    expect(script).toContain('emit stable fail');
+    // The re-probe must come after a wait, not back-to-back with the first check.
+    const stable = script.indexOf('--- does it STAY up? ---');
+    expect(stable).toBeGreaterThan(-1);
+    expect(script.slice(stable, stable + 400)).toMatch(/sleep \d+/);
+  });
+
+  it('reports why a dead daemon died instead of a bare "did not answer"', () => {
+    expect(script).toContain('why_dead()');
+    expect(script).toContain('journalctl --user -u torlink-serve.service');
+    expect(script).toContain('$(why_dead)');
+  });
+
+  it('imports magnets stranded in the legacy watch folder', () => {
+    expect(script).toContain('LEGACY_WATCH="$HOME/Downloads/watch"');
+    expect(script).toContain('emit rescue ok');
+    expect(script).toContain('.processed');
+    // Body built via node, so a magnet with quotes cannot break the JSON.
+    expect(script).toContain('JSON.stringify({magnet:m})');
+  });
+
+  it('still does not create a watch dir (nothing reads it)', () => {
+    expect(script).not.toContain('mkdir -p "$WATCH"');
+    expect(script).not.toContain('WATCH="$HOME/Downloads/watch"\nmkdir');
+  });
+});
