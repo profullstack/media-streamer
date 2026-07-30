@@ -3,6 +3,7 @@
  */
 
 import type { SeedboxHttpConfig } from './config';
+import { describeFetchError } from './fetch-error';
 
 export interface SendResult {
   ok: boolean;
@@ -40,8 +41,13 @@ export async function sendMagnetViaHttp(
       body: JSON.stringify(body),
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return { ok: false, transport: 'http', message: `Could not reach seedbox: ${detail}` };
+    // Report the underlying cause (ECONNREFUSED / ENOTFOUND / …), not undici's
+    // opaque "fetch failed" — they call for completely different fixes.
+    return {
+      ok: false,
+      transport: 'http',
+      message: `Could not reach seedbox: ${describeFetchError(error)}`,
+    };
   }
 
   if (!response.ok) {

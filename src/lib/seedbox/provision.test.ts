@@ -70,8 +70,56 @@ describe('seedbox provisioner', () => {
     it('installs a cron that self-updates torlink via `torlnk update`', () => {
       expect(script).toContain('torlink-autoupdate-media-streamer');
       expect(script).toContain('update >>'); // `"$BIN" update >> ...log`
-      expect(script).toContain('*/5 * * * *'); // every 5 min
       expect(script).toContain('NODE_BIN_DIR='); // pins PATH for cron
+    });
+
+    it('runs the updater hourly, not every 5 min (each run restarts the daemons)', () => {
+      // */5 meant 288 restart windows a day; the app sees ECONNREFUSED in each
+      // one. Liveness is the watchdog's job, not the updater's.
+      const updLine = script.match(/^UPD_LINE=.*$/m)?.[0] ?? '';
+      expect(updLine).toContain('17 * * * *');
+      expect(updLine).not.toContain('*/5 * * * *');
+    });
+
+    it('pins cron PATH to the real global bin dir, not dirname of a cli.cjs path', () => {
+      expect(script).toContain('GLOBAL_BIN_DIR="$(npm prefix -g 2>/dev/null)/bin"');
+      expect(script).not.toContain('GLOBAL_BIN_DIR=$(dirname "$BIN")');
+    });
+
+    it('supervises the daemons with systemd --user (Restart=always + linger)', () => {
+      expect(script).toContain('torlink-serve.service');
+      expect(script).toContain('torlink-files.service');
+      expect(script).toContain('Restart=always');
+      expect(script).toContain('enable-linger');
+      expect(script).toContain('systemctl --user enable --now');
+      // The unsupervised path must remain as a fallback.
+      expect(script).toContain('SUPERVISED=0');
+      expect(script).toContain('if [ "$SUPERVISED" = "1" ]; then');
+    });
+
+    it('installs a watchdog that restarts torlink when /health stops answering', () => {
+      expect(script).toContain('torlink-watchdog-media-streamer');
+      expect(script).toContain('.torlnk-watchdog.sh');
+      const wdLine = script.match(/^WD_LINE=.*$/m)?.[0] ?? '';
+      expect(wdLine).toContain('*/5 * * * *'); // liveness probe every 5 min
+      // Restarts via systemd when present, else relaunches the daemons directly.
+      expect(script).toContain('systemctl --user restart torlink-serve.service');
+      // The timestamp must be evaluated when the watchdog RUNS, not when the
+      // heredoc that writes it is expanded.
+      expect(script).toContain('\\$(date -Is)');
+    });
+
+    it('tears down supervisors before pkill so Restart=always cannot resurrect a daemon', () => {
+      const stopFn = script.match(/stop_torlink\(\)\{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(stopFn).toBeTruthy();
+      // Compare actual commands — comments mention both names, so matching the
+      // raw text would assert nothing about execution order.
+      const commands = stopFn
+        .split('\n')
+        .filter((line) => !line.trim().startsWith('#'))
+        .join('\n');
+      expect(commands).toContain('pkill');
+      expect(commands.indexOf('systemctl')).toBeLessThan(commands.indexOf('pkill'));
     });
 
     it('honors a custom seeding window and supports 0 = seed indefinitely', () => {

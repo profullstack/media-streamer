@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { loadAccountSeedboxConfig } from '@/lib/seedbox';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
 import { filesAuthHeaders } from '@/lib/seedbox/files';
+import { describeFetchError } from '@/lib/seedbox/fetch-error';
 
 // Probe the account's seedbox end to end:
 //  - reachable: did the port answer at all? (network error/timeout => firewall
@@ -40,12 +41,12 @@ async function probe(
     const res = await fetch(url, { ...init, signal: controller.signal, cache: 'no-store' });
     return { ...classify(res.status), status: res.status };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const isTimeout = /abort/i.test(message);
     return {
       reachable: false,
       authorized: false,
-      error: isTimeout ? 'timed out (port blocked by a firewall, or daemon down)' : message,
+      // Unwraps undici's cause chain, so "fetch failed" becomes e.g.
+      // "ECONNREFUSED — nothing is listening on that port…".
+      error: describeFetchError(error, 'timed out (port blocked by a firewall, or daemon down)'),
     };
   } finally {
     clearTimeout(timer);

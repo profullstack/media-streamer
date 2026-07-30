@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { loadAccountSeedboxConfig } from '@/lib/seedbox';
 import { filesAuthHeaders } from '@/lib/seedbox/files';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
+import { describeFetchError } from '@/lib/seedbox/fetch-error';
 import { isLiveTorrent } from '@/lib/seedbox/torlink-reconcile';
 
 // Live torlink status for the account's seedbox: what's downloading, queued,
@@ -128,8 +129,11 @@ export async function GET(): Promise<NextResponse> {
       { status: 200, headers: NO_STORE }
     );
   } catch (error) {
+    // Surface the root cause: "ECONNREFUSED — the daemon is down" and
+    // "ENOTFOUND — the hostname doesn't resolve" both used to render as the
+    // indistinguishable (and unactionable) string "fetch failed".
     return NextResponse.json(
-      { configured: true, reachable: false, error: error instanceof Error ? error.message : String(error) },
+      { configured: true, reachable: false, error: describeFetchError(error) },
       { status: 200, headers: NO_STORE }
     );
   } finally {
