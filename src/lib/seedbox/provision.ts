@@ -3,9 +3,16 @@
  *
  * Given an account's SSH-connected seedbox, install the `torlnk` CLI
  * (`npm i -g torlnk`), start its HTTP add-API (`serve`, :9161) and file server
- * (`files`, :9160) as daemons bound to a generated bearer token, and open those
- * ports in the box's firewall. On success the caller wires the resulting HTTP +
- * files endpoints into the account's seedbox config so the app can use them.
+ * (`files`, :9160) bound to a generated bearer token, and open those ports in
+ * the box's firewall. On success the caller wires the resulting HTTP + files
+ * endpoints into the account's seedbox config so the app can use them.
+ *
+ * The daemons run under systemd `--user` units with `Restart=always` and linger
+ * enabled, so they survive crashes and reboots; a cron watchdog re-launches them
+ * if the add-API stops answering (and covers boxes with no usable systemd
+ * `--user`, which fall back to unsupervised `--daemon`). Without that, any crash
+ * or reboot left the box permanently unreachable — the app could only report
+ * ECONNREFUSED until someone re-ran this installer by hand.
  *
  * The remote work runs as a single idempotent bash script fed to `bash -s` over
  * SSH (see {@link execRemote}). The script emits `STEP|name|status|detail` lines
@@ -163,12 +170,13 @@ mkdir -p "$WATCH" "$DATA"
 # the real cmdline is like "node .../torlnk/dist/cli.js serve", so
 # \`pkill -f 'torlnk serve'\` misses it.
 stop_torlink(){
-  # Match both spellings: the npm bin ("torlnk") and a local checkout ("torlink").
-  pkill -f 'torli?nk' 2>/dev/null || sudo -n pkill -f 'torli?nk' 2>/dev/null || true
+  # Order matters: tear down supervisors FIRST. Our own units set
+  # Restart=always, so a pkill before the disable would just be undone five
+  # seconds later and the resurrected daemon would hold the port against us.
   # Stop AND disable+remove any torlink unit: a leftover unit (from an old manual
   # install) that points at a stale checkout/token would otherwise resurrect the
   # wrong build on reboot and fight this provisioner's daemons for the ports. The
-  # provisioner owns the --daemon processes, so it must be the single authority.
+  # provisioner owns the daemons, so it must be the single authority.
   local U
   for U in $(systemctl list-units --all --type=service --no-legend 2>/dev/null | grep -i torl | awk '{print $1}'); do
     sudo -n systemctl disable --now "$U" 2>/dev/null || sudo -n systemctl stop "$U" 2>/dev/null || true
@@ -183,6 +191,9 @@ stop_torlink(){
   if command -v pm2 >/dev/null 2>&1; then
     pm2 delete $(pm2 jlist 2>/dev/null | grep -o '"name":"[^"]*torl[^"]*"' | cut -d'"' -f4) >/dev/null 2>&1 || true
   fi
+  # Only now that nothing will restart them: kill any stray processes.
+  # Match both spellings: the npm bin ("torlnk") and a local checkout ("torlink").
+  pkill -f 'torli?nk' 2>/dev/null || sudo -n pkill -f 'torli?nk' 2>/dev/null || true
 }
 free_port(){
   local SIG="$1" P="$2" PIDS PID
@@ -205,15 +216,93 @@ export TORLINK_FILES_TOKEN="$TOK"
 # limited seedbox line (torlink >= the version with TORLINK_MAX_DOWNLOADS;
 # harmlessly ignored by older builds).
 export TORLINK_MAX_DOWNLOADS=2
-if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" ${seedFlag}--daemon >/tmp/torlnk-serve.log 2>&1; then
-  emit serve ok "add-API on $SERVE_PORT (downloads: $DATA; ${seedDesc})"
+
+# --- start the daemons UNDER SUPERVISION ---
+# A bare \`--daemon\` process answers to nobody: a crash, an OOM kill or a reboot
+# takes the seedbox offline for good, and the app can only report ECONNREFUSED
+# until a human re-runs this installer. Prefer systemd --user units with
+# Restart=always (plus linger, so they come up at boot with nobody logged in);
+# fall back to \`--daemon\` only where systemd --user isn't usable.
+SUPERVISED=0
+UNIT_DIR="$HOME/.config/systemd/user"
+NODE_DIR=$(dirname "$(command -v node 2>/dev/null)" 2>/dev/null)
+UNIT_PATH="$NODE_DIR:$HOME/.local/bin:$HOME/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin"
+if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+  mkdir -p "$UNIT_DIR"
+  loginctl enable-linger "$USER" >/dev/null 2>&1 || sudo -n loginctl enable-linger "$USER" >/dev/null 2>&1 || true
+  cat > "$UNIT_DIR/torlink-serve.service" <<UNIT
+[Unit]
+Description=torlink add-API (media-streamer)
+After=network-online.target
+
+[Service]
+Type=simple
+Environment="PATH=$UNIT_PATH"
+Environment="TORLINK_API_TOKEN=$TOK"
+Environment="TORLINK_FILES_TOKEN=$TOK"
+Environment="TORLINK_MAX_DOWNLOADS=2"
+ExecStart=$BIN serve --host 0.0.0.0 --port $SERVE_PORT --token $TOK --to "$DATA" ${seedFlag}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+UNIT
+  cat > "$UNIT_DIR/torlink-files.service" <<UNIT
+[Unit]
+Description=torlink file server (media-streamer)
+After=network-online.target
+
+[Service]
+Type=simple
+Environment="PATH=$UNIT_PATH"
+Environment="TORLINK_API_TOKEN=$TOK"
+Environment="TORLINK_FILES_TOKEN=$TOK"
+ExecStart=$BIN files --host 0.0.0.0 --port $FILES_PORT --token $TOK --dir "$DATA"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+UNIT
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+  if systemctl --user enable --now torlink-serve.service torlink-files.service >/tmp/torlnk-systemd.log 2>&1; then
+    SUPERVISED=1
+    emit supervise ok "systemd --user units with Restart=always + linger — torlink now recovers from crashes and reboots by itself"
+  else
+    emit supervise skip "systemd --user unavailable: $(tail -n 2 /tmp/torlnk-systemd.log 2>/dev/null | tr '\\n' ' ')"
+  fi
 else
-  emit serve fail "$(tail -n 3 /tmp/torlnk-serve.log 2>/dev/null | tr '\\n' ' ')"
+  emit supervise skip "no usable systemd --user on this box; falling back to unsupervised --daemon (the watchdog cron below covers restarts)"
 fi
-if "$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --token "$TOK" --dir "$DATA" --daemon >/tmp/torlnk-files.log 2>&1; then
-  emit files ok "file server on $FILES_PORT (serving: $DATA)"
+
+if [ "$SUPERVISED" = "1" ]; then
+  # systemd start is async — wait for the port to actually bind before judging.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    curl -fsS -m 2 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1 && break
+    sleep 1
+  done
+  if curl -fsS -m 3 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1; then
+    emit serve ok "add-API on $SERVE_PORT via systemd (downloads: $DATA; ${seedDesc})"
+  else
+    emit serve fail "torlink-serve.service started but nothing answered on $SERVE_PORT — run 'systemctl --user status torlink-serve' on the box"
+  fi
+  if [ "$(curl -s -o /dev/null -m 5 -w '%{http_code}' -H "Authorization: Bearer $TOK" "http://127.0.0.1:$FILES_PORT/" 2>/dev/null || echo 000)" != "000" ]; then
+    emit files ok "file server on $FILES_PORT via systemd (serving: $DATA)"
+  else
+    emit files fail "torlink-files.service started but nothing answered on $FILES_PORT — run 'systemctl --user status torlink-files' on the box"
+  fi
 else
-  emit files fail "$(tail -n 3 /tmp/torlnk-files.log 2>/dev/null | tr '\\n' ' ')"
+  if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" ${seedFlag}--daemon >/tmp/torlnk-serve.log 2>&1; then
+    emit serve ok "add-API on $SERVE_PORT (downloads: $DATA; ${seedDesc})"
+  else
+    emit serve fail "$(tail -n 3 /tmp/torlnk-serve.log 2>/dev/null | tr '\\n' ' ')"
+  fi
+  if "$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --token "$TOK" --dir "$DATA" --daemon >/tmp/torlnk-files.log 2>&1; then
+    emit files ok "file server on $FILES_PORT (serving: $DATA)"
+  else
+    emit files fail "$(tail -n 3 /tmp/torlnk-files.log 2>/dev/null | tr '\\n' ' ')"
+  fi
 fi
 
 # --- open firewall ports ---
@@ -287,14 +376,45 @@ fi
 # when already current, and bails gracefully if the global prefix isn't writable.
 # cron has a bare PATH, so pin node + npm (same dir) + the global-bin dir.
 NODE_BIN_DIR=$(dirname "$(command -v node 2>/dev/null)" 2>/dev/null)
-GLOBAL_BIN_DIR=$(dirname "$BIN")
+# The global npm bin dir — NOT \`dirname "$BIN"\`, which lands in .../dist when
+# $BIN fell back to cli.cjs and would leave npm/torlnk off cron's PATH.
+GLOBAL_BIN_DIR="$(npm prefix -g 2>/dev/null)/bin"
+
+# The updater restarts both daemons whenever it installs a release, so every run
+# is a small outage window. At */5 that was 288 chances a day to be caught
+# mid-restart (the app just sees ECONNREFUSED), and a restart that half-failed
+# stayed broken because the NEXT run finds the version current and no-ops.
+# Hourly is plenty for picking up releases; the watchdog below owns liveness.
 UPD_MARK="# torlink-autoupdate-media-streamer"
-UPD_LINE="*/5 * * * * PATH=\\"$NODE_BIN_DIR:$GLOBAL_BIN_DIR:/usr/local/bin:/usr/bin:/bin\\" \\"$BIN\\" update >> \\"$HOME/.torlnk-update.log\\" 2>&1 $UPD_MARK"
+UPD_LINE="17 * * * * PATH=\\"$NODE_BIN_DIR:$GLOBAL_BIN_DIR:/usr/local/bin:/usr/bin:/bin\\" \\"$BIN\\" update >> \\"$HOME/.torlnk-update.log\\" 2>&1 $UPD_MARK"
+
+# --- watchdog: the thing that actually keeps the seedbox reachable ---
+# Probes the add-API and restarts torlink if it stops answering — covering the
+# gap systemd can't (a wedged-but-alive process) and the case where systemd
+# --user wasn't available at all.
+WD="$HOME/.torlnk-watchdog.sh"
+cat > "$WD" <<WDEOF
+#!/usr/bin/env bash
+# Installed by media-streamer. Restarts torlink when its add-API stops answering.
+export PATH="$UNIT_PATH"
+curl -fsS -m 5 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1 && exit 0
+echo "\\$(date -Is) /health did not answer on $SERVE_PORT — restarting torlink" >> "$HOME/.torlnk-watchdog.log"
+systemctl --user restart torlink-serve.service torlink-files.service >/dev/null 2>&1 && exit 0
+export TORLINK_API_TOKEN="$TOK"
+export TORLINK_FILES_TOKEN="$TOK"
+export TORLINK_MAX_DOWNLOADS=2
+"$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" ${seedFlag}--daemon >/dev/null 2>&1 || true
+"$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --token "$TOK" --dir "$DATA" --daemon >/dev/null 2>&1 || true
+WDEOF
+chmod +x "$WD" 2>/dev/null || true
+WD_MARK="# torlink-watchdog-media-streamer"
+WD_LINE="*/5 * * * * \\"$WD\\" >/dev/null 2>&1 $WD_MARK"
+
 if command -v crontab >/dev/null 2>&1; then
-  if ( crontab -l 2>/dev/null | grep -vF "$UPD_MARK"; echo "$UPD_LINE" ) | crontab - 2>/dev/null; then
-    emit autoupdate ok "torlnk update runs every 5 min (self-installs new releases + restarts daemons)"
+  if ( crontab -l 2>/dev/null | grep -vF "$UPD_MARK" | grep -vF "$WD_MARK"; echo "$UPD_LINE"; echo "$WD_LINE" ) | crontab - 2>/dev/null; then
+    emit autoupdate ok "torlnk update runs hourly; a health watchdog re-launches torlink every 5 min if it stops answering"
   else
-    emit autoupdate skip "couldn't install the auto-update cron; run 'torlnk update' to upgrade manually"
+    emit autoupdate skip "couldn't install the auto-update/watchdog cron; run 'torlnk update' to upgrade manually"
   fi
 else
   emit autoupdate skip "no crontab on the box; run 'torlnk update' to upgrade manually"
