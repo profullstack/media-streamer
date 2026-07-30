@@ -239,6 +239,10 @@ if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/d
 [Unit]
 Description=torlink add-API (media-streamer)
 After=network-online.target
+# Never stop retrying. systemd's default rate limit (5 starts / 10s) would put a
+# crash-looping torlink into 'failed' permanently — which is precisely the dead
+# daemon this unit exists to prevent.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -257,6 +261,10 @@ UNIT
 [Unit]
 Description=torlink file server (media-streamer)
 After=network-online.target
+# Never stop retrying. systemd's default rate limit (5 starts / 10s) would put a
+# crash-looping torlink into 'failed' permanently — which is precisely the dead
+# daemon this unit exists to prevent.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -326,10 +334,60 @@ fi
 
 # --- health check ---
 sleep 2
+# Collect whatever the box can tell us about a daemon that would not stay up:
+# the systemd journal when supervised, otherwise torlink's own logs.
+why_dead(){
+  if [ "$SUPERVISED" = "1" ]; then
+    journalctl --user -u torlink-serve.service -n 6 --no-pager 2>/dev/null | tr '\\n' ' '
+  else
+    tail -n 6 /tmp/torlnk-serve.log 2>/dev/null | tr '\\n' ' '
+  fi
+}
+
 if curl -fsS "http://127.0.0.1:$SERVE_PORT/health" >/tmp/torlnk-health 2>/dev/null; then
   emit health ok "$(cat /tmp/torlnk-health 2>/dev/null | tr '\\n' ' ')"
 else
-  emit health fail "serve did not answer /health yet — check /tmp/torlnk-serve.log on the box"
+  emit health fail "serve did not answer /health — $(why_dead)"
+fi
+
+# --- does it STAY up? ---
+# An immediate health check only proves torlink started. It has been dying
+# shortly after launch (the box was found with no torlnk process at all), and a
+# provisioner that reports success for a daemon which is already gone is worse
+# than useless. Re-probe after a delay and report what killed it.
+sleep 12
+if curl -fsS -m 5 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1; then
+  emit stable ok "still serving 15s after start"
+else
+  emit stable fail "torlink started but died within ~15s — $(why_dead)"
+fi
+
+# --- rescue magnets stranded in the legacy watch dir ---
+# Older installs advertised $HOME/Downloads/watch as a blackhole, but nothing
+# ever read it: torlink's watch mode is a separate \`torlnk watch\` process this
+# provisioner never started. Every SSH send therefore piled up unread. Hand any
+# leftovers to the add-API now and move them aside so they are not re-imported.
+LEGACY_WATCH="$HOME/Downloads/watch"
+if [ -d "$LEGACY_WATCH" ]; then
+  RESCUED=0; STRAY_FAILED=0
+  for F in "$LEGACY_WATCH"/*.magnet "$LEGACY_WATCH"/*.txt; do
+    [ -f "$F" ] || continue
+    # Build the JSON with node so a magnet containing quotes/backslashes cannot
+    # break out of the body (node is guaranteed here — torlink requires it).
+    if node -e 'const fs=require("fs");const m=fs.readFileSync(process.argv[1],"utf8").trim();if(!/^magnet:/i.test(m))process.exit(2);fetch(process.argv[2],{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+process.argv[3]},body:JSON.stringify({magnet:m})}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' \
+         "$F" "http://127.0.0.1:$SERVE_PORT/add" "$TOK" 2>/dev/null; then
+      mkdir -p "$LEGACY_WATCH/.processed" 2>/dev/null || true
+      mv "$F" "$LEGACY_WATCH/.processed/" 2>/dev/null || true
+      RESCUED=$((RESCUED+1))
+    else
+      STRAY_FAILED=$((STRAY_FAILED+1))
+    fi
+  done
+  if [ "$RESCUED" -gt 0 ] || [ "$STRAY_FAILED" -gt 0 ]; then
+    emit rescue ok "imported $RESCUED magnet(s) stranded in the old watch folder ($STRAY_FAILED could not be read); moved to .processed"
+  else
+    emit rescue skip "no stranded magnets in the old watch folder"
+  fi
 fi
 
 # --- verify the freshly-generated token is the one actually answering ---
@@ -404,6 +462,10 @@ cat > "$WD" <<WDEOF
 export PATH="$UNIT_PATH"
 curl -fsS -m 5 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1 && exit 0
 echo "\\$(date -Is) /health did not answer on $SERVE_PORT — restarting torlink" >> "$HOME/.torlnk-watchdog.log"
+# Clear any 'failed' state first: systemctl restart refuses a unit that tripped
+# the start limit ("start request repeated too quickly"), so without this the
+# watchdog would silently no-op on exactly the boxes that need it most.
+systemctl --user reset-failed torlink-serve.service torlink-files.service >/dev/null 2>&1 || true
 systemctl --user restart torlink-serve.service torlink-files.service >/dev/null 2>&1 && exit 0
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
