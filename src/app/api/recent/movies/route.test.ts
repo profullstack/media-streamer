@@ -119,6 +119,23 @@ describe('Recent Movies API - GET /api/recent/movies', () => {
     expect(mockGetRecentMovies).toHaveBeenCalledWith(1);
   });
 
+  it('should use page 1 for a non-integer page parameter', async () => {
+    (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 'user-123' });
+
+    mockGetRecentMovies.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+    });
+
+    const request = new NextRequest('http://localhost/api/recent/movies?page=invalid');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    expect(mockGetRecentMovies).toHaveBeenCalledWith(1);
+  });
+
   it('should set Cache-Control header', async () => {
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 'user-123' });
 
