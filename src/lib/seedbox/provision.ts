@@ -132,6 +132,39 @@ command -v mise >/dev/null 2>&1 && mise reshim >/dev/null 2>&1 || true
 # without torrent controls" trap. Run the freshly-installed dist directly.
 PKG_ROOT="$(npm root -g 2>/dev/null)/@profullstack/torlink"
 CLI_JS="$PKG_ROOT/dist/cli.cjs"
+
+# --- pin uint8-util, which crashes the daemon on every magnet ---
+# uint8-util 2.3.x restructured the package and broke arr2hex. It is a
+# TRANSITIVE dep of webtorrent on a caret range, so \`npm i -g\` silently
+# resolves it to the broken release. The failure is brutal: torlink accepts the
+# magnet (POST /add -> 200), starts fetching metadata, and then throws an
+# UNCAUGHT TypeError inside webtorrent's parse path —
+#
+#   TypeError: The first argument must be of type string or ... Received undefined
+#     at arr2hex (uint8-util/dist/src/node.js:12)
+#     at Torrent._processParsedTorrent (webtorrent/lib/torrent.js:330)
+#
+# — which kills the whole process. systemd restarts it, the in-memory queue is
+# gone with it, and the torrent has vanished. The app sees a 200 from /add and
+# then never finds the torrent in /status. Observed on a live box: 28 crashes,
+# one per send, with an empty queue.json throughout.
+#
+# Reinstalling never helped because the reinstall is what re-fetched the broken
+# version. Upstream fixed this by pinning 2.2.6 (baairon/torlink 5293408); we
+# apply the same pin here so the installer stops re-introducing the crash.
+# Remove once the fork ships a release carrying that pin.
+UINT8_PIN=2.2.6
+if [ -d "$PKG_ROOT" ]; then
+  UINT8_HAVE=$(node -p "require('$PKG_ROOT/node_modules/uint8-util/package.json').version" 2>/dev/null || echo none)
+  if [ "$UINT8_HAVE" = "$UINT8_PIN" ]; then
+    emit uint8 skip "uint8-util already pinned at $UINT8_PIN"
+  elif (cd "$PKG_ROOT" && npm i "uint8-util@$UINT8_PIN" --no-save --silent >/tmp/torlnk-uint8.log 2>&1) \
+    || (command -v sudo >/dev/null 2>&1 && cd "$PKG_ROOT" && sudo -n npm i "uint8-util@$UINT8_PIN" --no-save --silent >>/tmp/torlnk-uint8.log 2>&1); then
+    emit uint8 ok "pinned uint8-util $UINT8_HAVE -> $UINT8_PIN (2.3.x crashes the daemon on every magnet)"
+  else
+    emit uint8 fail "could not pin uint8-util@$UINT8_PIN — the daemon will crash on each add: $(tail -n 2 /tmp/torlnk-uint8.log 2>/dev/null | tr '\\n' ' ')"
+  fi
+fi
 # Neutralize a shadowing wrapper so interactive \`torlnk\` also gets the fresh build
 # (harmless if it doesn't exist).
 if [ -f "$HOME/.local/bin/torlnk" ] && ! grep -q "$PKG_ROOT" "$HOME/.local/bin/torlnk" 2>/dev/null; then

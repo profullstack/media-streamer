@@ -119,10 +119,16 @@ export async function verifyTorrentRegistered(
 
 /**
  * The message shown when torlink accepted a magnet but never registered it.
- * Deliberately specific: the user's instinct is to retry the send, and retrying
- * will produce the same silent success, so point at the daemon instead.
+ *
+ * The known cause is not a "wedged" daemon but a crashing one: torlink answers
+ * `/add` with 200, starts fetching metadata, and then dies on an uncaught
+ * TypeError from a bad transitive `uint8-util` release. systemd restarts it and
+ * the in-memory queue goes with it, so the torrent simply disappears. The
+ * installer now pins the working version, which is why this points there — and
+ * why it says retrying is pointless, since a retry just crashes it again.
  */
 export const ADD_DROPPED_MESSAGE =
-  'Seedbox accepted the torrent but never registered it — the torlink daemon is ' +
-  'wedged and is silently dropping adds. Restart it (Setup → Install torlink & ' +
-  'open ports), then send again.';
+  'Seedbox accepted the torrent but never registered it — the torlink daemon ' +
+  'crashed while reading the torrent and lost it on restart. Sending again will ' +
+  'not help. Re-run Setup → Install torlink & open ports, which pins the fixed ' +
+  'dependency, then send again.';

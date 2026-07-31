@@ -155,6 +155,31 @@ describe('seedbox provisioner', () => {
     it('health-checks the add-API', () => {
       expect(script).toContain('/health');
     });
+
+    it('pins uint8-util, whose 2.3.x release crashes the daemon on every magnet', () => {
+      // uint8-util 2.3.x broke arr2hex. It arrives transitively through
+      // webtorrent on a caret range, so `npm i -g` re-fetches it on every
+      // install — torlink then 200s the add and dies mid-metadata, taking the
+      // in-memory queue with it. Upstream pins 2.2.6; so do we, until the fork
+      // ships a release carrying that pin.
+      expect(script).toContain('UINT8_PIN=2.2.6');
+      expect(script).toContain('uint8-util@$UINT8_PIN');
+      expect(script).toContain('emit uint8 ok');
+      expect(script).toContain('emit uint8 fail');
+    });
+
+    it('pins uint8-util only after the package root is known', () => {
+      // The script runs under `set -u`; referencing $PKG_ROOT before it is
+      // assigned would abort the whole provision.
+      expect(script.indexOf('PKG_ROOT=')).toBeLessThan(script.indexOf('UINT8_PIN='));
+      // And after the install, or there would be nothing to pin into.
+      expect(script.indexOf('npm i -g "$PKG@latest"')).toBeLessThan(script.indexOf('UINT8_PIN='));
+    });
+
+    it('re-pinning is a no-op when the good version is already there', () => {
+      expect(script).toContain('emit uint8 skip');
+      expect(script).toContain('"$UINT8_HAVE" = "$UINT8_PIN"');
+    });
   });
 
   describe('parseSteps', () => {
