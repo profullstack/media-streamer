@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 
-import type { SeedboxFilesConfig } from '@/lib/seedbox/config';
 import { getCurrentUser } from '@/lib/auth';
 import { loadAccountSeedboxConfig } from '@/lib/seedbox';
-import { filesAuthHeaders } from '@/lib/seedbox/files';
+import { listOnDiskNames } from '@/lib/seedbox/files';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
 import { describeFetchError } from '@/lib/seedbox/fetch-error';
 import { isLiveTorrent } from '@/lib/seedbox/torlink-reconcile';
@@ -23,34 +22,6 @@ import { isLiveTorrent } from '@/lib/seedbox/torlink-reconcile';
 // {@link isLiveTorrent}.
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Top-level entry names currently on the seedbox (the dir torlink seeds from).
- * torlink's file server answers `GET <base>/` with `{ entries: [{ name, ... }] }`.
- * Returns null (⇒ skip reconciliation, fail open) if there's no file server
- * configured or the listing can't be fetched/parsed.
- */
-async function listOnDiskNames(files: SeedboxFilesConfig | null): Promise<string[] | null> {
-  if (!files?.baseUrl) return null;
-  const url = `${files.baseUrl.replace(/\/+$/, '')}/`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
-    const res = await fetch(url, {
-      headers: filesAuthHeaders(files),
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { entries?: { name?: string }[] };
-    if (!Array.isArray(json.entries)) return null;
-    return json.entries.map((e) => e?.name ?? '').filter((n): n is string => Boolean(n));
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 interface TorlinkDownload {
   id?: string;
