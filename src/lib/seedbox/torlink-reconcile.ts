@@ -51,6 +51,31 @@ const DISK_BACKED = new Set(['seeding', 'paused']);
  * `onDiskNames === null` means the listing couldn't be fetched, so we can't
  * reconcile — fail open and keep the item rather than hide a real one.
  */
+/**
+ * Whether a torrent is a *stale record*: torlink still tracks it, but its data
+ * is provably gone, so the record is safe to drop.
+ *
+ * This is deliberately stricter than `!isLiveTorrent`, because being wrong here
+ * destroys a record instead of merely hiding a row:
+ *  - the disk listing must have been read successfully, AND
+ *  - it must be non-empty. An empty listing is indistinguishable from a file
+ *    server pointed at the wrong directory, and pruning against it would wipe
+ *    every torrent on the box.
+ *  - only stored states (seeding/paused) and torlink's own `missing` verdict
+ *    qualify. An in-flight or failed torrent has no files *yet* and must never
+ *    be pruned for it.
+ */
+export function isStaleTorrent(
+  status: string,
+  name: string,
+  onDiskNames: string[] | null
+): boolean {
+  if (onDiskNames === null || onDiskNames.length === 0) return false;
+  if (status === 'missing') return true;
+  if (!DISK_BACKED.has(status)) return false;
+  return !isOnDisk(name, onDiskNames);
+}
+
 export function isLiveTorrent(status: string, name: string, onDiskNames: string[] | null): boolean {
   if (status === 'missing') return false;
   // Reconcile ONLY the states that imply stored data. Anything else — including

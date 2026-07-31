@@ -237,8 +237,14 @@ export function TorlinkStatus(): React.ReactElement {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanupNote, setCleanupNote] = useState<string | null>(null);
   // Guard against overlapping/late responses when polling.
   const inFlight = useRef(false);
+  // Autoclean runs at most once per mount. The status poll re-renders every few
+  // seconds, so without this a single stale record would fire an endless stream
+  // of cleanup requests at a daemon we already know can wedge.
+  const autoCleaned = useRef(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     if (inFlight.current) return;
@@ -296,11 +302,51 @@ export function TorlinkStatus(): React.ReactElement {
     [refresh]
   );
 
+  const runCleanup = useCallback(async (): Promise<void> => {
+    setCleaning(true);
+    setCleanupNote(null);
+    try {
+      const res = await fetch('/api/account/seedbox/cleanup', { method: 'POST' });
+      const json = (await res.json().catch(() => ({}))) as {
+        removed?: number;
+        skipped?: string | null;
+        failed?: { name: string; reason: string }[];
+      };
+      if (json.skipped) {
+        setCleanupNote(`Nothing removed — ${json.skipped}`);
+      } else {
+        const failed = json.failed?.length ?? 0;
+        setCleanupNote(
+          `Removed ${json.removed ?? 0} stale record(s)` +
+            (failed > 0 ? `, ${failed} could not be removed` : '')
+        );
+      }
+      await refresh();
+    } catch (err) {
+      setCleanupNote(err instanceof Error ? err.message : 'Cleanup failed');
+    } finally {
+      setCleaning(false);
+    }
+  }, [refresh]);
+
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  // Autoclean on arrival: torlink never forgets a torrent whose files were
+  // deleted, so the ghost records pile up silently and the count drifts further
+  // from reality every time something is removed from disk. Prune them once,
+  // the first time a visit sees any — the server side re-verifies staleness and
+  // refuses to act on an unreadable or empty file listing.
+  useEffect(() => {
+    if (autoCleaned.current) return;
+    if (!data?.raw?.hidden?.length) return;
+    if (data.reachable === false || data.error) return;
+    autoCleaned.current = true;
+    void runCleanup();
+  }, [data, runCleanup]);
 
   if (loading && !data) {
     return (
@@ -373,6 +419,25 @@ export function TorlinkStatus(): React.ReactElement {
               </li>
             ))}
           </ul>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void runCleanup()}
+              disabled={cleaning}
+              className="rounded-md border border-amber-500/50 px-2 py-1 text-xs font-medium text-amber-500 hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              {cleaning ? 'Cleaning…' : `Remove ${data.raw.hidden.length} stale record(s)`}
+            </button>
+            {/* Only the record is dropped — `remove`, never `delete`, so this can
+                never take files off the box even if the check is ever wrong. */}
+            <span className="text-text-tertiary">Forgets the record only; no files are deleted.</span>
+          </div>
+        </div>
+      ) : null}
+
+      {cleanupNote ? (
+        <div className="rounded-lg border border-border bg-background p-3 text-xs text-text-secondary">
+          {cleanupNote}
         </div>
       ) : null}
 
