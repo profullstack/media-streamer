@@ -24,7 +24,7 @@ describe('seedbox provisioner', () => {
     it('installs the torlink fork (with the concurrency cap) and enforces Node >= 22', () => {
       expect(script).toContain('npm i -g "$PKG@latest"'); // @latest so a cached global actually upgrades
       expect(script).toContain("PKG='@profullstack/torlink'");
-      expect(script).toContain('TORLINK_MAX_DOWNLOADS=2');
+      expect(script).toContain('TORLINK_MAX_DOWNLOADS=0');
       expect(script).toContain('-lt 22');
     });
 
@@ -231,5 +231,45 @@ describe('seedbox provisioner — install must leave a daemon that stays up', ()
   it('still does not create a watch dir (nothing reads it)', () => {
     expect(script).not.toContain('mkdir -p "$WATCH"');
     expect(script).not.toContain('WATCH="$HOME/Downloads/watch"\nmkdir');
+  });
+});
+
+describe('seedbox provisioner — torlink drops adds when queue.json holds dead records', () => {
+  const script = buildProvisionScript('TOK123_-', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT);
+
+  it('leaves the concurrency cap off', () => {
+    // torlink only calls startEngine() when under the cap; items restored from
+    // queue.json keep a "downloading" status but never get an engine, so they
+    // hold a slot that can never free (promote() fires only on complete/error).
+    // At 2, two such records parked every later add as "queued" forever.
+    expect(script).toContain('TORLINK_MAX_DOWNLOADS=0');
+    expect(script).not.toContain('TORLINK_MAX_DOWNLOADS=2');
+    // Every place the daemons get their environment must agree.
+    expect(script.match(/TORLINK_MAX_DOWNLOADS=0/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('moves unrestartable queue records aside before starting the daemons', () => {
+    expect(script).toContain('emit queue ok');
+    expect(script).toContain('queue.json');
+    expect(script).toContain('.stale');
+    // Backup, never delete — the operator may want to inspect it.
+    expect(script).toContain('mv "$QUEUE_JSON" "$QUEUE_JSON.stale"');
+    expect(script).not.toContain('rm -f "$QUEUE_JSON"');
+  });
+
+  it('clears the queue only after every daemon is dead, so nothing is live', () => {
+    // Clearing while serve is running would race torlink's own persist().
+    const stop = script.indexOf('stop_torlink\n');
+    const clear = script.indexOf('QUEUE_JSON=');
+    const start = script.indexOf('--- start the daemons UNDER SUPERVISION ---');
+    expect(stop).toBeGreaterThan(-1);
+    expect(clear).toBeGreaterThan(stop);
+    expect(clear).toBeLessThan(start);
+  });
+
+  it('counts only records torlink would refuse to re-add', () => {
+    // add() early-returns for any existing record that is not "failed", so a
+    // "failed" one is harmless — it does not need clearing.
+    expect(script).toContain('i.status!=="failed"');
   });
 });

@@ -215,12 +215,54 @@ sleep 2
 free_port -KILL "$SERVE_PORT"; free_port -KILL "$FILES_PORT"
 sleep 1
 
+# --- clear queue records torlink can never restart ---
+# torlink restores queue.json into memory at boot but never re-attaches the
+# webtorrent engine to those items. Anything left at "downloading"/"queued" is
+# therefore dead: it makes no progress, still counts toward the concurrency cap,
+# and makes add() a silent no-op for that infohash forever (add() returns early
+# whenever it already holds a non-"failed" record, while /add still answers 200).
+# That is what made a send report success and then never appear anywhere.
+#
+# Nothing is running at this point — stop_torlink above killed every daemon — so
+# any surviving entry is stale by definition. Move the file aside rather than
+# delete it, and let torlink rebuild from a clean slate. Without this, a wedged
+# box stayed wedged across reinstalls and there was no way back short of ssh.
+QUEUE_JSON=$(find "$HOME/.local/share" "$HOME/.config" "$HOME/.local/state" -maxdepth 5 -name queue.json -path '*torl*' 2>/dev/null | head -n 1)
+if [ -n "$QUEUE_JSON" ] && [ -s "$QUEUE_JSON" ]; then
+  STALE=0
+  STALE=$(node -e 'try{const q=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const a=Array.isArray(q)?q:[];process.stdout.write(String(a.filter(i=>i&&i.status!=="failed").length))}catch(e){process.stdout.write("0")}' "$QUEUE_JSON" 2>/dev/null || echo 0)
+  if [ "$STALE" -gt 0 ] 2>/dev/null; then
+    mv "$QUEUE_JSON" "$QUEUE_JSON.stale" 2>/dev/null || true
+    emit queue ok "cleared $STALE unrestartable queue record(s); backup at $QUEUE_JSON.stale"
+  else
+    emit queue skip "queue.json holds nothing stale"
+  fi
+else
+  emit queue skip "no torlink queue file on this box yet"
+fi
+
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
-# Cap concurrent downloads so each active torrent gets fair bandwidth on a
-# limited seedbox line (torlink >= the version with TORLINK_MAX_DOWNLOADS;
-# harmlessly ignored by older builds).
-export TORLINK_MAX_DOWNLOADS=2
+# Concurrency cap: DISABLED (0 = unlimited). This used to be 2, for fair
+# bandwidth on a thin seedbox line. It has to stay off until torlink is fixed.
+#
+# torlink 1.4.4 only starts a torrent's engine when it is under the cap:
+# \`startEngine\` runs from add() when activeCount < maxDownloads, and otherwise
+# only from promote(), which fires when an active download completes or errors.
+# But items restored from queue.json at boot are put back with their old
+# "downloading" status and their engine is NEVER re-attached. Such a record can
+# therefore never complete or error, so promote() never runs, and it occupies a
+# slot forever. At a cap of 2, two of them wedged the box permanently — every
+# later add was parked as "queued" and never started. It survived reinstalls
+# because nothing cleared queue.json (see the step above, which now does).
+#
+# add() compounds it: it returns silently when it already holds a record for
+# that infohash, while /add still answers 200 — so the app reported a successful
+# send for a torrent that went nowhere.
+#
+# With 0, add() always starts the engine, so a stale record cannot block new
+# torrents. Restore the cap once torlink re-attaches restored items to a client.
+export TORLINK_MAX_DOWNLOADS=0
 
 # --- start the daemons UNDER SUPERVISION ---
 # A bare \`--daemon\` process answers to nobody: a crash, an OOM kill or a reboot
@@ -249,7 +291,7 @@ Type=simple
 Environment="PATH=$UNIT_PATH"
 Environment="TORLINK_API_TOKEN=$TOK"
 Environment="TORLINK_FILES_TOKEN=$TOK"
-Environment="TORLINK_MAX_DOWNLOADS=2"
+Environment="TORLINK_MAX_DOWNLOADS=0"
 # The token comes from the environment above, NOT argv: anything on the command
 # line is world-readable in \`ps\` to every user on the box. torlink reads
 # \`U.token ?? process.env.TORLINK_API_TOKEN\`, and refuses to bind a public
@@ -479,7 +521,7 @@ systemctl --user reset-failed torlink-serve.service torlink-files.service >/dev/
 systemctl --user restart torlink-serve.service torlink-files.service >/dev/null 2>&1 && exit 0
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
-export TORLINK_MAX_DOWNLOADS=2
+export TORLINK_MAX_DOWNLOADS=0
 "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --to "$DATA" ${seedFlag}--daemon >/dev/null 2>&1 || true
 "$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --dir "$DATA" --daemon >/dev/null 2>&1 || true
 WDEOF
