@@ -132,6 +132,39 @@ command -v mise >/dev/null 2>&1 && mise reshim >/dev/null 2>&1 || true
 # without torrent controls" trap. Run the freshly-installed dist directly.
 PKG_ROOT="$(npm root -g 2>/dev/null)/@profullstack/torlink"
 CLI_JS="$PKG_ROOT/dist/cli.cjs"
+
+# --- pin uint8-util, which crashes the daemon on every magnet ---
+# uint8-util 2.3.x restructured the package and broke arr2hex. It is a
+# TRANSITIVE dep of webtorrent on a caret range, so \`npm i -g\` silently
+# resolves it to the broken release. The failure is brutal: torlink accepts the
+# magnet (POST /add -> 200), starts fetching metadata, and then throws an
+# UNCAUGHT TypeError inside webtorrent's parse path —
+#
+#   TypeError: The first argument must be of type string or ... Received undefined
+#     at arr2hex (uint8-util/dist/src/node.js:12)
+#     at Torrent._processParsedTorrent (webtorrent/lib/torrent.js:330)
+#
+# — which kills the whole process. systemd restarts it, the in-memory queue is
+# gone with it, and the torrent has vanished. The app sees a 200 from /add and
+# then never finds the torrent in /status. Observed on a live box: 28 crashes,
+# one per send, with an empty queue.json throughout.
+#
+# Reinstalling never helped because the reinstall is what re-fetched the broken
+# version. Upstream fixed this by pinning 2.2.6 (baairon/torlink 5293408); we
+# apply the same pin here so the installer stops re-introducing the crash.
+# Remove once the fork ships a release carrying that pin.
+UINT8_PIN=2.2.6
+if [ -d "$PKG_ROOT" ]; then
+  UINT8_HAVE=$(node -p "require('$PKG_ROOT/node_modules/uint8-util/package.json').version" 2>/dev/null || echo none)
+  if [ "$UINT8_HAVE" = "$UINT8_PIN" ]; then
+    emit uint8 skip "uint8-util already pinned at $UINT8_PIN"
+  elif (cd "$PKG_ROOT" && npm i "uint8-util@$UINT8_PIN" --no-save --silent >/tmp/torlnk-uint8.log 2>&1) \
+    || (command -v sudo >/dev/null 2>&1 && cd "$PKG_ROOT" && sudo -n npm i "uint8-util@$UINT8_PIN" --no-save --silent >>/tmp/torlnk-uint8.log 2>&1); then
+    emit uint8 ok "pinned uint8-util $UINT8_HAVE -> $UINT8_PIN (2.3.x crashes the daemon on every magnet)"
+  else
+    emit uint8 fail "could not pin uint8-util@$UINT8_PIN — the daemon will crash on each add: $(tail -n 2 /tmp/torlnk-uint8.log 2>/dev/null | tr '\\n' ' ')"
+  fi
+fi
 # Neutralize a shadowing wrapper so interactive \`torlnk\` also gets the fresh build
 # (harmless if it doesn't exist).
 if [ -f "$HOME/.local/bin/torlnk" ] && ! grep -q "$PKG_ROOT" "$HOME/.local/bin/torlnk" 2>/dev/null; then
@@ -215,56 +248,12 @@ sleep 2
 free_port -KILL "$SERVE_PORT"; free_port -KILL "$FILES_PORT"
 sleep 1
 
-# --- clear queue records torlink can never restart ---
-# torlink restores queue.json into memory at boot but never re-attaches the
-# webtorrent engine to those items. Anything left at "downloading"/"queued" is
-# therefore dead: it makes no progress, still counts toward the concurrency cap,
-# and makes add() a silent no-op for that infohash forever (add() returns early
-# whenever it already holds a non-"failed" record, while /add still answers 200).
-# That is what made a send report success and then never appear anywhere.
-#
-# Nothing is running at this point — stop_torlink above killed every daemon — so
-# any surviving entry is stale by definition. Move the file aside rather than
-# delete it, and let torlink rebuild from a clean slate. Without this, a wedged
-# box stayed wedged across reinstalls and there was no way back short of ssh.
-QUEUE_JSON=$(find "$HOME/.local/share" "$HOME/.config" "$HOME/.local/state" -maxdepth 5 -name queue.json -path '*torl*' 2>/dev/null | head -n 1)
-if [ -n "$QUEUE_JSON" ] && [ -s "$QUEUE_JSON" ]; then
-  STALE=0
-  STALE=$(node -e 'try{const q=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const a=Array.isArray(q)?q:[];process.stdout.write(String(a.filter(i=>i&&i.status!=="failed").length))}catch(e){process.stdout.write("0")}' "$QUEUE_JSON" 2>/dev/null || echo 0)
-  if [ "$STALE" -gt 0 ] 2>/dev/null; then
-    mv "$QUEUE_JSON" "$QUEUE_JSON.stale" 2>/dev/null || true
-    emit queue ok "cleared $STALE unrestartable queue record(s); backup at $QUEUE_JSON.stale"
-  else
-    emit queue skip "queue.json holds nothing stale"
-  fi
-else
-  emit queue skip "no torlink queue file on this box yet"
-fi
-
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
-# Concurrency cap: DISABLED (0 = unlimited). This used to be 2, for fair
-# bandwidth on a thin seedbox line. It has to stay off until torlink is fixed.
-#
-# torlink's activeCount counts items whose status is "downloading", and
-# promote() only starts a queued item while activeCount < maxDownloads. A
-# stalled download — a dead magnet that never finds a peer — keeps that status
-# forever: it never completes and never errors, so nothing ever frees its slot.
-# At a cap of 2, two such torrents parked every later add as "queued"
-# indefinitely, and the box looked healthy the whole time.
-#
-# add() compounds it: it returns early for any record it already holds that is
-# not "failed", while /add still answers 200. Re-sending the same magnet is
-# therefore a guaranteed silent no-op — the app reported a successful send for
-# a torrent that went nowhere, and retrying could never help.
-#
-# queue.json persists all of this, so the wedge survived daemon restarts and
-# reinstalls alike (see the step above, which now clears it).
-#
-# With 0, promote() short-circuits and add() always starts the engine, so a
-# stalled torrent can no longer block new ones. Restore the cap once torlink
-# can free a slot held by a download that will never progress.
-export TORLINK_MAX_DOWNLOADS=0
+# Cap concurrent downloads so each active torrent gets fair bandwidth on a
+# limited seedbox line (torlink >= the version with TORLINK_MAX_DOWNLOADS;
+# harmlessly ignored by older builds).
+export TORLINK_MAX_DOWNLOADS=2
 
 # --- start the daemons UNDER SUPERVISION ---
 # A bare \`--daemon\` process answers to nobody: a crash, an OOM kill or a reboot
@@ -293,7 +282,7 @@ Type=simple
 Environment="PATH=$UNIT_PATH"
 Environment="TORLINK_API_TOKEN=$TOK"
 Environment="TORLINK_FILES_TOKEN=$TOK"
-Environment="TORLINK_MAX_DOWNLOADS=0"
+Environment="TORLINK_MAX_DOWNLOADS=2"
 # The token comes from the environment above, NOT argv: anything on the command
 # line is world-readable in \`ps\` to every user on the box. torlink reads
 # \`U.token ?? process.env.TORLINK_API_TOKEN\`, and refuses to bind a public
@@ -523,7 +512,7 @@ systemctl --user reset-failed torlink-serve.service torlink-files.service >/dev/
 systemctl --user restart torlink-serve.service torlink-files.service >/dev/null 2>&1 && exit 0
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
-export TORLINK_MAX_DOWNLOADS=0
+export TORLINK_MAX_DOWNLOADS=2
 "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --to "$DATA" ${seedFlag}--daemon >/dev/null 2>&1 || true
 "$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --dir "$DATA" --daemon >/dev/null 2>&1 || true
 WDEOF

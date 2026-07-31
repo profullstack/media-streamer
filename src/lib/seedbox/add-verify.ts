@@ -120,14 +120,15 @@ export async function verifyTorrentRegistered(
 /**
  * The message shown when torlink accepted a magnet but never registered it.
  *
- * Deliberately specific, and deliberately NOT "restart the daemon": torlink
- * reloads the very queue.json that causes this on every start, so a plain
- * restart reproduces the wedge instead of clearing it. The installer is what
- * fixes it — it moves the unrestartable records aside before starting the
- * daemons — so point there, and say why retrying the send cannot help.
+ * The known cause is not a "wedged" daemon but a crashing one: torlink answers
+ * `/add` with 200, starts fetching metadata, and then dies on an uncaught
+ * TypeError from a bad transitive `uint8-util` release. systemd restarts it and
+ * the in-memory queue goes with it, so the torrent simply disappears. The
+ * installer now pins the working version, which is why this points there — and
+ * why it says retrying is pointless, since a retry just crashes it again.
  */
 export const ADD_DROPPED_MESSAGE =
-  'Seedbox accepted the torrent but never registered it — torlink is holding a ' +
-  'stale queue record it cannot restart, so it silently ignores new adds for ' +
-  'this torrent. Sending again will not help. Re-run Setup → Install torlink & ' +
-  'open ports, which clears those records, then send again.';
+  'Seedbox accepted the torrent but never registered it — the torlink daemon ' +
+  'crashed while reading the torrent and lost it on restart. Sending again will ' +
+  'not help. Re-run Setup → Install torlink & open ports, which pins the fixed ' +
+  'dependency, then send again.';
