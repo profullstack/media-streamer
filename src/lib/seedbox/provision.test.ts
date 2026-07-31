@@ -1,12 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import {
   buildProvisionScript,
   generateSeedboxToken,
   parseSteps,
+  provisionTorlink,
   DEFAULT_FILES_PORT,
   DEFAULT_SERVE_PORT,
 } from './provision';
+import { execRemote } from './ssh-transport';
+
+vi.mock('./ssh-transport', () => ({ execRemote: vi.fn() }));
 
 describe('seedbox provisioner', () => {
   describe('generateSeedboxToken', () => {
@@ -215,5 +219,109 @@ describe('seedbox provisioner — install must leave a daemon that stays up', ()
   it('still does not create a watch dir (nothing reads it)', () => {
     expect(script).not.toContain('mkdir -p "$WATCH"');
     expect(script).not.toContain('WATCH="$HOME/Downloads/watch"\nmkdir');
+  });
+});
+
+describe('watchdog — must be able to reach systemd from cron', () => {
+  const script = buildProvisionScript('TOK123_-', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT);
+  const wd = script.match(/cat > "\$WD" <<WDEOF[\s\S]*?\nWDEOF/)?.[0] ?? '';
+
+  it('extracts the watchdog body', () => {
+    expect(wd).toBeTruthy();
+  });
+
+  // Comments in this block mention systemctl by name, so order must be asserted
+  // against real commands only — matching raw text would prove nothing.
+  const wdCommands = wd
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('#'))
+    .join('\n');
+
+  it('sets XDG_RUNTIME_DIR/DBUS before calling systemctl --user', () => {
+    // cron has no login session: without these, `systemctl --user` fails with
+    // "Failed to connect to user scope bus" on every run, so the watchdog never
+    // actually restarted the units it exists to restart.
+    expect(wdCommands).toContain('XDG_RUNTIME_DIR');
+    expect(wdCommands).toContain('DBUS_SESSION_BUS_ADDRESS');
+    expect(wdCommands.indexOf('XDG_RUNTIME_DIR')).toBeLessThan(wdCommands.indexOf('systemctl --user'));
+    expect(wdCommands.indexOf('DBUS_SESSION_BUS_ADDRESS')).toBeLessThan(
+      wdCommands.indexOf('systemctl --user')
+    );
+  });
+
+  it('resolves the uid when the watchdog runs, not when it is written', () => {
+    // A bare $(id -u) inside the unquoted heredoc would bake the PROVISIONING
+    // shell's uid into the file.
+    expect(wd).toContain('/run/user/\\$(id -u)');
+    expect(wd).not.toMatch(/XDG_RUNTIME_DIR="\/run\/user\/\d+"/);
+  });
+
+  it('re-probes health before falling back to an unsupervised daemon', () => {
+    // Spawning a bare daemon while the unit is mid-restart races it for the
+    // port; the loser then crash-loops forever against a port it cannot bind.
+    const restart = wd.indexOf('systemctl --user restart');
+    const fallback = wd.indexOf('--daemon');
+    expect(restart).toBeGreaterThan(-1);
+    expect(fallback).toBeGreaterThan(restart);
+    const between = wd.slice(restart, fallback);
+    expect(between).toMatch(/curl[^\n]*\/health/);
+    expect(between).toMatch(/sleep \d+/);
+    // The old `restart ... && exit 0` short-circuit treated a queued restart as
+    // proof the port was bound.
+    expect(wd).not.toContain('restart torlink-serve.service torlink-files.service >/dev/null 2>&1 && exit 0');
+  });
+
+  it('retries the stability probe so one dropped packet cannot fail a healthy box', () => {
+    const stable = script.slice(script.indexOf('--- does it STAY up? ---'));
+    expect(stable).toContain('STABLE=0');
+    expect(stable).toMatch(/for _ in 1 2 3/);
+  });
+});
+
+describe('provisionTorlink — a daemon we watched die is not a successful install', () => {
+  const ssh = {
+    host: 'seedbox.example.com',
+    port: 22,
+    user: 'ubuntu',
+    privateKey: 'KEY',
+    privateKeyPath: null,
+    watchDir: null,
+    addCommand: 'true',
+  };
+
+  const runWith = async (lines: string[]) => {
+    vi.mocked(execRemote).mockResolvedValue({ stdout: lines.join('\n'), stderr: '' } as never);
+    return provisionTorlink(ssh, { token: 'TOK' });
+  };
+
+  beforeEach(() => vi.mocked(execRemote).mockReset());
+
+  it('fails the install when the daemon died inside the stability window', async () => {
+    const result = await runWith([
+      'STEP|install|ok|npm i -g @profullstack/torlink@latest',
+      'STEP|serve|ok|add-API on 9161',
+      'STEP|health|ok|{"ok":true}',
+      'STEP|stable|fail|torlink started but died within ~15s — Main process exited',
+      'RESULT|ok',
+    ]);
+    expect(result.ok).toBe(false);
+    // No token ⇒ the route 502s instead of wiring a dead box into the config.
+    expect(result.token).toBeNull();
+    expect(result.steps.find((s) => s.name === 'stable')?.status).toBe('fail');
+  });
+
+  it('succeeds when the daemon is still serving after the window', async () => {
+    const result = await runWith([
+      'STEP|serve|ok|add-API on 9161',
+      'STEP|stable|ok|still serving 15s after start',
+      'RESULT|ok',
+    ]);
+    expect(result.ok).toBe(true);
+    expect(result.token).toBe('TOK');
+  });
+
+  it('does not require a stable step that an older script never emitted', async () => {
+    const result = await runWith(['STEP|serve|ok|add-API on 9161', 'RESULT|ok']);
+    expect(result.ok).toBe(true);
   });
 });

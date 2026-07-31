@@ -356,7 +356,15 @@ fi
 # provisioner that reports success for a daemon which is already gone is worse
 # than useless. Re-probe after a delay and report what killed it.
 sleep 12
-if curl -fsS -m 5 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1; then
+# Retry rather than judging on a single curl: this step now GATES the whole
+# install (see provisionTorlink), so one dropped probe must not fail a box whose
+# daemon is actually healthy.
+STABLE=0
+for _ in 1 2 3; do
+  if curl -fsS -m 5 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1; then STABLE=1; break; fi
+  sleep 2
+done
+if [ "$STABLE" = "1" ]; then
   emit stable ok "still serving 15s after start"
 else
   emit stable fail "torlink started but died within ~15s — $(why_dead)"
@@ -460,13 +468,30 @@ cat > "$WD" <<WDEOF
 #!/usr/bin/env bash
 # Installed by media-streamer. Restarts torlink when its add-API stops answering.
 export PATH="$UNIT_PATH"
+# cron runs with no login session, so \`systemctl --user\` has no bus to talk to
+# and dies with "Failed to connect to user scope bus". That failure is silent:
+# the restart below was skipped on EVERY run and the watchdog fell straight
+# through to the unsupervised fallback, which then fought the still-enabled unit
+# for $SERVE_PORT. Point systemctl at the lingering user manager explicitly.
+# \\$(id -u) is evaluated when the watchdog RUNS, not when this heredoc is written.
+export XDG_RUNTIME_DIR="/run/user/\\$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/\\$(id -u)/bus"
 curl -fsS -m 5 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1 && exit 0
 echo "\\$(date -Is) /health did not answer on $SERVE_PORT — restarting torlink" >> "$HOME/.torlnk-watchdog.log"
 # Clear any 'failed' state first: systemctl restart refuses a unit that tripped
 # the start limit ("start request repeated too quickly"), so without this the
 # watchdog would silently no-op on exactly the boxes that need it most.
 systemctl --user reset-failed torlink-serve.service torlink-files.service >/dev/null 2>&1 || true
-systemctl --user restart torlink-serve.service torlink-files.service >/dev/null 2>&1 && exit 0
+systemctl --user restart torlink-serve.service torlink-files.service >/dev/null 2>&1
+# A systemd restart is asynchronous, so a zero exit status does not mean the port
+# is bound yet. Re-probe before falling back: spawning a bare daemon while the
+# unit is mid-restart races it for $SERVE_PORT, and whichever loses crash-loops
+# forever against a port it can never bind.
+for _ in 1 2 3 4 5 6; do
+  curl -fsS -m 3 "http://127.0.0.1:$SERVE_PORT/health" >/dev/null 2>&1 && exit 0
+  sleep 2
+done
+# Still dead ⇒ systemd is not managing this box (or cannot). Unsupervised it is.
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
 export TORLINK_MAX_DOWNLOADS=2
@@ -539,6 +564,13 @@ export async function provisionTorlink(
 
   const { steps, result } = parseSteps(raw);
   const serveOk = steps.some((s) => s.name === 'serve' && s.status === 'ok');
-  const ok = result === 'ok' && serveOk;
+  // A daemon that died inside the stability window is NOT a successful install.
+  // The script already detects this and emits `stable fail`, but success used to
+  // hinge on the `serve` step alone — so the caller wired the fresh token into
+  // the account config and showed a green "installed", and the very next status
+  // poll reported ECONNREFUSED. Reporting success for a daemon we watched die is
+  // exactly the failure this step exists to catch, so let it veto.
+  const stableFailed = steps.some((s) => s.name === 'stable' && s.status === 'fail');
+  const ok = result === 'ok' && serveOk && !stableFailed;
   return { ok, steps, token: ok ? token : null, servePort, filesPort, raw };
 }
