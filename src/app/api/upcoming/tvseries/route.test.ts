@@ -120,6 +120,23 @@ describe('Upcoming TV Series API - GET /api/upcoming/tvseries', () => {
     expect(mockGetUpcomingTVSeries).toHaveBeenCalledWith(1);
   });
 
+  it('should use page 1 for a non-integer page parameter', async () => {
+    (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 'user-123' });
+
+    mockGetUpcomingTVSeries.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+    });
+
+    const request = new NextRequest('http://localhost/api/upcoming/tvseries?page=invalid');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    expect(mockGetUpcomingTVSeries).toHaveBeenCalledWith(1);
+  });
+
   it('should set Cache-Control header', async () => {
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 'user-123' });
 

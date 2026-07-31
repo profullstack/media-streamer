@@ -250,7 +250,12 @@ Environment="PATH=$UNIT_PATH"
 Environment="TORLINK_API_TOKEN=$TOK"
 Environment="TORLINK_FILES_TOKEN=$TOK"
 Environment="TORLINK_MAX_DOWNLOADS=2"
-ExecStart=$BIN serve --host 0.0.0.0 --port $SERVE_PORT --token $TOK --to "$DATA" ${seedFlag}
+# The token comes from the environment above, NOT argv: anything on the command
+# line is world-readable in \`ps\` to every user on the box. torlink reads
+# \`U.token ?? process.env.TORLINK_API_TOKEN\`, and refuses to bind a public
+# interface with no token at all — so a missing env var fails the unit loudly
+# instead of quietly exposing an unauthenticated API.
+ExecStart=$BIN serve --host 0.0.0.0 --port $SERVE_PORT --to "$DATA" ${seedFlag}
 Restart=always
 RestartSec=5
 
@@ -271,7 +276,8 @@ Type=simple
 Environment="PATH=$UNIT_PATH"
 Environment="TORLINK_API_TOKEN=$TOK"
 Environment="TORLINK_FILES_TOKEN=$TOK"
-ExecStart=$BIN files --host 0.0.0.0 --port $FILES_PORT --token $TOK --dir "$DATA"
+# Token via environment, not argv — see the add-API unit above.
+ExecStart=$BIN files --host 0.0.0.0 --port $FILES_PORT --dir "$DATA"
 Restart=always
 RestartSec=5
 
@@ -306,12 +312,16 @@ if [ "$SUPERVISED" = "1" ]; then
     emit files fail "torlink-files.service started but nothing answered on $FILES_PORT — run 'systemctl --user status torlink-files' on the box"
   fi
 else
-  if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" ${seedFlag}--daemon >/tmp/torlnk-serve.log 2>&1; then
+  # Export rather than pass --token: argv is visible in \`ps\` to every user on
+  # the box, and torlink falls back to these env vars.
+  export TORLINK_API_TOKEN="$TOK"
+  export TORLINK_FILES_TOKEN="$TOK"
+  if "$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --to "$DATA" ${seedFlag}--daemon >/tmp/torlnk-serve.log 2>&1; then
     emit serve ok "add-API on $SERVE_PORT (downloads: $DATA; ${seedDesc})"
   else
     emit serve fail "$(tail -n 3 /tmp/torlnk-serve.log 2>/dev/null | tr '\\n' ' ')"
   fi
-  if "$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --token "$TOK" --dir "$DATA" --daemon >/tmp/torlnk-files.log 2>&1; then
+  if "$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --dir "$DATA" --daemon >/tmp/torlnk-files.log 2>&1; then
     emit files ok "file server on $FILES_PORT (serving: $DATA)"
   else
     emit files fail "$(tail -n 3 /tmp/torlnk-files.log 2>/dev/null | tr '\\n' ' ')"
@@ -495,8 +505,8 @@ done
 export TORLINK_API_TOKEN="$TOK"
 export TORLINK_FILES_TOKEN="$TOK"
 export TORLINK_MAX_DOWNLOADS=2
-"$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK" --to "$DATA" ${seedFlag}--daemon >/dev/null 2>&1 || true
-"$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --token "$TOK" --dir "$DATA" --daemon >/dev/null 2>&1 || true
+"$BIN" serve --host 0.0.0.0 --port "$SERVE_PORT" --to "$DATA" ${seedFlag}--daemon >/dev/null 2>&1 || true
+"$BIN" files --host 0.0.0.0 --port "$FILES_PORT" --dir "$DATA" --daemon >/dev/null 2>&1 || true
 WDEOF
 chmod +x "$WD" 2>/dev/null || true
 WD_MARK="# torlink-watchdog-media-streamer"

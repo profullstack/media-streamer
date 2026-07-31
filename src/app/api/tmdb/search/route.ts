@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { parseIntegerParam } from '@/lib/api/pagination';
 import { getTMDBService } from '@/lib/tmdb';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const page = Math.max(1, parseInt(request.nextUrl.searchParams.get('page') ?? '1', 10));
+    const page = parseIntegerParam(request.nextUrl.searchParams.get('page'), { min: 1 }) ?? 1;
     const tmdbService = getTMDBService();
     const result = await tmdbService.searchMulti(query, page);
 

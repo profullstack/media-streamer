@@ -47,13 +47,29 @@ describe('seedbox provisioner', () => {
       expect(script).toContain('not found'); // missing route -> emit controls fail
     });
 
-    it('starts serve and files daemons bound to the token and public host', () => {
-      expect(script).toContain(`serve --host 0.0.0.0 --port "$SERVE_PORT" --token "$TOK"`);
-      expect(script).toContain(`files --host 0.0.0.0 --port "$FILES_PORT" --token "$TOK"`);
+    it('starts serve and files daemons bound to the public host', () => {
+      expect(script).toContain(`serve --host 0.0.0.0 --port "$SERVE_PORT"`);
+      expect(script).toContain(`files --host 0.0.0.0 --port "$FILES_PORT"`);
       expect(script).toContain('--daemon');
       expect(script).toContain("TOK='TOK123_-'");
       expect(script).toContain("SERVE_PORT='9161'");
       expect(script).toContain("FILES_PORT='9160'");
+    });
+
+    it('never puts the bearer token on a command line', () => {
+      // argv is world-readable via `ps`, so `--token <secret>` hands the seedbox
+      // API key to every user on the box. torlink reads
+      // `U.token ?? process.env.TORLINK_API_TOKEN` and refuses to bind a public
+      // interface with no token at all, so the env-var route is both safe and
+      // fail-loud.
+      // Compare executable lines only — a comment mentioning the flag is fine.
+      const code = script
+        .split('\n')
+        .filter((line) => !line.trim().startsWith('#'))
+        .join('\n');
+      expect(code).not.toContain('--token');
+      expect(code).toContain('TORLINK_API_TOKEN=');
+      expect(code).toContain('TORLINK_FILES_TOKEN=');
     });
 
     // Pull out just the `serve ... --daemon` invocation so assertions target the

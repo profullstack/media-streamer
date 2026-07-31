@@ -9,6 +9,8 @@ import {
 } from './config';
 import { sendMagnetViaHttp, type SendResult } from './http-transport';
 import { getSeedboxPublicKey, sendMagnetViaSsh, sendMagnetViaSshToLocalApi } from './ssh-transport';
+import { ADD_DROPPED_MESSAGE, verifyTorrentRegistered, type VerifyOptions } from './add-verify';
+import { parseInfohash } from './magnet';
 
 export interface SeedboxAccess {
   /** True when this account may push to a configured seedbox transport. */
@@ -50,6 +52,29 @@ export function isValidMagnet(magnet: unknown): magnet is string {
  * configured one when `transport` is omitted).
  */
 export async function sendTorrentToSeedbox(
+  magnet: string,
+  name: string,
+  transport: SeedboxTransport | undefined,
+  config: SeedboxConfig,
+  verifyOptions: VerifyOptions = {}
+): Promise<SendResult> {
+  const result = await dispatchSend(magnet, name, transport, config);
+  // A transport reporting success only means the daemon *accepted* the magnet.
+  // torlink answers `added` before it queues anything and will happily drop the
+  // torrent afterwards, so confirm it against /status before telling the user
+  // it worked. Anything short of proof-of-absence leaves the result untouched.
+  if (!result.ok || !config.http) return result;
+  const outcome = await verifyTorrentRegistered(
+    config.http,
+    parseInfohash(magnet),
+    name,
+    verifyOptions
+  );
+  if (outcome !== 'missing') return result;
+  return { ok: false, transport: result.transport, message: ADD_DROPPED_MESSAGE };
+}
+
+async function dispatchSend(
   magnet: string,
   name: string,
   transport: SeedboxTransport | undefined,

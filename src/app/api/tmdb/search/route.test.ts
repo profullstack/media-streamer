@@ -150,6 +150,23 @@ describe('TMDB Search API - GET /api/tmdb/search', () => {
     expect(mockSearchMulti).toHaveBeenCalledWith('batman', 1);
   });
 
+  it('should use page 1 for a non-integer page parameter', async () => {
+    (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 'user-123' });
+
+    mockSearchMulti.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+    });
+
+    const request = new NextRequest('http://localhost/api/tmdb/search?q=batman&page=invalid');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    expect(mockSearchMulti).toHaveBeenCalledWith('batman', 1);
+  });
+
   it('should trim query whitespace', async () => {
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: 'user-123' });
 

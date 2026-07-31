@@ -28,6 +28,41 @@ export function filesAuthHeaders(config: SeedboxFilesConfig): Record<string, str
 }
 
 /**
+ * Top-level entry names in the directory torlink seeds from — the ground truth
+ * for "does this torrent's data still exist". torlink's file server answers
+ * `GET <base>/` with `{ entries: [{ name, ... }] }`.
+ *
+ * Returns null when there is no file server configured or the listing can't be
+ * fetched or parsed. Callers must treat null as "unknown", never as "empty":
+ * the difference decides whether a torrent is hidden or a record is destroyed.
+ */
+export async function listOnDiskNames(
+  files: SeedboxFilesConfig | null,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 6000
+): Promise<string[] | null> {
+  if (!files?.baseUrl) return null;
+  const url = `${files.baseUrl.replace(/\/+$/, '')}/`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchImpl(url, {
+      headers: filesAuthHeaders(files),
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { entries?: { name?: string }[] };
+    if (!Array.isArray(json.entries)) return null;
+    return json.entries.map((e) => e?.name ?? '').filter((n): n is string => Boolean(n));
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Build the absolute seedbox URL for a torrent-relative file path. Returns null
  * for paths that try to escape the base (traversal / absolute / scheme).
  */

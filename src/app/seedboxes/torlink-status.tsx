@@ -37,6 +37,8 @@ interface StatusResponse {
   error?: string;
   downloads?: RawDownload[];
   seeds?: RawSeed[];
+  /** Unfiltered view of what torlink itself reported, for diagnosing gaps. */
+  raw?: { downloads: number; seeds: number; hidden: { name: string; status: string }[] };
 }
 
 /** A torrent merged from torlink's `downloads` + `seeds` arrays (by infohash). */
@@ -235,21 +237,38 @@ export function TorlinkStatus(): React.ReactElement {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanupNote, setCleanupNote] = useState<string | null>(null);
   // Guard against overlapping/late responses when polling.
   const inFlight = useRef(false);
+  // Autoclean runs at most once per mount. The status poll re-renders every few
+  // seconds, so without this a single stale record would fire an endless stream
+  // of cleanup requests at a daemon we already know can wedge.
+  const autoCleaned = useRef(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     if (inFlight.current) return;
     inFlight.current = true;
+    // A hung request must never wedge the poller. Without a timeout the fetch
+    // promise can stay pending indefinitely, so `finally` never runs, inFlight
+    // stays true, and every later tick returns early — the page then freezes on
+    // its last snapshot forever, showing a stale timestamp and no error at all.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), POLL_MS * 3);
     try {
-      const res = await fetch('/api/account/seedbox/status', { cache: 'no-store' });
+      const res = await fetch('/api/account/seedbox/status', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       const json = (await res.json().catch(() => ({}))) as StatusResponse;
       setData(json);
       setFetchError(null);
       setUpdatedAt(Date.now());
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to load status');
+      const aborted = err instanceof Error && /abort/i.test(err.message);
+      setFetchError(aborted ? 'Status request timed out — retrying…' : err instanceof Error ? err.message : 'Failed to load status');
     } finally {
+      clearTimeout(timeout);
       inFlight.current = false;
       setLoading(false);
     }
@@ -283,11 +302,51 @@ export function TorlinkStatus(): React.ReactElement {
     [refresh]
   );
 
+  const runCleanup = useCallback(async (): Promise<void> => {
+    setCleaning(true);
+    setCleanupNote(null);
+    try {
+      const res = await fetch('/api/account/seedbox/cleanup', { method: 'POST' });
+      const json = (await res.json().catch(() => ({}))) as {
+        removed?: number;
+        skipped?: string | null;
+        failed?: { name: string; reason: string }[];
+      };
+      if (json.skipped) {
+        setCleanupNote(`Nothing removed — ${json.skipped}`);
+      } else {
+        const failed = json.failed?.length ?? 0;
+        setCleanupNote(
+          `Removed ${json.removed ?? 0} stale record(s)` +
+            (failed > 0 ? `, ${failed} could not be removed` : '')
+        );
+      }
+      await refresh();
+    } catch (err) {
+      setCleanupNote(err instanceof Error ? err.message : 'Cleanup failed');
+    } finally {
+      setCleaning(false);
+    }
+  }, [refresh]);
+
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  // Autoclean on arrival: torlink never forgets a torrent whose files were
+  // deleted, so the ghost records pile up silently and the count drifts further
+  // from reality every time something is removed from disk. Prune them once,
+  // the first time a visit sees any — the server side re-verifies staleness and
+  // refuses to act on an unreadable or empty file listing.
+  useEffect(() => {
+    if (autoCleaned.current) return;
+    if (!data?.raw?.hidden?.length) return;
+    if (data.reachable === false || data.error) return;
+    autoCleaned.current = true;
+    void runCleanup();
+  }, [data, runCleanup]);
 
   if (loading && !data) {
     return (
@@ -329,6 +388,13 @@ export function TorlinkStatus(): React.ReactElement {
           {updatedAt ? (
             <span>· updated {new Date(updatedAt).toLocaleTimeString()}</span>
           ) : null}
+          {/* What torlink itself reported, before any filtering. Makes "torlink
+              never got it" distinguishable from "the app hid it" at a glance. */}
+          {data?.raw ? (
+            <span title="Raw counts reported by torlink, before reconciliation">
+              · torlink reports {data.raw.downloads + data.raw.seeds} ({data.raw.downloads} dl / {data.raw.seeds} seed)
+            </span>
+          ) : null}
         </div>
         <button
           onClick={() => void refresh()}
@@ -337,6 +403,43 @@ export function TorlinkStatus(): React.ReactElement {
           <RefreshIcon size={14} /> Refresh
         </button>
       </div>
+
+      {/* Anything torlink reported that reconciliation dropped. Should normally
+          be empty; when it isn't, this names exactly what is being hidden. */}
+      {data?.raw?.hidden?.length ? (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-text-secondary">
+          <strong className="text-amber-500">
+            {data.raw.hidden.length} torrent(s) reported by torlink but hidden here
+          </strong>{' '}
+          (their files are not on the seedbox):
+          <ul className="mt-1 list-inside list-disc">
+            {data.raw.hidden.map((h, i) => (
+              <li key={`${h.name}-${i}`}>
+                {h.name} — <span className="text-text-tertiary">{h.status}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void runCleanup()}
+              disabled={cleaning}
+              className="rounded-md border border-amber-500/50 px-2 py-1 text-xs font-medium text-amber-500 hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              {cleaning ? 'Cleaning…' : `Remove ${data.raw.hidden.length} stale record(s)`}
+            </button>
+            {/* Only the record is dropped — `remove`, never `delete`, so this can
+                never take files off the box even if the check is ever wrong. */}
+            <span className="text-text-tertiary">Forgets the record only; no files are deleted.</span>
+          </div>
+        </div>
+      ) : null}
+
+      {cleanupNote ? (
+        <div className="rounded-lg border border-border bg-background p-3 text-xs text-text-secondary">
+          {cleanupNote}
+        </div>
+      ) : null}
 
       {actionError ? (
         <div className="rounded-lg border border-status-error/40 bg-status-error/5 p-3 text-sm text-status-error">
