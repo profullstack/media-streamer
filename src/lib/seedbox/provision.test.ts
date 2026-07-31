@@ -238,10 +238,10 @@ describe('seedbox provisioner — torlink drops adds when queue.json holds dead 
   const script = buildProvisionScript('TOK123_-', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT);
 
   it('leaves the concurrency cap off', () => {
-    // torlink only calls startEngine() when under the cap; items restored from
-    // queue.json keep a "downloading" status but never get an engine, so they
-    // hold a slot that can never free (promote() fires only on complete/error).
-    // At 2, two such records parked every later add as "queued" forever.
+    // promote() only starts a queued item while activeCount < maxDownloads, and
+    // activeCount counts anything marked "downloading". A stalled torrent keeps
+    // that status forever — it never completes and never errors — so its slot
+    // never frees. At 2, two of them parked every later add as "queued" forever.
     expect(script).toContain('TORLINK_MAX_DOWNLOADS=0');
     expect(script).not.toContain('TORLINK_MAX_DOWNLOADS=2');
     // Every place the daemons get their environment must agree.

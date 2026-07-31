@@ -246,22 +246,24 @@ export TORLINK_FILES_TOKEN="$TOK"
 # Concurrency cap: DISABLED (0 = unlimited). This used to be 2, for fair
 # bandwidth on a thin seedbox line. It has to stay off until torlink is fixed.
 #
-# torlink 1.4.4 only starts a torrent's engine when it is under the cap:
-# \`startEngine\` runs from add() when activeCount < maxDownloads, and otherwise
-# only from promote(), which fires when an active download completes or errors.
-# But items restored from queue.json at boot are put back with their old
-# "downloading" status and their engine is NEVER re-attached. Such a record can
-# therefore never complete or error, so promote() never runs, and it occupies a
-# slot forever. At a cap of 2, two of them wedged the box permanently — every
-# later add was parked as "queued" and never started. It survived reinstalls
-# because nothing cleared queue.json (see the step above, which now does).
+# torlink's activeCount counts items whose status is "downloading", and
+# promote() only starts a queued item while activeCount < maxDownloads. A
+# stalled download — a dead magnet that never finds a peer — keeps that status
+# forever: it never completes and never errors, so nothing ever frees its slot.
+# At a cap of 2, two such torrents parked every later add as "queued"
+# indefinitely, and the box looked healthy the whole time.
 #
-# add() compounds it: it returns silently when it already holds a record for
-# that infohash, while /add still answers 200 — so the app reported a successful
-# send for a torrent that went nowhere.
+# add() compounds it: it returns early for any record it already holds that is
+# not "failed", while /add still answers 200. Re-sending the same magnet is
+# therefore a guaranteed silent no-op — the app reported a successful send for
+# a torrent that went nowhere, and retrying could never help.
 #
-# With 0, add() always starts the engine, so a stale record cannot block new
-# torrents. Restore the cap once torlink re-attaches restored items to a client.
+# queue.json persists all of this, so the wedge survived daemon restarts and
+# reinstalls alike (see the step above, which now clears it).
+#
+# With 0, promote() short-circuits and add() always starts the engine, so a
+# stalled torrent can no longer block new ones. Restore the cap once torlink
+# can free a slot held by a download that will never progress.
 export TORLINK_MAX_DOWNLOADS=0
 
 # --- start the daemons UNDER SUPERVISION ---
