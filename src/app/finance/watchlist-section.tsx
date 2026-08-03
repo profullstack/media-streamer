@@ -9,12 +9,12 @@
  * (sparklines / changes / quotes) are scoped to the active list's symbols.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Sparkline } from '@/components/finance/sparkline';
 import { MarketSessionBadge } from '@/components/finance/market-session';
 import { useVisibleInterval } from '@/lib/finance/use-visible-interval';
-import { MAX_WATCHLIST_NAME } from '@/lib/finance/watchlist';
+import { MAX_WATCHLIST_NAME, formatSymbolsCsv, watchlistExportFilename } from '@/lib/finance/watchlist';
 import type { WatchlistChanges } from '@/lib/finance/performance';
 import type { Quote } from '@/lib/finance/market-data/types';
 
@@ -63,6 +63,7 @@ export function WatchlistSection(): React.ReactElement {
   const [bulk, setBulk] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // List CRUD UI state.
   const [newName, setNewName] = useState('');
@@ -212,10 +213,10 @@ export function WatchlistSection(): React.ReactElement {
   }, [activeId, activeList, loadLists]);
 
   // --- Add tickers ----------------------------------------------------------
-  const addBulk = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!bulk.trim()) return;
+  /** Send a pasted / imported ticker blob to the bulk-add endpoint. */
+  const submitSymbols = useCallback(
+    async (text: string, verb: 'Added' | 'Imported'): Promise<boolean> => {
+      if (!text.trim()) return false;
       setBulkBusy(true);
       setBulkMsg(null);
       try {
@@ -224,31 +225,67 @@ export function WatchlistSection(): React.ReactElement {
           headers: { 'content-type': 'application/json' },
           // activeId may be null for a brand-new user — the server then creates
           // (and returns) the default list, which we adopt below.
-          body: JSON.stringify(activeId ? { symbols: bulk, watchlistId: activeId } : { symbols: bulk }),
+          body: JSON.stringify(activeId ? { symbols: text, watchlistId: activeId } : { symbols: text }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
           setBulkMsg(body.error === 'no valid symbols' ? 'No valid tickers found.' : 'Could not add tickers.');
-          return;
+          return false;
         }
         const added = body.count ?? 0;
         const invalid: string[] = body.invalid ?? [];
         setBulkMsg(
-          `Added ${added} ticker${added === 1 ? '' : 's'}` +
+          `${verb} ${added} ticker${added === 1 ? '' : 's'}` +
             (invalid.length ? ` · skipped ${invalid.length} invalid (${invalid.slice(0, 5).join(', ')})` : ''),
         );
-        setBulk('');
         const next = await loadLists();
         const targetId = (body.watchlistId as string) ?? activeId ?? next[0]?.id ?? null;
         setActiveId(targetId);
         if (targetId === activeId) loadItems();
+        return true;
       } catch {
         setBulkMsg('Network error.');
+        return false;
       } finally {
         setBulkBusy(false);
       }
     },
-    [bulk, activeId, loadLists, loadItems],
+    [activeId, loadLists, loadItems],
+  );
+
+  const addBulk = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (await submitSymbols(bulk, 'Added')) setBulk('');
+    },
+    [bulk, submitSymbols],
+  );
+
+  // --- Import / export ------------------------------------------------------
+  /** Download the active list as comma-separated, alphabetical tickers. */
+  const exportList = useCallback(() => {
+    const csv = formatSymbolsCsv(watchlist.map((row) => row.symbol));
+    if (!csv) return;
+    const url = URL.createObjectURL(new Blob([`${csv}\n`], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = watchlistExportFilename(activeList?.name ?? 'watchlist');
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [watchlist, activeList]);
+
+  /** Read a comma-separated ticker file and add its symbols to the active list. */
+  const importFile = useCallback(
+    async (file: File | undefined) => {
+      if (!file) return;
+      const text = await file.text().catch(() => '');
+      if (!text.trim()) {
+        setBulkMsg('That file was empty.');
+        return;
+      }
+      await submitSymbols(text, 'Imported');
+    },
+    [submitSymbols],
   );
 
   const removeSymbol = useCallback(
@@ -328,10 +365,10 @@ export function WatchlistSection(): React.ReactElement {
         </div>
       </div>
 
-      {/* Active-list controls: rename / delete */}
-      {activeList ? (
-        <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
-          {renaming ? (
+      {/* Active-list controls: rename / delete / import / export */}
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
+        {activeList ? (
+          renaming ? (
             <span className="inline-flex items-center gap-1">
               <input
                 autoFocus
@@ -367,9 +404,37 @@ export function WatchlistSection(): React.ReactElement {
                 Delete list
               </button>
             </>
-          )}
-        </div>
-      ) : null}
+          )
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => importInputRef.current?.click()}
+          disabled={bulkBusy}
+          className="text-text-muted hover:text-text-secondary hover:underline disabled:opacity-60"
+        >
+          Import
+        </button>
+        <button
+          type="button"
+          onClick={exportList}
+          disabled={watchlist.length === 0}
+          className="text-text-muted hover:text-text-secondary hover:underline disabled:opacity-40"
+        >
+          Export
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv,.txt,text/csv,text/plain"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = ''; // allow re-importing the same file
+            void importFile(file);
+          }}
+        />
+      </div>
 
       <form onSubmit={addBulk} className="mb-4 flex flex-col gap-2 sm:flex-row">
         <input
