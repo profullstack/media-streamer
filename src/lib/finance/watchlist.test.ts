@@ -4,7 +4,10 @@ import {
   sanitizeWatchlistName,
   formatSymbolsCsv,
   watchlistExportFilename,
+  watchlistNameFromFilename,
+  uniqueWatchlistName,
   MAX_WATCHLIST_NAME,
+  DEFAULT_WATCHLIST_NAME,
 } from './watchlist';
 
 describe('parseSymbolList', () => {
@@ -62,6 +65,45 @@ describe('watchlistExportFilename', () => {
 
   it('falls back when the name has no usable characters', () => {
     expect(watchlistExportFilename('  ***  ')).toBe('watchlist.csv');
+  });
+});
+
+describe('watchlistNameFromFilename', () => {
+  it('round-trips an exported file name back to the list name', () => {
+    const file = watchlistExportFilename('My Tech List');
+    expect(watchlistNameFromFilename(file)).toBe('My Tech List');
+  });
+
+  it('keeps the user\'s own capitalization', () => {
+    expect(watchlistNameFromFilename('FAANG picks.txt')).toBe('FAANG picks');
+  });
+
+  it('strips directories, extensions and separators', () => {
+    expect(watchlistNameFromFilename('/tmp/dir/high_beta-names.csv')).toBe('High Beta Names');
+  });
+
+  it('falls back for a nameless file', () => {
+    expect(watchlistNameFromFilename('.csv')).toBe(DEFAULT_WATCHLIST_NAME);
+  });
+
+  it('caps the length', () => {
+    expect(watchlistNameFromFilename(`${'x'.repeat(200)}.csv`)).toHaveLength(MAX_WATCHLIST_NAME);
+  });
+});
+
+describe('uniqueWatchlistName', () => {
+  it('passes through when there is no collision', () => {
+    expect(uniqueWatchlistName('Tech', ['Energy'])).toBe('Tech');
+  });
+
+  it('suffixes past existing names, case-insensitively', () => {
+    expect(uniqueWatchlistName('Tech', ['tech'])).toBe('Tech 2');
+    expect(uniqueWatchlistName('Tech', ['Tech', 'Tech 2'])).toBe('Tech 3');
+  });
+
+  it('keeps the suffixed name within the length cap', () => {
+    const long = 'x'.repeat(MAX_WATCHLIST_NAME);
+    expect(uniqueWatchlistName(long, [long]).length).toBeLessThanOrEqual(MAX_WATCHLIST_NAME);
   });
 });
 
