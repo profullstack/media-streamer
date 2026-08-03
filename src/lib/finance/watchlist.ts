@@ -34,6 +34,86 @@ export function formatSymbolsCsv(symbols: string[]): string {
   return [...seen].sort().join(',');
 }
 
+/**
+ * First line of an all-lists export. Import keys off this sentinel to tell a
+ * multi-list file from a plain ticker list — without it, a multi-line ticker
+ * file would be ambiguous (is the first field a list name or a symbol?).
+ */
+export const WATCHLISTS_EXPORT_HEADER = '#watchlists';
+
+/** File name for the all-lists export. */
+export const WATCHLISTS_EXPORT_FILENAME = 'watchlists.csv';
+
+export interface NamedWatchlist {
+  name: string;
+  symbols: string[];
+}
+
+/** Quote a list name if it would otherwise collide with the field separator. */
+function quoteName(name: string): string {
+  return /["\n,]/.test(name) ? `"${name.replace(/"/g, '""')}"` : name;
+}
+
+/** Split a line into its (possibly quoted) leading name and the rest. */
+function splitNameAndRest(line: string): [string, string] {
+  if (!line.startsWith('"')) {
+    const comma = line.indexOf(',');
+    return comma === -1 ? [line, ''] : [line.slice(0, comma), line.slice(comma + 1)];
+  }
+  let name = '';
+  let i = 1;
+  while (i < line.length) {
+    if (line[i] === '"') {
+      if (line[i + 1] === '"') {
+        name += '"';
+        i += 2;
+        continue;
+      }
+      i += 1;
+      break;
+    }
+    name += line[i];
+    i += 1;
+  }
+  // `i` now sits just past the closing quote; the rest follows its comma.
+  return [name, line[i] === ',' ? line.slice(i + 1) : ''];
+}
+
+/**
+ * Render every list as one file: a sentinel line, then one line per list —
+ * `Name,TICKER,TICKER,…` with tickers alphabetical and the lists themselves
+ * sorted by name. Empty lists are kept so the file round-trips exactly.
+ */
+export function formatWatchlistsExport(lists: NamedWatchlist[]): string {
+  const lines = [...lists]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((list) => {
+      const csv = formatSymbolsCsv(list.symbols);
+      return csv ? `${quoteName(list.name)},${csv}` : quoteName(list.name);
+    });
+  return [WATCHLISTS_EXPORT_HEADER, ...lines].join('\n');
+}
+
+/**
+ * Parse an all-lists export. Returns null when the sentinel is absent, i.e.
+ * the file is a plain ticker list and the caller should treat it as one list.
+ */
+export function parseWatchlistsExport(text: string): NamedWatchlist[] | null {
+  const lines = text.split(/\r?\n/);
+  const first = lines.findIndex((line) => line.trim().length > 0);
+  if (first === -1 || lines[first].trim().toLowerCase() !== WATCHLISTS_EXPORT_HEADER) return null;
+
+  const out: NamedWatchlist[] = [];
+  for (const line of lines.slice(first + 1)) {
+    if (!line.trim()) continue;
+    const [rawName, rest] = splitNameAndRest(line.trim());
+    const name = sanitizeWatchlistName(rawName);
+    if (!name) continue;
+    out.push({ name, symbols: parseSymbolList(rest).valid });
+  }
+  return out;
+}
+
 /** File name for an exported list, e.g. "My Tech List" -> "my-tech-list.csv". */
 export function watchlistExportFilename(name: string): string {
   const slug = name

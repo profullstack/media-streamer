@@ -3,6 +3,8 @@ import {
   parseSymbolList,
   sanitizeWatchlistName,
   formatSymbolsCsv,
+  formatWatchlistsExport,
+  parseWatchlistsExport,
   watchlistExportFilename,
   watchlistNameFromFilename,
   uniqueWatchlistName,
@@ -65,6 +67,54 @@ describe('watchlistExportFilename', () => {
 
   it('falls back when the name has no usable characters', () => {
     expect(watchlistExportFilename('  ***  ')).toBe('watchlist.csv');
+  });
+});
+
+describe('formatWatchlistsExport / parseWatchlistsExport', () => {
+  const lists = [
+    { name: 'Tech', symbols: ['NVDA', 'AAPL'] },
+    { name: 'Energy', symbols: ['XOM'] },
+  ];
+
+  it('writes a header, one sorted line per list, tickers alphabetical', () => {
+    expect(formatWatchlistsExport(lists)).toBe(['#watchlists', 'Energy,XOM', 'Tech,AAPL,NVDA'].join('\n'));
+  });
+
+  it('round-trips through the parser', () => {
+    const parsed = parseWatchlistsExport(formatWatchlistsExport(lists));
+    expect(parsed).toEqual([
+      { name: 'Energy', symbols: ['XOM'] },
+      { name: 'Tech', symbols: ['AAPL', 'NVDA'] },
+    ]);
+  });
+
+  it('quotes and round-trips names containing commas or quotes', () => {
+    const tricky = [{ name: 'Big, "risky" names', symbols: ['SPY'] }];
+    const text = formatWatchlistsExport(tricky);
+    expect(text).toContain('"Big, ""risky"" names",SPY');
+    expect(parseWatchlistsExport(text)).toEqual(tricky);
+  });
+
+  it('keeps empty lists', () => {
+    const text = formatWatchlistsExport([{ name: 'Empty', symbols: [] }]);
+    expect(text).toBe('#watchlists\nEmpty');
+    expect(parseWatchlistsExport(text)).toEqual([{ name: 'Empty', symbols: [] }]);
+  });
+
+  it('returns null for a plain ticker list, so it imports as a single list', () => {
+    expect(parseWatchlistsExport('AAPL,NVDA,SPY')).toBeNull();
+    expect(parseWatchlistsExport('AAPL\nNVDA')).toBeNull();
+    expect(parseWatchlistsExport('')).toBeNull();
+  });
+
+  it('tolerates blank lines and CRLF', () => {
+    expect(parseWatchlistsExport('#watchlists\r\n\r\nTech,AAPL\r\n')).toEqual([{ name: 'Tech', symbols: ['AAPL'] }]);
+  });
+
+  it('skips junk tickers within a line', () => {
+    expect(parseWatchlistsExport('#watchlists\nTech,AAPL,$$$,NVDA')).toEqual([
+      { name: 'Tech', symbols: ['AAPL', 'NVDA'] },
+    ]);
   });
 });
 
