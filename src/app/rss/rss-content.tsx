@@ -27,16 +27,13 @@ interface RssFeedSummary {
 
 interface RssSubscription {
   id: string;
-  profileId: string;
   feedId: string;
   customTitle: string | null;
   folder: string | null;
   notifyNewItems: boolean;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
   feed: RssFeedSummary & {
-    description: string | null;
     lastFetchedAt: string | null;
     lastFetchError: string | null;
   };
@@ -58,6 +55,9 @@ interface RssItem {
 
 interface RssResponse {
   subscriptions: RssSubscription[];
+  /** Active subscriptions in total; `subscriptions` is only the visible page. */
+  totalSubscriptions: number;
+  folders: Array<{ folder: string; feedCount: number }>;
   items: RssItem[];
 }
 
@@ -96,6 +96,9 @@ function displayDate(value: string | null): string {
 export function RssContent(): React.ReactElement {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [subscriptions, setSubscriptions] = useState<RssSubscription[]>([]);
+  const [totalSubscriptions, setTotalSubscriptions] = useState(0);
+  const [folders, setFolders] = useState<RssResponse['folders']>([]);
+  const [feedSearch, setFeedSearch] = useState('');
   const [items, setItems] = useState<RssItem[]>([]);
   const [selectedFeedId, setSelectedFeedId] = useState<string>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -117,10 +120,21 @@ export function RssContent(): React.ReactElement {
   );
   const selectedItemBodyHtml = renderRichContentHtml(selectedItem?.content ?? selectedItem?.summary, { allowImages: true });
 
-  const folders = useMemo(() => {
-    const names = new Set(subscriptions.map((sub) => sub.folder).filter((folder): folder is string => Boolean(folder)));
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [subscriptions]);
+  // Group headings come from the feeds actually on this page, so no feed can be
+  // rendered under a heading that is missing; the server's folder list supplies
+  // the true feed count, which the page alone cannot know.
+  const visibleFolders = useMemo(() => {
+    const counts = new Map(folders.map((entry) => [entry.folder, entry.feedCount]));
+    const onPage = new Set(
+      subscriptions.map((sub) => sub.folder).filter((folder): folder is string => Boolean(folder))
+    );
+    return Array.from(onPage)
+      .sort((a, b) => a.localeCompare(b))
+      .map((folder) => ({
+        folder,
+        feedCount: counts.get(folder) ?? subscriptions.filter((sub) => sub.folder === folder).length,
+      }));
+  }, [folders, subscriptions]);
   const selectedSubscription = useMemo(
     () => subscriptions.find((sub) => sub.feedId === selectedFeedId) ?? null,
     [selectedFeedId, subscriptions]
@@ -134,27 +148,33 @@ export function RssContent(): React.ReactElement {
     if (selectedFeedId !== 'all') params.set('feedId', selectedFeedId);
     if (showUnreadOnly) params.set('unread', 'true');
     if (showSavedOnly) params.set('saved', 'true');
+    if (feedSearch.trim()) params.set('feedSearch', feedSearch.trim());
 
     try {
       const response = await fetch(`/api/rss?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to load RSS reader');
       const data = await response.json() as RssResponse;
-      setSubscriptions(data.subscriptions);
-      setItems(data.items);
-      setSelectedItemId((current) => current && data.items.some((item) => item.id === current) ? current : data.items[0]?.id ?? null);
+      const loadedSubscriptions = data.subscriptions ?? [];
+      const loadedItems = data.items ?? [];
+      setSubscriptions(loadedSubscriptions);
+      setTotalSubscriptions(data.totalSubscriptions ?? loadedSubscriptions.length);
+      setFolders(data.folders ?? []);
+      setItems(loadedItems);
+      setSelectedItemId((current) => current && loadedItems.some((item) => item.id === current) ? current : loadedItems[0]?.id ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load RSS reader');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedFeedId, showSavedOnly, showUnreadOnly]);
+  }, [feedSearch, selectedFeedId, showSavedOnly, showUnreadOnly]);
 
+  // Debounced so typing in the feed search does not fire a request per keystroke.
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void loadReader();
-    }, 0);
+    }, feedSearch.trim() ? 250 : 0);
     return () => window.clearTimeout(timeout);
-  }, [loadReader]);
+  }, [feedSearch, loadReader]);
 
   const addFeed = async (): Promise<void> => {
     if (!feedUrl.trim()) return;
@@ -323,7 +343,9 @@ export function RssContent(): React.ReactElement {
             <RssIcon size={28} className="text-accent-primary" />
             <div>
               <h1 className="text-2xl font-bold text-text-primary">RSS Reader</h1>
-              <p className="text-sm text-text-muted">{subscriptions.length} feeds · {items.length} visible articles</p>
+              <p className="text-sm text-text-muted">
+                {totalSubscriptions.toLocaleString()} feeds · {items.length} visible articles
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -348,7 +370,7 @@ export function RssContent(): React.ReactElement {
             <button
               type="button"
               onClick={() => void exportOpml()}
-              disabled={isSaving || subscriptions.length === 0}
+              disabled={isSaving || totalSubscriptions === 0}
               className="flex items-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <DownloadIcon size={16} />
@@ -420,7 +442,7 @@ export function RssContent(): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => void updateReadStateForScope(null, true)}
-                    disabled={isSaving || subscriptions.length === 0}
+                    disabled={isSaving || totalSubscriptions === 0}
                     className="rounded-lg border border-border-default px-2 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     All read
@@ -428,7 +450,7 @@ export function RssContent(): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => void updateReadStateForScope(null, false)}
-                    disabled={isSaving || subscriptions.length === 0}
+                    disabled={isSaving || totalSubscriptions === 0}
                     className="rounded-lg border border-border-default px-2 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     All unread
@@ -472,11 +494,27 @@ export function RssContent(): React.ReactElement {
                 All feeds
               </button>
 
-              {folders.map((folder) => (
+              <input
+                value={feedSearch}
+                onChange={(event) => setFeedSearch(event.target.value)}
+                placeholder="Search feeds"
+                aria-label="Search feeds"
+                className="w-full rounded-lg border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-hidden"
+              />
+
+              {subscriptions.length < totalSubscriptions ? (
+                <p className="px-3 text-xs text-text-muted">
+                  Showing {subscriptions.length} of {totalSubscriptions.toLocaleString()} feeds
+                  {feedSearch.trim() ? '' : ' — search to narrow the list'}
+                </p>
+              ) : null}
+
+              {visibleFolders.map(({ folder, feedCount }) => (
                 <div key={folder} className="space-y-1">
                   <div className="flex items-center gap-2 px-3 pt-2 text-xs font-semibold uppercase text-text-muted">
                     <FolderIcon size={14} />
-                    <span>{folder}</span>
+                    <span className="truncate">{folder}</span>
+                    <span className="ml-auto shrink-0 font-normal normal-case">{feedCount.toLocaleString()}</span>
                   </div>
                   {subscriptions.filter((sub) => sub.folder === folder).map((sub) => (
                     <FeedRow
