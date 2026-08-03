@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { parseSymbolList, sanitizeWatchlistName, MAX_WATCHLIST_NAME } from './watchlist';
+import {
+  parseSymbolList,
+  sanitizeWatchlistName,
+  formatSymbolsCsv,
+  watchlistExportFilename,
+  MAX_WATCHLIST_NAME,
+} from './watchlist';
 
 describe('parseSymbolList', () => {
   it('parses a comma-separated string, normalizing + de-duping', () => {
@@ -26,6 +32,36 @@ describe('parseSymbolList', () => {
 
   it('returns empty for empty input', () => {
     expect(parseSymbolList('   ')).toEqual({ valid: [], invalid: [] });
+  });
+});
+
+describe('formatSymbolsCsv', () => {
+  it('sorts alphabetically and joins with commas', () => {
+    expect(formatSymbolsCsv(['TSLA', 'AAPL', 'NVDA'])).toBe('AAPL,NVDA,TSLA');
+  });
+
+  it('normalizes and de-dupes', () => {
+    expect(formatSymbolsCsv([' nvda ', 'NVDA', 'aapl'])).toBe('AAPL,NVDA');
+  });
+
+  it('returns an empty string for an empty list', () => {
+    expect(formatSymbolsCsv([])).toBe('');
+  });
+
+  it('round-trips through parseSymbolList', () => {
+    const csv = formatSymbolsCsv(['spy', 'AAPL', 'brk-b']);
+    expect(csv).toBe('AAPL,BRK-B,SPY');
+    expect(parseSymbolList(csv).valid).toEqual(['AAPL', 'BRK-B', 'SPY']);
+  });
+});
+
+describe('watchlistExportFilename', () => {
+  it('slugifies the list name', () => {
+    expect(watchlistExportFilename('My Tech List')).toBe('my-tech-list.csv');
+  });
+
+  it('falls back when the name has no usable characters', () => {
+    expect(watchlistExportFilename('  ***  ')).toBe('watchlist.csv');
   });
 });
 

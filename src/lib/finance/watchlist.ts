@@ -22,6 +22,29 @@ export function sanitizeWatchlistName(raw: unknown): string | null {
   return name.length > 0 ? name : null;
 }
 
+/**
+ * Render symbols as the export format: comma-separated, alphabetical, deduped.
+ */
+export function formatSymbolsCsv(symbols: string[]): string {
+  const seen = new Set<string>();
+  for (const raw of symbols) {
+    const symbol = normalizeSymbol(raw);
+    if (symbol) seen.add(symbol);
+  }
+  return [...seen].sort().join(',');
+}
+
+/** File name for an exported list, e.g. "My Tech List" -> "my-tech-list.csv". */
+export function watchlistExportFilename(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_WATCHLIST_NAME);
+  return `${slug || 'watchlist'}.csv`;
+}
+
 export interface ParsedSymbolList {
   /** Valid, normalized, de-duplicated symbols. */
   valid: string[];
