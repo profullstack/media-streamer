@@ -8,8 +8,11 @@ import {
   deleteSubscription,
   getFeedById,
   hasActiveSubscription,
+  listFolders,
   listItems,
+  listSubscriptionPage,
   listSubscriptions,
+  listUnfetchedSubscribedFeedIds,
   markFeedFetchError,
   subscribeToFeed as saveSubscription,
   updateItemState,
@@ -18,7 +21,13 @@ import {
   upsertFeed,
   upsertFeedItems,
 } from './repository';
-import type { OpmlFeedOutline, RssItemStateInput, RssListOptions, RssSubscriptionUpdate } from './types';
+import type {
+  OpmlFeedOutline,
+  RssItemStateInput,
+  RssListOptions,
+  RssSubscriptionListOptions,
+  RssSubscriptionUpdate,
+} from './types';
 
 const MAX_FEED_BYTES = 1_000_000;
 const FETCH_TIMEOUT_MS = 15_000;
@@ -30,6 +39,8 @@ const WARM_CONCURRENCY = 8;
 const MAX_REPORTED_ERRORS = 20;
 /** Feeds refreshed per reader load; a 47k-feed import must not stampede. */
 const LAZY_FETCH_LIMIT = 24;
+const LAZY_FETCH_CONCURRENCY = 6;
+const LAZY_FETCH_BUDGET_MS = 5_000;
 
 interface PrivateSenderFeedParams {
   origin: string;
@@ -364,28 +375,52 @@ export async function refreshRssFeed(profileId: string, feedId: string): Promise
 // fetching, so both start with no items. On reader load, fetch feeds that have
 // never been fetched. Best-effort and one-shot per feed: a failed fetch still
 // sets last_fetched_at, so we never retry it automatically on every load.
-// Capped per load — an OPML import can leave tens of thousands of feeds
-// unfetched, and firing them all at once would hang the reader.
-async function populateUnfetchedFeeds(
-  profileId: string,
-  subscriptions: Awaited<ReturnType<typeof listSubscriptions>>
-): Promise<void> {
-  const unfetched = subscriptions
-    .filter((subscription) => !subscription.feed.lastFetchedAt)
-    .slice(0, LAZY_FETCH_LIMIT);
-  if (unfetched.length === 0) return;
+//
+// Bounded three ways, because an OPML import can leave tens of thousands of
+// feeds unfetched: a fixed number of feeds, a fixed concurrency, and a wall
+// clock budget. Without the budget, 24 feeds that each sit out the 15s fetch
+// timeout would hold the reader response open for 15s.
+async function populateUnfetchedFeeds(profileId: string): Promise<void> {
+  const feedIds = await listUnfetchedSubscribedFeedIds(profileId, LAZY_FETCH_LIMIT);
+  if (feedIds.length === 0) return;
 
-  await Promise.allSettled(
-    unfetched.map((subscription) => refreshRssFeed(profileId, subscription.feedId))
+  const deadline = Date.now() + LAZY_FETCH_BUDGET_MS;
+  let cursor = 0;
+
+  await Promise.all(
+    Array.from({ length: Math.min(LAZY_FETCH_CONCURRENCY, feedIds.length) }, async () => {
+      while (cursor < feedIds.length && Date.now() < deadline) {
+        const feedId = feedIds[cursor];
+        cursor += 1;
+        try {
+          await refreshRssFeed(profileId, feedId);
+        } catch {
+          // refreshRssFeed already recorded the failure on the feed row.
+        }
+      }
+    })
   );
 }
 
-export async function getRssReaderData(profileId: string, options: RssListOptions = {}) {
-  const subscriptions = await listSubscriptions(profileId);
-  await populateUnfetchedFeeds(profileId, subscriptions);
+export async function getRssReaderData(
+  profileId: string,
+  options: RssListOptions = {},
+  subscriptionOptions: RssSubscriptionListOptions = {}
+) {
+  await populateUnfetchedFeeds(profileId);
 
-  const items = await listItems(profileId, options);
-  return { subscriptions, items };
+  const [page, folders, items] = await Promise.all([
+    listSubscriptionPage(profileId, subscriptionOptions),
+    listFolders(profileId),
+    listItems(profileId, options),
+  ]);
+
+  return {
+    subscriptions: page.subscriptions,
+    totalSubscriptions: page.total,
+    folders,
+    items,
+  };
 }
 
 export async function removeRssSubscription(profileId: string, feedId: string): Promise<void> {

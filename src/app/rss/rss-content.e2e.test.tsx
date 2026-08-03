@@ -14,12 +14,10 @@ const readerResponse = {
   subscriptions: [
     {
       id: 'sub-1',
-      profileId: 'profile-1',
       feedId: 'feed-1',
       customTitle: null,
       folder: 'Tech',
       notifyNewItems: false,
-      isActive: true,
       createdAt: '2026-06-06T00:00:00.000Z',
       updatedAt: '2026-06-06T00:00:00.000Z',
       feed: {
@@ -28,12 +26,13 @@ const readerResponse = {
         feedUrl: 'https://example.com/feed.xml',
         siteUrl: 'https://example.com',
         imageUrl: null,
-        description: 'Example updates',
         lastFetchedAt: '2026-06-06T00:00:00.000Z',
         lastFetchError: null,
       },
     },
   ],
+  totalSubscriptions: 1,
+  folders: [{ folder: 'Tech', feedCount: 1 }],
   items: [
     {
       id: 'item-1',

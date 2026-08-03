@@ -52,17 +52,29 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const { searchParams } = new URL(request.url);
-  const limitParam = searchParams.get('limit');
-  const offsetParam = searchParams.get('offset');
+  const numberParam = (name: string): number | undefined => {
+    const raw = searchParams.get(name);
+    if (raw === null) return undefined;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : undefined;
+  };
 
   try {
-    const data = await getRssReaderData(profileId, {
-      feedId: searchParams.get('feedId') ?? undefined,
-      unreadOnly: searchParams.get('unread') === 'true',
-      savedOnly: searchParams.get('saved') === 'true',
-      limit: limitParam ? Number(limitParam) : undefined,
-      offset: offsetParam ? Number(offsetParam) : undefined,
-    });
+    const data = await getRssReaderData(
+      profileId,
+      {
+        feedId: searchParams.get('feedId') ?? undefined,
+        unreadOnly: searchParams.get('unread') === 'true',
+        savedOnly: searchParams.get('saved') === 'true',
+        limit: numberParam('limit'),
+        offset: numberParam('offset'),
+      },
+      {
+        search: searchParams.get('feedSearch') ?? undefined,
+        limit: numberParam('feedLimit'),
+        offset: numberParam('feedOffset'),
+      }
+    );
 
     return NextResponse.json(data);
   } catch (error) {

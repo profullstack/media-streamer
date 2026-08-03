@@ -50,6 +50,39 @@ export interface RssSubscription {
   feed: RssFeed;
 }
 
+/**
+ * What the reader sidebar needs. The full RssSubscription carries the feed
+ * description and language, which nothing in the sidebar renders and which turn
+ * a 47k-feed subscription list into a 19 MB response.
+ */
+export interface RssSubscriptionSummary {
+  id: string;
+  feedId: string;
+  customTitle: string | null;
+  folder: string | null;
+  notifyNewItems: boolean;
+  createdAt: string;
+  updatedAt: string;
+  feed: Pick<RssFeed, 'id' | 'title' | 'feedUrl' | 'siteUrl' | 'imageUrl' | 'lastFetchedAt' | 'lastFetchError'>;
+}
+
+export interface RssSubscriptionPage {
+  subscriptions: RssSubscriptionSummary[];
+  /** Active subscriptions matching the search, not just the ones on this page. */
+  total: number;
+}
+
+export interface RssSubscriptionListOptions {
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface RssFolderSummary {
+  folder: string;
+  feedCount: number;
+}
+
 export interface RssSubscriptionUpdate {
   customTitle?: string | null;
   folder?: string | null;
@@ -105,4 +138,6 @@ export interface RssListOptions {
   savedOnly?: boolean;
   limit?: number;
   offset?: number;
+  /** Newest articles considered per feed, so one busy feed cannot fill the list. */
+  perFeedLimit?: number;
 }
