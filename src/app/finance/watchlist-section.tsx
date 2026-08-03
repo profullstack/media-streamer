@@ -16,12 +16,16 @@ import { MarketSessionBadge } from '@/components/finance/market-session';
 import { useVisibleInterval } from '@/lib/finance/use-visible-interval';
 import {
   MAX_WATCHLIST_NAME,
+  WATCHLISTS_EXPORT_FILENAME,
   formatSymbolsCsv,
+  formatWatchlistsExport,
   parseSymbolList,
+  parseWatchlistsExport,
   uniqueWatchlistName,
   watchlistExportFilename,
   watchlistNameFromFilename,
 } from '@/lib/finance/watchlist';
+import type { NamedWatchlist } from '@/lib/finance/watchlist';
 import type { WatchlistChanges } from '@/lib/finance/performance';
 import type { Quote } from '@/lib/finance/market-data/types';
 
@@ -272,23 +276,120 @@ export function WatchlistSection(): React.ReactElement {
   );
 
   // --- Import / export ------------------------------------------------------
+  /** Hand the browser a generated file. */
+  const download = useCallback((text: string, filename: string) => {
+    const url = URL.createObjectURL(new Blob([`${text}\n`], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   /** Download the active list as comma-separated, alphabetical tickers. */
   const exportList = useCallback(() => {
     const csv = formatSymbolsCsv(watchlist.map((row) => row.symbol));
     if (!csv) return;
-    const url = URL.createObjectURL(new Blob([`${csv}\n`], { type: 'text/csv' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = watchlistExportFilename(activeList?.name ?? 'watchlist');
-    link.click();
-    URL.revokeObjectURL(url);
-  }, [watchlist, activeList]);
+    download(csv, watchlistExportFilename(activeList?.name ?? 'watchlist'));
+  }, [watchlist, activeList, download]);
 
   /**
-   * Read a comma-separated ticker file into a *new* list named after the file
-   * ("my-tech-list.csv" -> "My Tech List", suffixed if that name is taken).
-   * The symbols are validated client-side first so a junk file never leaves an
-   * empty list behind; if list creation fails we fall back to the active list.
+   * Download every list in one file — one `Name,TICKER,…` line per list. Each
+   * list's tickers are fetched on demand, since only the active list's items
+   * are held in state.
+   */
+  const exportAllLists = useCallback(async () => {
+    if (lists.length === 0) return;
+    setBulkBusy(true);
+    setBulkMsg(null);
+    try {
+      const named = await Promise.all(
+        lists.map(async (list) => {
+          const res = await fetch(`/api/finance/watchlist?watchlistId=${encodeURIComponent(list.id)}`, {
+            cache: 'no-store',
+          });
+          const body = (res.ok ? await res.json() : { watchlist: [] }) as { watchlist?: WatchlistRow[] };
+          return { name: list.name, symbols: (body.watchlist ?? []).map((row) => row.symbol) };
+        }),
+      );
+      download(formatWatchlistsExport(named), WATCHLISTS_EXPORT_FILENAME);
+      const total = named.reduce((sum, l) => sum + l.symbols.length, 0);
+      setBulkMsg(`Exported ${named.length} list${named.length === 1 ? '' : 's'} · ${total} tickers.`);
+    } catch {
+      setBulkMsg('Could not export your lists.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [lists, download]);
+
+  /** Create a list and return its id, or undefined when the server refuses. */
+  const createNamedList = useCallback(async (name: string): Promise<string | undefined> => {
+    try {
+      const res = await fetch('/api/finance/watchlists', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) return undefined;
+      const body = (await res.json()) as { watchlist: WatchlistSummary };
+      return body.watchlist.id;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
+  /**
+   * Restore an all-lists export: one new list per line, names suffixed as
+   * needed so an existing "Tech" isn't merged into.
+   */
+  const importBundle = useCallback(
+    async (bundle: NamedWatchlist[]) => {
+      setBulkBusy(true);
+      setBulkMsg(null);
+      const taken = lists.map((l) => l.name);
+      let created = 0;
+      let tickers = 0;
+      let lastId: string | undefined;
+      try {
+        for (const entry of bundle) {
+          const name = uniqueWatchlistName(entry.name, taken);
+          taken.push(name);
+          const id = await createNamedList(name);
+          if (!id) continue;
+          created += 1;
+          lastId = id;
+          if (entry.symbols.length === 0) continue;
+          const res = await fetch('/api/finance/watchlist', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ symbols: entry.symbols, watchlistId: id }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (res.ok) tickers += body.count ?? 0;
+        }
+        setBulkMsg(
+          created === 0
+            ? 'Could not import those lists.'
+            : `Imported ${created} list${created === 1 ? '' : 's'} · ${tickers} ticker${tickers === 1 ? '' : 's'}.`,
+        );
+        await loadLists();
+        if (lastId) setActiveId(lastId);
+      } catch {
+        setBulkMsg('Network error.');
+      } finally {
+        setBulkBusy(false);
+      }
+    },
+    [lists, createNamedList, loadLists],
+  );
+
+  /**
+   * Read a ticker file. An all-lists export (recognized by its header line) is
+   * restored list-by-list; anything else becomes a *new* list named after the
+   * file ("my-tech-list.csv" -> "My Tech List", suffixed if that name is
+   * taken). Symbols are validated client-side first so a junk file never
+   * leaves an empty list behind; if list creation fails we fall back to the
+   * active list.
    */
   const importFile = useCallback(
     async (file: File | undefined) => {
@@ -298,6 +399,17 @@ export function WatchlistSection(): React.ReactElement {
         setBulkMsg('That file was empty.');
         return;
       }
+
+      const bundle = parseWatchlistsExport(text);
+      if (bundle) {
+        if (bundle.length === 0) {
+          setBulkMsg('That file has no lists in it.');
+          return;
+        }
+        await importBundle(bundle);
+        return;
+      }
+
       if (parseSymbolList(text).valid.length === 0) {
         setBulkMsg('No valid tickers found.');
         return;
@@ -307,23 +419,12 @@ export function WatchlistSection(): React.ReactElement {
         watchlistNameFromFilename(file.name),
         lists.map((l) => l.name),
       );
-      let newId: string | undefined;
-      try {
-        const res = await fetch('/api/finance/watchlists', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-        if (res.ok) {
-          const body = (await res.json()) as { watchlist: WatchlistSummary };
-          newId = body.watchlist.id;
-        }
-      } catch {
-        // fall through — import into the active list instead
-      }
+      // On failure newId stays undefined and the import falls back to the
+      // active list rather than being lost.
+      const newId = await createNamedList(name);
       await submitSymbols(text, 'Imported', newId);
     },
-    [lists, submitSymbols],
+    [lists, createNamedList, importBundle, submitSymbols],
   );
 
   const removeSymbol = useCallback(
@@ -458,9 +559,19 @@ export function WatchlistSection(): React.ReactElement {
           type="button"
           onClick={exportList}
           disabled={watchlist.length === 0}
+          title="Download this list's tickers"
           className="text-text-muted hover:text-text-secondary hover:underline disabled:opacity-40"
         >
           Export
+        </button>
+        <button
+          type="button"
+          onClick={() => void exportAllLists()}
+          disabled={bulkBusy || lists.length === 0}
+          title="Download every list in one file"
+          className="text-text-muted hover:text-text-secondary hover:underline disabled:opacity-40"
+        >
+          Export all
         </button>
         <input
           ref={importInputRef}
