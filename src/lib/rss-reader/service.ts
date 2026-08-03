@@ -4,6 +4,7 @@ import { buildPrivateSenderFeedXml, extractEmailAddress } from '@/lib/email-read
 import { createServerClient } from '@/lib/supabase';
 import { isPaidSubscriptionActive } from '@/lib/subscription/check';
 import {
+  bulkSubscribeToOpmlFeeds,
   deleteSubscription,
   getFeedById,
   hasActiveSubscription,
@@ -21,6 +22,14 @@ import type { OpmlFeedOutline, RssItemStateInput, RssListOptions, RssSubscriptio
 
 const MAX_FEED_BYTES = 1_000_000;
 const FETCH_TIMEOUT_MS = 15_000;
+
+/** Feeds per rss_import_opml_feeds call — keeps the JSON payload around 300 KB. */
+const OPML_IMPORT_CHUNK = 2_000;
+const OPML_WARM_BUDGET_MS = 20_000;
+const WARM_CONCURRENCY = 8;
+const MAX_REPORTED_ERRORS = 20;
+/** Feeds refreshed per reader load; a 47k-feed import must not stampede. */
+const LAZY_FETCH_LIMIT = 24;
 
 interface PrivateSenderFeedParams {
   origin: string;
@@ -156,45 +165,97 @@ export async function subscribeToRssFeed(
 }
 
 export interface OpmlImportResult {
+  /** Feed outlines found in the OPML. */
   total: number;
-  imported: Array<{ feedUrl: string; feedId: string; title: string; folder: string | null }>;
-  failed: Array<{ feedUrl: string; title: string | null; error: string }>;
+  /** Subscriptions created or reactivated for this profile. */
+  imported: number;
+  /** Feeds whose articles were loaded before this request returned. */
+  fetched: number;
+  /** Feeds that failed to load; they stay subscribed and are retried later. */
+  failed: number;
+  /** A sample of load errors — a 47k-feed import must not return 47k strings. */
+  errors: Array<{ feedUrl: string; error: string }>;
 }
 
 export function parseOpmlFeeds(opml: string): OpmlFeedOutline[] {
   return parseOpmlXml(opml);
 }
 
-export async function importOpmlFeeds(profileId: string, opml: string): Promise<OpmlImportResult> {
-  const outlines = parseOpmlXml(opml);
-  const result: OpmlImportResult = {
-    total: outlines.length,
-    imported: [],
-    failed: [],
-  };
+/**
+ * Load articles for freshly imported feeds, in OPML order, until the time
+ * budget runs out. Whatever we don't get to stays unfetched and
+ * is filled in by populateUnfetchedFeeds on later reader loads — a large OPML
+ * must not hold the import request open for one network round trip per feed.
+ */
+async function warmFeeds(
+  profileId: string,
+  feedUrls: string[],
+  budgetMs: number
+): Promise<{ fetched: number; failed: number; errors: OpmlImportResult['errors'] }> {
+  const deadline = Date.now() + budgetMs;
+  const errors: OpmlImportResult['errors'] = [];
+  let fetched = 0;
+  let failed = 0;
+  let cursor = 0;
 
-  for (const outline of outlines) {
-    try {
-      const subscription = await subscribeToRssFeed(profileId, outline.feedUrl, false, {
-        customTitle: outline.title,
-        folder: outline.folder,
-      });
-      result.imported.push({
-        feedUrl: subscription.feed.feedUrl,
-        feedId: subscription.feedId,
-        title: subscription.customTitle ?? subscription.feed.title,
-        folder: subscription.folder,
-      });
-    } catch (error) {
-      result.failed.push({
-        feedUrl: outline.feedUrl,
-        title: outline.title,
-        error: error instanceof Error ? error.message : 'Failed to import feed',
-      });
-    }
+  const workerCount = Math.min(WARM_CONCURRENCY, feedUrls.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (cursor < feedUrls.length && Date.now() < deadline) {
+        const feedUrl = feedUrls[cursor];
+        cursor += 1;
+
+        try {
+          const xml = await loadFeedXml(profileId, feedUrl);
+          const parsed = parseFeedXml(xml, feedUrl);
+          if (!parsed) {
+            throw new Error('Could not parse RSS or Atom feed');
+          }
+          const feed = await upsertFeed({ ...parsed, feedUrl });
+          await upsertFeedItems(feed.id, parsed.items);
+          fetched += 1;
+        } catch (error) {
+          failed += 1;
+          if (errors.length < MAX_REPORTED_ERRORS) {
+            errors.push({
+              feedUrl,
+              error: error instanceof Error ? error.message : 'Failed to load feed',
+            });
+          }
+        }
+      }
+    })
+  );
+
+  return { fetched, failed, errors };
+}
+
+export async function importOpmlOutlines(
+  profileId: string,
+  outlines: OpmlFeedOutline[]
+): Promise<OpmlImportResult> {
+  let imported = 0;
+  for (let index = 0; index < outlines.length; index += OPML_IMPORT_CHUNK) {
+    imported += await bulkSubscribeToOpmlFeeds(profileId, outlines.slice(index, index + OPML_IMPORT_CHUNK));
   }
 
-  return result;
+  const warmed = await warmFeeds(
+    profileId,
+    outlines.map((outline) => outline.feedUrl),
+    OPML_WARM_BUDGET_MS
+  );
+
+  return {
+    total: outlines.length,
+    imported,
+    fetched: warmed.fetched,
+    failed: warmed.failed,
+    errors: warmed.errors,
+  };
+}
+
+export async function importOpmlFeeds(profileId: string, opml: string): Promise<OpmlImportResult> {
+  return importOpmlOutlines(profileId, parseOpmlXml(opml));
 }
 
 function escapeXml(value: string): string {
@@ -299,15 +360,19 @@ export async function refreshRssFeed(profileId: string, feedId: string): Promise
 }
 
 // Default feed subscriptions (Profullstack, Inc. folder) are seeded directly in
-// the database via migration/trigger, so they have no items until first fetched.
-// On reader load, fetch any subscribed feed that has never been fetched so the
-// seeded feeds are not empty. Best-effort and one-shot per feed: a failed fetch
-// still sets last_fetched_at, so we never retry it automatically on every load.
+// the database via migration/trigger, and OPML imports subscribe without
+// fetching, so both start with no items. On reader load, fetch feeds that have
+// never been fetched. Best-effort and one-shot per feed: a failed fetch still
+// sets last_fetched_at, so we never retry it automatically on every load.
+// Capped per load — an OPML import can leave tens of thousands of feeds
+// unfetched, and firing them all at once would hang the reader.
 async function populateUnfetchedFeeds(
   profileId: string,
   subscriptions: Awaited<ReturnType<typeof listSubscriptions>>
 ): Promise<void> {
-  const unfetched = subscriptions.filter((subscription) => !subscription.feed.lastFetchedAt);
+  const unfetched = subscriptions
+    .filter((subscription) => !subscription.feed.lastFetchedAt)
+    .slice(0, LAZY_FETCH_LIMIT);
   if (unfetched.length === 0) return;
 
   await Promise.allSettled(

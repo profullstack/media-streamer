@@ -63,8 +63,18 @@ interface RssResponse {
 
 interface ImportResponse {
   total: number;
-  imported: Array<{ feedUrl: string; feedId: string; title: string; folder: string | null }>;
-  failed: Array<{ feedUrl: string; title: string | null; error: string }>;
+  imported: number;
+  fetched: number;
+  failed: number;
+  errors: Array<{ feedUrl: string; error: string }>;
+}
+
+function importSummary(result: ImportResponse): string {
+  const parts = [`Imported ${result.imported} of ${result.total} feeds`];
+  const pending = result.imported - result.fetched - result.failed;
+  if (pending > 0) parts.push(`${pending} will load as you browse`);
+  if (result.failed > 0) parts.push(`${result.failed} failed to load`);
+  return `${parts.join('; ')}.`;
 }
 
 interface BulkReadStateResponse {
@@ -185,8 +195,7 @@ export function RssContent(): React.ReactElement {
       });
       const data = await response.json() as ImportResponse | { error?: string };
       if (!response.ok) throw new Error('error' in data ? data.error : 'Failed to import OPML');
-      const result = data as ImportResponse;
-      setImportMessage(`Imported ${result.imported.length} of ${result.total} feeds${result.failed.length ? `; ${result.failed.length} failed` : ''}.`);
+      setImportMessage(importSummary(data as ImportResponse));
       await loadReader();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import OPML');

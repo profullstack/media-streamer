@@ -69,7 +69,7 @@ describe('RSS reader browser flow', () => {
       if (url.startsWith('/api/rss/import')) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ total: 1, imported: [{ feedUrl: 'https://example.com/feed.xml', feedId: 'feed-1', title: 'Example Feed', folder: 'Tech' }], failed: [] }),
+          json: async () => ({ total: 1, imported: 1, fetched: 1, failed: 0, errors: [] }),
         });
       }
 
