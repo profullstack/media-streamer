@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase';
 import type {
+  OpmlFeedOutline,
   ParsedRssFeed,
   ParsedRssItem,
   RssFeed,
@@ -75,6 +76,20 @@ interface BulkReadStateRpcClient {
     fn: 'rss_mark_items_read_state',
     params: { p_profile_id: string; p_feed_id: string | null; p_is_read: boolean }
   ): Promise<{ data: number | null; error: { message: string } | null }>;
+}
+
+interface OpmlImportRpcClient {
+  rpc(
+    fn: 'rss_import_opml_feeds',
+    params: { p_profile_id: string; p_feeds: OpmlFeedRecord[] }
+  ): Promise<{ data: number | null; error: { message: string } | null }>;
+}
+
+interface OpmlFeedRecord {
+  feed_url: string;
+  site_url: string | null;
+  title: string | null;
+  folder: string | null;
 }
 
 function db() {
@@ -242,6 +257,35 @@ export async function subscribeToFeed(
     updatedAt: row.updated_at,
     feed: rowToFeed(row.rss_feeds as FeedRow),
   };
+}
+
+/**
+ * Subscribe a profile to every outline in one batch, creating feed rows for the
+ * ones we have never seen. Feeds land without fetch state; items arrive when
+ * the feed is first refreshed.
+ */
+export async function bulkSubscribeToOpmlFeeds(
+  profileId: string,
+  outlines: OpmlFeedOutline[]
+): Promise<number> {
+  if (outlines.length === 0) return 0;
+
+  const rpcClient = db() as unknown as OpmlImportRpcClient;
+  const { data, error } = await rpcClient.rpc('rss_import_opml_feeds', {
+    p_profile_id: profileId,
+    p_feeds: outlines.map((outline) => ({
+      feed_url: outline.feedUrl,
+      site_url: outline.siteUrl,
+      title: outline.title,
+      folder: outline.folder,
+    })),
+  });
+
+  if (error) {
+    throw new Error(`Failed to import OPML feeds: ${error.message}`);
+  }
+
+  return typeof data === 'number' ? data : 0;
 }
 
 export async function listSubscriptions(profileId: string): Promise<RssSubscription[]> {
