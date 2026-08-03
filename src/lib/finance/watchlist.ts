@@ -45,6 +45,40 @@ export function watchlistExportFilename(name: string): string {
   return `${slug || 'watchlist'}.csv`;
 }
 
+/**
+ * Derive a list name from an imported file name — the inverse of
+ * {@link watchlistExportFilename}, so an exported list round-trips back to a
+ * recognizable name. Separators become spaces; an all-lowercase result (what
+ * our own export produces) is title-cased, while a name the user capitalized
+ * themselves is left alone.
+ */
+export function watchlistNameFromFilename(filename: string): string {
+  const base = filename
+    .replace(/\.[^./\\]*$/, '') // drop the extension
+    .replace(/^.*[/\\]/, '') // drop any directory prefix
+    .replace(/[-_]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!base) return DEFAULT_WATCHLIST_NAME;
+  const named = base === base.toLowerCase() ? base.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : base;
+  return named.slice(0, MAX_WATCHLIST_NAME);
+}
+
+/**
+ * Suffix a name until it no longer collides with `existing`, so importing the
+ * same file twice yields "Tech 2" rather than a second identical tab.
+ */
+export function uniqueWatchlistName(name: string, existing: string[]): string {
+  const taken = new Set(existing.map((n) => n.trim().toLowerCase()));
+  if (!taken.has(name.toLowerCase())) return name;
+  for (let n = 2; n < 1000; n += 1) {
+    const suffix = ` ${n}`;
+    const candidate = `${name.slice(0, MAX_WATCHLIST_NAME - suffix.length).trimEnd()}${suffix}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return name;
+}
+
 export interface ParsedSymbolList {
   /** Valid, normalized, de-duplicated symbols. */
   valid: string[];

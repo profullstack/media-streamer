@@ -14,7 +14,14 @@ import Link from 'next/link';
 import { Sparkline } from '@/components/finance/sparkline';
 import { MarketSessionBadge } from '@/components/finance/market-session';
 import { useVisibleInterval } from '@/lib/finance/use-visible-interval';
-import { MAX_WATCHLIST_NAME, formatSymbolsCsv, watchlistExportFilename } from '@/lib/finance/watchlist';
+import {
+  MAX_WATCHLIST_NAME,
+  formatSymbolsCsv,
+  parseSymbolList,
+  uniqueWatchlistName,
+  watchlistExportFilename,
+  watchlistNameFromFilename,
+} from '@/lib/finance/watchlist';
 import type { WatchlistChanges } from '@/lib/finance/performance';
 import type { Quote } from '@/lib/finance/market-data/types';
 
@@ -213,19 +220,22 @@ export function WatchlistSection(): React.ReactElement {
   }, [activeId, activeList, loadLists]);
 
   // --- Add tickers ----------------------------------------------------------
-  /** Send a pasted / imported ticker blob to the bulk-add endpoint. */
+  /**
+   * Send a pasted / imported ticker blob to the bulk-add endpoint. `intoId`
+   * overrides the target list (import creates its own); when it and `activeId`
+   * are both null the server creates the profile's default list and returns it.
+   */
   const submitSymbols = useCallback(
-    async (text: string, verb: 'Added' | 'Imported'): Promise<boolean> => {
+    async (text: string, verb: 'Added' | 'Imported', intoId?: string): Promise<boolean> => {
       if (!text.trim()) return false;
+      const listId = intoId ?? activeId;
       setBulkBusy(true);
       setBulkMsg(null);
       try {
         const res = await fetch('/api/finance/watchlist', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          // activeId may be null for a brand-new user — the server then creates
-          // (and returns) the default list, which we adopt below.
-          body: JSON.stringify(activeId ? { symbols: text, watchlistId: activeId } : { symbols: text }),
+          body: JSON.stringify(listId ? { symbols: text, watchlistId: listId } : { symbols: text }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -239,7 +249,7 @@ export function WatchlistSection(): React.ReactElement {
             (invalid.length ? ` · skipped ${invalid.length} invalid (${invalid.slice(0, 5).join(', ')})` : ''),
         );
         const next = await loadLists();
-        const targetId = (body.watchlistId as string) ?? activeId ?? next[0]?.id ?? null;
+        const targetId = (body.watchlistId as string) ?? listId ?? next[0]?.id ?? null;
         setActiveId(targetId);
         if (targetId === activeId) loadItems();
         return true;
@@ -274,7 +284,12 @@ export function WatchlistSection(): React.ReactElement {
     URL.revokeObjectURL(url);
   }, [watchlist, activeList]);
 
-  /** Read a comma-separated ticker file and add its symbols to the active list. */
+  /**
+   * Read a comma-separated ticker file into a *new* list named after the file
+   * ("my-tech-list.csv" -> "My Tech List", suffixed if that name is taken).
+   * The symbols are validated client-side first so a junk file never leaves an
+   * empty list behind; if list creation fails we fall back to the active list.
+   */
   const importFile = useCallback(
     async (file: File | undefined) => {
       if (!file) return;
@@ -283,9 +298,32 @@ export function WatchlistSection(): React.ReactElement {
         setBulkMsg('That file was empty.');
         return;
       }
-      await submitSymbols(text, 'Imported');
+      if (parseSymbolList(text).valid.length === 0) {
+        setBulkMsg('No valid tickers found.');
+        return;
+      }
+
+      const name = uniqueWatchlistName(
+        watchlistNameFromFilename(file.name),
+        lists.map((l) => l.name),
+      );
+      let newId: string | undefined;
+      try {
+        const res = await fetch('/api/finance/watchlists', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        if (res.ok) {
+          const body = (await res.json()) as { watchlist: WatchlistSummary };
+          newId = body.watchlist.id;
+        }
+      } catch {
+        // fall through — import into the active list instead
+      }
+      await submitSymbols(text, 'Imported', newId);
     },
-    [submitSymbols],
+    [lists, submitSymbols],
   );
 
   const removeSymbol = useCallback(
@@ -411,6 +449,7 @@ export function WatchlistSection(): React.ReactElement {
           type="button"
           onClick={() => importInputRef.current?.click()}
           disabled={bulkBusy}
+          title="Import a ticker file into a new list named after the file"
           className="text-text-muted hover:text-text-secondary hover:underline disabled:opacity-60"
         >
           Import
