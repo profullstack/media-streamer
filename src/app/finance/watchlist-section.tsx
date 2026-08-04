@@ -17,20 +17,23 @@ import { useVisibleInterval } from '@/lib/finance/use-visible-interval';
 import {
   MAX_WATCHLIST_NAME,
   WATCHLISTS_EXPORT_FILENAME,
-  formatSymbolsCsv,
-  formatWatchlistsExport,
+  formatWatchlistsCsv,
   parseSymbolList,
+  parseWatchlistsCsv,
   parseWatchlistsExport,
   uniqueWatchlistName,
   watchlistExportFilename,
   watchlistNameFromFilename,
 } from '@/lib/finance/watchlist';
-import type { NamedWatchlist } from '@/lib/finance/watchlist';
+import type { NamedWatchlist, WatchlistCsvData } from '@/lib/finance/watchlist';
 import type { WatchlistChanges } from '@/lib/finance/performance';
 import type { Quote } from '@/lib/finance/market-data/types';
 
 /** Live-quote poll cadence (ms) while the tab is visible. */
 const QUOTE_POLL_MS = 20_000;
+
+/** Symbols per quotes/changes request — both routes cap a call at 60. */
+const QUOTE_CHUNK = 60;
 
 interface WatchlistRow {
   id: string;
@@ -286,17 +289,54 @@ export function WatchlistSection(): React.ReactElement {
     URL.revokeObjectURL(url);
   }, []);
 
-  /** Download the active list as comma-separated, alphabetical tickers. */
-  const exportList = useCallback(() => {
-    const csv = formatSymbolsCsv(watchlist.map((row) => row.symbol));
-    if (!csv) return;
-    download(csv, watchlistExportFilename(activeList?.name ?? 'watchlist'));
-  }, [watchlist, activeList, download]);
+  /**
+   * Pull quotes + trailing changes for the symbols being exported. Both routes
+   * cap a request at 60 symbols, so a big export goes out in chunks; a failed
+   * chunk just leaves those price cells blank rather than sinking the file.
+   */
+  const fetchMarketData = useCallback(async (symbols: string[]): Promise<WatchlistCsvData> => {
+    const quotes: Record<string, Quote> = {};
+    const changes: Record<string, WatchlistChanges> = {};
+    const chunks: string[][] = [];
+    for (let i = 0; i < symbols.length; i += QUOTE_CHUNK) chunks.push(symbols.slice(i, i + QUOTE_CHUNK));
+
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const query = encodeURIComponent(chunk.join(','));
+        const [q, c] = await Promise.all([
+          fetch(`/api/finance/quotes?symbols=${query}`, { cache: 'no-store' })
+            .then((res) => (res.ok ? res.json() : { quotes: {} }))
+            .catch(() => ({ quotes: {} })),
+          fetch(`/api/finance/watchlist/changes?symbols=${query}`, { cache: 'no-store' })
+            .then((res) => (res.ok ? res.json() : { changes: {} }))
+            .catch(() => ({ changes: {} })),
+        ]);
+        Object.assign(quotes, (q as { quotes?: Record<string, Quote> }).quotes ?? {});
+        Object.assign(changes, (c as { changes?: Record<string, WatchlistChanges> }).changes ?? {});
+      }),
+    );
+
+    return { quotes, changes };
+  }, []);
+
+  /** Download the active list as a CSV: one row per ticker, with its prices. */
+  const exportList = useCallback(async () => {
+    const symbols = parseSymbolList(watchlist.map((row) => row.symbol)).valid;
+    if (symbols.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const name = activeList?.name ?? 'watchlist';
+      const data = await fetchMarketData(symbols);
+      download(formatWatchlistsCsv([{ name, symbols }], data), watchlistExportFilename(name));
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [watchlist, activeList, download, fetchMarketData]);
 
   /**
-   * Download every list in one file — one `Name,TICKER,…` line per list. Each
-   * list's tickers are fetched on demand, since only the active list's items
-   * are held in state.
+   * Download every list in one CSV — one row per ticker, tagged with its list
+   * and carrying its prices. Each list's tickers are fetched on demand, since
+   * only the active list's items are held in state.
    */
   const exportAllLists = useCallback(async () => {
     if (lists.length === 0) return;
@@ -312,15 +352,16 @@ export function WatchlistSection(): React.ReactElement {
           return { name: list.name, symbols: (body.watchlist ?? []).map((row) => row.symbol) };
         }),
       );
-      download(formatWatchlistsExport(named), WATCHLISTS_EXPORT_FILENAME);
-      const total = named.reduce((sum, l) => sum + l.symbols.length, 0);
-      setBulkMsg(`Exported ${named.length} list${named.length === 1 ? '' : 's'} · ${total} tickers.`);
+      const symbols = parseSymbolList(named.flatMap((l) => l.symbols)).valid;
+      const data = await fetchMarketData(symbols);
+      download(formatWatchlistsCsv(named, data), WATCHLISTS_EXPORT_FILENAME);
+      setBulkMsg(`Exported ${named.length} list${named.length === 1 ? '' : 's'} · ${symbols.length} tickers.`);
     } catch {
       setBulkMsg('Could not export your lists.');
     } finally {
       setBulkBusy(false);
     }
-  }, [lists, download]);
+  }, [lists, download, fetchMarketData]);
 
   /** Create a list and return its id, or undefined when the server refuses. */
   const createNamedList = useCallback(async (name: string): Promise<string | undefined> => {
@@ -400,7 +441,8 @@ export function WatchlistSection(): React.ReactElement {
         return;
       }
 
-      const bundle = parseWatchlistsExport(text);
+      const fileName = watchlistNameFromFilename(file.name);
+      const bundle = parseWatchlistsCsv(text, fileName) ?? parseWatchlistsExport(text);
       if (bundle) {
         if (bundle.length === 0) {
           setBulkMsg('That file has no lists in it.');
@@ -416,7 +458,7 @@ export function WatchlistSection(): React.ReactElement {
       }
 
       const name = uniqueWatchlistName(
-        watchlistNameFromFilename(file.name),
+        fileName,
         lists.map((l) => l.name),
       );
       // On failure newId stays undefined and the import falls back to the
@@ -557,9 +599,9 @@ export function WatchlistSection(): React.ReactElement {
         </button>
         <button
           type="button"
-          onClick={exportList}
-          disabled={watchlist.length === 0}
-          title="Download this list's tickers"
+          onClick={() => void exportList()}
+          disabled={bulkBusy || watchlist.length === 0}
+          title="Download this list as a CSV: one row per ticker, with prices"
           className="text-text-muted hover:text-text-secondary hover:underline disabled:opacity-40"
         >
           Export
@@ -568,7 +610,7 @@ export function WatchlistSection(): React.ReactElement {
           type="button"
           onClick={() => void exportAllLists()}
           disabled={bulkBusy || lists.length === 0}
-          title="Download every list in one file"
+          title="Download every list in one CSV: one row per ticker, with prices"
           className="text-text-muted hover:text-text-secondary hover:underline disabled:opacity-40"
         >
           Export all

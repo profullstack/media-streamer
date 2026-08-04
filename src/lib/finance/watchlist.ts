@@ -35,9 +35,9 @@ export function formatSymbolsCsv(symbols: string[]): string {
 }
 
 /**
- * First line of an all-lists export. Import keys off this sentinel to tell a
- * multi-list file from a plain ticker list — without it, a multi-line ticker
- * file would be ambiguous (is the first field a list name or a symbol?).
+ * First line of the pre-CSV all-lists export (`#watchlists`, one
+ * `Name,TICKER,…` line per list). Still parsed on import so files exported
+ * before the spreadsheet format shipped keep working.
  */
 export const WATCHLISTS_EXPORT_HEADER = '#watchlists';
 
@@ -49,54 +49,9 @@ export interface NamedWatchlist {
   symbols: string[];
 }
 
-/** Quote a list name if it would otherwise collide with the field separator. */
-function quoteName(name: string): string {
-  return /["\n,]/.test(name) ? `"${name.replace(/"/g, '""')}"` : name;
-}
-
-/** Split a line into its (possibly quoted) leading name and the rest. */
-function splitNameAndRest(line: string): [string, string] {
-  if (!line.startsWith('"')) {
-    const comma = line.indexOf(',');
-    return comma === -1 ? [line, ''] : [line.slice(0, comma), line.slice(comma + 1)];
-  }
-  let name = '';
-  let i = 1;
-  while (i < line.length) {
-    if (line[i] === '"') {
-      if (line[i + 1] === '"') {
-        name += '"';
-        i += 2;
-        continue;
-      }
-      i += 1;
-      break;
-    }
-    name += line[i];
-    i += 1;
-  }
-  // `i` now sits just past the closing quote; the rest follows its comma.
-  return [name, line[i] === ',' ? line.slice(i + 1) : ''];
-}
-
 /**
- * Render every list as one file: a sentinel line, then one line per list —
- * `Name,TICKER,TICKER,…` with tickers alphabetical and the lists themselves
- * sorted by name. Empty lists are kept so the file round-trips exactly.
- */
-export function formatWatchlistsExport(lists: NamedWatchlist[]): string {
-  const lines = [...lists]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((list) => {
-      const csv = formatSymbolsCsv(list.symbols);
-      return csv ? `${quoteName(list.name)},${csv}` : quoteName(list.name);
-    });
-  return [WATCHLISTS_EXPORT_HEADER, ...lines].join('\n');
-}
-
-/**
- * Parse an all-lists export. Returns null when the sentinel is absent, i.e.
- * the file is a plain ticker list and the caller should treat it as one list.
+ * Parse the legacy `#watchlists` export. Returns null when the sentinel is
+ * absent, i.e. this is not that format and the caller should try another.
  */
 export function parseWatchlistsExport(text: string): NamedWatchlist[] | null {
   const lines = text.split(/\r?\n/);
@@ -106,12 +61,190 @@ export function parseWatchlistsExport(text: string): NamedWatchlist[] | null {
   const out: NamedWatchlist[] = [];
   for (const line of lines.slice(first + 1)) {
     if (!line.trim()) continue;
-    const [rawName, rest] = splitNameAndRest(line.trim());
+    const [rawName, ...rest] = parseCsvLine(line.trim());
     const name = sanitizeWatchlistName(rawName);
     if (!name) continue;
     out.push({ name, symbols: parseSymbolList(rest).valid });
   }
   return out;
+}
+
+// --- Spreadsheet CSV export ------------------------------------------------
+
+/**
+ * Column order of the export. Ticker first (leftmost), then which list it is
+ * on, then the market data the watchlist cards show. Price columns are blank
+ * when the provider has no data for that symbol.
+ */
+export const WATCHLIST_CSV_COLUMNS = [
+  'Symbol',
+  'List',
+  'Price',
+  'Change',
+  'Change %',
+  '1D %',
+  '5D %',
+  '30D %',
+  'Open',
+  'High',
+  'Low',
+  'Prev Close',
+  'Volume',
+  'As Of',
+] as const;
+
+/** Market data for one exported row; every field is optional. */
+export interface WatchlistCsvQuote {
+  price?: number;
+  change?: number;
+  changePercent?: number;
+  previousClose?: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+  /** UTC unix seconds of the latest bar. */
+  asOf?: number;
+}
+
+/** Trailing % changes for one exported row. */
+export interface WatchlistCsvChanges {
+  d1?: number | null;
+  d5?: number | null;
+  d30?: number | null;
+}
+
+export interface WatchlistCsvData {
+  quotes?: Record<string, WatchlistCsvQuote | undefined>;
+  changes?: Record<string, WatchlistCsvChanges | undefined>;
+}
+
+/** Escape one CSV field (RFC4180: quote when it holds a comma, quote or newline). */
+function csvField(value: string): string {
+  return /["\n\r,]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/** Split one CSV line into fields, honoring quoted fields and `""` escapes. */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"' && field.length === 0) {
+      quoted = true;
+    } else if (ch === ',') {
+      fields.push(field);
+      field = '';
+    } else {
+      field += ch;
+    }
+  }
+  fields.push(field);
+  return fields;
+}
+
+/** Fixed-decimal cell, blank when the value is missing or non-finite. */
+function num(value: number | null | undefined, decimals = 2): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(decimals) : '';
+}
+
+/** Unix seconds -> `YYYY-MM-DD`, blank when absent. */
+function asOfDate(seconds: number | undefined): string {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '';
+  const iso = new Date(seconds * 1000).toISOString();
+  return iso.slice(0, 10);
+}
+
+/**
+ * Render lists as a spreadsheet-friendly CSV: a header row, then one row per
+ * ticker with the symbol leftmost and its live market data alongside. Lists
+ * are grouped by name and tickers within each are alphabetical. An empty list
+ * still gets a row (blank symbol) so it survives a round trip.
+ */
+export function formatWatchlistsCsv(lists: NamedWatchlist[], data: WatchlistCsvData = {}): string {
+  const rows: string[] = [WATCHLIST_CSV_COLUMNS.join(',')];
+
+  for (const list of [...lists].sort((a, b) => a.name.localeCompare(b.name))) {
+    const symbols = formatSymbolsCsv(list.symbols);
+    if (!symbols) {
+      rows.push(`,${csvField(list.name)}`);
+      continue;
+    }
+    for (const symbol of symbols.split(',')) {
+      const q = data.quotes?.[symbol];
+      const c = data.changes?.[symbol];
+      rows.push(
+        [
+          symbol,
+          csvField(list.name),
+          num(q?.price),
+          num(q?.change),
+          num(q?.changePercent),
+          num(c?.d1),
+          num(c?.d5),
+          num(c?.d30),
+          num(q?.open),
+          num(q?.high),
+          num(q?.low),
+          num(q?.previousClose),
+          num(q?.volume, 0),
+          asOfDate(q?.asOf),
+        ].join(','),
+      );
+    }
+  }
+
+  return rows.join('\n');
+}
+
+/**
+ * Parse the spreadsheet CSV back into lists, keyed off the `Symbol` / `List`
+ * header columns — price columns are ignored, so a file edited in a
+ * spreadsheet still imports. Returns null when the header isn't ours, leaving
+ * the caller to fall back to a plain ticker list.
+ *
+ * `fallbackName` names rows whose `List` cell is blank (or when the file has
+ * no `List` column at all) — callers pass the file name.
+ */
+export function parseWatchlistsCsv(text: string, fallbackName: string): NamedWatchlist[] | null {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return null;
+
+  const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const symbolAt = header.indexOf('symbol');
+  if (symbolAt === -1) return null;
+  const listAt = header.indexOf('list');
+
+  const order: string[] = [];
+  const bySymbolList = new Map<string, { name: string; symbols: string[] }>();
+
+  for (const line of lines.slice(1)) {
+    const fields = parseCsvLine(line);
+    const name = sanitizeWatchlistName(listAt === -1 ? fallbackName : fields[listAt]) ?? fallbackName;
+    const key = name.toLowerCase();
+    let entry = bySymbolList.get(key);
+    if (!entry) {
+      entry = { name, symbols: [] };
+      bySymbolList.set(key, entry);
+      order.push(key);
+    }
+    const symbol = parseSymbolList(fields[symbolAt] ?? '').valid[0];
+    if (symbol && !entry.symbols.includes(symbol)) entry.symbols.push(symbol);
+  }
+
+  return order.map((key) => bySymbolList.get(key) as NamedWatchlist);
 }
 
 /** File name for an exported list, e.g. "My Tech List" -> "my-tech-list.csv". */
