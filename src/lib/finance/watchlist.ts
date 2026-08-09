@@ -6,6 +6,10 @@ import { normalizeSymbol } from './market-data/stooq';
 
 const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
+function stripByteOrderMark(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 /** Max length for a watchlist name. */
 export const MAX_WATCHLIST_NAME = 60;
 
@@ -54,7 +58,7 @@ export interface NamedWatchlist {
  * absent, i.e. this is not that format and the caller should try another.
  */
 export function parseWatchlistsExport(text: string): NamedWatchlist[] | null {
-  const lines = text.split(/\r?\n/);
+  const lines = stripByteOrderMark(text).split(/\r?\n/);
   const first = lines.findIndex((line) => line.trim().length > 0);
   if (first === -1 || lines[first].trim().toLowerCase() !== WATCHLISTS_EXPORT_HEADER) return null;
 
@@ -219,7 +223,9 @@ export function formatWatchlistsCsv(lists: NamedWatchlist[], data: WatchlistCsvD
  * no `List` column at all) — callers pass the file name.
  */
 export function parseWatchlistsCsv(text: string, fallbackName: string): NamedWatchlist[] | null {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  const lines = stripByteOrderMark(text)
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
   if (lines.length === 0) return null;
 
   const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());

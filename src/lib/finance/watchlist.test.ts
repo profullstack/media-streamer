@@ -168,6 +168,12 @@ describe('parseWatchlistsCsv', () => {
     ]);
   });
 
+  it('recognizes a UTF-8 byte order mark before the header', () => {
+    expect(parseWatchlistsCsv('\uFEFFSymbol,List\nAAPL,Tech\n', 'ignored')).toEqual([
+      { name: 'Tech', symbols: ['AAPL'] },
+    ]);
+  });
+
   it('returns null for a plain ticker list, so it imports as a single list', () => {
     expect(parseWatchlistsCsv('AAPL,NVDA,SPY', 'f')).toBeNull();
     expect(parseWatchlistsCsv('AAPL\nNVDA', 'f')).toBeNull();
@@ -201,6 +207,10 @@ describe('parseWatchlistsExport (legacy #watchlists files)', () => {
 
   it('tolerates blank lines and CRLF', () => {
     expect(parseWatchlistsExport('#watchlists\r\n\r\nTech,AAPL\r\n')).toEqual([{ name: 'Tech', symbols: ['AAPL'] }]);
+  });
+
+  it('recognizes a UTF-8 byte order mark before the sentinel', () => {
+    expect(parseWatchlistsExport('\uFEFF#watchlists\nTech,AAPL')).toEqual([{ name: 'Tech', symbols: ['AAPL'] }]);
   });
 });
 
