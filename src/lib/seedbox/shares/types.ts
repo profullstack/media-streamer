@@ -61,7 +61,12 @@ export interface SeedboxShareDownload {
   grantId: string;
   shareId: string;
   infohash: string;
+  /** Display label. Starts as the renter-supplied magnet `dn`, so it is NOT
+   * trustworthy until {@link SeedboxShareDownload.nameVerified} is true. */
   name: string | null;
+  /** True once `name` came from the owner's seedbox (torlink `/status`) rather
+   * than the magnet. Only verified names grant streaming scope. */
+  nameVerified: boolean;
   magnet: string;
   status: DownloadStatus;
   createdAt: string;

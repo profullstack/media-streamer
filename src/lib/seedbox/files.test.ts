@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import type { SeedboxFilesConfig } from './config';
-import { buildSeedboxFileUrl, filesAuthHeaders } from './files';
+import { buildSeedboxDirUrl, buildSeedboxFileUrl, filesAuthHeaders } from './files';
 
 function cfg(overrides: Partial<SeedboxFilesConfig> = {}): SeedboxFilesConfig {
   return { baseUrl: 'http://box.example.com:9160', auth: { kind: 'none' }, ...overrides };
@@ -23,6 +23,26 @@ describe('buildSeedboxFileUrl', () => {
     expect(buildSeedboxFileUrl('http://box', 'http://evil.com/x')).toBeNull();
     expect(buildSeedboxFileUrl('http://box', 'a\\b')).toBeNull();
     expect(buildSeedboxFileUrl('http://box', '')).toBeNull();
+  });
+});
+
+describe('buildSeedboxDirUrl', () => {
+  it('returns the files root for an empty directory', () => {
+    expect(buildSeedboxDirUrl('http://box:9160', '')).toBe('http://box:9160/');
+    expect(buildSeedboxDirUrl('http://box:9160/', '  ')).toBe('http://box:9160/');
+  });
+  it('encodes segments and keeps the trailing slash a listing needs', () => {
+    expect(buildSeedboxDirUrl('http://box:9160', 'Movie (1999)/Subs')).toBe(
+      'http://box:9160/Movie%20(1999)/Subs/'
+    );
+  });
+  it('rejects traversal — encoding alone would leave `..` intact', () => {
+    expect(buildSeedboxDirUrl('http://box', '..')).toBeNull();
+    expect(buildSeedboxDirUrl('http://box', '../..')).toBeNull();
+    expect(buildSeedboxDirUrl('http://box', 'Movies/../../etc')).toBeNull();
+    expect(buildSeedboxDirUrl('http://box', '/etc')).toBeNull();
+    expect(buildSeedboxDirUrl('http://box', 'http://evil.com')).toBeNull();
+    expect(buildSeedboxDirUrl('http://box', 'a\\b')).toBeNull();
   });
 });
 

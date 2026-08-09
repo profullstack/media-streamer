@@ -47,6 +47,28 @@ const STATUS_STYLE: Record<Rental['status'], string> = {
   closed: 'bg-red-500/10 text-red-500',
 };
 
+function hasLapsed(rental: Rental): boolean {
+  return !!rental.expiresAt && new Date(rental.expiresAt).getTime() <= Date.now();
+}
+
+/**
+ * What the public /rent page actually does with this rental. A lapsed
+ * `expiresAt` closes the link while the stored status stays 'active', so
+ * showing the raw status would tell the owner their dead link is fine.
+ */
+function effectiveStatus(rental: Rental): Rental['status'] {
+  if (rental.status === 'active' && hasLapsed(rental)) return 'expired';
+  return rental.status;
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export function RentOut(): React.ReactElement {
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [ready, setReady] = useState<ReadyState | null>(null);
@@ -60,7 +82,9 @@ export function RentOut(): React.ReactElement {
   const [price, setPrice] = useState('0.25');
   const [windowHours, setWindowHours] = useState('24');
   const [maxDownloads, setMaxDownloads] = useState('2');
-  const [expiryDays, setExpiryDays] = useState('7');
+  // Default to never: a lapsed rental silently stops taking payments, and an
+  // owner who wants a deadline can still set one.
+  const [expiryDays, setExpiryDays] = useState('0');
   const [payoutWallet, setPayoutWallet] = useState('');
   const [payoutChain, setPayoutChain] = useState('SOL');
 
@@ -114,16 +138,21 @@ export function RentOut(): React.ReactElement {
     }
   }, [title, price, windowHours, maxDownloads, expiryDays, payoutWallet, payoutChain, load]);
 
-  const patchStatus = useCallback(
-    async (id: string, status: Rental['status']): Promise<void> => {
+  const patchRental = useCallback(
+    async (id: string, patch: Record<string, unknown>): Promise<void> => {
       await fetch(`/api/seedbox/shares/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(patch),
       });
       await load();
     },
     [load]
+  );
+
+  const patchStatus = useCallback(
+    (id: string, status: Rental['status']): Promise<void> => patchRental(id, { status }),
+    [patchRental]
   );
 
   const remove = useCallback(
@@ -209,7 +238,7 @@ export function RentOut(): React.ReactElement {
               />
             </div>
             <div>
-              <label className={labelCls}>Auto-expire (days, 0 = never)</label>
+              <label className={labelCls}>Auto-expire (days, 0 = never — recommended)</label>
               <input
                 className={inputCls}
                 type="number"
@@ -256,14 +285,17 @@ export function RentOut(): React.ReactElement {
         {rentals.length === 0 && (
           <p className="text-sm text-text-secondary">No rentals yet.</p>
         )}
-        {rentals.map((r) => (
+        {rentals.map((r) => {
+          const status = effectiveStatus(r);
+          const lapsed = hasLapsed(r);
+          return (
           <div key={r.id} className="rounded-lg border border-border bg-bg-secondary p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-text-primary">{r.title}</span>
-                  <span className={cn('rounded px-2 py-0.5 text-xs font-medium', STATUS_STYLE[r.status])}>
-                    {r.status}
+                  <span className={cn('rounded px-2 py-0.5 text-xs font-medium', STATUS_STYLE[status])}>
+                    {status}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-text-secondary">
@@ -272,6 +304,25 @@ export function RentOut(): React.ReactElement {
                   {r.sessionCount} session{r.sessionCount === 1 ? '' : 's'} · $
                   {r.earningsUsd.toFixed(2)} earned
                 </p>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  {r.expiresAt
+                    ? `${lapsed ? 'Auto-expired' : 'Auto-expires'} ${fmtDate(r.expiresAt)}`
+                    : 'No auto-expiry'}
+                  {r.expiresAt ? (
+                    <button
+                      className="ml-2 text-accent-primary hover:underline"
+                      onClick={() => void patchRental(r.id, { expiresAt: null })}
+                    >
+                      remove expiry
+                    </button>
+                  ) : null}
+                </p>
+                {lapsed && r.status === 'active' ? (
+                  <p className="mt-2 rounded-md border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-600">
+                    This link stopped taking payments when it expired. Reopen it to start
+                    renting again.
+                  </p>
+                ) : null}
                 <button
                   className="mt-2 inline-flex items-center gap-1 text-xs text-accent-primary hover:underline"
                   onClick={() => copyLink(r.slug)}
@@ -281,12 +332,20 @@ export function RentOut(): React.ReactElement {
                 </button>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {r.status === 'active' && (
+                {lapsed && r.status !== 'closed' && (
+                  <button
+                    className={cn(btn, 'bg-accent-primary text-white hover:opacity-90')}
+                    onClick={() => void patchRental(r.id, { status: 'active', expiresAt: null })}
+                  >
+                    Reopen
+                  </button>
+                )}
+                {status === 'active' && (
                   <button className={cn(btn, 'bg-bg-hover text-text-primary')} onClick={() => void patchStatus(r.id, 'paused')}>
                     Pause
                   </button>
                 )}
-                {r.status === 'paused' && (
+                {r.status === 'paused' && !lapsed && (
                   <button className={cn(btn, 'bg-bg-hover text-text-primary')} onClick={() => void patchStatus(r.id, 'active')}>
                     Resume
                   </button>
@@ -306,7 +365,8 @@ export function RentOut(): React.ReactElement {
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </section>
     </div>
   );

@@ -17,7 +17,7 @@ import {
   sendTorrentToSeedbox,
 } from '@/lib/seedbox';
 import type { SeedboxConfig } from '@/lib/seedbox/config';
-import { filesAuthHeaders } from '@/lib/seedbox/files';
+import { buildSeedboxDirUrl, filesAuthHeaders } from '@/lib/seedbox/files';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
 import { streamSeedboxFile, type StreamOptions } from '@/lib/seedbox/stream';
 import { parseMagnet } from './magnet';
@@ -144,6 +144,18 @@ export function isShareOpen(share: SeedboxShare): boolean {
   if (share.status !== 'active') return false;
   if (share.expiresAt && new Date(share.expiresAt).getTime() <= Date.now()) return false;
   return true;
+}
+
+/**
+ * True when an already-paid pass may still add torrents.
+ *
+ * Deliberately weaker than {@link isShareOpen}: `expires_at` means "stop
+ * selling new passes", so someone who paid before it lapsed keeps the session
+ * they bought (their own grant expiry still bounds it). Pausing or closing is
+ * an explicit owner decision and does stop new downloads.
+ */
+export function isShareAcceptingDownloads(share: SeedboxShare): boolean {
+  return share.status === 'active';
 }
 
 export function toPublicShare(share: SeedboxShare): PublicShare {
@@ -320,11 +332,31 @@ export async function getGrantStatus(
 // Public: add a download under a pass
 // ---------------------------------------------------------------------------
 
+/**
+ * Reduce a renter-supplied magnet `dn` to a plain display label: no path
+ * separators, no control characters, bounded length. It never authorizes
+ * anything (see `name_verified`), but keeping it inert means a hostile `dn`
+ * can't be mistaken for a path anywhere downstream.
+ */
+function sanitizeDisplayName(raw: string | null): string | null {
+  if (!raw) return null;
+  const cleaned = raw
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/[/\\]/g, ' ')
+    .trim()
+    .slice(0, 300);
+  if (!cleaned || cleaned === '.' || cleaned === '..') return null;
+  return cleaned;
+}
+
 export async function addDownload(
   share: SeedboxShare,
   grant: SeedboxShareGrant,
   magnet: string
 ): Promise<SeedboxShareDownload> {
+  if (!isShareAcceptingDownloads(share)) {
+    throw new RentalError('This rental is not accepting new downloads right now', 403);
+  }
   if (!isValidMagnet(magnet)) {
     throw new RentalError('That doesn’t look like a valid magnet link', 400);
   }
@@ -355,7 +387,7 @@ export async function addDownload(
     grantId: grant.id,
     shareId: share.id,
     infohash: parsed.infohash,
-    name: parsed.name,
+    name: sanitizeDisplayName(parsed.name),
     magnet: magnet.trim(),
   });
 }
@@ -434,18 +466,30 @@ export async function listDownloadsWithProgress(
       : live
         ? 'downloading'
         : d.status;
-    const learnedName = live?.name && live.name !== '(unknown)' ? live.name : d.name;
+    // A name straight off the owner's seedbox, keyed by this download's
+    // infohash. This — and only this — is what may widen the pass's streaming
+    // scope, so it is tracked separately from the renter's magnet `dn` label.
+    const verifiedName = live?.name && live.name !== '(unknown)' ? live.name : null;
+    const displayName = verifiedName ?? d.name;
 
-    // Persist a learned name/status so streaming-scope checks work after the
-    // renter navigates away and back (best effort; ignore write failures).
-    if ((learnedName && learnedName !== d.name) || nextStatus !== d.status) {
-      repo.updateDownloadMeta(d.id, { name: learnedName ?? undefined, status: nextStatus }).catch(() => {});
+    // Persist it so scope checks still hold after the renter navigates away and
+    // back (best effort; ignore write failures).
+    const learnedName = verifiedName && verifiedName !== d.name ? verifiedName : undefined;
+    const newlyVerified = verifiedName != null && !d.nameVerified ? true : undefined;
+    if (learnedName !== undefined || newlyVerified !== undefined || nextStatus !== d.status) {
+      repo
+        .updateDownloadMeta(d.id, {
+          name: learnedName,
+          nameVerified: newlyVerified,
+          status: nextStatus,
+        })
+        .catch(() => {});
     }
 
     out.push({
       id: d.id,
       infohash: d.infohash,
-      name: learnedName ?? null,
+      name: displayName ?? null,
       status: nextStatus,
       progress,
       peers: live?.peers ?? 0,
@@ -474,6 +518,10 @@ function topSegment(filePath: string): string {
  * torlink saves each torrent under its `name`, so a file's top-level path
  * segment (or the whole single-file path) must match one of the grant's
  * download names.
+ *
+ * `names` must be seedbox-verified names only. The renter chooses the magnet's
+ * `dn`, so honouring an unverified name would let a $0.25 pass name any folder
+ * already sitting on the owner's box and stream the owner's own library.
  */
 function pathAllowedForGrant(filePath: string, names: string[]): boolean {
   const top = topSegment(filePath).toLowerCase();
@@ -491,7 +539,10 @@ export async function streamForPass(
   opts: StreamOptions
 ): Promise<Response> {
   const downloads = await repo.listDownloadsByGrant(grant.id);
-  const names = downloads.map((d) => d.name).filter((n): n is string => Boolean(n));
+  const names = downloads
+    .filter((d) => d.nameVerified)
+    .map((d) => d.name)
+    .filter((n): n is string => Boolean(n));
   if (names.length === 0 || !pathAllowedForGrant(filePath, names)) {
     return jsonError('That file isn’t part of your downloads', 403);
   }
@@ -537,13 +588,11 @@ async function listSeedboxDir(
   files: NonNullable<SeedboxConfig['files']>,
   relDir: string
 ): Promise<DirEntry[] | null> {
-  const base = files.baseUrl.replace(/\/+$/, '');
-  const encoded = relDir
-    .split('/')
-    .filter(Boolean)
-    .map((s) => encodeURIComponent(s))
-    .join('/');
-  const url = encoded ? `${base}/${encoded}/` : `${base}/`;
+  // Percent-encoding alone doesn't contain a path: `encodeURIComponent('..')`
+  // is `'..'`, which the upstream resolves away and walks out of the save
+  // directory. buildSeedboxDirUrl rejects traversal outright.
+  const url = buildSeedboxDirUrl(files.baseUrl, relDir);
+  if (!url) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
@@ -598,8 +647,10 @@ export async function listDownloadFiles(
   if (!download || download.grantId !== pass.grant.id) {
     return { ok: false, status: 404, message: 'Download not found' };
   }
-  if (!download.name) {
-    return { ok: true, files: [] }; // torrent name not learned yet (still resolving)
+  // Until the owner's seedbox reports a name for this infohash we have no
+  // verified folder to open — and the magnet's `dn` must never be used as one.
+  if (!download.name || !download.nameVerified) {
+    return { ok: true, files: [] };
   }
 
   const config = await loadAccountSeedboxConfig(pass.share.ownerAccountId);

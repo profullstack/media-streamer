@@ -24,6 +24,7 @@ export {
   deleteRental,
   getRentalActivity,
   isShareOpen,
+  isShareAcceptingDownloads,
   toPublicShare,
   getPublicShare,
   isShareOwnedBy,
