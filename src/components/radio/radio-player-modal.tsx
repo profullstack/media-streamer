@@ -78,7 +78,6 @@ export function RadioPlayerModal({
     if (!preferredStream || !audioRef.current || !isOpen) return;
 
     const audio = audioRef.current;
-    audio.volume = isMuted ? 0 : volume;
 
     const isHls =
       preferredStream.mediaType === 'hls' ||
@@ -120,7 +119,15 @@ export function RadioPlayerModal({
       audio.removeAttribute('src');
       audio.load();
     };
-  }, [preferredStream, isOpen, volume, isMuted]);
+    // Volume/mute are applied by the effect below so changing them never
+    // re-attaches the stream.
+  }, [preferredStream, isOpen]);
+
+  // Apply volume/mute to the element without touching the stream
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = isMuted ? 0 : volume;
+  }, [volume, isMuted, isOpen]);
 
   // Cleanup on close
   useEffect(() => {
@@ -225,22 +232,14 @@ export function RadioPlayerModal({
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : newVolume;
-    }
-    if (newVolume > 0 && isMuted) {
+    if (newVolume > 0) {
       setIsMuted(false);
     }
-  }, [isMuted]);
+  }, []);
 
   const toggleMute = useCallback((): void => {
-    setIsMuted((prev) => {
-      if (audioRef.current) {
-        audioRef.current.volume = prev ? volume : 0;
-      }
-      return !prev;
-    });
-  }, [volume]);
+    setIsMuted((prev) => !prev);
+  }, []);
 
   const handleAudioPlay = useCallback((): void => {
     setIsPlaying(true);
