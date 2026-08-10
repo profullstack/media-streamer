@@ -85,6 +85,26 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
           <a href="/privacy" className="hover:text-text-primary transition-colors">Privacy</a>
           <span className="mx-2">·</span>
           <a href="https://github.com/profullstack/media-streamer" target="_blank" rel="noopener noreferrer" className="hover:text-text-primary transition-colors">GitHub</a>
+
+          {/* Launchpadly badge */}
+          <div className="mt-3">
+            <a
+              href="https://launchpadly.co/startup/bittorrented?ref=badge"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block opacity-70 transition-opacity hover:opacity-100"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://launchpadly.co/embed/badges/startup/bittorrented.svg?variant=dark"
+                alt="Launchpadly Startup Directory"
+                width={260}
+                height={48}
+                loading="lazy"
+                className="h-8 w-auto"
+              />
+            </a>
+          </div>
         </footer>
       </div>
     </div>
