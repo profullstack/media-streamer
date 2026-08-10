@@ -111,7 +111,8 @@ This is what a pass may stream. A pass can only reach files whose torrent it add
 | `grant_id` | uuid → `seedbox_share_grants(id)` ON DELETE CASCADE | |
 | `share_id` | uuid → `seedbox_shares(id)` ON DELETE CASCADE | |
 | `infohash` | text | parsed from magnet; matches torlink `/status` |
-| `name` | text NULL | torrent display name / top-level dir (from torlink status) |
+| `name` | text NULL | torrent display name / top-level dir |
+| `name_verified` | boolean | true only once `name` came from torlink `/status` |
 | `magnet` | text | the submitted magnet (validated) |
 | `status` | text | `added` \| `downloading` \| `complete` \| `error` (best-effort) |
 | `created_at` / `updated_at` | timestamptz | |
@@ -120,6 +121,14 @@ Indexes on `grant_id`, `share_id`, `(grant_id, infohash)` unique. RLS: service-r
 **Streaming scope:** a requested file `path` is allowed for a pass iff its top-level segment
 matches the `name` of one of that grant's `seedbox_share_downloads` rows (torlink saves each
 torrent under its name). `buildSeedboxFileUrl` still blocks traversal on top of this.
+
+**Only verified names grant scope.** A row's `name` starts as the magnet's `dn`, which the
+renter chooses — so it is a display label until torlink reports a name for that infohash and
+`name_verified` flips true. Authorizing on an unverified name would let a paid pass submit
+`dn=<a folder already on the owner's box>` and stream the owner's own library. Until a
+download is verified it has no scope: `/stream` 403s and the file listing returns empty.
+Directory listings go through `buildSeedboxDirUrl`, which rejects traversal the same way —
+percent-encoding alone does not, since `encodeURIComponent('..')` is `'..'`.
 
 ## 5. API surface
 

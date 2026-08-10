@@ -72,6 +72,7 @@ function toDownload(row: ShareRow): SeedboxShareDownload {
     shareId: String(row.share_id),
     infohash: String(row.infohash),
     name: (row.name as string | null) ?? null,
+    nameVerified: row.name_verified === true,
     magnet: String(row.magnet),
     status: row.status as DownloadStatus,
     createdAt: String(row.created_at),
@@ -392,7 +393,10 @@ export async function insertDownload(record: {
         grant_id: record.grantId,
         share_id: record.shareId,
         infohash: record.infohash,
+        // The renter's magnet `dn` — a label only. Streaming scope waits for a
+        // name the owner's seedbox reports for this infohash.
         name: record.name,
+        name_verified: false,
         magnet: record.magnet,
         status: 'added',
       },
@@ -442,13 +446,19 @@ export async function countDownloadsByShare(shareId: string): Promise<number> {
   return count ?? 0;
 }
 
-/** Persist a torrent's learned name/status from torlink status polling. */
+/**
+ * Persist a torrent's learned name/status from torlink status polling.
+ *
+ * `nameVerified` must only ever be set by a caller that read the name off the
+ * owner's seedbox — it is what authorizes playback.
+ */
 export async function updateDownloadMeta(
   id: string,
-  fields: { name?: string | null; status?: DownloadStatus }
+  fields: { name?: string | null; status?: DownloadStatus; nameVerified?: boolean }
 ): Promise<void> {
   const record: Record<string, unknown> = {};
   if (fields.name !== undefined) record.name = fields.name;
+  if (fields.nameVerified !== undefined) record.name_verified = fields.nameVerified;
   if (fields.status !== undefined) record.status = fields.status;
   if (Object.keys(record).length === 0) return;
   const { error } = await db().from('seedbox_share_downloads').update(record).eq('id', id);

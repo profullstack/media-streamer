@@ -63,11 +63,15 @@ export async function listOnDiskNames(
 }
 
 /**
- * Build the absolute seedbox URL for a torrent-relative file path. Returns null
- * for paths that try to escape the base (traversal / absolute / scheme).
+ * Split a base-relative path into safe segments, or null when it tries to
+ * escape the base (traversal / absolute / scheme / backslash).
+ *
+ * Every URL we build against a files server goes through this: encoding alone
+ * is not enough, because `encodeURIComponent('..')` is `'..'` and the server
+ * (or fetch) resolves it away, walking out of the seedbox save directory.
  */
-export function buildSeedboxFileUrl(baseUrl: string, filePath: string): string | null {
-  const trimmed = filePath.trim();
+export function safePathSegments(relPath: string): string[] | null {
+  const trimmed = relPath.trim();
   if (!trimmed) return null;
   // Reject absolute paths, schemes, backslashes, and traversal.
   if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return null; // has a URL scheme
@@ -75,10 +79,34 @@ export function buildSeedboxFileUrl(baseUrl: string, filePath: string): string |
   if (trimmed.includes('\\')) return null;
 
   const segments = trimmed.split('/').filter((s) => s.length > 0);
+  if (segments.length === 0) return null;
   if (segments.some((s) => s === '..' || s === '.')) return null;
+  return segments;
+}
+
+/**
+ * Build the absolute seedbox URL for a torrent-relative file path. Returns null
+ * for paths that try to escape the base (traversal / absolute / scheme).
+ */
+export function buildSeedboxFileUrl(baseUrl: string, filePath: string): string | null {
+  const segments = safePathSegments(filePath);
+  if (!segments) return null;
 
   const encoded = segments.map((s) => encodeURIComponent(s)).join('/');
   return `${baseUrl.replace(/\/+$/, '')}/${encoded}`;
+}
+
+/**
+ * Build the absolute seedbox URL for a directory listing. An empty `relDir`
+ * means the files root; anything else is validated like a file path. Returns
+ * null when the path would escape the base.
+ */
+export function buildSeedboxDirUrl(baseUrl: string, relDir: string): string | null {
+  const base = baseUrl.replace(/\/+$/, '');
+  if (!relDir.trim()) return `${base}/`;
+  const segments = safePathSegments(relDir);
+  if (!segments) return null;
+  return `${base}/${segments.map((s) => encodeURIComponent(s)).join('/')}/`;
 }
 
 export interface SeedboxFetchOptions {
