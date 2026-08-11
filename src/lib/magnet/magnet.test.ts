@@ -43,6 +43,16 @@ describe('Magnet URI Parser', () => {
       expect(result.displayName).toBe('My Awesome Torrent [2024]');
     });
 
+    it('should preserve encoded literal percents in decoded parameters', () => {
+      const magnetUri = 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=100%25ZZ&tr=https%3A%2F%2Ftracker.example%2F100%25ZZ&ws=https%3A%2F%2Fseed.example%2F100%25ZZ&kt=100%25ZZ';
+      const result = parseMagnetUri(magnetUri);
+
+      expect(result.displayName).toBe('100%ZZ');
+      expect(result.trackers).toEqual(['https://tracker.example/100%ZZ']);
+      expect(result.webSeeds).toEqual(['https://seed.example/100%ZZ']);
+      expect(result.keywords).toEqual(['100%ZZ']);
+    });
+
     it('should parse magnet URI with exact length (xl) parameter', () => {
       const magnetUri = 'magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&xl=1073741824';
       const result = parseMagnetUri(magnetUri);

@@ -208,7 +208,7 @@ export function parseMagnetUri(magnetUri: string): ParsedMagnet {
 
   // Get display name
   const dn = params.get('dn');
-  const name = dn ? decodeURIComponent(dn.replace(/\+/g, ' ')) : infohash;
+  const name = dn || infohash;
 
   // Get trackers
   const trackers: string[] = [];

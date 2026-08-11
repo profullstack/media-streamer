@@ -55,6 +55,13 @@ describe('Torrent Index Module', () => {
       expect(result.name).toBe('My Awesome Torrent [2024]');
     });
 
+    it('should preserve an encoded literal percent in the display name', () => {
+      const magnet = 'magnet:?xt=urn:btih:abc123def456789012345678901234567890abcd&dn=100%25ZZ';
+      const result = parseMagnetUri(magnet);
+
+      expect(result.name).toBe('100%ZZ');
+    });
+
     it('should handle uppercase infohash', () => {
       const magnet = 'magnet:?xt=urn:btih:ABC123DEF456789012345678901234567890ABCD';
       const result = parseMagnetUri(magnet);
