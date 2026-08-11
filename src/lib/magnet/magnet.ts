@@ -136,13 +136,13 @@ export function parseMagnetUri(magnetUri: string): ParsedMagnet {
 
   // Extract display name (dn)
   const dn = params.get('dn');
-  const displayName = dn ? decodeURIComponent(dn.replace(/\+/g, ' ')) : undefined;
+  const displayName = dn || undefined;
 
   // Extract trackers (tr) - can have multiple
   const trackers: string[] = [];
   for (const [key, value] of params.entries()) {
     if (key === 'tr') {
-      trackers.push(decodeURIComponent(value));
+      trackers.push(value);
     }
   }
 
@@ -154,13 +154,13 @@ export function parseMagnetUri(magnetUri: string): ParsedMagnet {
   const webSeeds: string[] = [];
   for (const [key, value] of params.entries()) {
     if (key === 'ws') {
-      webSeeds.push(decodeURIComponent(value));
+      webSeeds.push(value);
     }
   }
 
   // Extract keywords (kt)
   const kt = params.get('kt');
-  const keywords = kt ? decodeURIComponent(kt).split(/\s+/) : [];
+  const keywords = kt ? kt.split(/\s+/) : [];
 
   return {
     infohash,
