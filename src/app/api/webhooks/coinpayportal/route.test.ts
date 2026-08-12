@@ -490,6 +490,46 @@ describe('POST /api/webhooks/coinpayportal', () => {
   });
 
   describe('logging', () => {
+    it('does not log webhook signatures, raw bodies, or payment metadata', async () => {
+      const consoleSpies = [
+        vi.spyOn(console, 'log').mockImplementation(() => {}),
+        vi.spyOn(console, 'debug').mockImplementation(() => {}),
+        vi.spyOn(console, 'warn').mockImplementation(() => {}),
+        vi.spyOn(console, 'error').mockImplementation(() => {}),
+      ];
+      const privateMarker = 'private-user-marker';
+      const payload = createValidPayload('payment.confirmed', {
+        metadata: { user_id: privateMarker, plan: 'premium' },
+      });
+      const body = JSON.stringify(payload);
+      const signature = generateSignature(body);
+      mockHandleWebhook.mockResolvedValue({
+        success: true,
+        action: 'subscription_activated',
+        paymentId: 'pay-456',
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/webhooks/coinpayportal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CoinPay-Signature': signature,
+        },
+        body,
+      });
+
+      await POST(request);
+
+      const serializedLogs = consoleSpies
+        .flatMap((spy) => spy.mock.calls)
+        .flat()
+        .map(String)
+        .join('\n');
+      expect(serializedLogs).not.toContain(signature);
+      expect(serializedLogs).not.toContain(privateMarker);
+      expect(serializedLogs).not.toContain(body);
+    });
+
     it('should log webhook receipt with structured JSON', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const payload = createValidPayload('payment.confirmed');
