@@ -67,6 +67,14 @@ function log(
   }
 }
 
+function isSensitiveHeader(headerName: string): boolean {
+  const normalizedName = headerName.toLowerCase();
+
+  return ['authorization', 'cookie', 'signature', 'token', 'secret', 'api-key', 'apikey'].some(
+    sensitiveName => normalizedName.includes(sensitiveName)
+  );
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -260,8 +268,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // -------------------------------------------------------------------------
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
-    // Don't log sensitive headers
-    if (!key.toLowerCase().includes('authorization') && !key.toLowerCase().includes('cookie')) {
+    if (!isSensitiveHeader(key)) {
       headers[key] = value;
     }
   });
@@ -288,7 +295,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     log(requestId, 'DEBUG', 'Raw request body', {
       length: rawBody.length,
-      preview: rawBody.substring(0, 500) + (rawBody.length > 500 ? '...' : ''),
     });
   } catch (readError) {
     const errorMessage = readError instanceof Error ? readError.message : 'Unknown read error';
@@ -313,9 +319,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const isValid = client.verifyWebhookSignature(rawBody, signatureHeader);
 
     if (!isValid) {
-      log(requestId, 'ERROR', 'Invalid webhook signature', {
-        signatureHeader: signatureHeader.substring(0, 50) + '...',
-      });
+      log(requestId, 'ERROR', 'Invalid webhook signature');
       return NextResponse.json({ error: 'Invalid signature', requestId }, { status: 401 });
     }
 
@@ -338,7 +342,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown parse error';
     log(requestId, 'ERROR', 'Failed to parse JSON body', {
       error: errorMessage,
-      rawBodyPreview: rawBody?.substring(0, 200),
     });
     return NextResponse.json({ error: 'Invalid JSON body', requestId }, { status: 400 });
   }
@@ -352,7 +355,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!validation.valid) {
     log(requestId, 'ERROR', 'Payload validation failed', {
       error: validation.error,
-      rawBody: rawBody?.substring(0, 1000),
     });
     return NextResponse.json({ error: validation.error, requestId }, { status: 400 });
   }
@@ -378,7 +380,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (payload.data.metadata) {
     log(requestId, 'DEBUG', 'Webhook metadata', {
-      metadata: payload.data.metadata,
+      fieldCount: Object.keys(payload.data.metadata).length,
     });
   }
 
