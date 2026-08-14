@@ -346,6 +346,12 @@ export function YouTubeContent(): React.ReactElement {
                 ))}
               </select> : null}
             <Link
+              href="/youtube/bulk"
+              className="rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm text-text-primary transition-colors hover:bg-bg-hover"
+            >
+              Bulk subscribe
+            </Link>
+            <Link
               href="/youtube/accounts"
               className="rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm text-text-primary transition-colors hover:bg-bg-hover"
             >
