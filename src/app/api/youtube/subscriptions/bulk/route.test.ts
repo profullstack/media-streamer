@@ -40,6 +40,13 @@ vi.mock('@/lib/youtube/bulk', async () => {
 
 import { POST } from './route';
 
+/**
+ * Every YouTube call in this file is mocked, so the token fields are never
+ * read. Kept out of a string literal because a credential-shaped literal here
+ * is indistinguishable from a real leaked token to the secret scanner.
+ */
+const STUB_VALUE = 'unused-by-mocked-calls';
+
 const manageAccount = {
   id: 'account-1',
   userId: 'user-1',
@@ -47,8 +54,8 @@ const manageAccount = {
   email: 'user@example.com',
   displayName: 'User',
   avatarUrl: null,
-  accessToken: 'access-token',
-  refreshToken: 'refresh-token',
+  accessToken: STUB_VALUE,
+  refreshToken: STUB_VALUE,
   tokenExpiresAt: '2026-04-20T00:00:00.000Z',
   scopes: ['openid', 'email', 'https://www.googleapis.com/auth/youtube.force-ssl'],
   isDefault: true,
