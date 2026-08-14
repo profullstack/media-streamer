@@ -17,6 +17,7 @@
     "precommit": "pnpm build && pnpm test && pnpm lint",
     "supabase:update-emails": "tsx --env-file=.env scripts/supabase-update-emails.ts",
     "supabase:delete-torrent": "tsx --env-file=.env scripts/supabase-delete-infohash.ts",
+    "youtube:bulk": "tsx --env-file=.env scripts/youtube-bulk-subscriptions.ts",
     "enrich-metadata": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts",
     "enrich-metadata:all": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status",
     "enrich-metadata:dry-run": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts --all-status --dry-run",
