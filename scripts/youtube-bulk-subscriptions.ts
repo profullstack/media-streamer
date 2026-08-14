@@ -17,8 +17,12 @@
  *   # See what would happen (default — writes nothing):
  *   pnpm youtube:bulk --email you@example.com --list <url|path>
  *
- *   # Apply, capped to today's quota:
- *   pnpm youtube:bulk --email you@example.com --list <url|path> --apply --max 200
+ *   # Apply a small batch (default --max 2), good for a first real test:
+ *   pnpm youtube:bulk --email you@example.com --list <url|path> --apply
+ *
+ *   # Once it looks right, take a bigger bite. 200 is the whole day's quota
+ *   # for the entire app, so prefer something well under it:
+ *   pnpm youtube:bulk --email you@example.com --list <url|path> --apply --max 50
  *
  *   # Next day, finish the rest:
  *   pnpm youtube:bulk --email you@example.com --list .youtube-bulk-remaining.txt --apply
@@ -32,7 +36,10 @@
  *   --account-id <id>   Explicit bt_youtube_accounts row id.
  *   --action <a>        subscribe (default) | unsubscribe
  *   --apply             Actually write. Without it the script is a dry run.
- *   --max <n>           Cap writes this run. Defaults to the daily capacity (200).
+ *   --max <n>           Cap writes this run. Defaults to 2 — deliberately tiny,
+ *                       because the quota is project-wide and a big run takes
+ *                       YouTube down for every user of the app. 200 writes is
+ *                       the entire daily allowance; raise it knowingly.
  *   --state <path>      Where to write the remainder. Default .youtube-bulk-remaining.txt
  */
 
@@ -41,6 +48,7 @@ import { createClient } from '@supabase/supabase-js';
 import { parseChannelList } from '../src/lib/youtube/channel-list';
 import {
   DEFAULT_DAILY_QUOTA,
+  DEFAULT_MAX_WRITES_PER_RUN,
   SUBSCRIPTION_WRITE_COST,
   executeBulkSubscriptions,
   planBulkSubscriptions,
@@ -122,7 +130,9 @@ async function main(): Promise<void> {
   const apply = flag('apply');
   const statePath = arg('state') ?? DEFAULT_STATE_PATH;
   const dailyCapacity = Math.floor(DEFAULT_DAILY_QUOTA / SUBSCRIPTION_WRITE_COST);
-  const maxWrites = Number(arg('max') ?? dailyCapacity);
+  // Small by default. The allowance is project-wide, so a run large enough to
+  // exhaust it breaks YouTube for every user of the app, not just this caller.
+  const maxWrites = Number(arg('max') ?? DEFAULT_MAX_WRITES_PER_RUN);
   if (!Number.isFinite(maxWrites) || maxWrites <= 0) fail('--max must be a positive number');
 
   const raw = await loadList(listSource!);

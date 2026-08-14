@@ -19,8 +19,49 @@ export const SUBSCRIPTION_LIST_COST = 1;
 /** Google's default per-project daily allowance. */
 export const DEFAULT_DAILY_QUOTA = 10_000;
 
+/**
+ * Default writes per run.
+ *
+ * Deliberately tiny. The daily quota is per *project*, not per user, so a run
+ * big enough to use it up takes YouTube search and subscription browsing down
+ * with it for everyone until midnight Pacific. Raising this is a decision the
+ * operator makes per run, with the cost shown, rather than a default they
+ * inherit by clicking once.
+ */
+export const DEFAULT_MAX_WRITES_PER_RUN = 2;
+
 /** Stop paginating existing subscriptions after this many pages (50 per page). */
 const MAX_SUBSCRIPTION_PAGES = 60;
+
+export interface RunSummary {
+  /** Writes this run will actually attempt. */
+  writes: number;
+  /** Quota units those writes cost. */
+  quotaUnits: number;
+  /** Pending channels this run will not reach. */
+  leftover: number;
+  /** Share of a full day's project-wide allowance this run consumes, 0-1. */
+  dailyQuotaShare: number;
+}
+
+/**
+ * What a run will actually do, given the plan and the cap. Kept here rather
+ * than in the UI so the number on the button cannot drift from the number the
+ * executor uses.
+ */
+export function describeRun(pendingCount: number, maxWrites: number): RunSummary {
+  const safePending = Math.max(0, Math.floor(pendingCount));
+  const safeMax = Number.isFinite(maxWrites) && maxWrites > 0 ? Math.floor(maxWrites) : 0;
+  const writes = Math.min(safePending, safeMax);
+  const quotaUnits = writes * SUBSCRIPTION_WRITE_COST;
+
+  return {
+    writes,
+    quotaUnits,
+    leftover: safePending - writes,
+    dailyQuotaShare: quotaUnits / DEFAULT_DAILY_QUOTA,
+  };
+}
 
 export type BulkAction = 'subscribe' | 'unsubscribe';
 
