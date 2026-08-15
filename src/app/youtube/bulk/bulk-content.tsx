@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
+import { DEFAULT_MAX_WRITES_PER_RUN, describeRun } from '@/lib/youtube/bulk';
 
 const SMALLWEB_LIST_URL =
   'https://raw.githubusercontent.com/kagisearch/smallweb/refs/heads/main/smallyt.txt';
@@ -66,7 +67,7 @@ export function BulkContent(): React.ReactElement {
   const [listUrl, setListUrl] = useState(SMALLWEB_LIST_URL);
   const [listText, setListText] = useState('');
   const [action, setAction] = useState<Action>('subscribe');
-  const [maxWrites, setMaxWrites] = useState('200');
+  const [maxWrites, setMaxWrites] = useState(String(DEFAULT_MAX_WRITES_PER_RUN));
   const [plan, setPlan] = useState<BulkResponse | null>(null);
   const [result, setResult] = useState<BulkResponse | null>(null);
   const [busy, setBusy] = useState<'idle' | 'fetching' | 'planning' | 'applying'>('idle');
@@ -157,6 +158,7 @@ export function BulkContent(): React.ReactElement {
 
   const noManageAccess = activeAccount !== null && !activeAccount.hasSubscriptionManageAccess;
   const verb = action === 'subscribe' ? 'Subscribe' : 'Unsubscribe';
+  const runSummary = describeRun(plan?.pendingCount ?? 0, Number(maxWrites));
 
   return (
     <MainLayout>
@@ -301,7 +303,11 @@ export function BulkContent(): React.ReactElement {
               action === 'unsubscribe' ? 'bg-red-600' : 'bg-green-600'
             }`}
           >
-            {busy === 'applying' ? 'Applying…' : `${verb} ${plan?.pendingCount ?? 0}`}
+            {busy === 'applying'
+              ? 'Applying…'
+              : runSummary.leftover > 0
+                ? `${verb} ${runSummary.writes} of ${plan?.pendingCount ?? 0}`
+                : `${verb} ${runSummary.writes}`}
           </button>
         </div>
 
@@ -314,14 +320,32 @@ export function BulkContent(): React.ReactElement {
               {plan.skippedCount} already {plan.action === 'subscribe' ? 'subscribed' : 'not subscribed'}
               {plan.unresolved.length > 0 ? ` · ${plan.unresolved.length} lines had no channel id` : ''}
             </div>
-            <div className="mt-1 text-muted-foreground">
-              Estimated quota: {plan.estimatedQuotaUnits.toLocaleString()} of{' '}
-              {plan.dailyQuota.toLocaleString()} units/day
+            <div className="mt-2 border-t border-border pt-2">
+              <span className="font-medium">This run: {runSummary.writes} writes</span>
+              <span className="text-muted-foreground">
+                {' '}
+                — {runSummary.quotaUnits.toLocaleString()} of {plan.dailyQuota.toLocaleString()}{' '}
+                units/day ({Math.round(runSummary.dailyQuotaShare * 100)}% of the daily allowance)
+              </span>
+              {runSummary.leftover > 0 ? (
+                <span className="text-muted-foreground">
+                  {' '}
+                  · {runSummary.leftover} left for later runs
+                </span>
+              ) : null}
             </div>
-            {!plan.withinDailyQuota ? (
+            {runSummary.dailyQuotaShare >= 0.5 ? (
               <div className="mt-2 text-yellow-300">
-                ⚠ This exceeds one day of API quota. Apply up to {plan.dailyWriteCapacity} today, then
-                run it again tomorrow — already-done channels are skipped automatically.
+                ⚠ This run alone uses {Math.round(runSummary.dailyQuotaShare * 100)}% of the daily
+                quota. That allowance is shared by the whole app — spending it here makes YouTube
+                search and subscription browsing fail for everyone until midnight Pacific.
+              </div>
+            ) : null}
+            {plan.pendingCount > runSummary.writes ? (
+              <div className="mt-1 text-muted-foreground">
+                Finishing the list takes ~{Math.ceil(plan.pendingCount / plan.dailyWriteCapacity)} day(s)
+                at the {plan.dailyWriteCapacity}/day ceiling. Re-running is always safe — channels
+                already done are skipped for free.
               </div>
             ) : null}
           </div>

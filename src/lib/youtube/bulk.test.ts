@@ -18,7 +18,9 @@ vi.mock('./service', () => ({
 
 import {
   DEFAULT_DAILY_QUOTA,
+  DEFAULT_MAX_WRITES_PER_RUN,
   SUBSCRIPTION_WRITE_COST,
+  describeRun,
   executeBulkSubscriptions,
   fetchAllSubscriptions,
   isQuotaExceededError,
@@ -263,5 +265,43 @@ describe('executeBulkSubscriptions', () => {
       1,
       2
     );
+  });
+});
+
+describe('describeRun', () => {
+  it('caps the run at maxWrites and reports the leftover', () => {
+    expect(describeRun(257, 2)).toEqual({
+      writes: 2,
+      quotaUnits: 100,
+      leftover: 255,
+      dailyQuotaShare: 100 / DEFAULT_DAILY_QUOTA,
+    });
+  });
+
+  it('never promises more writes than there are pending channels', () => {
+    const summary = describeRun(3, 200);
+
+    expect(summary.writes).toBe(3);
+    expect(summary.leftover).toBe(0);
+  });
+
+  it('shows that 200 writes consumes the entire daily allowance', () => {
+    const summary = describeRun(1000, 200);
+
+    expect(summary.quotaUnits).toBe(DEFAULT_DAILY_QUOTA);
+    expect(summary.dailyQuotaShare).toBe(1);
+  });
+
+  it('treats a blank or invalid cap as zero writes rather than unlimited', () => {
+    expect(describeRun(257, Number.NaN).writes).toBe(0);
+    expect(describeRun(257, 0).writes).toBe(0);
+    expect(describeRun(257, -5).writes).toBe(0);
+  });
+
+  it('keeps the shipped default small enough to be a safe first run', () => {
+    // A regression guard: the original default of 200 spent the whole
+    // project-wide daily quota in a single click.
+    expect(DEFAULT_MAX_WRITES_PER_RUN).toBeLessThanOrEqual(10);
+    expect(describeRun(257, DEFAULT_MAX_WRITES_PER_RUN).dailyQuotaShare).toBeLessThan(0.1);
   });
 });
