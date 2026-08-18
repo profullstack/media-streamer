@@ -23,7 +23,7 @@ importers:
         specifier: ^3.0.0
         version: 3.1.0(react@19.2.5)
       '@profullstack/autoblog':
-        specifier: github:profullstack/autoblog#75e54af
+        specifier: https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af
         version: https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af
       '@profullstack/emailer':
         specifier: ^1.0.1
