@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase';
+import type { UpdateTables } from '@/lib/supabase/types';
 import type {
   OpmlFeedOutline,
   ParsedRssFeed,
@@ -418,7 +419,7 @@ export async function updateSubscription(
   feedId: string,
   input: RssSubscriptionUpdate
 ): Promise<RssSubscription> {
-  const update: Record<string, unknown> = {};
+  const update: UpdateTables<'rss_subscriptions'> = {};
   if (input.customTitle !== undefined) update.custom_title = input.customTitle;
   if (input.folder !== undefined) update.folder = input.folder;
   if (input.notifyNewItems !== undefined) update.notify_new_items = input.notifyNewItems;

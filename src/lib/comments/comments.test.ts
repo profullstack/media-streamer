@@ -65,6 +65,8 @@ describe('CommentsService', () => {
       const torrentId = 'torrent-123';
       const mockCommentRows: CommentWithUserRow[] = [
         {
+          profile_id: null,
+          infohash: TEST_INFOHASH,
           id: 'comment-1',
           torrent_id: torrentId,
           user_id: 'user-1',
@@ -79,6 +81,8 @@ describe('CommentsService', () => {
           author_avatar_emoji: null,
         },
         {
+          profile_id: null,
+          infohash: TEST_INFOHASH,
           id: 'comment-2',
           torrent_id: torrentId,
           user_id: 'user-2',
@@ -133,6 +137,8 @@ describe('CommentsService', () => {
       const content = 'This is a great torrent!';
 
       const mockCommentRow: CommentRow = {
+        profile_id: null,
+        infohash: TEST_INFOHASH,
         id: 'comment-new',
         torrent_id: torrentId,
         user_id: profileId,
@@ -175,6 +181,8 @@ describe('CommentsService', () => {
       const parentId = 'comment-parent';
 
       const mockCommentRow: CommentRow = {
+        profile_id: null,
+        infohash: TEST_INFOHASH,
         id: 'comment-reply',
         torrent_id: torrentId,
         user_id: profileId,
@@ -256,6 +264,8 @@ describe('CommentsService', () => {
       const newContent = 'Updated comment content';
 
       const existingCommentRow: CommentRow = {
+        profile_id: null,
+        infohash: TEST_INFOHASH,
         id: commentId,
         torrent_id: 'torrent-123',
         user_id: profileId,
@@ -293,6 +303,8 @@ describe('CommentsService', () => {
 
     it('should throw error when user is not the author', async () => {
       const existingCommentRow: CommentRow = {
+        profile_id: null,
+        infohash: TEST_INFOHASH,
         id: 'comment-123',
         torrent_id: 'torrent-123',
         user_id: 'user-original',
@@ -314,6 +326,8 @@ describe('CommentsService', () => {
 
     it('should throw error when comment is deleted', async () => {
       const deletedCommentRow: CommentRow = {
+        profile_id: null,
+        infohash: TEST_INFOHASH,
         id: 'comment-123',
         torrent_id: 'torrent-123',
         user_id: 'user-456',
@@ -340,6 +354,8 @@ describe('CommentsService', () => {
       const profileId = 'user-456';
 
       const existingCommentRow: CommentRow = {
+        profile_id: null,
+        infohash: TEST_INFOHASH,
         id: commentId,
         torrent_id: 'torrent-123',
         user_id: profileId,
@@ -370,6 +386,8 @@ describe('CommentsService', () => {
 
     it('should throw error when user is not the author', async () => {
       const existingCommentRow: CommentRow = {
+        profile_id: null,
+        infohash: TEST_INFOHASH,
         id: 'comment-123',
         torrent_id: 'torrent-123',
         user_id: 'user-original',
@@ -414,6 +432,7 @@ describe('CommentsService', () => {
       const voteValue: VoteValue = 1;
 
       const mockVoteRow: CommentVoteRow = {
+        profile_id: null,
         id: 'vote-new',
         comment_id: commentId,
         user_id: profileId,
@@ -439,6 +458,7 @@ describe('CommentsService', () => {
       const voteValue: VoteValue = -1;
 
       const mockVoteRow: CommentVoteRow = {
+        profile_id: null,
         id: 'vote-new',
         comment_id: commentId,
         user_id: profileId,
@@ -460,6 +480,7 @@ describe('CommentsService', () => {
       const newVoteValue: VoteValue = -1;
 
       const updatedVoteRow: CommentVoteRow = {
+        profile_id: null,
         id: 'vote-existing',
         comment_id: commentId,
         user_id: profileId,
@@ -506,6 +527,7 @@ describe('CommentsService', () => {
 
       const mockVoteRows: CommentVoteRow[] = [
         {
+          profile_id: null,
           id: 'vote-1',
           comment_id: 'comment-1',
           user_id: profileId,
@@ -514,6 +536,7 @@ describe('CommentsService', () => {
           updated_at: '2026-01-01T00:00:00Z',
         },
         {
+          profile_id: null,
           id: 'vote-2',
           comment_id: 'comment-2',
           user_id: profileId,
@@ -547,6 +570,7 @@ describe('CommentsService', () => {
       const voteValue: VoteValue = 1;
 
       const mockVoteRow: TorrentVoteRow = {
+        profile_id: null,
         id: 'vote-new',
         torrent_id: torrentId,
         user_id: profileId,
@@ -572,6 +596,7 @@ describe('CommentsService', () => {
       const voteValue: VoteValue = -1;
 
       const mockVoteRow: TorrentVoteRow = {
+        profile_id: null,
         id: 'vote-new',
         torrent_id: torrentId,
         user_id: profileId,
@@ -627,6 +652,7 @@ describe('CommentsService', () => {
       const profileId = 'user-456';
 
       const mockVoteRow: TorrentVoteRow = {
+        profile_id: null,
         id: 'vote-123',
         torrent_id: torrentId,
         user_id: profileId,
@@ -665,6 +691,8 @@ describe('CommentsService', () => {
 
       const mockCommentRows: CommentWithUserRow[] = [
         {
+          profile_id: null,
+          infohash: TEST_INFOHASH,
           id: 'comment-1',
           torrent_id: torrentId,
           user_id: 'user-1',
@@ -679,6 +707,8 @@ describe('CommentsService', () => {
           author_avatar_emoji: null,
         },
         {
+          profile_id: null,
+          infohash: TEST_INFOHASH,
           id: 'comment-2',
           torrent_id: torrentId,
           user_id: 'user-2',
@@ -696,6 +726,7 @@ describe('CommentsService', () => {
 
       const mockUserVoteRows: CommentVoteRow[] = [
         {
+          profile_id: null,
           id: 'vote-1',
           comment_id: 'comment-1',
           user_id: profileId,
@@ -720,6 +751,8 @@ describe('CommentsService', () => {
 
       const mockCommentRows: CommentWithUserRow[] = [
         {
+          profile_id: null,
+          infohash: TEST_INFOHASH,
           id: 'comment-1',
           torrent_id: torrentId,
           user_id: 'user-1',

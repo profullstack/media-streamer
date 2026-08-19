@@ -140,6 +140,7 @@ const mockHistory: HistoryItem[] = [
 
 const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
   {
+    profile_id: null,
     id: 'tf-1',
     user_id: 'user-123',
     torrent_id: 'torrent-music-1',
@@ -154,6 +155,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
     },
   },
   {
+    profile_id: null,
     id: 'tf-2',
     user_id: 'user-123',
     torrent_id: 'torrent-movie-1',
@@ -168,6 +170,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
     },
   },
   {
+    profile_id: null,
     id: 'tf-3',
     user_id: 'user-123',
     torrent_id: 'torrent-tvshow-1',
@@ -182,6 +185,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
     },
   },
   {
+    profile_id: null,
     id: 'tf-4',
     user_id: 'user-123',
     torrent_id: 'torrent-book-1',
@@ -199,6 +203,7 @@ const mockTorrentFavorites: TorrentFavoriteWithDetails[] = [
 
 const mockIptvChannelFavorites: IptvChannelFavoriteWithDetails[] = [
   {
+    profile_id: null,
     id: 'iptv-fav-1',
     user_id: 'user-123',
     playlist_id: 'playlist-1',
@@ -212,6 +217,7 @@ const mockIptvChannelFavorites: IptvChannelFavoriteWithDetails[] = [
     created_at: '2024-01-15T00:00:00Z',
   },
   {
+    profile_id: null,
     id: 'iptv-fav-2',
     user_id: 'user-123',
     playlist_id: 'playlist-1',

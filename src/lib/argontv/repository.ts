@@ -16,6 +16,7 @@ import type {
   IptvSubscriptionStatus,
   IptvPaymentStatus,
   IptvPaymentType,
+  UpdateTables,
 } from '../supabase/types';
 
 // ============================================================================
@@ -326,7 +327,7 @@ export function createIPTVSubscriptionRepository(
       externalId: string,
       data: UpdatePaymentStatusData
     ): Promise<IptvPaymentHistory> {
-      const updateData: Record<string, unknown> = {
+      const updateData: UpdateTables<'iptv_payment_history'> = {
         status: data.status,
         webhook_received_at: new Date().toISOString(),
       };

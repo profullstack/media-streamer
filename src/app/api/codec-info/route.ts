@@ -195,7 +195,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           container: dbData.container,
           duration_seconds: dbData.duration_seconds,
           bitrate: dbData.bit_rate,
-          needs_transcoding: dbData.needs_transcoding,
+          // bt_audio_metadata has no needs_transcoding column; only video does.
           codec_detected_at: new Date().toISOString(),
         }, {
           onConflict: 'file_id',

@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase';
+import type { UpdateTables } from '@/lib/supabase/types';
 import type {
   CreateEmailAccountInput,
   EmailAccount,
@@ -253,7 +254,7 @@ export async function updateEmailAccount(
   accountId: string,
   input: UpdateEmailAccountInput
 ): Promise<EmailAccount> {
-  const update: Record<string, unknown> = {};
+  const update: UpdateTables<'email_accounts'> = {};
   if (input.label !== undefined) update.label = input.label;
   if (input.provider !== undefined) update.provider = input.provider;
   if (input.fromEmail !== undefined) update.from_email = input.fromEmail;

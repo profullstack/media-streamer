@@ -11,6 +11,7 @@ import type {
   PaymentHistory,
   PaymentHistoryInsert,
   PaymentPlan,
+  UpdateTables,
 } from '../supabase/types';
 
 // ============================================================================
@@ -158,7 +159,7 @@ export function createPaymentHistoryRepository(
       externalId: string,
       data: UpdatePaymentStatusData
     ): Promise<PaymentHistory> {
-      const updateData: Record<string, unknown> = {
+      const updateData: UpdateTables<'payment_history'> = {
         status: data.status,
         webhook_received_at: new Date().toISOString(),
       };
