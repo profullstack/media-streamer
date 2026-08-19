@@ -57,19 +57,45 @@ export function IptvRentOut(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [kind, setKind] = useState<'iptv' | 'radio'>('iptv');
+  const [radioConnected, setRadioConnected] = useState(false);
   const [playlistId, setPlaylistId] = useState('');
   const [title, setTitle] = useState('Watch on my line');
   const [priceUsd, setPriceUsd] = useState('1.00');
   const [windowMinutes, setWindowMinutes] = useState('240');
   const [concurrency, setConcurrency] = useState('1');
   const [maxPasses, setMaxPasses] = useState('3');
+  const radio = kind === 'radio';
+
+  /**
+   * Switching rails rewrites the defaults rather than carrying the other rail's
+   * over. A four-hour window is a game; radio is sold by the day, and a day-long
+   * pass holds its slot far longer, so it gets a lower pass cap to match.
+   */
+  function chooseKind(next: 'iptv' | 'radio'): void {
+    setKind(next);
+    if (next === 'radio') {
+      setTitle('Listen on my line');
+      setWindowMinutes('1440');
+      setMaxPasses('2');
+    } else {
+      setTitle('Watch on my line');
+      setWindowMinutes('240');
+      setMaxPasses('3');
+    }
+  }
 
   const load = useCallback(async () => {
     try {
-      const [pl, sh] = await Promise.all([
+      const [pl, sh, sxm] = await Promise.all([
         fetch('/api/iptv/playlists', { cache: 'no-store' }),
         fetch('/api/iptv/shares', { cache: 'no-store' }),
+        fetch('/api/radio/auth/status', { cache: 'no-store' }).catch(() => null),
       ]);
+      if (sxm?.ok) {
+        const status = await sxm.json().catch(() => null);
+        setRadioConnected(Boolean(status?.connected ?? status?.authenticated));
+      }
       if (pl.ok) {
         const data = await pl.json();
         const list: Playlist[] = data.playlists ?? [];
@@ -95,7 +121,10 @@ export function IptvRentOut(): React.ReactElement {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          playlistId,
+          kind,
+          // A radio listing resells the owner's own SiriusXM line, so there is no
+          // playlist to name.
+          ...(radio ? {} : { playlistId }),
           title,
           priceUsd: Number(priceUsd),
           passWindowMinutes: Number(windowMinutes),
@@ -136,38 +165,80 @@ export function IptvRentOut(): React.ReactElement {
     <main className="mx-auto max-w-3xl p-6">
       <h1 className="text-2xl font-semibold text-text-primary">Rent out your line</h1>
       <p className="mt-1 text-sm text-text-secondary">
-        Sell access to a playlist you already pay for, by the game. Buyers watch through
-        our proxy — they never see your provider credentials.
+        Sell access to something you already pay for. Buyers go through our proxy — they
+        never see your provider credentials, and never get a session of their own.
       </p>
 
       {error ? (
         <p className="mt-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-500">{error}</p>
       ) : null}
 
-      {playlists.length === 0 ? (
+      <div className="mt-6 flex gap-2">
+        {(
+          [
+            ['iptv', 'TV playlist', 'by the game'],
+            ['radio', 'SiriusXM', 'by the day'],
+          ] as const
+        ).map(([value, name, note]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => chooseKind(value)}
+            aria-pressed={kind === value}
+            className={`flex-1 rounded-lg border px-4 py-3 text-left transition ${
+              kind === value
+                ? 'border-accent-primary bg-accent-primary/10'
+                : 'border-border hover:border-text-tertiary'
+            }`}
+          >
+            <span className="block text-sm font-medium text-text-primary">{name}</span>
+            <span className="block text-xs text-text-tertiary">{note}</span>
+          </button>
+        ))}
+      </div>
+
+      {!radio && playlists.length === 0 ? (
         <p className="mt-6 text-sm text-text-tertiary">
           Add an IPTV playlist first, then come back to list it.
         </p>
+      ) : radio && !radioConnected ? (
+        <p className="mt-6 text-sm text-text-tertiary">
+          Connect your SiriusXM account on the{' '}
+          <a className="text-accent-primary underline" href="/radio">
+            radio page
+          </a>{' '}
+          first. We restream from your line, so it has to be signed in.
+        </p>
       ) : (
         <section className="mt-6 rounded-lg border border-border p-5">
+          {radio ? (
+            <p className="mb-4 rounded-md bg-accent-primary/5 px-3 py-2 text-xs text-text-secondary">
+              Buyers pick a sports or news channel and we play it to them from your line.
+              They never receive a SiriusXM session, and everyone listening to the same
+              channel shares one connection upstream — so your account only ever looks
+              like one listener.
+            </p>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className={label} htmlFor="pl">
-                Playlist
-              </label>
-              <select
-                id="pl"
-                className={input}
-                value={playlistId}
-                onChange={(e) => setPlaylistId(e.target.value)}
-              >
-                {playlists.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {radio ? null : (
+              <div className="sm:col-span-2">
+                <label className={label} htmlFor="pl">
+                  Playlist
+                </label>
+                <select
+                  id="pl"
+                  className={input}
+                  value={playlistId}
+                  onChange={(e) => setPlaylistId(e.target.value)}
+                >
+                  {playlists.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="sm:col-span-2">
               <label className={label} htmlFor="t">
@@ -231,7 +302,7 @@ export function IptvRentOut(): React.ReactElement {
           <button
             type="button"
             onClick={create}
-            disabled={saving || !playlistId}
+            disabled={saving || (!radio && !playlistId)}
             className={`${btn} mt-4 bg-accent-primary text-white`}
           >
             {saving ? 'Creating…' : 'Create listing'}

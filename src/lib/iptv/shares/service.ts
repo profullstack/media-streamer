@@ -40,6 +40,7 @@ import type {
   IptvShareInput,
   PublicIptvShare,
 } from './types';
+import { isRadioRef, listRadioChannels, resolveRadioUpstream } from './radio-source';
 
 /** On-chain fees can rival a $1 payment, so checkout is restricted to low-fee chains. */
 const LOW_FEE_BLOCKCHAINS: CryptoBlockchain[] = ['SOL', 'USDC_SOL', 'POL', 'USDC_POL'];
@@ -103,11 +104,24 @@ function validate(input: IptvShareInput): void {
 }
 
 export async function createResale(ownerAccountId: string, input: IptvShareInput): Promise<IptvShare> {
-  if (!input?.playlistId) throw new IptvResaleError('A playlist is required');
-  // Without this an owner could list someone else's playlist id and collect the money
-  // while a stranger's provider account absorbed the load.
-  if (!(await repo.playlistBelongsTo(input.playlistId, ownerAccountId))) {
-    throw new IptvResaleError('That playlist does not belong to you', 403);
+  const kind = input?.kind ?? 'iptv';
+
+  if (kind === 'radio') {
+    // Nothing to check ownership of: a radio share resells the owner's own
+    // SiriusXM credentials, which are already stored against their account. What
+    // matters is that those credentials actually work, so the owner cannot list a
+    // line they are not signed in to.
+    const channels = await listRadioChannels(ownerAccountId).catch(() => []);
+    if (channels.length === 0) {
+      throw new IptvResaleError('Connect your SiriusXM account before listing it', 400);
+    }
+  } else {
+    if (!input?.playlistId) throw new IptvResaleError('A playlist is required');
+    // Without this an owner could list someone else's playlist id and collect the money
+    // while a stranger's provider account absorbed the load.
+    if (!(await repo.playlistBelongsTo(input.playlistId, ownerAccountId))) {
+      throw new IptvResaleError('That playlist does not belong to you', 403);
+    }
   }
   validate(input);
   return repo.insertShare(ownerAccountId, generateIptvShareSlug(), input);
@@ -159,6 +173,32 @@ export function deleteResale(id: string, ownerAccountId: string): Promise<boolea
  * `publicChannels` for what a buyer may be shown.
  */
 export async function resolveShareChannels(share: IptvShare): Promise<Channel[]> {
+  let channels: Channel[] = share.kind === 'radio' ? await radioChannels(share) : [];
+
+  if (share.kind === 'iptv') {
+    channels = await playlistChannels(share);
+  }
+
+  if (share.allowedChannelIds && share.allowedChannelIds.length > 0) {
+    const allowed = new Set(share.allowedChannelIds);
+    channels = channels.filter((c) => allowed.has(c.id));
+  }
+  return channels;
+}
+
+/** The owner's SiriusXM line. Restreamed, never handed over -- see radio-source.ts. */
+async function radioChannels(share: IptvShare): Promise<Channel[]> {
+  try {
+    return await listRadioChannels(share.ownerAccountId);
+  } catch {
+    // Almost always the owner's SiriusXM session having lapsed. The listing stays
+    // up; it just has nothing to sell until they sign in again.
+    throw new IptvResaleError('This line is not reachable right now', 502);
+  }
+}
+
+async function playlistChannels(share: IptvShare): Promise<Channel[]> {
+  if (!share.playlistId) throw new IptvResaleError('This listing has no playlist', 410);
   let channels: Channel[] = [];
 
   const cached = await getIptvCacheReader()
@@ -172,11 +212,6 @@ export async function resolveShareChannels(share: IptvShare): Promise<Channel[]>
     const res = await fetch(playlist.m3uUrl, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new IptvResaleError('Could not read the playlist right now', 502);
     channels = parseM3U(await res.text());
-  }
-
-  if (share.allowedChannelIds && share.allowedChannelIds.length > 0) {
-    const allowed = new Set(share.allowedChannelIds);
-    channels = channels.filter((c) => allowed.has(c.id));
   }
   return channels;
 }
@@ -209,6 +244,7 @@ export async function getPublicShare(slug: string): Promise<PublicIptvShare | nu
 
   return {
     slug: share.slug,
+    kind: share.kind,
     title: share.title,
     description: share.description,
     priceUsd: share.priceUsd,
@@ -409,6 +445,19 @@ export async function resolveUpstreamForSession(
   // Streaming counts as being alive; a viewer watching without the player's
   // heartbeat must not have their slot reaped out from under them.
   await repo.touchSession(sessionId);
+
+  // A radio channel stores a SiriusXM reference rather than a URL, because playback
+  // is a short-lived tune rather than a durable address. Resolving it here keeps
+  // every caller -- and the buyer -- unaware of the difference.
+  if (isRadioRef(channel.url)) {
+    try {
+      const url = await resolveRadioUpstream(pass.share.ownerAccountId, channel.url);
+      return { url, share: pass.share };
+    } catch {
+      throw new IptvResaleError('That channel could not be tuned right now', 502);
+    }
+  }
+
   return { url: channel.url, share: pass.share };
 }
 

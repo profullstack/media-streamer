@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface PublicShare {
   slug: string;
+  kind?: 'iptv' | 'radio';
   title: string;
   description: string | null;
   priceUsd: number;
@@ -219,6 +220,12 @@ export function WatchClient({ slug }: { slug: string }): React.ReactElement {
     ? channels.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()))
     : channels;
 
+  // Radio is the same flow with a different noun and a much shorter player. The
+  // stream is still HLS, so the media element and hls.js path are unchanged.
+  const radio = share.kind === 'radio';
+  const noun = radio ? 'stations' : 'channels';
+  const verb = radio ? 'Listen' : 'Watch';
+
   return (
     <main className="mx-auto max-w-4xl p-6">
       <h1 className="text-2xl font-semibold text-text-primary">{share.title}</h1>
@@ -233,7 +240,10 @@ export function WatchClient({ slug }: { slug: string }): React.ReactElement {
       {!hasPass ? (
         <section className="mt-6 rounded-lg border border-border p-5">
           <p className="text-sm text-text-secondary">
-            {share.channelCount} channels · access for {share.passWindowMinutes} minutes
+            {share.channelCount} {share.kind === 'radio' ? 'stations' : 'channels'} · access for{' '}
+            {share.passWindowMinutes >= 1440
+              ? `${Math.round(share.passWindowMinutes / 1440)} day`
+              : `${Math.round(share.passWindowMinutes / 60)} hours`}
           </p>
           <p className="mt-2 text-3xl font-semibold text-text-primary">
             ${share.priceUsd.toFixed(2)}
@@ -266,20 +276,30 @@ export function WatchClient({ slug }: { slug: string }): React.ReactElement {
               Back to channels
             </button>
           </div>
-          {/* biome-ignore lint/a11y/useMediaCaption: live TV has no caption track */}
+          {/* biome-ignore lint/a11y/useMediaCaption: live TV and radio have no caption track */}
           <video
             ref={videoRef}
             controls
             playsInline
-            className="mt-3 aspect-video w-full rounded-lg bg-black"
+            className={
+              radio
+                ? 'mt-3 h-16 w-full rounded-lg bg-black'
+                : 'mt-3 aspect-video w-full rounded-lg bg-black'
+            }
           />
+          {radio ? (
+            <p className="mt-2 text-xs text-text-tertiary">
+              Streamed from the owner&apos;s line. Everyone on this station shares one
+              connection upstream.
+            </p>
+          ) : null}
         </section>
       ) : (
         <section className="mt-6">
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder={`Search ${channels.length} channels`}
+            placeholder={`Search ${channels.length} ${noun}`}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary"
           />
           <ul className="mt-3 divide-y divide-border">
@@ -298,7 +318,7 @@ export function WatchClient({ slug }: { slug: string }): React.ReactElement {
                   disabled={starting === c.id}
                   className={`${btn} border border-border`}
                 >
-                  {starting === c.id ? 'Starting…' : 'Watch'}
+                  {starting === c.id ? 'Starting…' : verb}
                 </button>
               </li>
             ))}

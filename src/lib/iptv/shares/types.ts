@@ -10,13 +10,24 @@
  */
 
 export type IptvShareStatus = 'active' | 'paused' | 'expired' | 'closed';
+
+/**
+ * What is being resold.
+ *
+ * 'iptv' rents an M3U playlist the owner already holds. 'radio' restreams the
+ * owner's SiriusXM line: there is no playlist, and the channels come from the
+ * owner's own subscription at stream time. See shares/radio-source.ts.
+ */
+export type ShareKind = 'iptv' | 'radio';
 export type IptvGrantStatus = 'pending' | 'paid' | 'expired' | 'refunded';
 
 export interface IptvShare {
   id: string;
   slug: string;
   ownerAccountId: string;
-  playlistId: string;
+  kind: ShareKind;
+  /** null for a radio share, which has no playlist behind it. */
+  playlistId: string | null;
   title: string;
   description: string | null;
   priceUsd: number;
@@ -45,6 +56,7 @@ export interface IptvShare {
  */
 export interface PublicIptvShare {
   slug: string;
+  kind: ShareKind;
   title: string;
   description: string | null;
   priceUsd: number;
@@ -81,7 +93,9 @@ export interface IptvShareSession {
 }
 
 export interface IptvShareInput {
-  playlistId: string;
+  kind?: ShareKind;
+  /** Required for an IPTV share, ignored for a radio one. */
+  playlistId?: string | null;
   title?: string;
   description?: string | null;
   priceUsd?: number;

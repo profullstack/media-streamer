@@ -29,6 +29,7 @@ import { decryptSecret, encryptSecret } from '@/lib/seedbox/crypto';
 import { isHlsPlaylist, rewriteManifest } from '@/lib/iptv/shares/manifest';
 import { fetchUpstream } from '@/lib/iptv/shares/upstream';
 import { IptvResaleError, iptvPassCookieName, resolveUpstreamForSession } from '@/lib/iptv/shares';
+import { fetchRadioUpstream, isSiriusXmUrl } from '@/lib/iptv/shares/radio-source';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,11 +47,15 @@ export async function GET(
   const cookie = request.cookies.get(iptvPassCookieName(slug))?.value;
 
   let upstream: string;
+  let ownerAccountId: string;
+  let isRadio = false;
   try {
     // Always resolve the pass and session, even for a segment: the ciphertext must
     // never be usable on its own.
     const resolved = await resolveUpstreamForSession(slug, cookie, sessionId);
     upstream = resolved.url;
+    ownerAccountId = resolved.share.ownerAccountId;
+    isRadio = resolved.share.kind === 'radio';
 
     if (seg) {
       const decrypted = decryptSecret(seg);
@@ -65,6 +70,55 @@ export async function GET(
     return new Response('stream unavailable', { status: 502 });
   }
 
+  const selfBaseFor = (id: string) =>
+    `${url.origin}/api/public/iptv/${slug}/stream?session=${encodeURIComponent(id)}`;
+
+  /*
+   * Radio takes a different path upstream, for three reasons that do not apply to
+   * an IPTV playlist: every request needs the owner's bearer token, SiriusXM pins
+   * that session to the IP it was issued to, and the same bytes must be fetched
+   * once no matter how many people are listening. All three live in
+   * fetchRadioUpstream.
+   *
+   * What reaches the buyer is identical either way -- a manifest whose URLs are
+   * encrypted and point back here.
+   */
+  if (isRadio) {
+    // A sealed segment URL is the only untrusted input here, and it decrypts to
+    // whatever was sealed. Refuse anything that is not SiriusXM's own host.
+    if (!isSiriusXmUrl(upstream)) return new Response('bad segment', { status: 400 });
+
+    let radio: Awaited<ReturnType<typeof fetchRadioUpstream>>;
+    try {
+      radio = await fetchRadioUpstream(ownerAccountId, upstream);
+    } catch {
+      return new Response('upstream unavailable', { status: 502 });
+    }
+
+    if (radio.status >= 400) {
+      return new Response('upstream unavailable', { status: 502 });
+    }
+
+    if (isHlsPlaylist(radio.contentType) || upstream.includes('.m3u8')) {
+      const text = new TextDecoder().decode(radio.body);
+      return new Response(rewriteManifest(text, upstream, selfBaseFor(sessionId), encryptSecret), {
+        status: 200,
+        headers: {
+          'content-type': radio.contentType ?? 'application/vnd.apple.mpegurl',
+          'cache-control': 'no-store',
+        },
+      });
+    }
+
+    return new Response(radio.body, {
+      status: 200,
+      headers: {
+        'content-type': radio.contentType ?? 'application/octet-stream',
+        'cache-control': 'no-store',
+      },
+    });
+  }
+
   const range = request.headers.get('range');
   let upstreamResponse: Awaited<ReturnType<typeof fetchUpstream>>;
   try {
@@ -76,7 +130,7 @@ export async function GET(
   }
 
   const contentType = upstreamResponse.headers.get('content-type');
-  const selfBase = `${url.origin}/api/public/iptv/${slug}/stream?session=${encodeURIComponent(sessionId)}`;
+  const selfBase = selfBaseFor(sessionId);
 
   if (isHlsPlaylist(contentType) || upstream.includes('.m3u8')) {
     const text = await upstreamResponse.text();

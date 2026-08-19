@@ -36,7 +36,8 @@ function toShare(row: Row): IptvShare {
     id: String(row.id),
     slug: String(row.slug),
     ownerAccountId: String(row.owner_account_id),
-    playlistId: String(row.playlist_id),
+    kind: (row.kind as IptvShare['kind']) ?? 'iptv',
+    playlistId: row.playlist_id ? String(row.playlist_id) : null,
     title: String(row.title ?? ''),
     description: (row.description as string | null) ?? null,
     priceUsd: Number(row.price_usd ?? 0),
@@ -96,18 +97,28 @@ export async function insertShare(
   slug: string,
   input: IptvShareInput
 ): Promise<IptvShare> {
+  const kind = input.kind ?? 'iptv';
+  const radio = kind === 'radio';
   const { data, error } = await db()
     .from('iptv_shares')
     .insert({
       slug,
       owner_account_id: ownerAccountId,
-      playlist_id: input.playlistId,
-      title: input.title ?? 'Watch on my line',
+      kind,
+      // A radio share has no playlist; the constraint in the migration enforces
+      // that an IPTV one does.
+      playlist_id: radio ? null : input.playlistId,
+      title: input.title ?? (radio ? 'Listen on my line' : 'Watch on my line'),
       description: input.description ?? null,
       price_usd: input.priceUsd ?? 1.0,
-      pass_window_minutes: input.passWindowMinutes ?? 240,
+      // A game runs about four hours; a radio pass is sold by the day, which is
+      // also the ceiling the validator allows.
+      pass_window_minutes: input.passWindowMinutes ?? (radio ? 1440 : 240),
       max_concurrent_streams: input.maxConcurrentStreams ?? 1,
-      max_active_passes: input.maxActivePasses ?? 3,
+      // Deliberately tighter for radio. A day-long pass holds its slot for a day,
+      // so the same number of passes over a much longer window is a very different
+      // amount of contention for one line.
+      max_active_passes: input.maxActivePasses ?? (radio ? 2 : 3),
       allowed_channel_ids: input.allowedChannelIds ?? null,
       expires_at: input.expiresAt ?? null,
       payout_wallet_address: input.payoutWalletAddress ?? null,
