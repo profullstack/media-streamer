@@ -49,3 +49,9 @@ firetv/app/build/
 # SiriusXM upstream proxy list (host:port:user:pass per line)
 proxies.txt
 
+
+# Local Claude config: a symlink to a path that only exists on one machine.
+# Tracking it shipped a broken symlink to every clone, and Turbopack walks it
+# while processing globals.css and dies with "leaves the filesystem root",
+# which failed the droplet build and left the site serving a stale bundle.
+.claude

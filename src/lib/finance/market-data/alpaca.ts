@@ -8,7 +8,9 @@
  * stream (revisit later).
  */
 
-import { Alpaca } from '@alpacahq/alpaca-trade-api';
+// Default import, not a named one: the SDK is CommonJS and assigns the constructor
+// to module.exports, so it has no `Alpaca` named export to destructure.
+import Alpaca from '@alpacahq/alpaca-trade-api';
 import {
   type AssetInfo,
   type Candle,

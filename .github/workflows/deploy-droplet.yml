@@ -87,6 +87,7 @@ jobs:
             # Sync files
             rsync -azv --partial --progress --delete \
               --exclude='.git' \
+              --exclude='.claude' \
               --exclude='node_modules' \
               --exclude='.next' \
               --exclude='.env.local' \
