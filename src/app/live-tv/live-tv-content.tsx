@@ -547,7 +547,11 @@ export function LiveTvContent(): React.ReactElement {
               <Link href="/account" className="text-accent-primary hover:underline">
                 Purchase an IPTV subscription
               </Link>{' '}
-              from your account settings.
+              from your account settings, or{' '}
+              <Link href="/live-tv/rent-out" className="text-accent-primary hover:underline">
+                rent out your line
+              </Link>{' '}
+              by the game.
             </p>
           </div>
           <div className="flex items-center gap-2">
