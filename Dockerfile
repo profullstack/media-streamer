@@ -77,8 +77,11 @@ USER nextjs
 EXPOSE 3000
 
 # Health check
+# Reads $PORT rather than hardcoding 3000: Railway injects its own port, and a
+# healthcheck pinned to 3000 reports a healthy container as unhealthy (or worse,
+# probes a port nothing is listening on while the app is fine).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider "http://localhost:${PORT:-3000}/api/health" || exit 1
 
 # Start the application
 CMD ["node", "server.js"]
