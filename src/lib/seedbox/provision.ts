@@ -150,22 +150,46 @@ GLOBAL_BIN=""
 # daemons run as systemd --user units under $HOME, and the only privileged step
 # left (opening the firewall) already degrades to an instruction.
 # Root LAST, deliberately. A user-managed Node (mise, nvm, fnm) lives under
-# $HOME and is not on root's PATH at all -- \`@S@ npm\` there reports
-# "@S@: 'npm': command not found" even with passwordless @S@ working fine. And
+# $HOME and is not on root's PATH at all -- \`sudo npm\` there reports
+# "sudo: 'npm': command not found" even with passwordless sudo working fine. And
 # where root CAN run npm, it writes root-owned files into a prefix the user owns.
 # Both unprivileged routes are tried first for those reasons.
 NPM_BIN="$(command -v npm 2>/dev/null)"
 NODE_BIN="$(command -v node 2>/dev/null)"
-if npm i -g "$PKG@latest" >/tmp/torlnk-install.log 2>&1; then
+SCRIPTS_SKIPPED=0
+_npm_g() { npm i -g "$@" "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; }
+
+# --ignore-scripts is a real fallback here, not a shrug.
+#
+# A transitive dep (ip-set) has \`preinstall: npx only-allow pnpm\`, and under
+# npm 11 the nested npx cannot bootstrap itself: it dies with ENOENT on its own
+# _npx cache and takes the whole install down with exit 254. Same package, same
+# box, npm 10 installs it fine, and clearing the npx cache does not help.
+#
+# Skipping scripts drops that hostile preinstall along with the optional native
+# accelerators (bufferutil, utp-native, node-datachannel). torlink degrades
+# cleanly without them -- "WebRTC peers unavailable; TCP/UDP peers still work" --
+# and TCP is what a seedbox pulls over anyway. Its OWN postinstall is re-run
+# below, so the package still gets to initialise itself.
+: >/tmp/torlnk-install.log
+if _npm_g; then
   emit install ok "npm i -g $PKG@latest"
-elif npm i -g --prefix "$LOCAL_PREFIX" "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; then
+elif _npm_g --ignore-scripts; then
+  SCRIPTS_SKIPPED=1
+  emit install ok "npm i -g $PKG@latest (--ignore-scripts; a dependency preinstall breaks under npm $(npm -v 2>/dev/null))"
+elif _npm_g --prefix "$LOCAL_PREFIX"; then
   PKG_ROOT="$LOCAL_PREFIX/lib/node_modules/@profullstack/torlink"
   GLOBAL_BIN="$LOCAL_PREFIX/bin/torlnk"
   emit install ok "npm i -g $PKG@latest (into $LOCAL_PREFIX -- no root needed)"
-elif [ -n "$NPM_BIN" ] && [ -n "$NODE_BIN" ] && command -v @S@ >/dev/null 2>&1 \
-  && @S@ -n "$NODE_BIN" "$NPM_BIN" i -g "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; then
+elif _npm_g --prefix "$LOCAL_PREFIX" --ignore-scripts; then
+  PKG_ROOT="$LOCAL_PREFIX/lib/node_modules/@profullstack/torlink"
+  GLOBAL_BIN="$LOCAL_PREFIX/bin/torlnk"
+  SCRIPTS_SKIPPED=1
+  emit install ok "npm i -g $PKG@latest (into $LOCAL_PREFIX, --ignore-scripts)"
+elif [ -n "$NPM_BIN" ] && [ -n "$NODE_BIN" ] && command -v sudo >/dev/null 2>&1 \
+  && sudo -n "$NODE_BIN" "$NPM_BIN" i -g "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; then
   # Absolute paths, because root's PATH almost never includes a user Node.
-  emit install ok "npm i -g $PKG@latest (@S@)"
+  emit install ok "npm i -g $PKG@latest (sudo)"
 else
   emit install fail "$(npm_err /tmp/torlnk-install.log)"
   echo "RESULT|fail"; exit 0
@@ -181,6 +205,18 @@ command -v mise >/dev/null 2>&1 && mise reshim >/dev/null 2>&1 || true
 # without torrent controls" trap. Run the freshly-installed dist directly.
 [ -n "$PKG_ROOT" ] || PKG_ROOT="$(npm root -g 2>/dev/null)/@profullstack/torlink"
 CLI_JS="$PKG_ROOT/dist/cli.cjs"
+
+# --ignore-scripts suppressed torlink's own postinstall along with the hostile
+# dependency one. Run just torlink's, so the package still initialises itself. It
+# exits 0 and prints guidance when the native WebRTC module cannot be built,
+# which is the expected outcome on a box without cmake/g++.
+if [ "$SCRIPTS_SKIPPED" = "1" ] && [ -f "$PKG_ROOT/scripts/ensure-webrtc.cjs" ]; then
+  if (cd "$PKG_ROOT" && node scripts/ensure-webrtc.cjs >/tmp/torlnk-postinstall.log 2>&1); then
+    emit postinstall ok "ran torlink's own postinstall (suppressed by --ignore-scripts)"
+  else
+    emit postinstall skip "torlink's postinstall did not complete; WebRTC peers may be unavailable (TCP/UDP still work)"
+  fi
+fi
 
 # --- pin uint8-util, which crashes the daemon on every magnet ---
 # uint8-util 2.3.x restructured the package and broke arr2hex. It is a

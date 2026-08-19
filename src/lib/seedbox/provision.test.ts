@@ -26,17 +26,49 @@ describe('seedbox provisioner', () => {
     const script = buildProvisionScript('TOK123_-', DEFAULT_SERVE_PORT, DEFAULT_FILES_PORT);
 
     it('installs the torlink fork (with the concurrency cap) and enforces Node >= 22', () => {
-      expect(script).toContain('npm i -g "$PKG@latest"'); // @latest so a cached global actually upgrades
+      // @latest so a cached global actually upgrades.
+      expect(script).toContain('npm i -g "$@" "$PKG@latest"');
       expect(script).toContain("PKG='@profullstack/torlink'");
       expect(script).toContain('TORLINK_MAX_DOWNLOADS=2');
       expect(script).toContain('-lt 22');
+    });
+
+    /**
+     * Every route the install can take, because each exists for a box that
+     * actually failed without it:
+     *   - a root-owned global prefix with no passwordless sudo -> per-user prefix
+     *   - npm 11, where a dependency's `npx only-allow pnpm` preinstall dies with
+     *     ENOENT and fails the whole install -> --ignore-scripts
+     *   - a user-managed Node that root cannot see -> sudo with absolute paths
+     */
+    it('has an unprivileged and a scripts-free way to install', () => {
+      expect(script).toContain('_npm_g --ignore-scripts');
+      expect(script).toContain('_npm_g --prefix "$LOCAL_PREFIX"');
+      expect(script).toContain('_npm_g --prefix "$LOCAL_PREFIX" --ignore-scripts');
+      // Root last, and reaching node/npm by absolute path.
+      expect(script).toContain('sudo -n "$NODE_BIN" "$NPM_BIN" i -g');
+      // Suppressing scripts must not silently skip torlink's OWN postinstall.
+      expect(script).toContain('node scripts/ensure-webrtc.cjs');
+    });
+
+    /**
+     * npm's last three lines are always "A complete log of this run can be found
+     * in:", so the old `tail -n 3` reported nothing about the actual failure --
+     * which is why a broken install could not be diagnosed from the UI at all.
+     */
+    it('reports what npm actually complained about', () => {
+      expect(script).toContain('npm_err()');
+      expect(script).toContain('emit install fail "$(npm_err /tmp/torlnk-install.log)"');
+      expect(script).not.toContain('emit install fail "$(tail -n 3 /tmp/torlnk-install.log');
     });
 
     it('resolves the daemon from the global bin, not PATH (a ~/.local/bin shadow must not win)', () => {
       // The "older torlink without torrent controls" bug: a stale ~/.local/bin/torlnk
       // wrapper shadowed the freshly-installed global build. Resolve via npm prefix,
       // and repoint the shadow wrapper.
-      expect(script).toContain('GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"');
+      // Conditional now: a user-prefix install sets GLOBAL_BIN itself, and the
+      // global prefix is only consulted when it did not.
+      expect(script).toContain('[ -n "$GLOBAL_BIN" ] || GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"');
       expect(script).toContain('.local/bin/torlnk');
       expect(script).not.toContain('BIN=$(command -v torlnk 2>/dev/null || true)');
     });
