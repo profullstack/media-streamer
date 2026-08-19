@@ -19,6 +19,8 @@ import {
 import { getSiriusXmProxyAgent, withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import type { SiriusXmQuality } from '@/lib/radio';
 
+import { proxyFetch } from '@/lib/radio/proxy-fetch';
+
 export const dynamic = 'force-dynamic';
 
 const VALID_QUALITIES: ReadonlyArray<SiriusXmQuality> = ['256', '128', '64', '32'];
@@ -96,7 +98,7 @@ async function handleProxy(target: string, quality: SiriusXmQuality, origin: str
     // playback to the auth IP, and our datacenter IP gets 403 on the
     // playback/key endpoint regardless of bearer.
     const proxyAgent = getSiriusXmProxyAgent();
-    upstream = await fetch(target, {
+    upstream = await proxyFetch(target, {
       headers,
       ...(proxyAgent ? { dispatcher: proxyAgent } : {}),
     } as RequestInit);

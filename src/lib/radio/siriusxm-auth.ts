@@ -24,6 +24,8 @@ import {
   type SiriusXmCredentials,
 } from './siriusxm-credentials';
 
+import { proxyFetch } from './proxy-fetch';
+
 const SXM_API_BASE = 'https://api.edge-gateway.siriusxm.com';
 
 interface ResolvedProxy {
@@ -273,7 +275,7 @@ async function sxmCall<T>(path: string, opts: SxmRequestOpts = {}): Promise<SxmR
   let lastErr: unknown;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
-      res = await fetch(url, fetchInit);
+      res = await proxyFetch(url, fetchInit);
       lastErr = null;
       break;
     } catch (err) {
@@ -642,7 +644,7 @@ async function bootstrapDeviceGrantViaFetch(browserErr: Error): Promise<DeviceGr
   for (const attempt of attempts) {
     let res: Response;
     try {
-      res = await fetch(attempt.url, {
+      res = await proxyFetch(attempt.url, {
         ...attempt.init,
         ...(proxy ? { dispatcher: proxy.agent } : {}),
       } as RequestInit);

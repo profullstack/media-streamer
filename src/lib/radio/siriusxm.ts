@@ -22,6 +22,8 @@ import type {
   SiriusXmQuality,
 } from './types';
 
+import { proxyFetch } from './proxy-fetch';
+
 export { SiriusXmAuthError } from './siriusxm-auth';
 
 export const SIRIUSXM_STATION_ID_PREFIX = 'sxm:';
@@ -166,7 +168,7 @@ async function sxmFetchOnce(url: string, init: RequestInit): Promise<Response> {
   let lastErr: unknown;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
-      return await fetch(url, fetchInit);
+      return await proxyFetch(url, fetchInit);
     } catch (err) {
       lastErr = err;
       if (!isRetryableNetworkError(err)) throw err;
