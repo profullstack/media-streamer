@@ -32,10 +32,30 @@ jobs:
       # Some tests exercise the real transcoding pipeline (spawn('ffmpeg')); a
       # missing binary throws an uncaught spawn ENOENT that fails the whole run.
       # ci.yml's test job already installs ffmpeg — keep this workflow in sync.
-      # Static release build rather than the distro mirror: a stalled apt mirror
-      # was failing this job for 15+ minutes without running a single test.
+      #
+      # Two independent paths, because each one alone has broken a deploy.
+      #
+      # The distro mirror stalls; and this action resolves `release` by scraping a
+      # version out of an upstream readme, which failed with "Failed to read
+      # version from readme" and took the droplet deploy down with it. Neither
+      # failure has anything to do with the change being tested.
+      #
+      # So: try the prebuilt binary, fall back to apt, then assert ffmpeg is
+      # actually there. A flake in one path no longer stops a deploy, and losing
+      # both still fails loudly rather than running tests that spawn ENOENT.
       - name: Install ffmpeg
+        id: ffmpeg
         uses: FedericoCarboni/setup-ffmpeg@v3
+        continue-on-error: true
+
+      - name: Install ffmpeg (fallback)
+        if: steps.ffmpeg.outcome != 'success'
+        run: |
+          command -v ffmpeg >/dev/null && exit 0
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Verify ffmpeg
+        run: ffmpeg -version
 
       - run: pnpm install --frozen-lockfile
 
