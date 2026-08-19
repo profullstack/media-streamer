@@ -24,19 +24,13 @@
  */
 
 import { NextRequest } from 'next/server';
-import { Agent, fetch as undiciFetch } from 'undici';
 
 import { decryptSecret, encryptSecret } from '@/lib/seedbox/crypto';
 import { isHlsPlaylist, rewriteManifest } from '@/lib/iptv/shares/manifest';
+import { fetchUpstream } from '@/lib/iptv/shares/upstream';
 import { IptvResaleError, iptvPassCookieName, resolveUpstreamForSession } from '@/lib/iptv/shares';
 
 export const dynamic = 'force-dynamic';
-
-/** Many IPTV providers ship expired or self-signed certificates. */
-const insecureAgent = new Agent({
-  connect: { rejectUnauthorized: false, minVersion: 'TLSv1' as const },
-  connections: 50,
-});
 
 export async function GET(
   request: NextRequest,
@@ -72,16 +66,11 @@ export async function GET(
   }
 
   const range = request.headers.get('range');
-  let upstreamResponse: Awaited<ReturnType<typeof undiciFetch>>;
+  let upstreamResponse: Awaited<ReturnType<typeof fetchUpstream>>;
   try {
-    upstreamResponse = await undiciFetch(upstream, {
-      dispatcher: insecureAgent,
-      headers: {
-        'user-agent': 'VLC/3.0.20 LibVLC/3.0.20',
-        ...(range ? { range } : {}),
-      },
-      signal: AbortSignal.timeout(30_000),
-    });
+    // Verifies TLS, degrading only for a provider whose certificate is genuinely
+    // broken -- see lib/iptv/shares/upstream.ts for why that matters more here.
+    upstreamResponse = await fetchUpstream({ url: upstream, range });
   } catch {
     return new Response('upstream unavailable', { status: 502 });
   }
