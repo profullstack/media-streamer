@@ -281,6 +281,22 @@ function publishedTime(item: ParsedRssItem): number {
 }
 
 /**
+ * Drops repeat guids, keeping the first copy seen. A feed that reuses a guid —
+ * or that has no guid and no link, so several entries collapse onto the same
+ * title:date fallback — would otherwise send Postgres two rows with the same
+ * (feed_id, guid) in one statement, which fails with "ON CONFLICT DO UPDATE
+ * command cannot affect row a second time".
+ */
+function dedupeByGuid(items: ParsedRssItem[]): ParsedRssItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.guid)) return false;
+    seen.add(item.guid);
+    return true;
+  });
+}
+
+/**
  * Stores a feed's newest MAX_ITEMS_PER_FEED articles and prunes whatever the
  * feed has accumulated past that. Saved articles are never pruned — the delete
  * would cascade to rss_item_states and take the bookmark with it.
@@ -288,7 +304,12 @@ function publishedTime(item: ParsedRssItem): number {
 export async function upsertFeedItems(feedId: string, items: ParsedRssItem[]): Promise<RssItem[]> {
   if (items.length === 0) return [];
 
-  const newest = [...items].sort((a, b) => publishedTime(b) - publishedTime(a)).slice(0, MAX_ITEMS_PER_FEED);
+  // Dedupe before the slice so a feed full of repeats still stores
+  // MAX_ITEMS_PER_FEED distinct articles.
+  const newest = dedupeByGuid([...items].sort((a, b) => publishedTime(b) - publishedTime(a))).slice(
+    0,
+    MAX_ITEMS_PER_FEED
+  );
 
   const { data, error } = await db()
     .from(ITEMS_TABLE)
