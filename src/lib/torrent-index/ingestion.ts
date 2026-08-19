@@ -12,6 +12,7 @@ import type {
   TorrentInsert,
   TorrentFileInsert,
   MediaCategory,
+  UpdateTables,
 } from '@/lib/supabase/types';
 import { 
   parseMagnetUri, 
@@ -244,7 +245,7 @@ export async function updateTorrentStatus(
   try {
     const supabase = createServerClient();
     
-    const updateData: Record<string, unknown> = {
+    const updateData: UpdateTables<'bt_torrents'> = {
       status,
       updated_at: new Date().toISOString(),
     };

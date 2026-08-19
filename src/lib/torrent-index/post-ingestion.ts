@@ -10,6 +10,7 @@
  */
 
 import { createServerClient } from '@/lib/supabase';
+import type { UpdateTables } from '@/lib/supabase/types';
 import {
   enrichTorrentMetadata,
   detectContentType,
@@ -241,7 +242,7 @@ async function updateTorrentWithEnrichment(
   const supabase = createServerClient();
 
   // Build update data
-  const updateData: Record<string, unknown> = {
+  const updateData: UpdateTables<'bt_torrents'> = {
     content_type: enrichment.contentType,
     metadata_fetched_at: new Date().toISOString(),
   };

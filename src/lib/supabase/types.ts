@@ -35,6 +35,11 @@ export type Database = {
           last_check_error: string | null;
           created_at: string;
           updated_at: string;
+          imap_host: string | null;
+          imap_port: number | null;
+          imap_security: 'none' | 'starttls' | 'tls' | null;
+          imap_username: string | null;
+          imap_password: string | null;
         };
         Insert: {
           id?: string;
@@ -55,6 +60,11 @@ export type Database = {
           last_check_error?: string | null;
           created_at?: string;
           updated_at?: string;
+          imap_host?: string | null;
+          imap_port?: number | null;
+          imap_security?: 'none' | 'starttls' | 'tls' | null;
+          imap_username?: string | null;
+          imap_password?: string | null;
         };
         Update: {
           id?: string;
@@ -75,6 +85,11 @@ export type Database = {
           last_check_error?: string | null;
           created_at?: string;
           updated_at?: string;
+          imap_host?: string | null;
+          imap_port?: number | null;
+          imap_security?: 'none' | 'starttls' | 'tls' | null;
+          imap_username?: string | null;
+          imap_password?: string | null;
         };
         Relationships: [];
       };
@@ -973,18 +988,21 @@ export type Database = {
           user_id: string;
           file_id: string;
           created_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
           user_id: string;
           file_id: string;
           created_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
           user_id?: string;
           file_id?: string;
           created_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -1004,6 +1022,7 @@ export type Database = {
           collection_type: 'playlist' | 'watchlist' | 'reading_list' | 'mixed';
           created_at: string;
           updated_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1012,6 +1031,7 @@ export type Database = {
           collection_type: 'playlist' | 'watchlist' | 'reading_list' | 'mixed';
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1020,6 +1040,7 @@ export type Database = {
           collection_type?: 'playlist' | 'watchlist' | 'reading_list' | 'mixed';
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [];
       };
@@ -1071,6 +1092,7 @@ export type Database = {
           total_pages: number | null;
           percentage: number;
           last_read_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1080,6 +1102,7 @@ export type Database = {
           total_pages?: number | null;
           percentage?: number;
           last_read_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1089,6 +1112,7 @@ export type Database = {
           total_pages?: number | null;
           percentage?: number;
           last_read_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -1109,6 +1133,7 @@ export type Database = {
           duration_seconds: number | null;
           percentage: number;
           last_watched_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1118,6 +1143,7 @@ export type Database = {
           duration_seconds?: number | null;
           percentage?: number;
           last_watched_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1127,6 +1153,7 @@ export type Database = {
           duration_seconds?: number | null;
           percentage?: number;
           last_watched_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -1169,6 +1196,7 @@ export type Database = {
           name: string;
           created_at: string;
           updated_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1176,6 +1204,7 @@ export type Database = {
           name?: string;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1183,6 +1212,7 @@ export type Database = {
           name?: string;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [];
       };
@@ -1261,6 +1291,7 @@ export type Database = {
           renewal_reminder_1d_sent: boolean;
           created_at: string;
           updated_at: string;
+          signup_ip: string | null;
         };
         Insert: {
           id?: string;
@@ -1277,6 +1308,7 @@ export type Database = {
           renewal_reminder_1d_sent?: boolean;
           created_at?: string;
           updated_at?: string;
+          signup_ip?: string | null;
         };
         Update: {
           id?: string;
@@ -1293,6 +1325,7 @@ export type Database = {
           renewal_reminder_1d_sent?: boolean;
           created_at?: string;
           updated_at?: string;
+          signup_ip?: string | null;
         };
         Relationships: [];
       };
@@ -1391,6 +1424,7 @@ export type Database = {
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
+          is_default?: boolean | null;
         };
         Update: {
           id?: string;
@@ -1401,6 +1435,7 @@ export type Database = {
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
+          is_default?: boolean | null;
         };
         Relationships: [];
       };
@@ -1579,6 +1614,7 @@ export type Database = {
           last_listened_at: string | null;
           created_at: string;
           updated_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1589,6 +1625,7 @@ export type Database = {
           last_listened_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1599,6 +1636,7 @@ export type Database = {
           last_listened_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -1674,6 +1712,7 @@ export type Database = {
           percentage: number;
           completed: boolean;
           last_listened_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1684,6 +1723,7 @@ export type Database = {
           percentage?: number;
           completed?: boolean;
           last_listened_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1694,6 +1734,7 @@ export type Database = {
           percentage?: number;
           completed?: boolean;
           last_listened_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -1944,6 +1985,8 @@ export type Database = {
           deleted_at: string | null;
           created_at: string;
           updated_at: string;
+          profile_id: string | null;
+          infohash: string;
         };
         Insert: {
           id?: string;
@@ -1956,6 +1999,8 @@ export type Database = {
           deleted_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
+          infohash?: string;
         };
         Update: {
           id?: string;
@@ -1968,6 +2013,8 @@ export type Database = {
           deleted_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
+          infohash?: string;
         };
         Relationships: [
           {
@@ -1994,6 +2041,7 @@ export type Database = {
           vote_value: number;
           created_at: string;
           updated_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -2002,6 +2050,7 @@ export type Database = {
           vote_value: number;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -2010,6 +2059,7 @@ export type Database = {
           vote_value?: number;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -2029,6 +2079,7 @@ export type Database = {
           vote_value: number;
           created_at: string;
           updated_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -2037,6 +2088,7 @@ export type Database = {
           vote_value: number;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -2045,6 +2097,7 @@ export type Database = {
           vote_value?: number;
           created_at?: string;
           updated_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -2062,18 +2115,21 @@ export type Database = {
           user_id: string;
           torrent_id: string;
           created_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
           user_id: string;
           torrent_id: string;
           created_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
           user_id?: string;
           torrent_id?: string;
           created_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {
@@ -2098,6 +2154,7 @@ export type Database = {
           tvg_id: string | null;
           tvg_name: string | null;
           created_at: string;
+          profile_id: string | null;
         };
         Insert: {
           id?: string;
@@ -2111,6 +2168,7 @@ export type Database = {
           tvg_id?: string | null;
           tvg_name?: string | null;
           created_at?: string;
+          profile_id?: string | null;
         };
         Update: {
           id?: string;
@@ -2124,6 +2182,7 @@ export type Database = {
           tvg_id?: string | null;
           tvg_name?: string | null;
           created_at?: string;
+          profile_id?: string | null;
         };
         Relationships: [
           {

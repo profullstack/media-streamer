@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { UpdateTables } from '@/lib/supabase/types';
 import { createServerClient } from '@/lib/supabase';
 import { Agent } from 'undici';
 
@@ -303,7 +304,7 @@ export async function PUT(
   }
 
   // Build update object with only provided fields
-  const updateData: Record<string, unknown> = {};
+  const updateData: UpdateTables<'iptv_playlists'> = {};
   
   if (body.name !== undefined) {
     const name = body.name.trim();

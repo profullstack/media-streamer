@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { UpdateTables } from '@/lib/supabase/types';
 import { createServerClient } from '@/lib/supabase';
 import {
   enrichTorrentMetadata,
@@ -109,7 +110,7 @@ export async function POST(
     enrichment.year;
 
   if (hasMetadata || enrichment.contentType !== 'other') {
-    const updateData: Record<string, unknown> = {
+    const updateData: UpdateTables<'bt_torrents'> = {
       content_type: enrichment.contentType,
       metadata_fetched_at: new Date().toISOString(),
     };

@@ -174,6 +174,7 @@ describe('WebhookHandler', () => {
       };
 
       const mockSubscription: UserSubscription = {
+        signup_ip: null,
         id: 'sub-123',
         user_id: 'user-123',
         tier: 'premium',
@@ -258,6 +259,7 @@ describe('WebhookHandler', () => {
       };
 
       const mockSubscription: UserSubscription = {
+        signup_ip: null,
         id: 'sub-456',
         user_id: 'user-456',
         tier: 'family',

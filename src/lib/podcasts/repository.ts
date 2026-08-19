@@ -434,6 +434,7 @@ export function createPodcastRepository(
         percentage: item.percentage,
         completed: item.completed,
         last_listened_at: item.last_listened_at,
+        profile_id: item.profile_id,
       }));
     },
 
