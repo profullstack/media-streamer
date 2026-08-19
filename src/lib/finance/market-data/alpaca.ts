@@ -8,7 +8,7 @@
  * stream (revisit later).
  */
 
-import Alpaca from '@alpacahq/alpaca-trade-api';
+import { Alpaca } from '@alpacahq/alpaca-trade-api';
 import {
   type AssetInfo,
   type Candle,
@@ -80,7 +80,7 @@ export class AlpacaMarketDataProvider implements MarketDataProvider {
       (() =>
         new Alpaca({
           keyId: options.apiKey,
-          secretKey: options.apiSecret,
+          secret: options.apiSecret,
           paper: true,
         }) as unknown as AlpacaDataClient);
   }
