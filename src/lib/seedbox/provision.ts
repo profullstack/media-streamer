@@ -109,16 +109,65 @@ fi
 # --- install torlink (profullstack fork w/ TORLINK_MAX_DOWNLOADS cap; ships the
 #     same 'torlnk' binary — switch back to official 'torlnk' once baairon#102
 #     is merged + published). Remove the official pkg first to avoid a bin clash.
+# npm's last three lines are always "A complete log of this run can be found in:"
+# — which is what a \`tail -n 3\` reports, and it says nothing about what went
+# wrong. This kept the real cause (EACCES? 404? engine mismatch?) off the screen
+# entirely while the install failed. Pull the lines that actually name the fault.
+npm_err() {
+  grep -aiE '^(npm (ERR!|error|warn ERESOLVE)|Error:)' "$1" 2>/dev/null \
+    | grep -avE 'A complete log|_logs/|^npm error$|^npm ERR!$' \
+    | head -n 6 | tr '\\n' ' '
+  # Nothing matched the npm-error shape, so fall back to whatever it did print.
+  if ! grep -aqiE '^(npm (ERR!|error)|Error:)' "$1" 2>/dev/null; then
+    tail -n 5 "$1" 2>/dev/null | tr '\\n' ' '
+  fi
+}
+
 PKG='@profullstack/torlink'
 # Pin @latest so an old cached global is actually upgraded (a bare name can be a
 # no-op when something is already installed under that name).
-(npm rm -g torlnk >/dev/null 2>&1 || sudo -n npm rm -g torlnk >/dev/null 2>&1) || true
+# Where the install actually landed. Empty means the normal global prefix; the
+# unprivileged fallback below sets it, and PKG_ROOT/GLOBAL_BIN follow from it.
+LOCAL_PREFIX="$HOME/.local"
+PKG_ROOT=""
+GLOBAL_BIN=""
+
+(npm rm -g torlnk >/dev/null 2>&1 \
+  || sudo -n npm rm -g torlnk >/dev/null 2>&1 \
+  || npm rm -g --prefix "$LOCAL_PREFIX" torlnk >/dev/null 2>&1) || true
+
+# Three ways in, because a seedbox is somebody else's machine and we do not get
+# to choose how Node was installed on it.
+#
+# A user-managed Node (mise, nvm, fnm) has a writable global prefix and the first
+# branch just works. A DISTRO Node does not: its prefix is /usr/lib/node_modules,
+# owned by root, so \`npm i -g\` fails EACCES. That is the common case, and the
+# only previous escape was passwordless sudo -- which plenty of boxes correctly do
+# not have, and where \`sudo -n\` reports "interactive authentication is required"
+# and the whole install dies having done nothing.
+#
+# So fall back to a per-user prefix. Nothing here actually needs root: the
+# daemons run as systemd --user units under $HOME, and the only privileged step
+# left (opening the firewall) already degrades to an instruction.
+# Root LAST, deliberately. A user-managed Node (mise, nvm, fnm) lives under
+# $HOME and is not on root's PATH at all -- \`@S@ npm\` there reports
+# "@S@: 'npm': command not found" even with passwordless @S@ working fine. And
+# where root CAN run npm, it writes root-owned files into a prefix the user owns.
+# Both unprivileged routes are tried first for those reasons.
+NPM_BIN="$(command -v npm 2>/dev/null)"
+NODE_BIN="$(command -v node 2>/dev/null)"
 if npm i -g "$PKG@latest" >/tmp/torlnk-install.log 2>&1; then
   emit install ok "npm i -g $PKG@latest"
-elif command -v sudo >/dev/null 2>&1 && sudo -n npm i -g "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; then
-  emit install ok "npm i -g $PKG@latest (sudo)"
+elif npm i -g --prefix "$LOCAL_PREFIX" "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; then
+  PKG_ROOT="$LOCAL_PREFIX/lib/node_modules/@profullstack/torlink"
+  GLOBAL_BIN="$LOCAL_PREFIX/bin/torlnk"
+  emit install ok "npm i -g $PKG@latest (into $LOCAL_PREFIX -- no root needed)"
+elif [ -n "$NPM_BIN" ] && [ -n "$NODE_BIN" ] && command -v @S@ >/dev/null 2>&1 \
+  && @S@ -n "$NODE_BIN" "$NPM_BIN" i -g "$PKG@latest" >>/tmp/torlnk-install.log 2>&1; then
+  # Absolute paths, because root's PATH almost never includes a user Node.
+  emit install ok "npm i -g $PKG@latest (@S@)"
 else
-  emit install fail "$(tail -n 3 /tmp/torlnk-install.log 2>/dev/null | tr '\\n' ' ')"
+  emit install fail "$(npm_err /tmp/torlnk-install.log)"
   echo "RESULT|fail"; exit 0
 fi
 
@@ -130,7 +179,7 @@ command -v mise >/dev/null 2>&1 && mise reshim >/dev/null 2>&1 || true
 # ancient ~/torlink/dist/index.js that predates /control — so npm i -g "succeeds"
 # but the daemon that runs is the old build. That is exactly the "older torlink
 # without torrent controls" trap. Run the freshly-installed dist directly.
-PKG_ROOT="$(npm root -g 2>/dev/null)/@profullstack/torlink"
+[ -n "$PKG_ROOT" ] || PKG_ROOT="$(npm root -g 2>/dev/null)/@profullstack/torlink"
 CLI_JS="$PKG_ROOT/dist/cli.cjs"
 
 # --- pin uint8-util, which crashes the daemon on every magnet ---
@@ -167,7 +216,10 @@ if [ -d "$PKG_ROOT" ]; then
 fi
 # Neutralize a shadowing wrapper so interactive \`torlnk\` also gets the fresh build
 # (harmless if it doesn't exist).
-if [ -f "$HOME/.local/bin/torlnk" ] && ! grep -q "$PKG_ROOT" "$HOME/.local/bin/torlnk" 2>/dev/null; then
+# Skipped when the install itself went into ~/.local: that link is npm's own and
+# already correct, and replacing it with a wrapper would strip npm's ability to
+# manage (or cleanly remove) its own bin.
+if [ -z "$GLOBAL_BIN" ] && [ -f "$HOME/.local/bin/torlnk" ] && ! grep -q "$PKG_ROOT" "$HOME/.local/bin/torlnk" 2>/dev/null; then
   printf '#!/usr/bin/env bash\nexec %s "%s" "$@"\n' "$(command -v node)" "$CLI_JS" > "$HOME/.local/bin/torlnk" 2>/dev/null || true
   chmod +x "$HOME/.local/bin/torlnk" 2>/dev/null || true
   emit shadow ok "repointed stale ~/.local/bin/torlnk wrapper at the global build"
@@ -177,7 +229,7 @@ fi
 # cli.cjs) — it bypasses PATH (so a ~/.local/bin shadow can't win) yet stays one
 # path, which the auto-update cron below needs (it does \`dirname "\$BIN"\` and runs
 # \`"\$BIN" update\`).
-GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"
+[ -n "$GLOBAL_BIN" ] || GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin/torlnk"
 if [ -x "$GLOBAL_BIN" ]; then
   BIN="$GLOBAL_BIN"
 elif [ -f "$CLI_JS" ]; then
@@ -493,6 +545,15 @@ NODE_BIN_DIR=$(dirname "$(command -v node 2>/dev/null)" 2>/dev/null)
 # The global npm bin dir — NOT \`dirname "$BIN"\`, which lands in .../dist when
 # $BIN fell back to cli.cjs and would leave npm/torlnk off cron's PATH.
 GLOBAL_BIN_DIR="$(npm prefix -g 2>/dev/null)/bin"
+# \`torlnk update\` upgrades itself by shelling out to \`npm i -g\`, which on a
+# distro Node writes to a root-owned prefix and fails -- so on a box where we had
+# to install into ~/.local, the updater would quietly never apply a release.
+# npm_config_prefix sends its install to the same place the original one went.
+UPD_ENV=""
+if [ -n "$LOCAL_PREFIX" ] && [ "$PKG_ROOT" = "$LOCAL_PREFIX/lib/node_modules/@profullstack/torlink" ]; then
+  UPD_ENV="npm_config_prefix=\\\"$LOCAL_PREFIX\\\" "
+  GLOBAL_BIN_DIR="$LOCAL_PREFIX/bin"
+fi
 
 # The updater restarts both daemons whenever it installs a release, so every run
 # is a small outage window. At */5 that was 288 chances a day to be caught
@@ -500,7 +561,7 @@ GLOBAL_BIN_DIR="$(npm prefix -g 2>/dev/null)/bin"
 # stayed broken because the NEXT run finds the version current and no-ops.
 # Hourly is plenty for picking up releases; the watchdog below owns liveness.
 UPD_MARK="# torlink-autoupdate-media-streamer"
-UPD_LINE="17 * * * * PATH=\\"$NODE_BIN_DIR:$GLOBAL_BIN_DIR:/usr/local/bin:/usr/bin:/bin\\" \\"$BIN\\" update >> \\"$HOME/.torlnk-update.log\\" 2>&1 $UPD_MARK"
+UPD_LINE="17 * * * * PATH=\\"$NODE_BIN_DIR:$GLOBAL_BIN_DIR:/usr/local/bin:/usr/bin:/bin\\" $UPD_ENV\\"$BIN\\" update >> \\"$HOME/.torlnk-update.log\\" 2>&1 $UPD_MARK"
 
 # --- watchdog: the thing that actually keeps the seedbox reachable ---
 # Probes the add-API and restarts torlink if it stops answering — covering the
