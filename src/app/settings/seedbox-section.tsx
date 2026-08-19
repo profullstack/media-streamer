@@ -193,6 +193,11 @@ export function SeedboxSection({
     sshHost, sshPort, sshUser, sshPrivateKey, sshWatchDir, sshAddCommand,
     filesBaseUrl, filesAuth, filesToken, filesBasicUser, filesBasicPass,
     applySummary,
+    // withId carries the selected seedbox. Omitting it lets this callback keep a
+    // stale one after the picker moves, which would save the form you are
+    // looking at onto the box you were looking at before.
+    withId,
+    onChanged,
   ]);
 
   const installTorlink = useCallback(async (): Promise<void> => {
