@@ -69,6 +69,15 @@ export function SeedboxSection({
     [seedboxId]
   );
 
+  // Which seedbox the values currently in the form came from. Saving is refused
+  // until this matches the selected box.
+  //
+  // Without it the form could write one box's settings onto another: the fields
+  // are component state, so between selecting a box and its GET returning, what
+  // is on screen still belongs to the previous one. A save in that window
+  // overwrites the newly-selected box's host, user and ports with the previous
+  // box's -- which is exactly what happened, to two real seedboxes.
+  const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined);
   const [summary, setSummary] = useState<SeedboxSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -130,6 +139,7 @@ export function SeedboxSection({
       if (res.ok) {
         const data = (await res.json()) as { summary: SeedboxSummary };
         applySummary(data.summary);
+        setLoadedFor(seedboxId ?? null);
       }
     } finally {
       setLoading(false);
@@ -137,13 +147,21 @@ export function SeedboxSection({
     // withId carries seedboxId, so switching boxes in the picker refetches --
     // otherwise the form keeps showing the previous box's settings while saving
     // to the newly selected one.
-  }, [applySummary, withId]);
+  }, [applySummary, withId, seedboxId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const ready = loadedFor === (seedboxId ?? null);
+
   const save = useCallback(async (): Promise<void> => {
+    if (!ready) {
+      // Belt as well as braces: the button is disabled, but a stale click or a
+      // keyboard submit must not write the wrong box's settings either.
+      setStatus({ ok: false, message: 'Still loading this seedbox — try again in a moment.' });
+      return;
+    }
     setSaving(true);
     setStatus(null);
     try {
@@ -198,6 +216,7 @@ export function SeedboxSection({
     // looking at onto the box you were looking at before.
     withId,
     onChanged,
+    ready,
   ]);
 
   const installTorlink = useCallback(async (): Promise<void> => {
@@ -517,16 +536,19 @@ export function SeedboxSection({
       <div className="flex items-center gap-3">
         <button
           onClick={() => void save()}
-          disabled={saving}
+          // Not saveable until the values on screen are known to belong to the
+          // selected box -- otherwise a fast click writes the previous box's
+          // host and credentials onto this one.
+          disabled={saving || !ready}
           className="inline-flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
         >
           {saving ? <LoadingSpinner className="h-4 w-4" /> : <KeyIcon className="h-4 w-4" />}
-          Save seedbox
+          {ready ? 'Save seedbox' : 'Loading…'}
         </button>
         {summary?.configured ? (
           <button
             onClick={() => void disconnect()}
-            disabled={saving}
+            disabled={saving || !ready}
             className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-text-secondary hover:text-red-500 disabled:opacity-60"
           >
             <TrashIcon className="h-4 w-4" /> Disconnect
