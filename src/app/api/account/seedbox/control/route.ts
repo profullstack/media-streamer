@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { loadAccountSeedboxConfig } from '@/lib/seedbox';
+import { loadSeedboxForRequest } from '@/lib/seedbox';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
 
 // Manage a torrent on the account's torlink seedbox: pause/resume a download,
@@ -35,7 +35,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: `Unknown action: ${action || '(none)'}` }, { status: 400 });
   }
 
-  const config = await loadAccountSeedboxConfig(user.id);
+  const config = await loadSeedboxForRequest(user.id, new URL(request.url).searchParams.get('id'));
   if (!config?.http) {
     return NextResponse.json(
       { error: 'No torlink HTTP seedbox is connected.' },

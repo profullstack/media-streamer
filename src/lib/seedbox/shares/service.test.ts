@@ -23,7 +23,7 @@ vi.mock('./repository', () => ({
 
 vi.mock('@/lib/seedbox', () => ({
   isValidMagnet: vi.fn(() => true),
-  loadAccountSeedboxConfig: vi.fn(),
+  loadSeedboxForRequest: vi.fn(),
   sendTorrentToSeedbox: vi.fn(async () => SEND_OK),
 }));
 
@@ -35,7 +35,7 @@ vi.mock('@/lib/coinpayportal/client', () => ({
   getCoinPayPortalClient: vi.fn(),
 }));
 
-import { loadAccountSeedboxConfig, sendTorrentToSeedbox } from '@/lib/seedbox';
+import { loadSeedboxForRequest, sendTorrentToSeedbox } from '@/lib/seedbox';
 import { streamSeedboxFile } from '@/lib/seedbox/stream';
 import { generateGrantToken, hashGrantToken } from './pass';
 import * as repo from './repository';
@@ -66,6 +66,7 @@ function share(overrides: Partial<SeedboxShare> = {}): SeedboxShare {
     id: 'share-1',
     slug: 'abc123',
     ownerAccountId: 'owner-1',
+    seedboxId: null,
     title: 'Rent my seedbox',
     description: null,
     priceUsd: 0.25,
@@ -119,7 +120,7 @@ const streamOpts = { method: 'GET' as const, range: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(loadAccountSeedboxConfig).mockResolvedValue(SEEDBOX_CONFIG);
+  vi.mocked(loadSeedboxForRequest).mockResolvedValue(SEEDBOX_CONFIG);
   vi.mocked(sendTorrentToSeedbox).mockResolvedValue(SEND_OK);
 });
 
@@ -184,7 +185,7 @@ describe('listDownloadFiles', () => {
 
     expect(result).toEqual({ ok: true, files: [] });
     // Never reached the owner's files server with a renter-chosen directory.
-    expect(loadAccountSeedboxConfig).not.toHaveBeenCalled();
+    expect(loadSeedboxForRequest).not.toHaveBeenCalled();
   });
 
   it('rejects a download belonging to another pass', async () => {

@@ -25,6 +25,8 @@ const TABLE = 'account_seedbox_configs';
 /** Plaintext input from the settings form. Secret fields are optional on update
  * (empty string / undefined = leave the stored secret unchanged). */
 export interface SeedboxConfigInput {
+  /** What the owner calls this box. Only used when creating or renaming. */
+  name?: string;
   http?: {
     baseUrl?: string | null;
     token?: string | null; // secret
@@ -51,6 +53,10 @@ export interface SeedboxConfigInput {
 
 /** Secret-free description of what an account has configured (for the UI). */
 export interface SeedboxConfigSummary {
+  /** null only in the empty summary returned for an account with no seedboxes. */
+  id: string | null;
+  name: string | null;
+  isDefault: boolean;
   configured: boolean;
   http: {
     baseUrl: string | null;
@@ -80,7 +86,10 @@ export interface SeedboxConfigSummary {
 }
 
 type SeedboxRow = {
+  id: string;
   account_id: string;
+  name: string | null;
+  is_default: boolean;
   http_base_url: string | null;
   http_token_encrypted: string | null;
   http_add_path: string | null;
@@ -99,17 +108,54 @@ type SeedboxRow = {
   files_basic_pass_encrypted: string | null;
 };
 
-async function fetchRow(accountId: string): Promise<SeedboxRow | null> {
+/**
+ * One of the account's seedboxes.
+ *
+ * Naming an id also scopes the query by account_id, so an id belonging to someone
+ * else reads as "not found" rather than as somebody else's box. Without an id this
+ * resolves the default, which is what every caller that predates multiple
+ * seedboxes wants.
+ *
+ * The fallback to the oldest row matters: an account can only lose its default
+ * through a delete that failed to promote a successor, and silently returning
+ * nothing there would look exactly like a disconnected seedbox.
+ */
+async function fetchRow(accountId: string, seedboxId?: string): Promise<SeedboxRow | null> {
+  const supabase = createServerClient();
+
+  if (seedboxId) {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('id', seedboxId)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load seedbox config: ${error.message}`);
+    return (data as SeedboxRow | null) ?? null;
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .eq('account_id', accountId)
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (error) throw new Error(`Failed to load seedbox config: ${error.message}`);
+  return ((data as SeedboxRow[] | null) ?? [])[0] ?? null;
+}
+
+/** Every seedbox on the account, default first then oldest. */
+async function fetchRows(accountId: string): Promise<SeedboxRow[]> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from(TABLE)
     .select('*')
     .eq('account_id', accountId)
-    .maybeSingle();
-  if (error) {
-    throw new Error(`Failed to load seedbox config: ${error.message}`);
-  }
-  return (data as SeedboxRow | null) ?? null;
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`Failed to list seedbox configs: ${error.message}`);
+  return (data as SeedboxRow[] | null) ?? [];
 }
 
 /**
@@ -117,7 +163,11 @@ async function fetchRow(accountId: string): Promise<SeedboxRow | null> {
  * transports. Returns null when the account has connected nothing.
  */
 export async function loadAccountSeedboxConfig(accountId: string): Promise<SeedboxConfig | null> {
-  const row = await fetchRow(accountId);
+  return buildConfig(await fetchRow(accountId));
+}
+
+/** Decrypt one stored row into the config the transports consume. */
+function buildConfig(row: SeedboxRow | null): SeedboxConfig | null {
   if (!row) return null;
 
   const config: SeedboxConfig = {
@@ -148,17 +198,31 @@ export async function loadAccountSeedboxConfig(accountId: string): Promise<Seedb
 }
 
 /** Secret-free summary for rendering the settings form (no plaintext ever). */
-export async function getSeedboxConfigSummary(accountId: string): Promise<SeedboxConfigSummary> {
-  const row = await fetchRow(accountId);
-  const empty = emptySeedboxConfig();
-  if (!row) {
-    return {
+export async function getSeedboxConfigSummary(
+  accountId: string,
+  seedboxId?: string
+): Promise<SeedboxConfigSummary> {
+  const row = await fetchRow(accountId, seedboxId);
+  return summarise(row);
+}
+
+/** The summary shape for an account (or a seedbox) that has nothing configured. */
+function emptySummary(): SeedboxConfigSummary {
+  return {
+      id: null,
+      name: null,
+      isDefault: false,
       configured: false,
       http: { baseUrl: null, hasToken: false, addPath: null, auth: null, magnetField: null, ready: false },
       ssh: { host: null, port: null, user: null, hasPrivateKey: false, watchDir: null, addCommand: null, ready: false },
       files: { baseUrl: null, auth: null, hasToken: false, basicUser: null, hasBasicPass: false, ready: false },
-    };
-  }
+  };
+}
+
+/** Secret-free view of one stored row. */
+function summarise(row: SeedboxRow | null): SeedboxConfigSummary {
+  const empty = emptySeedboxConfig();
+  if (!row) return emptySummary();
 
   // Reuse the builders to compute "ready" (fully-specified) per transport.
   const http = buildHttpConfig({
@@ -186,6 +250,9 @@ export async function getSeedboxConfigSummary(accountId: string): Promise<Seedbo
   void empty;
 
   return {
+    id: row.id,
+    name: row.name,
+    isDefault: row.is_default,
     configured: http != null || ssh != null || files != null,
     http: {
       baseUrl: row.http_base_url,
@@ -231,9 +298,13 @@ function nextSecret(incoming: string | null | undefined, existing: string | null
  */
 export async function saveAccountSeedboxConfig(
   accountId: string,
-  input: SeedboxConfigInput
+  input: SeedboxConfigInput,
+  seedboxId?: string
 ): Promise<SeedboxConfigSummary> {
-  const existing = await fetchRow(accountId);
+  const existing = await fetchRow(accountId, seedboxId);
+  if (seedboxId && !existing) {
+    throw new Error('That seedbox does not exist on this account');
+  }
   const supabase = createServerClient();
 
   // A section (http/ssh/files) that is omitted entirely from the input is left
@@ -290,20 +361,170 @@ export async function saveAccountSeedboxConfig(
         files_basic_pass_encrypted: existing?.files_basic_pass_encrypted ?? null,
       };
 
-  const record = { account_id: accountId, ...http, ...ssh, ...files };
+  const fields = { ...http, ...ssh, ...files, ...(input.name ? { name: input.name.trim() } : {}) };
 
-  const { error } = await supabase.from(TABLE).upsert(record, { onConflict: 'account_id' });
-  if (error) {
-    throw new Error(`Failed to save seedbox config: ${error.message}`);
+  // Update by row id, never upsert on account_id. Upserting on the account was
+  // what made a second seedbox impossible -- saving one silently overwrote the
+  // other, because they were the same row by definition.
+  if (existing) {
+    const { error } = await supabase.from(TABLE).update(fields).eq('id', existing.id);
+    if (error) throw new Error(`Failed to save seedbox config: ${error.message}`);
+    return getSeedboxConfigSummary(accountId, existing.id);
   }
-  return getSeedboxConfigSummary(accountId);
+
+  // Nothing stored yet, so this first box is the account's default.
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert({
+      account_id: accountId,
+      name: input.name?.trim() || 'My seedbox',
+      is_default: true,
+      ...fields,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(`Failed to save seedbox config: ${error.message}`);
+  return getSeedboxConfigSummary(accountId, (data as { id: string }).id);
 }
 
-/** Disconnect the account's seedbox entirely. */
+// ---------------------------------------------------------------------------
+// Managing several
+// ---------------------------------------------------------------------------
+
+/** Every seedbox on the account, default first. Secret-free. */
+export async function listSeedboxes(accountId: string): Promise<SeedboxConfigSummary[]> {
+  return (await fetchRows(accountId)).map(summarise);
+}
+
+/** Load one specific seedbox, with secrets decrypted, for the transports. */
+export async function loadSeedboxConfigById(
+  accountId: string,
+  seedboxId: string
+): Promise<SeedboxConfig | null> {
+  return buildConfig(await fetchRow(accountId, seedboxId));
+}
+
+/**
+ * Add another seedbox.
+ *
+ * The first one an account adds becomes its default, so an account is never left
+ * without one -- every code path that asks for "the seedbox" depends on that.
+ */
+export async function createSeedbox(
+  accountId: string,
+  input: SeedboxConfigInput
+): Promise<SeedboxConfigSummary> {
+  const supabase = createServerClient();
+  const existing = await fetchRows(accountId);
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert({
+      account_id: accountId,
+      name: input.name?.trim() || `Seedbox ${existing.length + 1}`,
+      is_default: existing.length === 0,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(`Failed to create seedbox: ${error.message}`);
+
+  const id = (data as { id: string }).id;
+  // Write the transports through the normal save path so secrets are encrypted
+  // by exactly the same code that encrypts them on every later edit.
+  return saveAccountSeedboxConfig(accountId, input, id);
+}
+
+/** Rename one. */
+export async function renameSeedbox(
+  accountId: string,
+  seedboxId: string,
+  name: string
+): Promise<SeedboxConfigSummary> {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from(TABLE)
+    .update({ name: name.trim() || null })
+    .eq('account_id', accountId)
+    .eq('id', seedboxId);
+  if (error) throw new Error(`Failed to rename seedbox: ${error.message}`);
+  return getSeedboxConfigSummary(accountId, seedboxId);
+}
+
+/**
+ * Make one the default.
+ *
+ * Clearing the old default first is required, not tidiness: a partial unique index
+ * enforces one default per account, so setting the new one while the old still
+ * holds the flag is a constraint violation.
+ */
+export async function setDefaultSeedbox(accountId: string, seedboxId: string): Promise<void> {
+  const supabase = createServerClient();
+  const target = await fetchRow(accountId, seedboxId);
+  if (!target) throw new Error('That seedbox does not exist on this account');
+
+  const cleared = await supabase
+    .from(TABLE)
+    .update({ is_default: false })
+    .eq('account_id', accountId)
+    .neq('id', seedboxId);
+  if (cleared.error) throw new Error(`Failed to set default seedbox: ${cleared.error.message}`);
+
+  const { error } = await supabase.from(TABLE).update({ is_default: true }).eq('id', seedboxId);
+  if (error) throw new Error(`Failed to set default seedbox: ${error.message}`);
+}
+
+/**
+ * Remove one, promoting a successor if it was the default.
+ *
+ * Leaving an account with seedboxes but no default would make every request that
+ * does not name one fall through to the oldest row instead -- workable, but it
+ * would silently change which box torrents land on.
+ */
+export async function deleteSeedbox(accountId: string, seedboxId: string): Promise<void> {
+  const supabase = createServerClient();
+  const target = await fetchRow(accountId, seedboxId);
+  if (!target) return;
+
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq('account_id', accountId)
+    .eq('id', seedboxId);
+  if (error) throw new Error(`Failed to delete seedbox: ${error.message}`);
+
+  if (!target.is_default) return;
+  const remaining = await fetchRows(accountId);
+  if (remaining.length > 0) await setDefaultSeedbox(accountId, remaining[0].id);
+}
+
+/**
+ * Remove EVERY seedbox on the account.
+ *
+ * Nothing calls this. It is kept for wiping an account wholesale, and is named to
+ * be hard to reach for by accident: the thing you almost always want is
+ * {@link deleteSeedbox}, which removes one box and promotes a successor. Deleting
+ * a single box through here would take the account's other boxes with it.
+ */
 export async function deleteAccountSeedboxConfig(accountId: string): Promise<void> {
   const supabase = createServerClient();
   const { error } = await supabase.from(TABLE).delete().eq('account_id', accountId);
   if (error) {
     throw new Error(`Failed to delete seedbox config: ${error.message}`);
   }
+}
+
+/**
+ * The seedbox a request is about: the one it names, or the account's default.
+ *
+ * Every per-box endpoint (test, status, control, cleanup, install) needs this
+ * same choice, and getting it wrong is quiet -- the call succeeds against the
+ * wrong machine.
+ */
+export async function loadSeedboxForRequest(
+  accountId: string,
+  seedboxId?: string | null
+): Promise<SeedboxConfig | null> {
+  return seedboxId
+    ? loadSeedboxConfigById(accountId, seedboxId)
+    : loadAccountSeedboxConfig(accountId);
 }

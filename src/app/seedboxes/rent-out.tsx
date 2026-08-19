@@ -78,6 +78,10 @@ export function RentOut(): React.ReactElement {
   const [copied, setCopied] = useState<string | null>(null);
 
   // Create form
+  // Which box this listing rents out. '' means the account default, which is what
+  // every listing made before an account could have several already does.
+  const [boxes, setBoxes] = useState<{ id: string; name: string | null; isDefault: boolean }[]>([]);
+  const [seedboxId, setSeedboxId] = useState('');
   const [title, setTitle] = useState('Rent my seedbox');
   const [price, setPrice] = useState('0.25');
   const [windowHours, setWindowHours] = useState('24');
@@ -91,10 +95,22 @@ export function RentOut(): React.ReactElement {
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const res = await fetch('/api/seedbox/shares', { cache: 'no-store' });
+      const [res, boxRes] = await Promise.all([
+        fetch('/api/seedbox/shares', { cache: 'no-store' }),
+        fetch('/api/account/seedboxes', { cache: 'no-store' }),
+      ]);
       const data = await res.json();
       setRentals(data.rentals ?? []);
       setReady(data.ready ?? null);
+      if (boxRes.ok) {
+        const list = (await boxRes.json()) as {
+          seedboxes: { id: string | null; name: string | null; isDefault: boolean }[];
+        };
+        setBoxes(
+          (list.seedboxes ?? [])
+            .filter((b): b is { id: string; name: string | null; isDefault: boolean } => Boolean(b.id))
+        );
+      }
     } catch {
       setError('Could not load your rentals.');
     } finally {
@@ -118,6 +134,7 @@ export function RentOut(): React.ReactElement {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          seedboxId: seedboxId || null,
           title,
           priceUsd: Number(price),
           passWindowMinutes: Math.round(Number(windowHours) * 60),
@@ -136,7 +153,7 @@ export function RentOut(): React.ReactElement {
     } finally {
       setCreating(false);
     }
-  }, [title, price, windowHours, maxDownloads, expiryDays, payoutWallet, payoutChain, load]);
+  }, [seedboxId, title, price, windowHours, maxDownloads, expiryDays, payoutWallet, payoutChain, load]);
 
   const patchRental = useCallback(
     async (id: string, patch: Record<string, unknown>): Promise<void> => {
@@ -201,6 +218,28 @@ export function RentOut(): React.ReactElement {
       {ready?.ready ? <section className="rounded-lg border border-border bg-bg-secondary p-4">
           <h3 className="mb-3 text-sm font-semibold text-text-primary">New rental</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {boxes.length > 1 ? (
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Which seedbox</label>
+                <select
+                  className={inputCls}
+                  value={seedboxId}
+                  onChange={(e) => setSeedboxId(e.target.value)}
+                >
+                  <option value="">
+                    Default ({boxes.find((b) => b.isDefault)?.name ?? 'your default box'})
+                  </option>
+                  {boxes.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name ?? 'Unnamed seedbox'}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  Each listing rents out one box, so you can rent out several at once.
+                </p>
+              </div>
+            ) : null}
             <div className="sm:col-span-2">
               <label className={labelCls}>Title</label>
               <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -332,14 +371,12 @@ export function RentOut(): React.ReactElement {
                 </button>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {lapsed && r.status !== 'closed' && (
-                  <button
+                {lapsed && r.status !== 'closed' ? <button
                     className={cn(btn, 'bg-accent-primary text-white hover:opacity-90')}
                     onClick={() => void patchRental(r.id, { status: 'active', expiresAt: null })}
                   >
                     Reopen
-                  </button>
-                )}
+                  </button> : null}
                 {status === 'active' && (
                   <button className={cn(btn, 'bg-bg-hover text-text-primary')} onClick={() => void patchStatus(r.id, 'paused')}>
                     Pause

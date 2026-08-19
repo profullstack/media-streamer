@@ -51,6 +51,13 @@ export {
   getSeedboxConfigSummary,
   saveAccountSeedboxConfig,
   deleteAccountSeedboxConfig,
+  listSeedboxes,
+  loadSeedboxConfigById,
+  loadSeedboxForRequest,
+  createSeedbox,
+  renameSeedbox,
+  setDefaultSeedbox,
+  deleteSeedbox,
 } from './account-config';
 export type { SeedboxConfigInput, SeedboxConfigSummary } from './account-config';
 
@@ -68,3 +75,4 @@ export { execRemote } from './ssh-transport';
 // File streaming: proxy completed files from the seedbox file server (torlnk files).
 export { buildSeedboxFileUrl, fetchSeedboxFile, filesAuthHeaders } from './files';
 export type { SeedboxFilesConfig } from './config';
+export { parseSeedboxInput } from './parse-input';

@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import {
   DEFAULT_FILES_PORT,
   DEFAULT_SERVE_PORT,
-  loadAccountSeedboxConfig,
+  loadSeedboxForRequest,
   provisionTorlink,
   saveAccountSeedboxConfig,
 } from '@/lib/seedbox';
@@ -24,7 +24,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const config = await loadAccountSeedboxConfig(user.id);
+  const config = await loadSeedboxForRequest(user.id, new URL(request.url).searchParams.get('id'));
   if (!config?.ssh) {
     return NextResponse.json(
       { error: 'Add an SSH connection (host, user, private key) in Settings → Seedbox first, then install torlink.' },

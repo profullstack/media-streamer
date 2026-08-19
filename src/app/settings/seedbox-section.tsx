@@ -29,6 +29,9 @@ interface SeedboxProbeResult {
 }
 
 interface SeedboxSummary {
+  id?: string | null;
+  name?: string | null;
+  isDefault?: boolean;
   configured: boolean;
   http: { baseUrl: string | null; hasToken: boolean; addPath: string | null; auth: string | null; magnetField: string | null; ready: boolean };
   ssh: { host: string | null; port: number | null; user: string | null; hasPrivateKey: boolean; watchDir: string | null; addCommand: string | null; ready: boolean };
@@ -39,7 +42,33 @@ const inputCls =
   'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent-primary focus:outline-none';
 const labelCls = 'block text-xs font-medium text-text-secondary mb-1';
 
-export function SeedboxSection(): React.ReactElement {
+/**
+ * @param seedboxId  which of the account's seedboxes to edit. Omitted means the
+ *                   default, which is what the settings page shows.
+ * @param onChanged  told when this box is saved or removed, so a surrounding
+ *                   picker can refresh its list (names and readiness change here).
+ */
+export function SeedboxSection({
+  seedboxId,
+  onChanged,
+}: {
+  seedboxId?: string;
+  onChanged?: () => void;
+} = {}): React.ReactElement {
+  // Every call in here is about one specific box. Threading the id through the
+  // query string rather than the body keeps GET, PUT and DELETE identical.
+  //
+  // Memoised on seedboxId so the callbacks below can depend on it honestly: a
+  // fresh function each render would either be an omitted dependency or defeat
+  // their memoisation entirely.
+  const withId = useCallback(
+    (path: string): string =>
+      seedboxId
+        ? `${path}${path.includes('?') ? '&' : '?'}id=${encodeURIComponent(seedboxId)}`
+        : path,
+    [seedboxId]
+  );
+
   const [summary, setSummary] = useState<SeedboxSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,7 +126,7 @@ export function SeedboxSection(): React.ReactElement {
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const res = await fetch('/api/account/seedbox');
+      const res = await fetch(withId('/api/account/seedbox'));
       if (res.ok) {
         const data = (await res.json()) as { summary: SeedboxSummary };
         applySummary(data.summary);
@@ -105,7 +134,10 @@ export function SeedboxSection(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [applySummary]);
+    // withId carries seedboxId, so switching boxes in the picker refetches --
+    // otherwise the form keeps showing the previous box's settings while saving
+    // to the newly selected one.
+  }, [applySummary, withId]);
 
   useEffect(() => {
     void load();
@@ -115,7 +147,7 @@ export function SeedboxSection(): React.ReactElement {
     setSaving(true);
     setStatus(null);
     try {
-      const res = await fetch('/api/account/seedbox', {
+      const res = await fetch(withId('/api/account/seedbox'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,6 +178,7 @@ export function SeedboxSection(): React.ReactElement {
       const data = (await res.json().catch(() => ({}))) as { summary?: SeedboxSummary; error?: string };
       if (res.ok && data.summary) {
         applySummary(data.summary);
+        onChanged?.();
         setStatus({ ok: true, message: 'Seedbox saved' });
       } else {
         setStatus({ ok: false, message: data.error ?? 'Failed to save seedbox' });
@@ -167,7 +200,7 @@ export function SeedboxSection(): React.ReactElement {
     setStatus(null);
     setInstallSteps(null);
     try {
-      const res = await fetch('/api/account/seedbox/install-torlink', {
+      const res = await fetch(withId('/api/account/seedbox/install-torlink'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -193,14 +226,14 @@ export function SeedboxSection(): React.ReactElement {
     } finally {
       setInstalling(false);
     }
-  }, [applySummary, dataDir, seedHours]);
+  }, [applySummary, dataDir, seedHours, withId]);
 
   const testConnection = useCallback(async (): Promise<void> => {
     setTesting(true);
     setTestResult(null);
     setStatus(null);
     try {
-      const res = await fetch('/api/account/seedbox/test');
+      const res = await fetch(withId('/api/account/seedbox/test'));
       const data = (await res.json().catch(() => ({}))) as SeedboxProbeResult;
       setTestResult(data);
     } catch (err) {
@@ -208,16 +241,17 @@ export function SeedboxSection(): React.ReactElement {
     } finally {
       setTesting(false);
     }
-  }, []);
+  }, [withId]);
 
   const disconnect = useCallback(async (): Promise<void> => {
     if (!window.confirm('Disconnect your seedbox? This removes the stored connection and credentials.')) return;
     setSaving(true);
     setStatus(null);
     try {
-      const res = await fetch('/api/account/seedbox', { method: 'DELETE' });
+      const res = await fetch(withId('/api/account/seedbox'), { method: 'DELETE' });
       if (res.ok) {
         await load();
+        onChanged?.();
         setStatus({ ok: true, message: 'Seedbox disconnected' });
       } else {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -226,7 +260,7 @@ export function SeedboxSection(): React.ReactElement {
     } finally {
       setSaving(false);
     }
-  }, [load]);
+  }, [load, onChanged, withId]);
 
   if (loading) {
     return (

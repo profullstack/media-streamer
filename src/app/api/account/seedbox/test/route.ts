@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { loadAccountSeedboxConfig } from '@/lib/seedbox';
+import { loadSeedboxForRequest } from '@/lib/seedbox';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
 import { filesAuthHeaders } from '@/lib/seedbox/files';
 import { describeFetchError } from '@/lib/seedbox/fetch-error';
@@ -53,13 +53,13 @@ async function probe(
   }
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const config = await loadAccountSeedboxConfig(user.id);
+  const config = await loadSeedboxForRequest(user.id, new URL(request.url).searchParams.get('id'));
   const result: { http?: Probe; files?: Probe } = {};
 
   // Send path: POST the add endpoint with the token but an EMPTY magnet — the

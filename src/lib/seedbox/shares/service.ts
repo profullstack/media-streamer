@@ -13,7 +13,7 @@ import type { CryptoBlockchain } from '@/lib/coinpayportal/types';
 import { getCoinPayPortalClient } from '@/lib/coinpayportal/client';
 import {
   isValidMagnet,
-  loadAccountSeedboxConfig,
+  loadSeedboxForRequest,
   sendTorrentToSeedbox,
 } from '@/lib/seedbox';
 import type { SeedboxConfig } from '@/lib/seedbox/config';
@@ -74,7 +74,17 @@ function clampPrice(value: number | undefined): number {
 }
 
 export async function createRental(ownerAccountId: string, input: ShareInput): Promise<SeedboxShare> {
-  const config = await loadAccountSeedboxConfig(ownerAccountId);
+  // Scoped by the owner, so an id belonging to someone else reads as missing and
+  // is rejected below rather than quietly renting out a stranger's machine.
+  const seedboxId = input.seedboxId ?? null;
+  const config = await loadSeedboxForRequest(ownerAccountId, seedboxId);
+  if (seedboxId && !config) {
+    throw new RentalError('That seedbox is not on your account', 404);
+  }
+
+  // Readiness is checked against the box actually being listed. Checking the
+  // default instead would let a listing go live pointing at a box that cannot
+  // accept anything.
   const ready = await ownerSeedboxReady(config);
   if (!ready.ready) {
     throw new RentalError(ready.reason ?? 'Seedbox not ready', 400);
@@ -82,6 +92,7 @@ export async function createRental(ownerAccountId: string, input: ShareInput): P
   return repo.insertShare({
     slug: generateShareSlug(),
     ownerAccountId,
+    seedboxId,
     title: (input.title ?? 'Rent my seedbox').slice(0, 120),
     description: input.description?.slice(0, 2000) ?? null,
     priceUsd: clampPrice(input.priceUsd),
@@ -373,7 +384,7 @@ export async function addDownload(
     );
   }
 
-  const config = await loadAccountSeedboxConfig(share.ownerAccountId);
+  const config = await loadSeedboxForRequest(share.ownerAccountId, share.seedboxId);
   if (!config?.http) {
     throw new RentalError('This seedbox can’t accept downloads right now', 502);
   }
@@ -452,7 +463,7 @@ export async function listDownloadsWithProgress(
   const downloads = await repo.listDownloadsByGrant(grant.id);
   if (downloads.length === 0) return [];
 
-  const config = await loadAccountSeedboxConfig(share.ownerAccountId);
+  const config = await loadSeedboxForRequest(share.ownerAccountId, share.seedboxId);
   const status = config ? await fetchTorlinkStatus(config) : null;
 
   const out: DownloadProgress[] = [];
@@ -547,7 +558,7 @@ export async function streamForPass(
     return jsonError('That file isn’t part of your downloads', 403);
   }
 
-  const config = await loadAccountSeedboxConfig(share.ownerAccountId);
+  const config = await loadSeedboxForRequest(share.ownerAccountId, share.seedboxId);
   if (!config?.files) {
     return jsonError('This seedbox has no files server configured', 404);
   }
@@ -653,7 +664,7 @@ export async function listDownloadFiles(
     return { ok: true, files: [] };
   }
 
-  const config = await loadAccountSeedboxConfig(pass.share.ownerAccountId);
+  const config = await loadSeedboxForRequest(pass.share.ownerAccountId, pass.share.seedboxId);
   if (!config?.files) return { ok: false, status: 404, message: 'No files server configured' };
 
   const acc: PlayableFile[] = [];

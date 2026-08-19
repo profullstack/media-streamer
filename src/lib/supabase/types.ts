@@ -95,7 +95,10 @@ export type Database = {
       };
       account_seedbox_configs: {
         Row: {
+          id: string;
           account_id: string;
+          name: string | null;
+          is_default: boolean;
           http_base_url: string | null;
           http_token_encrypted: string | null;
           http_add_path: string | null;
@@ -116,7 +119,10 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          id?: string;
           account_id: string;
+          name?: string | null;
+          is_default?: boolean;
           http_base_url?: string | null;
           http_token_encrypted?: string | null;
           http_add_path?: string | null;
@@ -137,7 +143,10 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          id?: string;
           account_id?: string;
+          name?: string | null;
+          is_default?: boolean;
           http_base_url?: string | null;
           http_token_encrypted?: string | null;
           http_add_path?: string | null;

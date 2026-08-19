@@ -15,6 +15,8 @@ export interface SeedboxShare {
   id: string;
   slug: string;
   ownerAccountId: string;
+  /** Which of the owner's seedboxes this rents out. Null = the account default. */
+  seedboxId: string | null;
   title: string;
   description: string | null;
   priceUsd: number;
@@ -74,6 +76,8 @@ export interface SeedboxShareDownload {
 
 /** Input for creating/updating a rental from the owner UI. */
 export interface ShareInput {
+  /** Which seedbox to rent out. Omitted or null means the account's default. */
+  seedboxId?: string | null;
   title?: string;
   description?: string | null;
   priceUsd?: number;

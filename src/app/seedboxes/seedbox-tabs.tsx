@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { DownloadIcon, SettingsIcon, CreditCardIcon } from '@/components/ui/icons';
-import { SeedboxSection } from '@/app/settings/seedbox-section';
+import { SeedboxManager } from './seedbox-manager';
 import { TorlinkStatus } from './torlink-status';
 import { RentOut } from './rent-out';
 
@@ -47,7 +47,7 @@ export function SeedboxTabs(): React.ReactElement {
       </nav>
 
       <div className="min-w-0 flex-1">
-        {tab === 'setup' && <SeedboxSection />}
+        {tab === 'setup' && <SeedboxManager />}
         {tab === 'status' && <TorlinkStatus />}
         {tab === 'rent' && <RentOut />}
       </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { loadAccountSeedboxConfig } from '@/lib/seedbox';
+import { listSeedboxes, loadSeedboxForRequest } from '@/lib/seedbox';
 import {
   RentalError,
   createRental,
@@ -12,17 +12,33 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-/** GET — list the account's seedbox rentals, plus whether its seedbox is rentable. */
+/**
+ * GET — the account's rentals, plus whether it has anything rentable at all.
+ *
+ * Readiness is reported for the *best* box the account has, not for its default.
+ * An account whose default is half-configured but whose second box works can
+ * still list that second box, and gating the form on the default alone would
+ * have hidden it with nothing to explain why.
+ */
 export async function GET(): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const [rentals, config] = await Promise.all([
-    listRentals(user.id),
-    loadAccountSeedboxConfig(user.id),
-  ]);
-  const ready = await ownerSeedboxReady(config);
+  const [rentals, boxes] = await Promise.all([listRentals(user.id), listSeedboxes(user.id)]);
+
+  const ids: (string | null)[] = boxes.filter((b) => b.id).map((b) => b.id);
+  if (ids.length === 0) ids.push(null); // no boxes: report on nothing, as before
+
+  let ready = await ownerSeedboxReady(null);
+  for (const id of ids) {
+    const candidate = await ownerSeedboxReady(await loadSeedboxForRequest(user.id, id));
+    if (candidate.ready) {
+      ready = candidate;
+      break;
+    }
+    ready = candidate;
+  }
   return NextResponse.json({ rentals, ready }, { status: 200, headers: { 'Cache-Control': 'no-store' } });
 }
 

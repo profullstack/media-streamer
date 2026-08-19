@@ -33,6 +33,7 @@ function toShare(row: ShareRow): SeedboxShare {
     id: String(row.id),
     slug: String(row.slug),
     ownerAccountId: String(row.owner_account_id),
+    seedboxId: row.seedbox_id ? String(row.seedbox_id) : null,
     title: String(row.title ?? ''),
     description: (row.description as string | null) ?? null,
     priceUsd: Number(row.price_usd ?? 0),
@@ -86,6 +87,7 @@ function toDownload(row: ShareRow): SeedboxShareDownload {
 export async function insertShare(record: {
   slug: string;
   ownerAccountId: string;
+  seedboxId?: string | null;
   title: string;
   description: string | null;
   priceUsd: number;
@@ -101,6 +103,7 @@ export async function insertShare(record: {
     .insert({
       slug: record.slug,
       owner_account_id: record.ownerAccountId,
+      seedbox_id: record.seedboxId ?? null,
       title: record.title,
       description: record.description,
       price_usd: record.priceUsd,

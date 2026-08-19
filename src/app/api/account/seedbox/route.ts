@@ -2,44 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
 import {
-  deleteAccountSeedboxConfig,
+  deleteSeedbox,
   getSeedboxConfigSummary,
+  parseSeedboxInput,
   saveAccountSeedboxConfig,
-  type SeedboxConfigInput,
 } from '@/lib/seedbox';
 
-// Per-account seedbox connection management. Configured once on the master
-// account; shared to every profile under it. Secrets are encrypted at rest and
-// NEVER returned — GET yields only a presence/summary view.
+// Per-account seedbox connection management. Configured on the master account;
+// shared to every profile under it. Secrets are encrypted at rest and NEVER
+// returned — GET yields only a presence/summary view.
+//
+// An account can have several seedboxes. These routes act on one of them: `?id=`
+// names it, and without one they resolve the account's default. See
+// /api/account/seedboxes for listing and adding.
 
 export const dynamic = 'force-dynamic';
 
 /** GET — secret-free summary of the account's connected seedbox. */
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   try {
-    const summary = await getSeedboxConfigSummary(user.id);
+    const id = new URL(request.url).searchParams.get('id') ?? undefined;
+    const summary = await getSeedboxConfigSummary(user.id, id);
     return NextResponse.json({ summary }, { status: 200 });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: detail }, { status: 500 });
   }
-}
-
-function asStringOrUndef(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-function asPortOrNull(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim().length > 0) {
-    const n = Number.parseInt(value, 10);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
 }
 
 /** PUT — upsert the connection. Blank/omitted secret fields keep their stored value. */
@@ -50,37 +42,11 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const http = (body.http ?? {}) as Record<string, unknown>;
-  const ssh = (body.ssh ?? {}) as Record<string, unknown>;
-  const files = (body.files ?? {}) as Record<string, unknown>;
-
-  const input: SeedboxConfigInput = {
-    http: {
-      baseUrl: asStringOrUndef(http.baseUrl),
-      token: asStringOrUndef(http.token),
-      addPath: asStringOrUndef(http.addPath),
-      auth: asStringOrUndef(http.auth),
-      magnetField: asStringOrUndef(http.magnetField),
-    },
-    ssh: {
-      host: asStringOrUndef(ssh.host),
-      port: asPortOrNull(ssh.port),
-      user: asStringOrUndef(ssh.user),
-      privateKey: asStringOrUndef(ssh.privateKey),
-      watchDir: asStringOrUndef(ssh.watchDir),
-      addCommand: asStringOrUndef(ssh.addCommand),
-    },
-    files: {
-      baseUrl: asStringOrUndef(files.baseUrl),
-      auth: asStringOrUndef(files.auth),
-      token: asStringOrUndef(files.token),
-      basicUser: asStringOrUndef(files.basicUser),
-      basicPass: asStringOrUndef(files.basicPass),
-    },
-  };
+  const id = new URL(request.url).searchParams.get('id') ?? undefined;
+  const input = parseSeedboxInput(body);
 
   try {
-    const summary = await saveAccountSeedboxConfig(user.id, input);
+    const summary = await saveAccountSeedboxConfig(user.id, input, id);
     return NextResponse.json({ summary }, { status: 200 });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -88,14 +54,24 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-/** DELETE — disconnect the account's seedbox entirely. */
-export async function DELETE(): Promise<NextResponse> {
+/**
+ * DELETE — disconnect one seedbox: `?id=` names it, otherwise the default.
+ *
+ * This used to remove every row for the account, which was the same thing back
+ * when an account could only have one. It is not any more, so it removes exactly
+ * one box and promotes a successor if that box was the default.
+ */
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   try {
-    await deleteAccountSeedboxConfig(user.id);
+    const id =
+      new URL(request.url).searchParams.get('id') ??
+      (await getSeedboxConfigSummary(user.id)).id;
+    if (!id) return NextResponse.json({ success: true }, { status: 200 });
+    await deleteSeedbox(user.id, id);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
