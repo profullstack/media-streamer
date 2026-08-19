@@ -22,6 +22,7 @@ jobs:
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -51,6 +52,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       redis:
         image: redis:7-alpine
@@ -75,8 +77,30 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
+      # Some tests spawn ffmpeg for real, so it has to be present. Do not use a
+      # bare `apt-get update && apt-get install`: when the runner's apt mirror
+      # stalls, that call hangs until the job's own timeout kills it — a 15+
+      # minute red build that has nothing to do with the code under test.
+      # Skip the install when the runner image already ships ffmpeg, and give
+      # every apt call a deadline so a stalled mirror costs a retry, not the job.
       - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: |
+          set -u
+          if command -v ffmpeg >/dev/null 2>&1; then
+            echo "ffmpeg already present: $(ffmpeg -version | head -1)"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if sudo timeout 180 apt-get update &&
+               sudo timeout 300 apt-get install -y --no-install-recommends ffmpeg; then
+              ffmpeg -version | head -1
+              exit 0
+            fi
+            echo "::warning::ffmpeg install attempt ${attempt}/3 failed (apt mirror stalled?)"
+            sleep $((attempt * 15))
+          done
+          echo "::error::could not install ffmpeg after 3 attempts"
+          exit 1
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -105,6 +129,7 @@ jobs:
   build:
     name: Build Application
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [lint, test]
     steps:
       - name: Checkout code
@@ -147,6 +172,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
