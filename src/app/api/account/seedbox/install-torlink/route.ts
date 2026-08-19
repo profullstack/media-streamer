@@ -24,7 +24,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const config = await loadSeedboxForRequest(user.id, new URL(request.url).searchParams.get('id'));
+  // Read the id ONCE and use it for both the load and the save below. Loading
+  // the selected box and then saving without the id wrote the freshly-minted
+  // token onto the account's DEFAULT box instead -- so provisioning a second
+  // seedbox stamped its URLs and token over the first one's config, and left the
+  // box that had just been provisioned with no token at all.
+  const seedboxId = new URL(request.url).searchParams.get('id') ?? undefined;
+  const config = await loadSeedboxForRequest(user.id, seedboxId);
   if (!config?.ssh) {
     return NextResponse.json(
       { error: 'Add an SSH connection (host, user, private key) in Settings → Seedbox first, then install torlink.' },
@@ -71,20 +77,24 @@ export async function POST(request: Request): Promise<NextResponse> {
   // for both the add-API and the file server). SSH stays as-is.
   const host = config.ssh.host;
   try {
-    const summary = await saveAccountSeedboxConfig(user.id, {
-      http: {
-        baseUrl: `http://${host}:${result.servePort}`,
-        token: result.token,
-        addPath: '/add',
-        auth: 'bearer',
-        magnetField: 'magnet',
+    const summary = await saveAccountSeedboxConfig(
+      user.id,
+      {
+        http: {
+          baseUrl: `http://${host}:${result.servePort}`,
+          token: result.token,
+          addPath: '/add',
+          auth: 'bearer',
+          magnetField: 'magnet',
+        },
+        files: {
+          baseUrl: `http://${host}:${result.filesPort}`,
+          auth: 'bearer',
+          token: result.token,
+        },
       },
-      files: {
-        baseUrl: `http://${host}:${result.filesPort}`,
-        auth: 'bearer',
-        token: result.token,
-      },
-    });
+      seedboxId
+    );
     return NextResponse.json({ success: true, steps: result.steps, summary }, { status: 200 });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
