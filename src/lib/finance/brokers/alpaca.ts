@@ -9,7 +9,7 @@
  * without the network.
  */
 
-import Alpaca from '@alpacahq/alpaca-trade-api';
+import { Alpaca } from '@alpacahq/alpaca-trade-api';
 import {
   type BrokerAccount,
   type BrokerCredentials,
@@ -31,7 +31,7 @@ export type AlpacaTradingClientFactory = (creds: BrokerCredentials) => AlpacaTra
 const defaultFactory: AlpacaTradingClientFactory = (creds) =>
   new Alpaca({
     keyId: creds.apiKey,
-    secretKey: creds.apiSecret,
+    secret: creds.apiSecret,
     paper: creds.paper ?? false,
   }) as unknown as AlpacaTradingClient;
 

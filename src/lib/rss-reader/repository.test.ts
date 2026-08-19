@@ -183,6 +183,34 @@ describe('upsertFeedItems', () => {
     expect(written.map((row) => row.guid)).toEqual(['guid-1', 'guid-0']);
   });
 
+  it('sends one row per guid, so a repeated guid cannot break the upsert', async () => {
+    const items = [
+      parsedItem(0, '2026-08-01T00:00:00.000Z'),
+      { ...parsedItem(1, '2026-08-03T00:00:00.000Z'), guid: 'guid-0', title: 'Newer duplicate' },
+      parsedItem(2, '2026-08-02T00:00:00.000Z'),
+    ];
+
+    await upsertFeedItems('feed-1', items);
+
+    const written = upsert.mock.calls[0][0] as Array<{ guid: string; title: string }>;
+    expect(written.map((row) => row.guid)).toEqual(['guid-0', 'guid-2']);
+    // The newest copy of a repeated guid wins.
+    expect(written[0].title).toBe('Newer duplicate');
+  });
+
+  it('fills the cap with distinct articles when the feed repeats guids', async () => {
+    const distinct = Array.from({ length: MAX_ITEMS_PER_FEED }, (_, index) =>
+      parsedItem(index, new Date(Date.UTC(2026, 0, 1) + index * 86_400_000).toISOString())
+    );
+    const items = [...distinct, ...distinct];
+
+    await upsertFeedItems('feed-1', items);
+
+    const written = upsert.mock.calls[0][0] as Array<{ guid: string }>;
+    expect(written).toHaveLength(MAX_ITEMS_PER_FEED);
+    expect(new Set(written.map((row) => row.guid)).size).toBe(MAX_ITEMS_PER_FEED);
+  });
+
   it('does nothing when the feed has no articles', async () => {
     await upsertFeedItems('feed-1', []);
 

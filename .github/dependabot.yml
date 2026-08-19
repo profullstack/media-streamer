@@ -20,6 +20,21 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+    # Majors the toolchain cannot accept yet. Each one breaks a check on its
+    # own, so grouping them with the rest keeps the whole major PR red.
+    # Drop the entry once the blocking package ships support.
+    ignore:
+      # typescript-eslint (via eslint-config-next) peers on typescript <6.1.0,
+      # so TS 7 makes `pnpm lint` crash in typescript-estree.
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
+      # eslint-plugin-react/import/jsx-a11y still peer on eslint <=9, and
+      # ESLint 10 removed context.getFilename() that eslint-plugin-react uses.
+      - dependency-name: "eslint"
+        versions: [">=10.0.0"]
+      # @vitejs/plugin-react 6 requires vite ^8; vitest 4 still resolves vite 7.
+      - dependency-name: "@vitejs/plugin-react"
+        versions: [">=6.0.0"]
     groups:
       # Group minor and patch updates together
       minor-and-patch:
