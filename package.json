@@ -37,6 +37,7 @@
     "@noriginmedia/norigin-spatial-navigation": "^3.3.0",
     "@profullstack/autoblog": "https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af",
     "@profullstack/emailer": "^1.0.3",
+    "@profullstack/player": "0.3.1",
     "@profullstack/referrals": "^0.1.0",
     "@profullstack/stack": "^0.1.3",
     "@radix-ui/react-dialog": "^1.1.23",
