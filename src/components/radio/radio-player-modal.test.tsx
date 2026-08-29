@@ -3,32 +3,33 @@
  *
  * Regression coverage for the stream restarting whenever the volume slider
  * moved: the stream-attach effect used to list `volume`/`isMuted` in its
- * dependencies, so each slider tick destroyed the HLS instance (or reset
- * `audio.src`) and the station buffered from scratch.
+ * dependencies, so each slider tick tore the stream down and the station
+ * buffered from scratch.
+ *
+ * The assertions moved when the component stopped building its own hls.js and
+ * started calling `attachSource`, but the thing being guarded did not: an
+ * attach per station, never an attach per slider tick. Mocking the package
+ * rather than hls.js also makes the test say what it means — this component's
+ * job is to attach a source once and then leave it alone, and which engine
+ * ends up carrying it is deliberately not its business any more.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { RadioStream } from '@/hooks/use-radio';
 
-const hlsInstances: Array<{ loadSource: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }> = [];
+const attachCalls: Array<{ src: string; live?: boolean; kind?: string }> = [];
+const destroyed = vi.fn();
 
-vi.mock('hls.js', () => {
-  class MockHls {
-    static Events = { MANIFEST_PARSED: 'hlsManifestParsed', ERROR: 'hlsError' };
-    static isSupported = (): boolean => true;
-
-    loadSource = vi.fn();
-    attachMedia = vi.fn();
-    on = vi.fn();
-    destroy = vi.fn();
-
-    constructor() {
-      hlsInstances.push(this);
-    }
-  }
-  return { default: MockHls };
-});
+vi.mock('@profullstack/player', () => ({
+  attachSource: vi.fn(async (media: HTMLMediaElement, options: { src: string }) => {
+    attachCalls.push(options as { src: string });
+    // The real native engine sets src; the tests below read it, so the double
+    // has to as well or it would be checking nothing.
+    media.src = options.src;
+    return Promise.resolve({ destroy: destroyed, engine: 'native', kind: 'audio', levels: () => [] });
+  }),
+}));
 
 let mockStream: RadioStream | null = null;
 
@@ -66,11 +67,11 @@ const renderPlayer = (): HTMLInputElement => {
   return screen.getByLabelText('Volume') as HTMLInputElement;
 };
 
-const audioEl = (): HTMLAudioElement =>
-  document.querySelector('audio') as HTMLAudioElement;
+const audioEl = (): HTMLAudioElement => document.querySelector('audio') as HTMLAudioElement;
 
 beforeEach(() => {
-  hlsInstances.length = 0;
+  attachCalls.length = 0;
+  destroyed.mockClear();
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
@@ -81,33 +82,26 @@ describe('RadioPlayerModal volume', () => {
     mockStream = { url: 'https://cdn.example.com/stream.mp3', mediaType: 'mp3', isDirect: true };
 
     const slider = renderPlayer();
-    const audio = audioEl();
-    expect(audio.src).toContain('stream.mp3');
-
-    const loadCallsBefore = (HTMLMediaElement.prototype.load as ReturnType<typeof vi.fn>).mock
-      .calls.length;
+    expect(attachCalls).toHaveLength(1);
 
     fireEvent.change(slider, { target: { value: '0.3' } });
 
-    expect(audio.volume).toBeCloseTo(0.3);
-    expect(audio.src).toContain('stream.mp3');
-    // A re-attach would tear the src down and call load() in the cleanup.
-    expect(
-      (HTMLMediaElement.prototype.load as ReturnType<typeof vi.fn>).mock.calls.length,
-    ).toBe(loadCallsBefore);
+    expect(audioEl().volume).toBeCloseTo(0.3);
+    expect(attachCalls).toHaveLength(1);
+    expect(destroyed).not.toHaveBeenCalled();
   });
 
-  it('does not rebuild the HLS instance when the volume changes', () => {
+  it('does not re-attach an HLS stream when the volume changes', () => {
     mockStream = { url: 'https://cdn.example.com/live.m3u8', mediaType: 'hls', isDirect: false };
 
     const slider = renderPlayer();
-    expect(hlsInstances).toHaveLength(1);
+    expect(attachCalls).toHaveLength(1);
 
     fireEvent.change(slider, { target: { value: '0.5' } });
     fireEvent.change(slider, { target: { value: '0.2' } });
 
-    expect(hlsInstances).toHaveLength(1);
-    expect(hlsInstances[0]?.destroy).not.toHaveBeenCalled();
+    expect(attachCalls).toHaveLength(1);
+    expect(destroyed).not.toHaveBeenCalled();
     expect(audioEl().volume).toBeCloseTo(0.2);
   });
 
@@ -123,7 +117,14 @@ describe('RadioPlayerModal volume', () => {
     fireEvent.click(screen.getByLabelText('Unmute'));
     expect(audio.volume).toBeCloseTo(0.8);
 
-    expect(hlsInstances).toHaveLength(1);
-    expect(hlsInstances[0]?.destroy).not.toHaveBeenCalled();
+    expect(attachCalls).toHaveLength(1);
+    expect(destroyed).not.toHaveBeenCalled();
+  });
+
+  it('tells the engine a station is live, so a drop is not read as the end', () => {
+    mockStream = { url: 'https://cdn.example.com/live.m3u8', mediaType: 'hls', isDirect: false };
+    renderPlayer();
+    expect(attachCalls[0]?.live).toBe(true);
+    expect(attachCalls[0]?.kind).toBe('hls');
   });
 });

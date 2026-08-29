@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Hls from 'hls.js';
+import { attachSource } from '@profullstack/player';
 import {
   CloseIcon,
   PlayIcon,
@@ -41,7 +41,6 @@ export function RadioPlayerModal({
 }: RadioPlayerModalProps): React.ReactElement | null {
   const { preferredStream, isLoading, error, getStream } = useRadioStream();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
@@ -79,45 +78,49 @@ export function RadioPlayerModal({
 
     const audio = audioRef.current;
 
-    const isHls =
-      preferredStream.mediaType === 'hls' ||
-      preferredStream.url.includes('.m3u8') ||
-      preferredStream.url.includes('m3u8?');
+    let cancelled = false;
+    /** @type {{ destroy: () => void } | null} */
+    let attached: { destroy: () => void } | null = null;
 
-    if (isHls && Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-      hlsRef.current = hls;
-      hls.loadSource(preferredStream.url);
-      hls.attachMedia(audio);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        audio.play().catch((err) => {
-          console.error('[RadioPlayer] HLS play error:', err);
-          setAudioError('Failed to play audio');
-        });
-      });
-      hls.on(Hls.Events.ERROR, (_evt, data) => {
-        if (data.fatal) {
-          console.error('[RadioPlayer] HLS fatal:', data.type, data.details);
-          setAudioError('Stream error. The station may be offline.');
+    /*
+     * Which engine plays this station is not ours to decide any more.
+     *
+     * This used to be a copy of the ladder -- sniff for .m3u8, ask
+     * Hls.isSupported(), otherwise set audio.src -- kept in step by hand with
+     * the same ladder in the live-TV modal and the video player. attachSource
+     * is that ladder, once, and it brings the recovery this copy never had: a
+     * fatal network or media error here only ever reported "Stream error",
+     * where hls.js can usually be told to reload and carry on. A station that
+     * hiccups is now a station that keeps playing.
+     */
+    void attachSource(audio, {
+      src: preferredStream.url,
+      ...(preferredStream.mediaType === 'hls' ? { kind: 'hls' as const } : {}),
+      // A radio stream has no end; saying so keeps the engine from treating a
+      // dropped connection as the file simply finishing.
+      live: true,
+      onError: (message) => {
+        if (!cancelled) setAudioError(message);
+      },
+    })
+      .then((result) => {
+        if (cancelled) {
+          result.destroy();
+          return;
         }
+        attached = result;
+        audio.play().catch((err) => {
+          console.error('[RadioPlayer] Play error:', err);
+          if (!cancelled) setAudioError('Failed to play audio');
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setAudioError('Stream error. The station may be offline.');
       });
-
-      return () => {
-        hls.destroy();
-        hlsRef.current = null;
-      };
-    }
-
-    // Direct (MP3/AAC) or native HLS (Safari)
-    audio.src = preferredStream.url;
-    audio.play().catch((err) => {
-      console.error('[RadioPlayer] Play error:', err);
-      setAudioError('Failed to play audio');
-    });
 
     return () => {
-      audio.removeAttribute('src');
-      audio.load();
+      cancelled = true;
+      attached?.destroy();
     };
     // Volume/mute are applied by the effect below so changing them never
     // re-attaches the stream.
@@ -132,10 +135,9 @@ export function RadioPlayerModal({
   // Cleanup on close
   useEffect(() => {
     if (!isOpen) {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      // The engine is torn down by the attach effect's own cleanup, which runs
+      // on close because `isOpen` is one of its dependencies. All that is left
+      // here is the element and the OS media session.
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.removeAttribute('src');
