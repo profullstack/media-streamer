@@ -29,8 +29,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       '@profullstack/player':
-        specifier: ^0.2.0
-        version: 0.2.0(react@19.2.8)
+        specifier: 0.3.1
+        version: 0.3.1(react@19.2.8)
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.2.8)
@@ -1281,8 +1281,8 @@ packages:
   '@profullstack/emailer@1.0.3':
     resolution: {integrity: sha512-VyAtCcfnSI6LOwJvWogCr3ZNmEsaZw+iuWrqnosLsdcKsbRyCrCmXigMNZJZEjlgYlR+lK//PwNPG+xtCFvWAw==}
 
-  '@profullstack/player@0.2.0':
-    resolution: {integrity: sha512-v9bo5tq7VExG1xWNB0c60P+AXuSWgOBSMTkKC1CUJ0ur7uKC4Cd4HaitKfp9S8D3OFFdChV6OUENZ1YBvS//1A==}
+  '@profullstack/player@0.3.1':
+    resolution: {integrity: sha512-/BvjRREIQ+WBw+MJXuSUDONreRnivB36wZDiflnzqrTtDhBUZEbkAgsfKF/m67U7GdSYl1uRJMbQoPEw5I9nMA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: '>=18'
@@ -6171,7 +6171,7 @@ snapshots:
 
   '@profullstack/emailer@1.0.3': {}
 
-  '@profullstack/player@0.2.0(react@19.2.8)':
+  '@profullstack/player@0.3.1(react@19.2.8)':
     dependencies:
       hls.js: 1.7.1
       mpegts.js: 1.8.2
