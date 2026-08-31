@@ -10,6 +10,7 @@
  */
 
 import WebTorrent from 'webtorrent';
+import type { Options, Torrent, TorrentOptions } from 'webtorrent';
 // Import node-datachannel polyfill to enable WebRTC in Node.js
 // This allows the server to connect to browser WebTorrent clients via WebRTC
 import nodeDataChannel from 'node-datachannel/polyfill';
@@ -208,7 +209,7 @@ const UDP_TRACKERS = [
  * Service for fetching torrent metadata without downloading content
  */
 export class TorrentService {
-  private client: WebTorrent.Instance;
+  private client: WebTorrent;
   private metadataTimeout: number;
   private downloadPath: string;
 
@@ -237,7 +238,7 @@ export class TorrentService {
       webSeeds: true,
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
-    } as WebTorrent.Options);
+    } as Options);
     
     this.metadataTimeout = timeout;
     
@@ -339,7 +340,7 @@ export class TorrentService {
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let progressIntervalId: ReturnType<typeof setInterval> | null = null;
-      let torrent: WebTorrent.Torrent | null = null;
+      let torrent: Torrent | null = null;
       let metadataReceived = false;
       let cleanupTorrentListeners: (() => void) | null = null;
 
@@ -385,7 +386,7 @@ export class TorrentService {
       logger.debug('Adding torrent to client', { infohash: parsed.infohash });
 
       // Helper function to extract metadata from torrent
-      const extractMetadata = (t: WebTorrent.Torrent): void => {
+      const extractMetadata = (t: Torrent): void => {
         if (metadataReceived) return; // Prevent double processing
         metadataReceived = true;
         cleanupTorrentListeners?.();
@@ -411,7 +412,7 @@ export class TorrentService {
         emitProgress('complete', 100, t.numPeers, 'Metadata received successfully');
 
         // Deselect all files to prevent downloading
-        t.deselect(0, t.pieces.length - 1, 0);
+        t.deselect(0, t.pieces.length - 1);
         logger.debug('Deselected all pieces to prevent download');
 
         // Calculate file offsets (WebTorrent doesn't expose offset directly)
@@ -476,7 +477,7 @@ export class TorrentService {
       try {
         // Pass path option to ensure downloads go to configured directory
         // Type assertion needed because WebTorrent types are incomplete
-        torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
+        torrent = this.client.add(enhancedMagnetUri, { path: this.downloadPath } as TorrentOptions);
         
         logger.debug('Torrent object created', {
           infohash: torrent.infoHash,

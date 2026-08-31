@@ -97,7 +97,7 @@
     "@types/react-dom": "^19.2.5",
     "@types/sax": "^1.2.7",
     "@types/web-push": "^3.6.4",
-    "@types/webtorrent": "^0.110.2",
+    "@types/webtorrent": "^3.0.0",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^4.1.11",
     "dotenv": "^17.4.2",

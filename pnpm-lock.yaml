@@ -36,7 +36,7 @@ importers:
         version: 0.1.0(react@19.2.8)
       '@profullstack/stack':
         specifier: ^0.1.3
-        version: 0.1.3(next@16.3.3(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
+        version: 0.1.3(next@16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       '@radix-ui/react-dialog':
         specifier: ^1.1.23
         version: 1.1.23(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -120,7 +120,7 @@ importers:
         version: 1.8.2
       next:
         specifier: 16.3.3
-        version: 16.3.3(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: 16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       node-datachannel:
         specifier: ^0.33.1
         version: 0.33.1
@@ -204,8 +204,8 @@ importers:
         specifier: ^3.6.4
         version: 3.6.4
       '@types/webtorrent':
-        specifier: ^0.110.2
-        version: 0.110.2
+        specifier: ^3.0.0
+        version: 3.0.0
       '@vitejs/plugin-react':
         specifier: ^5.1.4
         version: 5.2.0(vite@7.3.1(@types/node@26.4.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.12))
@@ -2093,11 +2093,8 @@ packages:
   '@types/node@26.4.0':
     resolution: {integrity: sha512-faiGnoIrLH/V8cibOMEAZ8pMw6oXqSukl29ra4mN8GdaB2ZewzeaLj+INpV5N+Z1eKWzY+IzaIZH2EIR6YZRNQ==}
 
-  '@types/parse-torrent-file@4.0.6':
-    resolution: {integrity: sha512-SxqVth0Iv0WuEkqWS5MaY4S4Tlyi+QHkElQREvsUPw2xHcPgKyQ2dkJRRv5vAxmLzH+tnMdOj1Nws/wsenbzUw==}
-
-  '@types/parse-torrent@5.8.9':
-    resolution: {integrity: sha512-Ej2enMoFKlg6Vp0Kf93F3XbhlKxJicrkQ8vMAEo3GHToNukXNr3BheNc2vEv81jyzMWS4Cnta1lhuKTYNgzWUg==}
+  '@types/parse-torrent@11.0.1':
+    resolution: {integrity: sha512-rzk5O1sk/Fbu8grskEEbFb0FZyDdVIkreRs2br90Y5BNcExSAEeRJftqxvyniJcJzI1xRK4fWxS0PJfxVvVRVQ==}
 
   '@types/react-dom@19.2.5':
     resolution: {integrity: sha512-fMPwH9v7r/pp43yUd2/Mbiex5KouJwwR3dzHkhLREUC6764VyDsqxhAxv6OFEYR1RhjOyD1naqba8ECDBe7ZQg==}
@@ -2125,8 +2122,8 @@ packages:
   '@types/web-push@3.6.4':
     resolution: {integrity: sha512-GnJmSr40H3RAnj0s34FNTcJi1hmWFV5KXugE0mYWnYhgTAHLJ/dJKAwDmvPJYMke0RplY2XE9LnM4hqSqKIjhQ==}
 
-  '@types/webtorrent@0.110.2':
-    resolution: {integrity: sha512-K0Jvmc5TNbeKWeSj1Tt0Xp+Zvlz2aMTRk1mn0Kgnr4EdTRM3BZ6k56Rse7pAG2FojeRKh3HWFtkyOtQg7JKpqg==}
+  '@types/webtorrent@3.0.0':
+    resolution: {integrity: sha512-/ACpPNpkdGiGhHycZPZpcnDGfd8WcitdprOl8qox0A7aSwFHu2kXOMCJw/XL6jhYZlFw4ss0T5iuIJo7q7VEJw==}
 
   '@typescript-eslint/eslint-plugin@8.68.0':
     resolution: {integrity: sha512-WASHDpCm6qO5jj9g1a+8NiW5+GCkAyLReR56/4VruYmNgfUmqpxOfZ2Yfb8xGfJPWv5Qi6LSD8sXdces3vbp/Q==}
@@ -6199,12 +6196,12 @@ snapshots:
     optionalDependencies:
       react: 19.2.8
 
-  '@profullstack/stack@0.1.3(next@16.3.3(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)':
+  '@profullstack/stack@0.1.3(next@16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@profullstack/emailer': 1.0.3
       '@profullstack/referrals': 0.1.0(react@19.2.8)
     optionalDependencies:
-      next: 16.3.3(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      next: 16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react: 19.2.8
 
   '@puppeteer/browsers@3.2.1(yauzl@2.10.0)':
@@ -6952,15 +6949,10 @@ snapshots:
     dependencies:
       undici-types: 8.3.0
 
-  '@types/parse-torrent-file@4.0.6':
-    dependencies:
-      '@types/node': 26.4.0
-
-  '@types/parse-torrent@5.8.9':
+  '@types/parse-torrent@11.0.1':
     dependencies:
       '@types/magnet-uri': 5.1.5
       '@types/node': 26.4.0
-      '@types/parse-torrent-file': 4.0.6
 
   '@types/react-dom@19.2.5(@types/react@19.2.18)':
     dependencies:
@@ -6989,11 +6981,11 @@ snapshots:
     dependencies:
       '@types/node': 26.4.0
 
-  '@types/webtorrent@0.110.2':
+  '@types/webtorrent@3.0.0':
     dependencies:
       '@types/bittorrent-protocol': 3.1.7
       '@types/node': 26.4.0
-      '@types/parse-torrent': 5.8.9
+      '@types/parse-torrent': 11.0.1
       '@types/simple-peer': 9.11.9
 
   '@typescript-eslint/eslint-plugin@8.68.0(@typescript-eslint/parser@8.68.0(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.5(jiti@2.7.0))(typescript@6.0.3)':
@@ -9289,7 +9281,7 @@ snapshots:
 
   next-tick@1.1.0: {}
 
-  next@16.3.3(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+  next@16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
       '@next/env': 16.3.3
       '@swc/helpers': 0.5.23
@@ -9298,7 +9290,7 @@ snapshots:
       postcss: 8.5.23
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      styled-jsx: 5.1.6(@babel/core@7.29.0)(react@19.2.8)
+      styled-jsx: 5.1.6(@babel/core@7.29.7)(react@19.2.8)
     optionalDependencies:
       '@next/swc-darwin-arm64': 16.3.3
       '@next/swc-darwin-x64': 16.3.3
@@ -10161,12 +10153,12 @@ snapshots:
 
   strip-json-comments@3.1.1: {}
 
-  styled-jsx@5.1.6(@babel/core@7.29.0)(react@19.2.8):
+  styled-jsx@5.1.6(@babel/core@7.29.7)(react@19.2.8):
     dependencies:
       client-only: 0.0.1
       react: 19.2.8
     optionalDependencies:
-      '@babel/core': 7.29.0
+      '@babel/core': 7.29.7
 
   supports-color@7.2.0:
     dependencies:

@@ -12,6 +12,7 @@
  */
 
 import WebTorrent from 'webtorrent';
+import type { Options, Torrent, TorrentFile, TorrentOptions } from 'webtorrent';
 // Import node-datachannel polyfill to enable WebRTC in Node.js
 // This allows the server to connect to browser WebTorrent clients via WebRTC
 import nodeDataChannel from 'node-datachannel/polyfill';
@@ -349,7 +350,7 @@ interface TorrentWatchers {
  * Service for streaming media files from torrents
  */
 export class StreamingService {
-  private client: WebTorrent.Instance | null = null;
+  private client: WebTorrent | null = null;
   private maxConcurrentStreams: number;
   private streamTimeout: number;
   private torrentCleanupDelay: number;
@@ -415,7 +416,7 @@ export class StreamingService {
    * Lazily create the WebTorrent client on first use.
    * Returns the existing client if already running.
    */
-  private ensureClient(): WebTorrent.Instance {
+  private ensureClient(): WebTorrent {
     if (this.client) {
       // Cancel any pending idle shutdown — we're active again
       if (this.idleShutdownTimer) {
@@ -445,7 +446,7 @@ export class StreamingService {
       path: this.downloadPath,
       downloadLimit: 3 * 1024 * 1024,
       uploadLimit: 512 * 1024,
-    } as WebTorrent.Options);
+    } as Options);
 
     this.client.setMaxListeners(50);
 
@@ -1353,7 +1354,7 @@ export class StreamingService {
       try {
         // Pass path option to ensure downloads go to configured directory
         // Type assertion needed because WebTorrent types are incomplete
-        const torrent = client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions);
+        const torrent = client.add(enhancedMagnetUri, { path: this.downloadPath } as TorrentOptions);
         this.torrentAddedAt.set(torrent.infoHash, Date.now());
 
         // Use named handlers so they can be removed when torrent is destroyed
@@ -1380,7 +1381,7 @@ export class StreamingService {
             fileCount: torrent.files.length,
           });
           // Deselect all files initially - status endpoint will select specific files
-          torrent.deselect(0, torrent.pieces.length - 1, 0);
+          torrent.deselect(0, torrent.pieces.length - 1);
           // Remove ALL listeners after ready to prevent memory leaks
           removeAllListeners();
         };
@@ -1906,7 +1907,7 @@ export class StreamingService {
   /**
    * Check if an object is a valid WebTorrent torrent
    */
-  private isValidTorrent(obj: unknown): obj is WebTorrent.Torrent {
+  private isValidTorrent(obj: unknown): obj is Torrent {
     return (
       obj !== null &&
       obj !== undefined &&
@@ -2044,7 +2045,7 @@ export class StreamingService {
   /**
    * Get an existing torrent or add a new one
    */
-  private async getOrAddTorrent(magnetUri: string, infohash: string): Promise<WebTorrent.Torrent> {
+  private async getOrAddTorrent(magnetUri: string, infohash: string): Promise<Torrent> {
     logger.debug('Getting or adding torrent', { infohash });
     const startTime = Date.now();
 
@@ -2085,7 +2086,7 @@ export class StreamingService {
     // Add new torrent and wait for it to be ready
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
-      let torrent: WebTorrent.Torrent | null = null;
+      let torrent: Torrent | null = null;
       let settled = false;
       let onReadyHandler: (() => void) | null = null;
 
@@ -2175,7 +2176,7 @@ export class StreamingService {
       }, this.streamTimeout);
 
       // Pass path option to ensure downloads go to configured directory
-      torrent = client.add(enhancedMagnetUri, { path: this.downloadPath } as WebTorrent.TorrentOptions, (t) => {
+      torrent = client.add(enhancedMagnetUri, { path: this.downloadPath } as TorrentOptions, (t) => {
         this.torrentAddedAt.set(t.infoHash, Date.now());
         logger.debug('Torrent add callback fired', {
           infohash: t.infoHash,
@@ -2195,7 +2196,7 @@ export class StreamingService {
             numPeers: t.numPeers,
             elapsed: `${Date.now() - startTime}ms`
           });
-          t.deselect(0, t.pieces.length - 1, 0);
+          t.deselect(0, t.pieces.length - 1);
           resolve(t);
         };
 
@@ -2218,7 +2219,7 @@ export class StreamingService {
   /**
    * Wait for an existing torrent to become ready
    */
-  private waitForTorrentReady(torrent: WebTorrent.Torrent, infohash: string, startTime: number): Promise<WebTorrent.Torrent> {
+  private waitForTorrentReady(torrent: Torrent, infohash: string, startTime: number): Promise<Torrent> {
     return new Promise((resolve, reject) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let settled = false;
@@ -2262,7 +2263,7 @@ export class StreamingService {
           numPeers: torrent.numPeers,
           elapsed: `${Date.now() - startTime}ms`
         });
-        torrent.deselect(0, torrent.pieces.length - 1, 0);
+        torrent.deselect(0, torrent.pieces.length - 1);
         resolve(torrent);
       };
 
@@ -2311,8 +2312,8 @@ export class StreamingService {
    * @param bytesToPrioritize - Number of bytes to prioritize (default: 50MB)
    */
   private prioritizeSequentialPieces(
-    torrent: WebTorrent.Torrent,
-    file: WebTorrent.TorrentFile,
+    torrent: Torrent,
+    file: TorrentFile,
     startByte: number,
     bytesToPrioritize = 50 * 1024 * 1024
   ): void {
@@ -2361,8 +2362,8 @@ export class StreamingService {
   }
 
   private async waitForData(
-    torrent: WebTorrent.Torrent,
-    file: WebTorrent.TorrentFile,
+    torrent: Torrent,
+    file: TorrentFile,
     startByte: number
   ): Promise<void> {
     const startTime = Date.now();
