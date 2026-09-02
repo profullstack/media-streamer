@@ -19,6 +19,7 @@ import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
 import { useTvDetection } from '@/hooks/use-tv-detection';
 import { useModalOpen } from '@/hooks/use-modal-open';
 import { IptvChannelFavoriteButton } from '@/components/ui/iptv-channel-favorite-button';
+import { hasRecovered, retryDelayMs } from '@/lib/live-tv/recovery';
 
 // Type for mpegts.js player - dynamically imported
 type MpegtsPlayer = {
@@ -82,6 +83,17 @@ export function HlsPlayerModal({
   const retryCountRef = useRef(0);
   const stallCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastPlaybackTimeRef = useRef(0);
+  /*
+   * The pending "did startLoad() actually fix it?" check, and whether another
+   * fatal error landed while it was pending.
+   *
+   * Both are refs rather than locals because the timer has to be cancellable from
+   * the teardown and from the next error. A raw setTimeout per error -- which is
+   * what this was -- accumulates: three fatal errors in a burst scheduled three
+   * independent rebuilds, each one a fresh connection on a line that counts them.
+   */
+  const recoveryCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const erroredAgainRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -92,6 +104,12 @@ export function HlsPlayerModal({
   const MAX_RETRIES = 5;
   // Base delay for exponential backoff (ms)
   const BASE_RETRY_DELAY = 2000;
+  /*
+   * How long HLS.js is given to fix a fatal error on its own before the player is
+   * rebuilt around it. Long enough for a playlist refetch and a segment to buffer;
+   * short enough that a stream which is genuinely gone is not left frozen.
+   */
+  const RECOVERY_GRACE_MS = 5000;
 
   // The stream URL is already proxied by the channels API if needed
   // HTTP URLs are converted to /api/iptv-proxy?url=... by the server
@@ -212,10 +230,16 @@ export function HlsPlayerModal({
   const handleRefresh = useCallback((): void => {
     console.log('[HLS Player] Refreshing stream...');
 
-    // Clear any pending retry
+    // Clear any pending retry, and the pending "did it recover?" check with it --
+    // a refresh answers that question itself, and letting the check survive means
+    // it rebuilds the player the reader just rebuilt by hand.
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
+    }
+    if (recoveryCheckRef.current) {
+      clearTimeout(recoveryCheckRef.current);
+      recoveryCheckRef.current = null;
     }
 
     // Destroy existing players
@@ -247,14 +271,25 @@ export function HlsPlayerModal({
       return;
     }
 
-    const delay = BASE_RETRY_DELAY * Math.pow(2, retryCountRef.current);
+    const delay = retryDelayMs(retryCountRef.current, BASE_RETRY_DELAY);
     retryCountRef.current += 1;
 
     console.log(`[HLS Player] Scheduling retry ${retryCountRef.current}/${MAX_RETRIES} in ${delay}ms`);
     setIsRecovering(true);
     setError(`Connection lost. Retrying (${retryCountRef.current}/${MAX_RETRIES})...`);
 
+    /*
+     * Replace the pending retry rather than adding to it.
+     *
+     * This used to assign over `retryTimeoutRef.current` without clearing what
+     * was already there, so two errors close together left two live timers and
+     * the second rebuild landed on top of the first -- two players, two sockets,
+     * and a reader watching whichever won.
+     */
+    if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+
     retryTimeoutRef.current = setTimeout(() => {
+      retryTimeoutRef.current = null;
       console.log('[HLS Player] Auto-retrying stream...');
 
       // Destroy existing players
@@ -317,25 +352,92 @@ export function HlsPlayerModal({
           }
         });
 
+        /*
+         * Try the cheap recovery, then CHECK whether it worked.
+         *
+         * HLS.js can nearly always fix a fatal network error itself: startLoad()
+         * refetches the playlist, and a segment that 404'd across a discontinuity
+         * or a CDN that dropped one request simply resumes. A media error is the
+         * same shape of problem one layer down, and recoverMediaError() rebuilds
+         * the buffer without touching the connection.
+         *
+         * What both need is somebody to ask, a few seconds later, whether they
+         * worked -- and that is what was missing. The escalation was scheduled
+         * unconditionally, guarded only by "is this component still mounted and
+         * is this still the current HLS instance", which is exactly as true after
+         * a successful recovery as after a failed one. So a stream that had been
+         * playing again for four seconds was torn down and rebuilt anyway, and
+         * every rebuild is a fresh connection on a provider line that often
+         * permits precisely one.
+         *
+         * The evidence is the media clock, which is what the stall watcher below
+         * already trusts. The decision itself is in @/lib/live-tv/recovery so it
+         * can be tested -- this component's own tests are excluded from the suite
+         * over HLS.js and mpegts.js mocking.
+         */
+        const attemptRecovery = (kind: 'network' | 'media'): void => {
+          const timeAtError = video.currentTime;
+          erroredAgainRef.current = false;
+
+          if (kind === 'network') {
+            hls.startLoad();
+          } else {
+            hls.recoverMediaError();
+          }
+
+          // One pending check at a time. A burst of fatal errors used to schedule
+          // one independent rebuild each, all of which fired.
+          if (recoveryCheckRef.current) clearTimeout(recoveryCheckRef.current);
+
+          recoveryCheckRef.current = setTimeout(() => {
+            recoveryCheckRef.current = null;
+            if (!isMounted || hlsRef.current !== hls) return;
+
+            const recovered = hasRecovered({
+              timeAtError,
+              timeNow: video.currentTime,
+              paused: video.paused,
+              erroredAgain: erroredAgainRef.current,
+            });
+
+            if (recovered) {
+              // It is playing. Nothing to rebuild, and the budget goes back --
+              // the same rule `handlePlaying` applies, restated here because a
+              // recovery that never re-fired `playing` would otherwise leave the
+              // count spent.
+              console.log('[HLS Player] Recovered without a rebuild');
+              retryCountRef.current = 0;
+              setError(null);
+              setIsRecovering(false);
+              return;
+            }
+
+            console.log('[HLS Player] Recovery did not take, rebuilding');
+            scheduleRetry();
+          }, RECOVERY_GRACE_MS);
+        };
+
         hls.on(Hls.Events.ERROR, (_event, data) => {
           console.error('[HLS Player] HLS Error:', data.type, data.details, data);
           if (data.fatal && isMounted) {
+            // Seen by a pending recovery check: a stream that produced a second of
+            // video and failed again has not recovered, whatever the clock says.
+            if (recoveryCheckRef.current) erroredAgainRef.current = true;
+
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.error('[HLS Player] Fatal network error, attempting reload');
-                // Try to recover first
-                hls.startLoad();
-                // If still failing, schedule a full retry after a short delay
-                setTimeout(() => {
-                  if (isMounted && hlsRef.current === hls) {
-                    // Check if we're still in error state
-                    scheduleRetry();
-                  }
-                }, 5000);
+                attemptRecovery('network');
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
+                /*
+                 * This used to call recoverMediaError() and then simply stop.
+                 * When the recovery failed there was no retry and no message --
+                 * the picture froze and nothing ever said why, which is the one
+                 * outcome worse than an error.
+                 */
                 console.error('[HLS Player] Fatal media error, attempting recovery');
-                hls.recoverMediaError();
+                attemptRecovery('media');
                 break;
               default:
                 console.error('[HLS Player] Fatal error, scheduling retry');
@@ -517,6 +619,14 @@ export function HlsPlayerModal({
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
+      }
+
+      // The recovery check outlives the player it was asking about unless it is
+      // cancelled here: closing the modal mid-check would otherwise fire a rebuild
+      // into a torn-down page and open a connection nobody is watching.
+      if (recoveryCheckRef.current) {
+        clearTimeout(recoveryCheckRef.current);
+        recoveryCheckRef.current = null;
       }
 
       if (hlsRef.current) {
