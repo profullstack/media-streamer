@@ -20,6 +20,7 @@ import { getSiriusXmProxyAgent, withSiriusXmUser } from '@/lib/radio/siriusxm-au
 import type { SiriusXmQuality } from '@/lib/radio';
 
 import { proxyFetch } from '@/lib/radio/proxy-fetch';
+import { ProxyBudgetError, proxyBudgetResponse } from '@/lib/radio/proxy-budget';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,6 +104,9 @@ async function handleProxy(target: string, quality: SiriusXmQuality, origin: str
       ...(proxyAgent ? { dispatcher: proxyAgent } : {}),
     } as RequestInit);
   } catch (error) {
+    // Over budget for this user or for everyone: tell the player to back off
+    // rather than let it hammer a 502 every segment.
+    if (error instanceof ProxyBudgetError) return proxyBudgetResponse(error);
     return new Response(`proxy fetch failed: ${error instanceof Error ? error.message : String(error)}`, {
       status: 502,
     });

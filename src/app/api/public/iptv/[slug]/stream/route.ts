@@ -30,6 +30,7 @@ import { isHlsPlaylist, rewriteManifest } from '@/lib/iptv/shares/manifest';
 import { fetchUpstream } from '@/lib/iptv/shares/upstream';
 import { IptvResaleError, iptvPassCookieName, resolveUpstreamForSession } from '@/lib/iptv/shares';
 import { fetchRadioUpstream, isSiriusXmUrl } from '@/lib/iptv/shares/radio-source';
+import { ProxyBudgetError } from '@/lib/radio/proxy-budget';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +92,14 @@ export async function GET(
     let radio: Awaited<ReturnType<typeof fetchRadioUpstream>>;
     try {
       radio = await fetchRadioUpstream(ownerAccountId, upstream);
-    } catch {
+    } catch (error) {
+      // The owner's proxy budget is spent: back the buyer off, don't describe why.
+      if (error instanceof ProxyBudgetError) {
+        return new Response('stream paused', {
+          status: 429,
+          headers: { 'retry-after': String(error.retryAfterSeconds), 'cache-control': 'no-store' },
+        });
+      }
       return new Response('upstream unavailable', { status: 502 });
     }
 

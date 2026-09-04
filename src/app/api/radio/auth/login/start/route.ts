@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { startOtpLogin, SiriusXmAuthError } from '@/lib/radio/siriusxm-auth';
+import { startOtpLogin, SiriusXmAuthError, withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import { putPendingLogin } from './pending-store';
 
 interface Body {
@@ -39,7 +39,8 @@ export async function POST(request: NextRequest): Promise<Response> {
   const pastedDeviceGrant = body.deviceGrant?.trim() || undefined;
 
   try {
-    const state = await startOtpLogin(email, pastedDeviceGrant);
+    // Login goes out through the proxy too, so it is charged to this user.
+    const state = await withSiriusXmUser(user.id, () => startOtpLogin(email, pastedDeviceGrant));
     putPendingLogin(user.id, { ...state, email });
     return NextResponse.json({ ok: true });
   } catch (error) {
