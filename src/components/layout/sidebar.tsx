@@ -32,6 +32,7 @@ import {
   SearchPlusIcon,
   NewsIcon,
   RadioIcon,
+  SpotifyIcon,
   RssIcon,
   HeartIcon,
   MovieIcon,
@@ -68,6 +69,7 @@ const mainNavItems: NavItem[] = [
   { href: '/youtube', label: 'YouTube', icon: VideoIcon, requiresAuth: true },
   { href: '/live-tv', label: 'Live TV', icon: TvIcon, requiresAuth: true },
   { href: '/radio', label: 'Live Radio', icon: RadioIcon, requiresAuth: true },
+  { href: '/spotify', label: 'Spotify', icon: SpotifyIcon, requiresAuth: true },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
 ];
 

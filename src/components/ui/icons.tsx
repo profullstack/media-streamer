@@ -1471,3 +1471,25 @@ export function FinanceIcon({ className, size = 20 }: IconProps): React.ReactEle
     </svg>
   );
 }
+
+export function SpotifyIcon({ className, size = 20 }: IconProps): React.ReactElement {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={cn('', className)}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M7 9.5c3.5-1 7-.7 10 1" />
+      <path d="M7.5 12.5c3-.8 5.8-.5 8.5 1" />
+      <path d="M8 15.5c2.3-.6 4.5-.4 6.5.8" />
+    </svg>
+  );
+}
