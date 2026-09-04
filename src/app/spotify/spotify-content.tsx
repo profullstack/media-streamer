@@ -145,6 +145,7 @@ export function SpotifyContent(): React.ReactElement {
 
           <NowPlaying status={status} />
           <Player status={status} />
+          <Played status={status} />
         </>
       ) : null}
     </div>
@@ -191,9 +192,36 @@ function formatMs(ms: number | null): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Where the track is now, between status polls.
+ *
+ * librespot reports a position only on an event (play, pause, seek), and the
+ * page polls every few seconds; a clock that only moved then would stutter.
+ * While playing, the position is the last reported one plus the time since it
+ * was reported, capped at the track length. Paused, it is what was reported.
+ */
+function useTrackPosition(status: SpotifyStatus): number | null {
+  const np = status.nowPlaying;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (status.state !== 'playing') return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [status.state]);
+  if (!np || np.positionMs === null) return null;
+  if (status.state !== 'playing') return np.positionMs;
+  const reportedAt = Date.parse(np.updatedAt);
+  const elapsed = Number.isFinite(reportedAt) ? Math.max(0, now - reportedAt) : 0;
+  const pos = np.positionMs + elapsed;
+  return np.durationMs ? Math.min(pos, np.durationMs) : pos;
+}
+
 function NowPlaying({ status }: { status: SpotifyStatus }): React.ReactElement | null {
   const np = status.nowPlaying;
+  const position = useTrackPosition(status);
   if (!np || !np.name) return null;
+  const pct =
+    np.durationMs && position !== null ? Math.min(100, (position / np.durationMs) * 100) : null;
   return (
     <section className="rounded-lg border border-border-default bg-bg-secondary p-4">
       <p className="text-xs uppercase tracking-wide text-text-muted">
@@ -205,10 +233,65 @@ function NowPlaying({ status }: { status: SpotifyStatus }): React.ReactElement |
         {np.album ? ` · ${np.album}` : ''}
       </p>
       {np.durationMs ? (
-        <p className="mt-1 text-xs text-text-muted">
-          {formatMs(np.positionMs)} / {formatMs(np.durationMs)}
-        </p>
+        <div className="mt-2">
+          <div
+            className="h-1 w-full overflow-hidden rounded bg-bg-tertiary"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={np.durationMs}
+            aria-valuenow={position ?? 0}
+            aria-label="Track progress"
+          >
+            <div className="h-full bg-accent-primary" style={{ width: `${pct ?? 0}%` }} />
+          </div>
+          <p className="mt-1 flex justify-between text-xs text-text-muted">
+            <span>{formatMs(position)}</span>
+            <span>{formatMs(np.durationMs)}</span>
+          </p>
+        </div>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * What the device has played this session, newest first, the current track on
+ * top. Spotify does not tell a Connect device what is coming next -- the queue
+ * lives in the app that is casting -- so this is the playlist we can show: the
+ * one that has already happened.
+ */
+function Played({ status }: { status: SpotifyStatus }): React.ReactElement | null {
+  const history = status.history ?? [];
+  if (history.length === 0) return null;
+  const currentId = status.nowPlaying?.trackId ?? null;
+  return (
+    <section className="rounded-lg border border-border-default bg-bg-secondary p-4">
+      <p className="text-xs uppercase tracking-wide text-text-muted">Played on this device</p>
+      <ol className="mt-2 divide-y divide-border-default">
+        {history.map((t, i) => {
+          const current = currentId !== null && t.trackId === currentId && i === 0;
+          return (
+            <li
+              key={`${t.trackId ?? t.name ?? 'track'}-${t.startedAt}`}
+              className={`flex items-center justify-between gap-3 py-2 text-sm ${
+                current ? 'text-text-primary' : 'text-text-secondary'
+              }`}
+            >
+              <span className="min-w-0">
+                <span className={`block truncate ${current ? 'font-medium' : ''}`}>
+                  {current ? '▶ ' : ''}
+                  {t.name ?? 'Unknown track'}
+                </span>
+                <span className="block truncate text-xs text-text-muted">
+                  {t.artists.join(', ')}
+                  {t.album ? ` · ${t.album}` : ''}
+                </span>
+              </span>
+              <span className="shrink-0 text-xs text-text-muted">{formatMs(t.durationMs)}</span>
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }
