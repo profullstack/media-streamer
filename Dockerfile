@@ -5,7 +5,9 @@
 # No prebuilt binaries exist, and device pairing (--enable-device-auth) is not
 # in the 0.8.0 tag, so this builds a pinned commit from git. rustls keeps the
 # musl build free of OpenSSL; the pipe/subprocess audio backends need no
-# system audio libraries.
+# system audio libraries. The droplet deploy does not use this image; it
+# installs the same binary from the `librespot-<rev>` release asset (see
+# scripts/setup-server.sh), which is produced by this stage.
 FROM rust:1-alpine AS librespot
 RUN apk add --no-cache musl-dev
 ARG LIBRESPOT_REV=a1b66d3c8a14e55a9572a9e17467150dca618c9a
