@@ -108,6 +108,33 @@ else
     echo "All essential packages already installed"
 fi
 
+# librespot: the Spotify Connect receiver that src/lib/spotify spawns per
+# paired user (/spotify). No upstream binaries exist and the pairing flow is
+# not in a tagged release, so a static musl build from the Dockerfile's
+# `librespot` stage is hosted as a release asset on this repo. Pinned by
+# commit and checksum; re-run after bumping LIBRESPOT_REV in the Dockerfile.
+echo "=== Checking librespot ==="
+LIBRESPOT_REV="a1b66d3c8a14e55a9572a9e17467150dca618c9a"
+LIBRESPOT_SHA256="c99aa8466cf5f76f84e43489d59f5db63081c44de250d504bac84f9c47cb4c54"
+LIBRESPOT_URL="https://github.com/profullstack/media-streamer/releases/download/librespot-${LIBRESPOT_REV:0:7}/librespot-x86_64-linux-musl"
+LIBRESPOT_STAMP="/usr/local/share/librespot.rev"
+if [ "$(uname -m)" != "x86_64" ]; then
+    echo "librespot: no prebuilt binary for $(uname -m); /spotify will report it missing"
+elif [ -x /usr/local/bin/librespot ] && [ "$(cat "$LIBRESPOT_STAMP" 2>/dev/null)" = "$LIBRESPOT_REV" ]; then
+    echo "librespot already at ${LIBRESPOT_REV:0:7}"
+else
+    LIBRESPOT_TMP="$(mktemp)"
+    if curl -fsSL --retry 3 -o "$LIBRESPOT_TMP" "$LIBRESPOT_URL" \
+        && echo "${LIBRESPOT_SHA256}  ${LIBRESPOT_TMP}" | sha256sum -c --quiet; then
+        sudo install -m 0755 "$LIBRESPOT_TMP" /usr/local/bin/librespot
+        echo "$LIBRESPOT_REV" | sudo tee "$LIBRESPOT_STAMP" > /dev/null
+        echo "✓ librespot installed: $(/usr/local/bin/librespot --version 2>/dev/null | head -1)"
+    else
+        echo "✗ librespot download or checksum failed; /spotify will report it missing"
+    fi
+    rm -f "$LIBRESPOT_TMP"
+fi
+
 # Chromium runtime libraries for headless Puppeteer (used by news article
 # extractor and SiriusXM device-grant minter). Puppeteer ships its own
 # Chromium binary; this just makes sure the system shared libs it needs
@@ -1068,6 +1095,7 @@ echo "Installed versions:"
 echo "  Node.js: $(node --version 2>/dev/null || echo 'not found')"
 echo "  pnpm: $(pnpm --version 2>/dev/null || echo 'not found')"
 echo "  ffmpeg: $(ffmpeg -version 2>/dev/null | head -1 || echo 'not found')"
+echo "  librespot: $(librespot --version 2>/dev/null | head -1 || echo 'not found')"
 echo "  nginx: $(nginx -v 2>&1 | head -1 || echo 'not found')"
 echo ""
 echo "Configuration:"

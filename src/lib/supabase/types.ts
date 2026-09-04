@@ -2284,6 +2284,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      bt_spotify_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          username: string | null;
+          credentials_enc: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          username?: string | null;
+          credentials_enc: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          username?: string | null;
+          credentials_enc?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       bt_siriusxm_sessions: {
         Row: {
           id: string;

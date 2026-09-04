@@ -1,6 +1,19 @@
 # BitTorrented.com Dockerfile
 # Multi-stage build for production deployment
 
+# Stage 0: librespot (Spotify Connect receiver for /spotify)
+# No prebuilt binaries exist, and device pairing (--enable-device-auth) is not
+# in the 0.8.0 tag, so this builds a pinned commit from git. rustls keeps the
+# musl build free of OpenSSL; the pipe/subprocess audio backends need no
+# system audio libraries. The droplet deploy does not use this image; it
+# installs the same binary from the `librespot-<rev>` release asset (see
+# scripts/setup-server.sh), which is produced by this stage.
+FROM rust:1-alpine AS librespot
+RUN apk add --no-cache musl-dev
+ARG LIBRESPOT_REV=a1b66d3c8a14e55a9572a9e17467150dca618c9a
+RUN cargo install --git https://github.com/librespot-org/librespot --rev ${LIBRESPOT_REV} \
+    --no-default-features --features rustls-tls-webpki-roots --root /out librespot
+
 # Stage 1: Dependencies
 FROM node:26-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -35,6 +48,9 @@ WORKDIR /app
 
 # Install FFmpeg for video/audio transcoding, and build tools for reliq/torge
 RUN apk add --no-cache ffmpeg git curl make gcc musl-dev bash jq
+
+# librespot: Spotify Connect receiver spawned per user by src/lib/spotify
+COPY --from=librespot /out/bin/librespot /usr/local/bin/librespot
 
 # Install reliq (HTML parsing library - must be installed before torge)
 RUN git clone https://github.com/TUVIMEN/reliq.git /tmp/reliq && \
