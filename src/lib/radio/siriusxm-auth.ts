@@ -25,6 +25,7 @@ import {
 } from './siriusxm-credentials';
 
 import { proxyFetch } from './proxy-fetch';
+import { withProxyScope } from './proxy-budget';
 
 const SXM_API_BASE = 'https://api.edge-gateway.siriusxm.com';
 
@@ -157,10 +158,12 @@ function getProxy(): ResolvedProxy | null {
 }
 
 /**
- * Public proxy-agent accessor for siriusxm.ts to route browse/search/tune
- * calls through the same residential proxy used by auth. Stream resources
- * (HLS playlists/segments) intentionally skip this — they hit SXM's CDN
- * and routing audio bytes through residential IPs would burn budget.
+ * Public proxy-agent accessor for siriusxm.ts, the HLS proxy route and the
+ * restream rail, so every SiriusXM call exits through the same residential
+ * proxy as auth. Stream resources go through it too: SXM ties playback and the
+ * key endpoint to the IP that authenticated, so the datacenter IP gets 403.
+ * That means audio bytes are paid for per GB, which is why every proxied call
+ * is metered and capped by proxy-budget.ts.
  */
 export function getSiriusXmProxyAgent(): ProxyAgent | null {
   return getProxy()?.agent ?? null;
@@ -202,8 +205,13 @@ interface SiriusXmUserContext {
 
 const userContextStorage = new AsyncLocalStorage<SiriusXmUserContext>();
 
+/**
+ * Establish the user whose SiriusXM account is in play. This is also the proxy
+ * budget scope: everything proxied inside `fn` is metered against this user, and
+ * a proxied call made outside any user scope is refused (proxy-budget.ts).
+ */
 export function withSiriusXmUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-  return userContextStorage.run({ userId }, fn);
+  return userContextStorage.run({ userId }, () => withProxyScope(`user:${userId}`, fn));
 }
 
 export function getCurrentSiriusXmUserId(): string | null {

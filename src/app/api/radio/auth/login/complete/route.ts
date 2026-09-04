@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { completeOtpLogin, SiriusXmAuthError } from '@/lib/radio/siriusxm-auth';
+import { completeOtpLogin, SiriusXmAuthError, withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import { saveCredentials } from '@/lib/radio/siriusxm-credentials';
 import { takePendingLogin } from '../start/pending-store';
 
@@ -44,14 +44,17 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const session = await completeOtpLogin(
-      {
-        identityId: pending.identityId,
-        anonAccessToken: pending.anonAccessToken,
-        cookies: pending.cookies,
-        proxySessionId: pending.proxySessionId,
-      },
-      otp
+    // Login goes out through the proxy too, so it is charged to this user.
+    const session = await withSiriusXmUser(user.id, () =>
+      completeOtpLogin(
+        {
+          identityId: pending.identityId,
+          anonAccessToken: pending.anonAccessToken,
+          cookies: pending.cookies,
+          proxySessionId: pending.proxySessionId,
+        },
+        otp
+      )
     );
 
     await saveCredentials({
