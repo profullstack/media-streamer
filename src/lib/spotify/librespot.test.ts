@@ -39,6 +39,10 @@ describe('buildFfmpegCommand', () => {
     const cmd = buildFfmpegCommand('/state/hls');
     expect(cmd.startsWith('ffmpeg ')).toBe(true);
     expect(cmd).toContain('-f s16le -ar 44100 -ac 2 -i pipe:0');
+    // The clock: without it the pipe is drained at full speed, librespot sees
+    // the track end in seconds, and Spotify skips to the next song.
+    expect(cmd).toContain(' -re -f s16le');
+    expect(cmd.indexOf('-re')).toBeLessThan(cmd.indexOf('-i pipe:0'));
     expect(cmd).toContain('-c:a aac');
     expect(cmd).toContain('append_list');
     expect(cmd).toContain('omit_endlist');
@@ -171,6 +175,31 @@ describe('onevent hook', () => {
     expect(next.artists).toEqual(['Y']);
     expect(next.durationMs).toBeNull();
     expect(next.positionMs).toBe(0);
+  });
+
+  it('keeps a played list, newest first, one entry per run of the same track', () => {
+    fire({ PLAYER_EVENT: 'track_changed', TRACK_ID: 'a', NAME: 'First', ARTISTS: 'X', DURATION_MS: '1000' });
+    fire({ PLAYER_EVENT: 'playing', TRACK_ID: 'a', POSITION_MS: '10' });
+    fire({ PLAYER_EVENT: 'track_changed', TRACK_ID: 'b', NAME: 'Second', ARTISTS: 'Y', DURATION_MS: '2000' });
+    // The same track reported again (a seek back, a replay) is not a new row.
+    const after = fire({ PLAYER_EVENT: 'track_changed', TRACK_ID: 'b', NAME: 'Second', ARTISTS: 'Y' });
+    const history = after.history as Array<Record<string, unknown>>;
+    expect(history.map((t) => t.name)).toEqual(['Second', 'First']);
+    expect(history[1].durationMs).toBe(1000);
+    expect(typeof history[0].startedAt).toBe('string');
+    // Playback events leave the list alone.
+    const later = fire({ PLAYER_EVENT: 'paused', TRACK_ID: 'b', POSITION_MS: '500' });
+    expect((later.history as unknown[]).length).toBe(2);
+  });
+
+  it('caps the played list', () => {
+    for (let i = 0; i < 60; i++) {
+      fire({ PLAYER_EVENT: 'track_changed', TRACK_ID: `t${i}`, NAME: `Track ${i}`, ARTISTS: 'Z' });
+    }
+    const last = fire({ PLAYER_EVENT: 'playing', TRACK_ID: 't59', POSITION_MS: '1' });
+    const history = last.history as Array<Record<string, unknown>>;
+    expect(history.length).toBe(50);
+    expect(history[0].name).toBe('Track 59');
   });
 
   it('does nothing without a target file', () => {

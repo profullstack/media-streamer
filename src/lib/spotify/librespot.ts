@@ -46,6 +46,18 @@ export interface SpotifyPairing {
   code: string;
 }
 
+/** One track the device has played, as the `--onevent` hook saw it. */
+export interface SpotifyTrack {
+  trackId: string | null;
+  uri: string | null;
+  name: string | null;
+  artists: string[];
+  album: string | null;
+  durationMs: number | null;
+  /** When playback of it started, ISO. */
+  startedAt: string;
+}
+
 export interface SpotifyNowPlaying {
   event: string;
   trackId: string | null;
@@ -58,11 +70,20 @@ export interface SpotifyNowPlaying {
   updatedAt: string;
 }
 
+/** How many played tracks the hook keeps. A listening session, not a library. */
+export const HISTORY_LIMIT = 50;
+
 export interface SpotifyPlayerStatus {
   state: SpotifyPlayerState;
   deviceName: string;
   pairing: SpotifyPairing | null;
   nowPlaying: SpotifyNowPlaying | null;
+  /**
+   * What the device has played this run, newest first. Spotify's queue is not
+   * available without a developer app, so this is the playlist we can show: the
+   * one that has already happened.
+   */
+  history: SpotifyTrack[];
   /** True once ffmpeg has written a playlist, i.e. there is something to play. */
   hasStream: boolean;
   error: string | null;
@@ -103,6 +124,14 @@ export function shellQuote(arg: string): string {
  * The ffmpeg invocation librespot runs each time the sink opens. Reads raw
  * S16LE PCM on stdin and keeps a short rolling HLS window.
  *
+ * `-re` is the clock. librespot's subprocess backend has none of its own: it
+ * decodes and writes as fast as the pipe accepts, and a sound card is what
+ * normally pushes back. Without pacing, ffmpeg drained a three-minute song in a
+ * few seconds, librespot reported the track finished, and Spotify moved to the
+ * next one -- the listener heard a few seconds of each. With `-re` ffmpeg reads
+ * at the sample rate, the pipe fills, librespot's write blocks, and a song takes
+ * as long as a song takes.
+ *
  * `append_list` continues the segment numbering across sink restarts so a
  * paused-then-resumed stream does not reset the media sequence under hls.js;
  * `omit_endlist` keeps the playlist live when ffmpeg exits on pause;
@@ -115,6 +144,7 @@ export function buildFfmpegCommand(hlsDir: string, ffmpegBinary = 'ffmpeg'): str
     '-hide_banner',
     '-loglevel', 'error',
     '-nostdin',
+    '-re',
     '-f', 's16le',
     '-ar', '44100',
     '-ac', '2',
@@ -180,7 +210,8 @@ const e = process.env;
 const ev = e.PLAYER_EVENT || '';
 let prev = {};
 try { prev = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-const next = Object.assign({}, prev, { event: ev, updatedAt: new Date().toISOString() });
+const now = new Date().toISOString();
+const next = Object.assign({}, prev, { event: ev, updatedAt: now });
 if (ev === 'track_changed') {
   next.trackId = e.TRACK_ID || null;
   next.uri = e.URI || null;
@@ -189,6 +220,14 @@ if (ev === 'track_changed') {
   next.album = e.ALBUM || null;
   next.durationMs = e.DURATION_MS ? Number(e.DURATION_MS) : null;
   next.positionMs = 0;
+  // The played list, newest first. A repeat of the same track back to back is
+  // one entry, not two; a limit keeps the file a session and not a library.
+  const history = Array.isArray(prev.history) ? prev.history : [];
+  const entry = { trackId: next.trackId, uri: next.uri, name: next.name, artists: next.artists, album: next.album, durationMs: next.durationMs, startedAt: now };
+  if (!(history[0] && history[0].trackId && history[0].trackId === entry.trackId)) {
+    history.unshift(entry);
+  }
+  next.history = history.slice(0, ${HISTORY_LIMIT});
 } else if (ev === 'playing' || ev === 'paused' || ev === 'seeked' || ev === 'position_correction') {
   if (e.POSITION_MS) next.positionMs = Number(e.POSITION_MS);
   if (e.TRACK_ID) next.trackId = e.TRACK_ID;
@@ -503,8 +542,31 @@ class LibrespotPlayer {
     }
   }
 
+  /** The played list from the events file, newest first; empty when there is none. */
+  readHistory(): SpotifyTrack[] {
+    try {
+      const raw = JSON.parse(readFileSync(this.eventFile, 'utf8')) as { history?: unknown };
+      if (!Array.isArray(raw.history)) return [];
+      return raw.history
+        .filter((t): t is Record<string, unknown> => typeof t === 'object' && t !== null)
+        .map((t) => ({
+          trackId: typeof t.trackId === 'string' ? t.trackId : null,
+          uri: typeof t.uri === 'string' ? t.uri : null,
+          name: typeof t.name === 'string' ? t.name : null,
+          artists: Array.isArray(t.artists) ? t.artists.filter((a): a is string => typeof a === 'string') : [],
+          album: typeof t.album === 'string' ? t.album : null,
+          durationMs: typeof t.durationMs === 'number' ? t.durationMs : null,
+          startedAt: typeof t.startedAt === 'string' ? t.startedAt : '',
+        }))
+        .slice(0, HISTORY_LIMIT);
+    } catch {
+      return [];
+    }
+  }
+
   status(): SpotifyPlayerStatus {
     const nowPlaying = this.readNowPlaying();
+    const history = this.readHistory();
     const hasStream = existsSync(join(this.hlsDir, 'index.m3u8'));
     let state: SpotifyPlayerState;
     if (!this.running) {
@@ -519,6 +581,7 @@ class LibrespotPlayer {
       deviceName: this.deviceName,
       pairing: state === 'pairing' && this.pairing?.url && this.pairing.code ? this.pairing : null,
       nowPlaying: state === 'playing' || state === 'paused' ? nowPlaying : null,
+      history,
       hasStream,
       error: this.lastError,
     };
@@ -559,6 +622,7 @@ export class SpotifyPlayerManager {
         deviceName: defaultDeviceName(),
         pairing: null,
         nowPlaying: null,
+        history: [],
         hasStream: false,
         error: null,
       };
