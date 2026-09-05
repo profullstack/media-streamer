@@ -332,9 +332,18 @@ describe('Edge controls: hosting ranges and spoofed browsers', () => {
   const BINGBOT_UA =
     'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/148.0.0.0 Safari/537.36';
 
-  /** A Supabase session cookie of the shape src/proxy.ts refreshes (unsigned, not verified by the gate). */
+  /**
+   * A Supabase session cookie of the shape src/proxy.ts refreshes. Fixture,
+   * not a credential: the access token is an unsigned JWT (`alg: none`) that
+   * expired in 1970 and the refresh token is one letter. The gate checks shape
+   * only and never verifies either, which is exactly what these tests pin.
+   */
+  // threatcrush-disable-next-line secret-jwt
+  const FIXTURE_UNSIGNED_EXPIRED_JWT = 'eyJhbGciOiJub25lIn0.eyJleHAiOjB9.sig';
+  // threatcrush-disable-next-line secret-generic-credential
+  const FIXTURE_REFRESH = 'r';
   const SESSION_COOKIE = `sb-auth-token=${encodeURIComponent(
-    JSON.stringify({ access_token: 'eyJhbGciOiJub25lIn0.eyJleHAiOjB9.sig', refresh_token: 'r' })
+    JSON.stringify({ access_token: FIXTURE_UNSIGNED_EXPIRED_JWT, refresh_token: FIXTURE_REFRESH })
   )}`;
   const API_BEARER = `Bearer btr_${'ab'.repeat(32)}`;
 
