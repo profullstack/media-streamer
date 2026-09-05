@@ -2,12 +2,16 @@
 # Base: https://bittorrented.com
 # Contact: support@bittorrented.com
 # Models: *
-# Capabilities: chat, embed, fine_tune, crawl, train
+# Capabilities: chat, embed, crawl
+#
+# Training crawlers pay for access: $1 buys a day, settled over x402 (USDC).
+# Read https://bittorrented.com/crawl for how. Search and retrieval crawlers
+# read free, and robots.txt names which is which.
 
 User-agent: *
 Allow: /*
 
-Training: allow
-Retention: allow
-Commercial-Use: allow
+Training: disallow
+Retention: disallow
+Commercial-Use: disallow
 Rate-Limit-RPS: 10
