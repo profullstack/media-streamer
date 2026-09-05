@@ -29,6 +29,7 @@ describe('Bot Handling Middleware', () => {
     const req = new NextRequest(url, {
       headers: {
         ...(userAgent ? { 'user-agent': userAgent } : {}),
+        'sec-fetch-mode': 'navigate', // what every real Chromium sends; see the edge-control tests for its absence
         'x-forwarded-for': `${Math.random().toString(36).slice(2)}.1.1.1`, // unique IP per call to avoid rate limit state
       },
     });
@@ -112,6 +113,7 @@ describe('Crawl Gateway (x402)', () => {
     const req = new NextRequest(url, {
       headers: {
         ...(userAgent ? { 'user-agent': userAgent } : {}),
+        'sec-fetch-mode': 'navigate',
         'x-forwarded-for': `${Math.random().toString(36).slice(2)}.1.1.1`,
         ...headers,
       },
@@ -189,6 +191,7 @@ describe('Supabase session refresh and referral cookie', () => {
     const req = new NextRequest(new URL(`http://localhost${pathname}`), {
       headers: {
         'user-agent': ua,
+        'sec-fetch-mode': 'navigate',
         'x-forwarded-for': `${Math.random().toString(36).slice(2)}.1.1.1`,
         ...(cookie ? { cookie } : {}),
         ...headers,
@@ -281,11 +284,21 @@ describe('Supabase session refresh and referral cookie', () => {
   });
 
   it('answers a training crawler with 402 without touching Supabase', async () => {
-    const res = await call('/browse', { ua: META_UA, cookies: { 'sb-auth-token': authCookie(30) } });
+    const res = await call('/browse', { ua: META_UA });
     expect(res).toBeDefined();
     expect(res!.status).toBe(402);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(res!.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('a signed-in session is never charged, whatever user agent carries it', async () => {
+    // The gateway's `exempt` runs before the agent lists: this site is mostly
+    // people, and a request that presents a real session is treated as one of
+    // them. It then goes through the ordinary session refresh like any browser.
+    const res = await call('/browse', { ua: META_UA, cookies: { 'sb-auth-token': authCookie(30), 'x-profile-id': 'p1' } });
+    expectPassThrough(res);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(decodeURIComponent(res.cookies.get('sb-auth-token')!.value)).refresh_token).toBe('new-refresh');
   });
 
   it('stores a valid ?ref= code in the referral_code cookie', async () => {
@@ -307,5 +320,129 @@ describe('Supabase session refresh and referral cookie', () => {
     expectPassThrough(res);
     expect(res.cookies.get('referral_code')?.value).toBe('FRIEND1');
     expect(JSON.parse(decodeURIComponent(res.cookies.get('sb-auth-token')!.value)).refresh_token).toBe('new-refresh');
+  });
+});
+
+describe('Edge controls: hosting ranges and spoofed browsers', () => {
+  const CHROME_UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36';
+  const FIREFOX_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0';
+  const GOOGLEBOT_EVERGREEN_UA =
+    'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/148.0.0.0 Safari/537.36';
+  const BINGBOT_UA =
+    'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/148.0.0.0 Safari/537.36';
+
+  /** A Supabase session cookie of the shape src/proxy.ts refreshes (unsigned, not verified by the gate). */
+  const SESSION_COOKIE = `sb-auth-token=${encodeURIComponent(
+    JSON.stringify({ access_token: 'eyJhbGciOiJub25lIn0.eyJleHAiOjB9.sig', refresh_token: 'r' })
+  )}`;
+  const API_BEARER = `Bearer btr_${'ab'.repeat(32)}`;
+
+  /** Exactly the headers given, nothing implied: these tests are about what is missing. */
+  function raw(pathname: string, headers: Record<string, string>) {
+    const h: Record<string, string> = { 'x-forwarded-for': `${Math.random().toString(36).slice(2)}.1.1.1`, ...headers };
+    return middleware(new NextRequest(new URL(`http://localhost${pathname}`), { headers: h }));
+  }
+
+  describe('denyCidrs (OVH VPS fleet)', () => {
+    it('refuses a request whose last x-forwarded-for hop is in an OVH range, even a well-formed browser', async () => {
+      const res = await raw('/browse', {
+        'user-agent': CHROME_UA,
+        'sec-fetch-mode': 'navigate',
+        'x-forwarded-for': '203.0.113.9, 51.38.12.34',
+      });
+      expect(res).toBeDefined();
+      expect(res!.status).toBe(403);
+      expect(await res!.text()).toContain('Not available from this network');
+    });
+
+    it('refuses by x-real-ip too', async () => {
+      const res = await raw('/browse', { 'user-agent': CHROME_UA, 'sec-fetch-mode': 'navigate', 'x-real-ip': '145.239.200.1' });
+      expect(res!.status).toBe(403);
+    });
+
+    it('judges the LAST hop only: a client-seeded first hop cannot get anyone refused', async () => {
+      const res = await raw('/browse', {
+        'user-agent': CHROME_UA,
+        'sec-fetch-mode': 'navigate',
+        'x-forwarded-for': '51.38.12.34, 203.0.113.9',
+      });
+      expectPassThrough(res);
+    });
+
+    it('covers every listed range', async () => {
+      for (const ip of ['51.38.1.1', '54.38.1.1', '141.94.1.1', '145.239.1.1', '149.202.1.1', '151.80.1.1', '57.129.1.1', '213.32.1.1']) {
+        const res = await raw('/', { 'user-agent': CHROME_UA, 'sec-fetch-mode': 'navigate', 'x-forwarded-for': ip });
+        expect(res!.status, ip).toBe(403);
+      }
+    });
+  });
+
+  describe('chargeSpoofedBrowsers', () => {
+    it('charges a Chrome user agent that sends no Sec-Fetch-Mode', async () => {
+      const res = await raw('/browse', { 'user-agent': CHROME_UA });
+      expect(res).toBeDefined();
+      expect(res!.status).toBe(402);
+      expect(res!.headers.get('content-type')).toContain('application/json');
+    });
+
+    it('passes the same Chrome user agent with Sec-Fetch-Mode to the existing behaviour', async () => {
+      const res = await raw('/browse', { 'user-agent': CHROME_UA, 'sec-fetch-mode': 'navigate' });
+      expectPassThrough(res);
+    });
+
+    it('never judges Googlebot\'s evergreen Chrome string', async () => {
+      const res = await raw('/browse', { 'user-agent': GOOGLEBOT_EVERGREEN_UA });
+      expectPassThrough(res);
+    });
+
+    it('never judges Bingbot\'s evergreen Chrome string', async () => {
+      const res = await raw('/browse', { 'user-agent': BINGBOT_UA });
+      expectPassThrough(res);
+    });
+
+    it('never judges Firefox, which older builds send without Sec-Fetch', async () => {
+      const res = await raw('/browse', { 'user-agent': FIREFOX_UA });
+      expectPassThrough(res);
+    });
+
+    it('still lets a spoofed browser read robots.txt and the sales page', async () => {
+      expectPassThrough(await raw('/robots.txt', { 'user-agent': CHROME_UA }));
+      const sales = await raw('/crawl', { 'user-agent': CHROME_UA, accept: 'text/html' });
+      expect(sales!.status).toBe(402);
+      expect(sales!.headers.get('content-type')).toContain('text/html');
+    });
+  });
+
+  describe('exempt: signed-in people and API clients are never charged', () => {
+    it('passes a Chrome request without Sec-Fetch when it carries a Supabase session cookie', async () => {
+      const res = await raw('/browse', { 'user-agent': CHROME_UA, cookie: `${SESSION_COOKIE}; x-profile-id=p1` });
+      expectPassThrough(res);
+    });
+
+    it('does not accept a junk cookie merely named sb-auth-token', async () => {
+      const res = await raw('/browse', { 'user-agent': CHROME_UA, cookie: 'sb-auth-token=not-a-session' });
+      expect(res!.status).toBe(402);
+    });
+
+    it('passes a Chrome request without Sec-Fetch when it carries a valid-looking btr_ API bearer token', async () => {
+      const res = await raw('/api/v1/me', { 'user-agent': CHROME_UA, authorization: API_BEARER });
+      expectPassThrough(res);
+    });
+
+    it('does not accept a bearer token of the wrong shape', async () => {
+      const res = await raw('/api/v1/me', { 'user-agent': CHROME_UA, authorization: 'Bearer btr_short' });
+      expect(res!.status).toBe(402);
+    });
+
+    it('a session does not get a hosting range past the 403', async () => {
+      const res = await raw('/browse', {
+        'user-agent': CHROME_UA,
+        'sec-fetch-mode': 'navigate',
+        cookie: SESSION_COOKIE,
+        'x-forwarded-for': '149.202.3.4',
+      });
+      expect(res!.status).toBe(403);
+    });
   });
 });
