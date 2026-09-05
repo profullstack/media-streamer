@@ -200,8 +200,14 @@ describe('Supabase session refresh and referral cookie', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
+    // Stub every variable refreshSession can read. The code prefers
+    // NEXT_PUBLIC_SUPABASE_ANON_KEY over SUPABASE_ANON_KEY (and SUPABASE_URL
+    // over NEXT_PUBLIC_SUPABASE_URL), so stubbing only one of each pair lets a
+    // real key in the environment (CI has one) win over the test's value.
     vi.stubEnv('SUPABASE_URL', SUPABASE_URL);
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', SUPABASE_URL);
     vi.stubEnv('SUPABASE_ANON_KEY', 'anon-key');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key');
     fetchMock.mockReset();
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ access_token: jwt(3600), refresh_token: 'new-refresh', expires_in: 3600, token_type: 'bearer' }), {
