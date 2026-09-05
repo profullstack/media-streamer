@@ -1,12 +1,14 @@
 /**
- * Next.js Middleware
+ * Next.js Proxy (middleware)
  *
+ * - Charges AI training crawlers for access (402 + x402 offer) via the crawl gateway
  * - Rate limits expensive API routes (sliding window, per-IP)
  * - Blocks known bots/crawlers from hitting API routes (with exceptions for good bots)
  * - Enforces profile selection for authenticated users
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { gateway } from '@/lib/crawl-gateway';
 
 // =============================================================================
 // Rate Limiting (in-memory sliding window)
@@ -236,7 +238,15 @@ function make429Response(retryAfterSec: number, isJson: boolean): NextResponse {
   });
 }
 
-export function proxy(request: NextRequest): NextResponse | undefined {
+export async function proxy(request: NextRequest): Promise<Response | undefined> {
+  // --- Crawl gateway: training crawlers pay, everyone else carries on ---
+  // Answers 402 (with an x402 offer) for GPTBot, ClaudeBot, CCBot,
+  // meta-externalagent and friends, the sales page at /crawl for anyone, and
+  // null for people, search engines and retrieval crawlers -- who fall
+  // through to the existing behaviour below, unchanged.
+  const answer = await gateway.handle(request);
+  if (answer) return answer;
+
   const { pathname } = request.nextUrl;
   const userAgent = request.headers.get('user-agent');
   const clientIp = getClientIp(request);

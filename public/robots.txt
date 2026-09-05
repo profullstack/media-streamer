@@ -1,5 +1,0 @@
-User-agent: *
-Disallow: /api/
-Disallow: /login
-Disallow: /settings
-Sitemap: https://bittorrented.com/sitemap.xml
