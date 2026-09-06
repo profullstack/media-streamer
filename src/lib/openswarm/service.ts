@@ -890,8 +890,21 @@ export function hubKey(): string {
   return isKey(key) ? key : 'ed25519:0000000000000000000000000000000000000000000000000000000000000000';
 }
 
+/**
+ * The public base a client should call back on.
+ *
+ * Behind Railway's proxy the request's own origin is the internal one, so a
+ * record built from it told everybody to talk to localhost. The configured app
+ * URL wins, exactly as the seedbox and IPTV rails already do it, and the
+ * request origin is only the fallback for a local run.
+ */
+export function publicOrigin(fallbackOrigin?: string): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || fallbackOrigin || 'https://bittorrented.com').replace(/\/+$/, '');
+}
+
 /** `GET /.well-known/openswarm-hub.json` (ippay §5.1, pay2seed §6.1). */
-export function hubRecord(origin: string): Record<string, unknown> {
+export function hubRecord(requestOrigin: string): Record<string, unknown> {
+  const origin = publicOrigin(requestOrigin);
   return {
     openswarm: OPENSWARM_VERSION,
     type: 'ippay.hub',

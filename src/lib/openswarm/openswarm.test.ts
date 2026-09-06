@@ -246,3 +246,21 @@ describe('the README renderer', () => {
     expect(escapeHtml(`<&>"'`)).toBe('&lt;&amp;&gt;&quot;&#39;');
   });
 });
+
+describe('the hub record', () => {
+  it('advertises the public base, not whatever origin the proxy handed it', async () => {
+    // Behind Railway the request origin is internal, and a record built from
+    // it told every client to call back on localhost.
+    const { publicOrigin } = await import('./service');
+    const previous = process.env.NEXT_PUBLIC_APP_URL;
+
+    process.env.NEXT_PUBLIC_APP_URL = 'https://bittorrented.com/';
+    expect(publicOrigin('https://localhost:3000')).toBe('https://bittorrented.com');
+
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    expect(publicOrigin('http://localhost:3000')).toBe('http://localhost:3000');
+
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = previous;
+  });
+});
