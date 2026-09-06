@@ -17,6 +17,7 @@
 --
 -- Fix is two-sided: count for real on a schedule and serve that, and make ANALYZE
 -- frequent enough that the fallback estimate stays close when the cache is cold.
+-- The pg_cron schedule lives in the migration that follows this one.
 
 -- 1. Cache table ------------------------------------------------------------
 
@@ -28,8 +29,7 @@ CREATE TABLE IF NOT EXISTS bt_torrent_count_cache (
 );
 
 COMMENT ON TABLE bt_torrent_count_cache IS
-  'Periodic exact COUNT(*) of large tables. Read by /api/search/stats so the site '
-  'never has to run an 18M-row count in a request, and never has to show a planner estimate.';
+  'Periodic exact COUNT(*) of large tables. Read by /api/search/stats so the site never has to run an 18M-row count in a request, and never has to show a planner estimate.';
 
 ALTER TABLE bt_torrent_count_cache ENABLE ROW LEVEL SECURITY;
 
@@ -53,6 +53,7 @@ DECLARE
 BEGIN
   -- The API role's statement_timeout is far below what an 18M-row count needs;
   -- this runs from pg_cron, off the request path, so it can take its time.
+  -- Measured at 11.2s on 2026-09-06.
   SET LOCAL statement_timeout = '600s';
 
   SELECT count(*) INTO v_count FROM public.torrents;
@@ -89,21 +90,3 @@ ALTER TABLE public.torrents SET (
   autovacuum_vacuum_scale_factor  = 0.02,
   autovacuum_vacuum_threshold     = 50000
 );
-
--- 4. Schedule ---------------------------------------------------------------
-
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-
--- Every 6 hours. Unschedule first so re-running the migration is idempotent.
-SELECT cron.unschedule('refresh-dht-torrent-count')
-WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'refresh-dht-torrent-count');
-
-SELECT cron.schedule(
-  'refresh-dht-torrent-count',
-  '17 */6 * * *',
-  $cron$SELECT public.refresh_dht_torrent_count()$cron$
-);
-
--- 5. Seed it now so the cache is warm the moment this lands ------------------
-
-SELECT refresh_dht_torrent_count();
