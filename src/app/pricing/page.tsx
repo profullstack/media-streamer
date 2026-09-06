@@ -13,6 +13,7 @@ import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { useSupportedCoins } from '@/hooks/use-supported-coins';
 import { useModalOpen } from '@/hooks/use-modal-open';
+import { IptvOfferCard } from '@/components/live-tv/iptv-offer-card';
 
 interface PlanFeature {
   text: string;
@@ -260,6 +261,11 @@ export default function PricingPage(): React.ReactElement {
               </button>
             </div>
           ))}
+        </div>
+
+        {/* Live TV passes: a separate line, sold by the term, on top of any plan */}
+        <div className="max-w-4xl mx-auto">
+          <IptvOfferCard />
         </div>
 
         {/* Payment Methods */}

@@ -15,6 +15,7 @@
 
 import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { MainLayout } from '@/components/layout';
+import { IptvOfferCard } from '@/components/live-tv/iptv-offer-card';
 import { cn } from '@/lib/utils';
 import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner, EditIcon, TrashIcon, HeartFilledIcon } from '@/components/ui/icons';
 import { AddPlaylistModal, EditPlaylistModal, HlsPlayerModal, type PlaylistData } from '@/components/live-tv';
@@ -544,10 +545,10 @@ export function LiveTvContent(): React.ReactElement {
             <h1 className="text-2xl font-bold text-text-primary">Live TV</h1>
             <p className="text-sm text-text-secondary">
               Stream live channels from your IPTV playlists.{' '}
-              <Link href="/account" className="text-accent-primary hover:underline">
-                Purchase an IPTV subscription
+              <Link href="/iptv" className="text-accent-primary hover:underline">
+                Get a Live TV pass
               </Link>{' '}
-              from your account settings, or{' '}
+              on our line, or{' '}
               <Link href="/live-tv/rent-out" className="text-accent-primary hover:underline">
                 rent out your line
               </Link>{' '}
@@ -582,6 +583,10 @@ export function LiveTvContent(): React.ReactElement {
             </button>
           </div>
         </div>
+
+        {isLoggedIn && !isAuthLoading && playlists.length === 0 ? (
+          <IptvOfferCard direct />
+        ) : null}
 
         {/* Playlist Selector - Dropdown with Edit/Delete */}
         {playlists.length > 0 && (
