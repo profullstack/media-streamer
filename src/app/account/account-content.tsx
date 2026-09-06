@@ -19,6 +19,12 @@ import { ProfileManagementSection } from '@/components/profiles/ProfileManagemen
 
 type AccountTab = 'account' | 'subscription' | 'iptv' | 'profiles' | 'security';
 
+const ACCOUNT_TABS: readonly AccountTab[] = ['account', 'subscription', 'iptv', 'profiles', 'security'];
+
+function isAccountTab(value: string): value is AccountTab {
+  return (ACCOUNT_TABS as readonly string[]).includes(value);
+}
+
 /**
  * Payment history item from API
  */
@@ -79,6 +85,16 @@ function AccountPageContent(): React.ReactElement {
       router.replace('/account', { scroll: false });
     }
   }, [searchParams, router]);
+
+  // A deep link straight to a tab (/account?tab=iptv from the Live TV pass
+  // page). Unknown values are ignored rather than opening a blank tab.
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && isAccountTab(tab)) setActiveTab(tab);
+  }, [searchParams]);
+
+  // The term chosen on /iptv, preselected on the IPTV tab.
+  const requestedPackage = searchParams.get('package');
 
   // Fetch subscription status
   const fetchSubscriptionStatus = useCallback(async () => {
@@ -748,7 +764,7 @@ function AccountPageContent(): React.ReactElement {
             )}
 
             {activeTab === 'iptv' && (
-              <IPTVSubscriptionSection />
+              <IPTVSubscriptionSection initialPackage={requestedPackage} />
             )}
 
             {activeTab === 'profiles' && (

@@ -58,13 +58,24 @@ interface PaymentResponse {
   error?: string;
 }
 
-export function IPTVSubscriptionSection(): React.ReactElement {
+export interface IPTVSubscriptionSectionProps {
+  /** Package key to start with, from /iptv?package= via the account URL. */
+  initialPackage?: string | null;
+}
+
+const KNOWN_PACKAGES = new Set(['1_month', '3_months', '6_months', '12_months', '24_hour_test', '3_hour_test']);
+
+export function IPTVSubscriptionSection({
+  initialPackage = null,
+}: IPTVSubscriptionSectionProps = {}): React.ReactElement {
   const router = useRouter();
   const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [subscriptionData, setSubscriptionData] = useState<IPTVSubscriptionResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPackage, setSelectedPackage] = useState<string>('1_month');
+  const [selectedPackage, setSelectedPackage] = useState<string>(
+    initialPackage && KNOWN_PACKAGES.has(initialPackage) ? initialPackage : '1_month'
+  );
   const [selectedCrypto, setSelectedCrypto] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
