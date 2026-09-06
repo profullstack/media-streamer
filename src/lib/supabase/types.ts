@@ -1779,6 +1779,27 @@ export type Database = {
           }
         ];
       };
+      bt_torrent_count_cache: {
+        Row: {
+          id: string;
+          exact_count: number;
+          counted_at: string;
+          duration_ms: number | null;
+        };
+        Insert: {
+          id: string;
+          exact_count: number;
+          counted_at?: string;
+          duration_ms?: number | null;
+        };
+        Update: {
+          id?: string;
+          exact_count?: number;
+          counted_at?: string;
+          duration_ms?: number | null;
+        };
+        Relationships: [];
+      };
       rate_limits: {
         Row: {
           id: string;
