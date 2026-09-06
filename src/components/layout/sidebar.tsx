@@ -61,6 +61,7 @@ const mainNavItems: NavItem[] = [
   { href: '/upcoming', label: 'Upcoming', icon: MovieIcon, requiresPaid: true },
   { href: '/torrents', label: 'Torrents', icon: MagnetIcon },
   { href: '/seedboxes', label: 'Seedboxes', icon: DownloadIcon, requiresAuth: true },
+  { href: '/swarm', label: 'Swarm Market', icon: MagnetIcon },
   { href: '/vod/manage', label: 'VOD Providers', icon: MovieIcon, requiresAuth: true },
   { href: '/news', label: 'News', icon: NewsIcon, requiresPaid: true },
   { href: '/finance', label: 'Finance', icon: FinanceIcon, requiresPaid: true },

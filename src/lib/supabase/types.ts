@@ -15,6 +15,611 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      openswarm_attestations: {
+        Row: {
+          basis: string
+          channel_key: string | null
+          claim_window_ends_at: string | null
+          created_at: string
+          description: string | null
+          file_key: string | null
+          honoured_at: string | null
+          id: string
+          infohash_v1: string | null
+          infohash_v2: string | null
+          license: string | null
+          notice_endpoint: string | null
+          readme: string
+          readme_sha256: string
+          record: Json
+          requester_key: string
+          status: string
+          updated_at: string
+          visibility: string
+          void_reason: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          basis: string
+          channel_key?: string | null
+          claim_window_ends_at?: string | null
+          created_at?: string
+          description?: string | null
+          file_key?: string | null
+          honoured_at?: string | null
+          id: string
+          infohash_v1?: string | null
+          infohash_v2?: string | null
+          license?: string | null
+          notice_endpoint?: string | null
+          readme: string
+          readme_sha256: string
+          record: Json
+          requester_key: string
+          status?: string
+          updated_at?: string
+          visibility: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Update: {
+          basis?: string
+          channel_key?: string | null
+          claim_window_ends_at?: string | null
+          created_at?: string
+          description?: string | null
+          file_key?: string | null
+          honoured_at?: string | null
+          id?: string
+          infohash_v1?: string | null
+          infohash_v2?: string | null
+          license?: string | null
+          notice_endpoint?: string | null
+          readme?: string
+          readme_sha256?: string
+          record?: Json
+          requester_key?: string
+          status?: string
+          updated_at?: string
+          visibility?: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_attestations_requester_key_fkey"
+            columns: ["requester_key"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      openswarm_leases: {
+        Row: {
+          consecutive_failures: number
+          created_at: string
+          earned_usd: number
+          ends_at: string
+          grace_hours: number
+          id: string
+          lane: string
+          last_proof_at: string | null
+          offer_id: string
+          periods_failed: number
+          periods_proven: number
+          price_usd_per_gib_month: number
+          record: Json
+          seeder_key: string
+          slot: number
+          starts_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          created_at?: string
+          earned_usd?: number
+          ends_at: string
+          grace_hours?: number
+          id: string
+          lane: string
+          last_proof_at?: string | null
+          offer_id: string
+          periods_failed?: number
+          periods_proven?: number
+          price_usd_per_gib_month: number
+          record: Json
+          seeder_key: string
+          slot: number
+          starts_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          consecutive_failures?: number
+          created_at?: string
+          earned_usd?: number
+          ends_at?: string
+          grace_hours?: number
+          id?: string
+          lane?: string
+          last_proof_at?: string | null
+          offer_id?: string
+          periods_failed?: number
+          periods_proven?: number
+          price_usd_per_gib_month?: number
+          record?: Json
+          seeder_key?: string
+          slot?: number
+          starts_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_leases_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "openswarm_leases_seeder_key_fkey"
+            columns: ["seeder_key"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      openswarm_notices: {
+        Row: {
+          attestation_id: string
+          claimant_contact: string | null
+          claimant_name: string | null
+          created_at: string
+          id: string
+          kind: string
+          outcome: string
+          record: Json
+          resolved_at: string | null
+          statement: string
+        }
+        Insert: {
+          attestation_id: string
+          claimant_contact?: string | null
+          claimant_name?: string | null
+          created_at?: string
+          id: string
+          kind: string
+          outcome?: string
+          record: Json
+          resolved_at?: string | null
+          statement: string
+        }
+        Update: {
+          attestation_id?: string
+          claimant_contact?: string | null
+          claimant_name?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          outcome?: string
+          record?: Json
+          resolved_at?: string | null
+          statement?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_notices_attestation_id_fkey"
+            columns: ["attestation_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_attestations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      openswarm_offers: {
+        Row: {
+          attestation_id: string
+          budget_usd: number
+          created_at: string
+          days: number
+          expires_at: string
+          fee_usd: number
+          id: string
+          paid_at: string | null
+          pass: Json | null
+          payment_id: string | null
+          price_usd_per_gib_month: number
+          proof_every_hours: number
+          record: Json
+          requester_key: string
+          seeders_max: number
+          seeders_min: number
+          size_bytes: number
+          spent_usd: number
+          starts_at: string
+          status: string
+          trackers: Json
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          attestation_id: string
+          budget_usd: number
+          created_at?: string
+          days: number
+          expires_at: string
+          fee_usd?: number
+          id: string
+          paid_at?: string | null
+          pass?: Json | null
+          payment_id?: string | null
+          price_usd_per_gib_month: number
+          proof_every_hours?: number
+          record: Json
+          requester_key: string
+          seeders_max?: number
+          seeders_min?: number
+          size_bytes: number
+          spent_usd?: number
+          starts_at?: string
+          status?: string
+          trackers?: Json
+          updated_at?: string
+          visibility: string
+        }
+        Update: {
+          attestation_id?: string
+          budget_usd?: number
+          created_at?: string
+          days?: number
+          expires_at?: string
+          fee_usd?: number
+          id?: string
+          paid_at?: string | null
+          pass?: Json | null
+          payment_id?: string | null
+          price_usd_per_gib_month?: number
+          proof_every_hours?: number
+          record?: Json
+          requester_key?: string
+          seeders_max?: number
+          seeders_min?: number
+          size_bytes?: number
+          spent_usd?: number
+          starts_at?: string
+          status?: string
+          trackers?: Json
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_offers_attestation_id_fkey"
+            columns: ["attestation_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_attestations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "openswarm_offers_requester_key_fkey"
+            columns: ["requester_key"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      openswarm_parties: {
+        Row: {
+          abandoned: number
+          account_id: string | null
+          balance_usd: number
+          created_at: string
+          failed: number
+          honoured: number
+          key: string
+          kind: string
+          label: string | null
+          operator_key: string | null
+          paid_out_usd: number
+          payout_address: string | null
+          payout_network: string | null
+          proven: number
+          updated_at: string
+          voided: number
+        }
+        Insert: {
+          abandoned?: number
+          account_id?: string | null
+          balance_usd?: number
+          created_at?: string
+          failed?: number
+          honoured?: number
+          key: string
+          kind?: string
+          label?: string | null
+          operator_key?: string | null
+          paid_out_usd?: number
+          payout_address?: string | null
+          payout_network?: string | null
+          proven?: number
+          updated_at?: string
+          voided?: number
+        }
+        Update: {
+          abandoned?: number
+          account_id?: string | null
+          balance_usd?: number
+          created_at?: string
+          failed?: number
+          honoured?: number
+          key?: string
+          kind?: string
+          label?: string | null
+          operator_key?: string | null
+          paid_out_usd?: number
+          payout_address?: string | null
+          payout_network?: string | null
+          proven?: number
+          updated_at?: string
+          voided?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_parties_operator_key_fkey"
+            columns: ["operator_key"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      openswarm_proofs: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          kind: string
+          lease_id: string
+          passed: boolean
+          period: number
+          record: Json
+          verifier_key: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id: string
+          kind: string
+          lease_id: string
+          passed: boolean
+          period: number
+          record: Json
+          verifier_key?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+          lease_id?: string
+          passed?: boolean
+          period?: number
+          record?: Json
+          verifier_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_proofs_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_leases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      openswarm_receipts: {
+        Row: {
+          balance_usd: number
+          created_at: string
+          earned_usd: number
+          id: string
+          lane: string
+          lease_id: string
+          period: number
+          proof_id: string | null
+          record: Json
+        }
+        Insert: {
+          balance_usd: number
+          created_at?: string
+          earned_usd: number
+          id: string
+          lane: string
+          lease_id: string
+          period: number
+          proof_id?: string | null
+          record: Json
+        }
+        Update: {
+          balance_usd?: number
+          created_at?: string
+          earned_usd?: number
+          id?: string
+          lane?: string
+          lease_id?: string
+          period?: number
+          proof_id?: string | null
+          record?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_receipts_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_leases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "openswarm_receipts_proof_id_fkey"
+            columns: ["proof_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_proofs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      openswarm_team_invites: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          invited_by: string
+          invitee: string
+          redeemed_at: string | null
+          redeemed_by: string | null
+          role: string
+          team_id: string
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          invited_by: string
+          invitee: string
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          role?: string
+          team_id: string
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          invitee?: string
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          role?: string
+          team_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_team_invites_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "openswarm_team_invites_redeemed_by_fkey"
+            columns: ["redeemed_by"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "openswarm_team_invites_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      openswarm_team_members: {
+        Row: {
+          box_key: string | null
+          created_at: string
+          id: string
+          member_key: string
+          removed_at: string | null
+          role: string
+          team_id: string
+        }
+        Insert: {
+          box_key?: string | null
+          created_at?: string
+          id?: string
+          member_key: string
+          removed_at?: string | null
+          role?: string
+          team_id: string
+        }
+        Update: {
+          box_key?: string | null
+          created_at?: string
+          id?: string
+          member_key?: string
+          removed_at?: string | null
+          role?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_team_members_member_key_fkey"
+            columns: ["member_key"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "openswarm_team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "openswarm_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      openswarm_teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_key: string
+          rotate_on_remove: boolean
+          scope: Json
+          seats_paid: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_key: string
+          rotate_on_remove?: boolean
+          scope?: Json
+          seats_paid?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_key?: string
+          rotate_on_remove?: boolean
+          scope?: Json
+          seats_paid?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "openswarm_teams_owner_key_fkey"
+            columns: ["owner_key"]
+            isOneToOne: false
+            referencedRelation: "openswarm_parties"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       email_accounts: {
         Row: {
           id: string;
