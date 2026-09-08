@@ -62,7 +62,7 @@
     "hls.js": "^1.7.2",
     "imapflow": "^1.7.8",
     "ioredis": "^6.0.0",
-    "isomorphic-dompurify": "^3.23.0",
+    "isomorphic-dompurify": "^4.1.0",
     "lightweight-charts": "^5.2.1",
     "linkedom": "^0.18.13",
     "lucide-react": "^1.41.0",
@@ -100,7 +100,7 @@
     "@types/web-push": "^3.6.4",
     "@types/webtorrent": "^3.0.0",
     "@vitejs/plugin-react": "^5.1.4",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.3.4",
@@ -109,7 +109,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "engines": {
     "node": ">=24.0.0"
