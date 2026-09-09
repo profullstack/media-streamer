@@ -7,7 +7,9 @@
  * - Good bots (Googlebot, Bingbot, Applebot): rate-limited (10/min), NOT blocked
  * - Bad bots on expensive routes (/api/search/*, /api/dht/*): blocked (403)
  * - Bad bots on other API routes: rate-limited (5/min), allowed through
- * - Normal browsers: rate-limited on expensive routes (30/min)
+ * - Normal browsers: rate-limited on expensive routes (30/min) and on every
+ *   other route at the house default (100/min), which is the point of the
+ *   throttle: the routes nobody listed are the ones that get walked
  * - Supabase session: refreshed (cookie rewritten) when the access token expires within 60s
  * - ?ref=CODE: stored in the referral_code cookie when valid
  */
@@ -453,5 +455,48 @@ describe('Edge controls: hosting ranges and spoofed browsers', () => {
       });
       expect(res!.status).toBe(403);
     });
+  });
+});
+
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
+
+describe('The site-wide allowance', () => {
+  /** Every case needs its own address: the counter is per caller and module-level. */
+  function call(pathname: string, ip: string) {
+    return middleware(
+      new NextRequest(new URL(`http://localhost${pathname}`), {
+        headers: {
+          'user-agent': BROWSER_UA,
+          'sec-fetch-mode': 'navigate',
+          'x-real-ip': ip,
+        },
+      })
+    );
+  }
+
+  async function countUntilLimited(pathname: string, ip: string, attempts: number) {
+    let allowed = 0;
+    for (let i = 0; i < attempts; i++) {
+      const res = await call(pathname, ip);
+      if (res && res.status !== 200) break;
+      allowed++;
+    }
+    return allowed;
+  }
+
+  // The gap this closes. A route nobody thought to list used to be unmetered
+  // however hard it was hit; on coinpayportal that was 19,000 URLs a day.
+  it('meters a route nobody listed', async () => {
+    expect(await countUntilLimited('/torrent/abc123', '10.9.0.1', 140)).toBe(100);
+  });
+
+  it('keeps the expensive routes at the number they were tuned to', async () => {
+    expect(await countUntilLimited('/api/torrent-search', '10.9.0.2', 60)).toBe(30);
+  });
+
+  it('gives each caller its own allowance', async () => {
+    expect(await countUntilLimited('/torrent/abc123', '10.9.0.3', 5)).toBe(5);
+    expect(await countUntilLimited('/torrent/abc123', '10.9.0.4', 5)).toBe(5);
   });
 });
