@@ -38,11 +38,11 @@ importers:
         specifier: ^0.1.3
         version: 0.1.3(next@16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       '@profullstack/throttle':
-        specifier: ^0.2.1
-        version: 0.2.1
+        specifier: ^0.2.2
+        version: 0.2.2
       '@profullstack/x402-gateway':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.6.0
+        version: 0.6.0
       '@radix-ui/react-dialog':
         specifier: ^1.1.23
         version: 1.1.23(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1320,12 +1320,12 @@ packages:
       react:
         optional: true
 
-  '@profullstack/throttle@0.2.1':
-    resolution: {integrity: sha512-QnrQ2y2pjKch8s3aLswn6MCoW+XjjdpwiG9PDRx/KGVjBcfstlisg8dI6TRv1RooaMou7tp+kTEW999kbkmiow==}
+  '@profullstack/throttle@0.2.2':
+    resolution: {integrity: sha512-qpb9yKE7frwTP29YILx+QePqyEPWGVZxPYve7ITqSfARzOl0ZKhfjeizxPKZUgYhFQfNk6kWCa6/53RVoj304g==}
     engines: {node: '>=20.11'}
 
-  '@profullstack/x402-gateway@0.5.0':
-    resolution: {integrity: sha512-QnSDRKXbVbswB6lQ9eSdDUUt64A90Tmd1U2tuDFgqAtgJtTr/CoXDHHzXcJWJxv5f3f8FafdoxwO+/bgl0MhtQ==}
+  '@profullstack/x402-gateway@0.6.0':
+    resolution: {integrity: sha512-n9/7NixIM9wVOMGWDc+3RtFsGABG+HAYfkZ11JxoEIlF/FDRGEXbvHFlNL/M97RNy01964FhAbQp34OMJoxqZg==}
     engines: {node: '>=20.11'}
 
   '@puppeteer/browsers@3.2.1':
@@ -6218,11 +6218,11 @@ snapshots:
       next: 16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react: 19.2.8
 
-  '@profullstack/throttle@0.2.1':
+  '@profullstack/throttle@0.2.2':
     dependencies:
-      '@profullstack/x402-gateway': 0.5.0
+      '@profullstack/x402-gateway': 0.6.0
 
-  '@profullstack/x402-gateway@0.5.0': {}
+  '@profullstack/x402-gateway@0.6.0': {}
 
   '@puppeteer/browsers@3.2.1(yauzl@2.10.0)':
     dependencies:
