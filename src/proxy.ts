@@ -4,7 +4,7 @@
  * The one live proxy file. In order:
  * - Charges AI training crawlers for access (402 + x402 offer) via the crawl gateway
  * - Refreshes the Supabase session cookie when the access token is about to expire
- * - Rate limits expensive API routes (sliding window, per-IP)
+ * - Meters every route at 100 req/min per caller, selling a pass to whoever goes over
  * - Blocks known bots/crawlers from hitting API routes (with exceptions for good bots)
  * - Enforces profile selection for authenticated users
  * - Stores a valid ?ref= referral code in a cookie
@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { trackReferralCode } from '@profullstack/stack/referrals';
 import { gateway } from '@/lib/crawl-gateway';
+import { meter } from '@/lib/throttle';
 
 // =============================================================================
 // Rate Limiting (in-memory sliding window)
@@ -36,8 +37,6 @@ const WINDOW_MS = 60_000; // 1 minute sliding window
 
 /** Rate limit tiers (requests per minute) */
 const RATE_LIMITS = {
-  api: 30,        // /api/search/*, /api/dht/*, /api/torrent-search
-  page: 60,       // /search, /dht page routes
   goodBot: 10,    // Googlebot, Bingbot, Applebot
   badBot: 5,      // All other bots
 } as const;
@@ -180,18 +179,8 @@ const EXPENSIVE_API_PATHS = [
   '/api/torrent-search',
 ];
 
-/** Page paths that should be rate limited (more generous) */
-const RATE_LIMITED_PAGE_PATHS = [
-  '/search',
-  '/dht',
-];
-
 function isExpensiveApiRoute(pathname: string): boolean {
   return EXPENSIVE_API_PATHS.some(p => pathname.startsWith(p));
-}
-
-function isRateLimitedPageRoute(pathname: string): boolean {
-  return RATE_LIMITED_PAGE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
 // =============================================================================
@@ -495,22 +484,16 @@ export async function proxy(request: NextRequest): Promise<Response> {
     }
   }
 
-  // --- Rate limiting for expensive API routes (non-bot requests) ---
-  if (!isBotRequest && isExpensiveApiRoute(pathname)) {
-    const result = checkRateLimit(`api:${clientIp}`, RATE_LIMITS.api);
-    if (!result.allowed) {
-      console.log(`[rate-limit] API rate limited: IP=${clientIp} path=${pathname}`);
-      return withSession(make429Response(result.retryAfterSec ?? 60, true), session);
-    }
-  }
-
-  // --- Rate limiting for page routes ---
-  if (!isBotRequest && !isApiRoute && isRateLimitedPageRoute(pathname)) {
-    const result = checkRateLimit(`page:${clientIp}`, RATE_LIMITS.page);
-    if (!result.allowed) {
-      console.log(`[rate-limit] Page rate limited: IP=${clientIp} path=${pathname}`);
-      return withSession(make429Response(result.retryAfterSec ?? 60, false), session);
-    }
+  // --- The site-wide allowance ---
+  // 100 requests a minute per caller on EVERY route, with the expensive ones
+  // kept at the numbers they were tuned to (see lib/throttle.ts). Going over
+  // is answered 402 with the gate's own offer rather than 429, so a scraper
+  // that declares nothing is sold the same pass GPTBot buys. The bot tiers
+  // above still run first and stay tighter; this is the floor under them.
+  const overLimit = await meter(request);
+  if (overLimit) {
+    console.log(`[throttle] ${overLimit.status}: IP=${clientIp} path=${pathname} UA=${userAgent?.slice(0, 80)}`);
+    return withSession(overLimit as NextResponse, session);
   }
 
   // --- Profile enforcement: authenticated users must select a profile ---
