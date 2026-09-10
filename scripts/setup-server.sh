@@ -1032,19 +1032,42 @@ sudo systemctl enable ${IPTV_WORKER_SERVICE} 2>/dev/null || true
 sudo systemctl enable ${PODCAST_WORKER_SERVICE} 2>/dev/null || true
 
 # Set up IMDB dataset daily update cron job (runs at midnight UTC)
+#
+# Two sources for imdb_title_basics / imdb_title_ratings:
+#   default        update-imdb-daily.sh downloads the IMDb dumps and COPYs all seven tables
+#   NICHEDB_MIRROR=1  mirror-imdb-from-nichedb.sh walks nichedb.dev's `screen` collection
+#                     over its API (basics + ratings only; crew/episode/akas/principals/
+#                     name.basics are not refreshed by it)
+# Switching flips the 00:00 crontab line; the other script stays in the repo.
 echo "=== Setting up IMDB dataset daily update cron job ==="
-IMDB_UPDATE_SCRIPT="${PROJECT_ROOT}/scripts/update-imdb-daily.sh"
+if [ "${NICHEDB_MIRROR:-}" = "1" ]; then
+    IMDB_UPDATE_SCRIPT="${PROJECT_ROOT}/scripts/mirror-imdb-from-nichedb.sh"
+    IMDB_UPDATE_MARK="mirror-imdb-from-nichedb"
+    IMDB_UPDATE_OTHER="update-imdb-daily"
+    IMDB_UPDATE_LABEL="nichedb -> imdb_* mirror"
+else
+    IMDB_UPDATE_SCRIPT="${PROJECT_ROOT}/scripts/update-imdb-daily.sh"
+    IMDB_UPDATE_MARK="update-imdb-daily"
+    IMDB_UPDATE_OTHER="mirror-imdb-from-nichedb"
+    IMDB_UPDATE_LABEL="IMDB dataset update"
+fi
 IMDB_CRON_JOB="0 0 * * * ${IMDB_UPDATE_SCRIPT} >> /var/log/imdb-update.log 2>&1"
 if [ -f "${IMDB_UPDATE_SCRIPT}" ]; then
     chmod +x "${IMDB_UPDATE_SCRIPT}"
     chmod +x "${PROJECT_ROOT}/scripts/import-imdb.sh" 2>/dev/null || true
+    chmod +x "${PROJECT_ROOT}/scripts/mirror-imdb-from-nichedb.sh" 2>/dev/null || true
     sudo touch /var/log/imdb-update.log
     sudo chown ${VPS_USER}:${VPS_USER} /var/log/imdb-update.log
-    if crontab -l 2>/dev/null | grep -q "update-imdb-daily"; then
-        echo "  IMDB update cron job already exists"
+    if crontab -l 2>/dev/null | grep -q "${IMDB_UPDATE_OTHER}"; then
+        # The other source is scheduled; replace it so only one job runs at 00:00.
+        (crontab -l 2>/dev/null | grep -v "${IMDB_UPDATE_OTHER}" || true) | crontab -
+        echo "  Removed the ${IMDB_UPDATE_OTHER} cron job"
+    fi
+    if crontab -l 2>/dev/null | grep -q "${IMDB_UPDATE_MARK}"; then
+        echo "  ${IMDB_UPDATE_LABEL} cron job already exists"
     else
         (crontab -l 2>/dev/null || true; echo "${IMDB_CRON_JOB}") | crontab -
-        echo "✓ Added cron job: IMDB dataset update at midnight daily"
+        echo "✓ Added cron job: ${IMDB_UPDATE_LABEL} at midnight daily"
     fi
 else
     echo "  WARNING: ${IMDB_UPDATE_SCRIPT} not found, skipping IMDB cron setup"
@@ -1139,13 +1162,23 @@ echo "  Errors:  tail -f ${PODCAST_WORKER_ERROR_LOG}"
 echo ""
 echo "Scheduled Tasks:"
 echo "  WebTorrent temp cleanup: Daily at midnight"
+if [ "${NICHEDB_MIRROR:-}" = "1" ]; then
+echo "  IMDB titles: Daily at midnight, mirrored from nichedb.dev (basics + ratings)"
+else
 echo "  IMDB dataset update: Daily at midnight (incremental)"
+fi
 echo "  Directory: ${WEBTORRENT_TMP_DIR}"
 echo "  View cron jobs: crontab -l"
 echo ""
 echo "IMDB Datasets:"
+if [ "${NICHEDB_MIRROR:-}" = "1" ]; then
+echo "  First backfill: pnpm mirror:imdb -- --all   (~3-4 h at nichedb's 600 req/h)"
+echo "  Daily update: ./scripts/mirror-imdb-from-nichedb.sh (automatic via cron)"
+echo "  Note: crew/episode/akas/principals/name tables are not refreshed by the mirror"
+else
 echo "  First import: ./scripts/import-imdb.sh ~/tmp/data"
 echo "  Daily update: ./scripts/update-imdb-daily.sh (automatic via cron)"
+fi
 echo "  Logs: /var/log/imdb-update.log"
 
 # DHT Services output (only if enabled)
