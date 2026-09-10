@@ -4,10 +4,15 @@
  * Falls back to /search if /find returns nothing (common for obscure IMDB entries).
  *
  * Results are cached in the tmdb_data table to avoid repeated API calls.
+ *
+ * With NICHEDB_TITLES=1 the lookup asks nichedb.dev's `screen` collection first
+ * (src/lib/nichedb/titles.ts) and only falls through to TMDB when nichedb has
+ * nothing to show for the title. The cache row is written the same way either way.
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
+import { hasPresentation, matchTitle, titleByImdbId, titleFacts } from '@/lib/nichedb/titles';
 
 export interface TmdbData {
   posterUrl: string | null;
@@ -108,15 +113,66 @@ function cleanTitleForSearch(titleHint: string): string {
   return cleanTitle;
 }
 
+/** NICHEDB_TITLES=1 routes lookups through nichedb.dev before TMDB. Default off. */
+export function nichedbTitlesEnabled(): boolean {
+  return process.env.NICHEDB_TITLES === '1';
+}
+
+/**
+ * The nichedb row for this torrent, shaped like a TMDB answer, or null when
+ * nichedb has nothing to show for it (no poster, no summary, no backdrop), in
+ * which case the caller goes on to TMDB as it always did.
+ *
+ * With an IMDb id the row must carry that tconst; the release name only tells
+ * nichedb what to search. Without one the best `match` candidate at or above the
+ * score floor is taken, preferring the row with a poster among exact titles.
+ */
+export async function fetchNichedbData(imdbId: string, titleHint?: string): Promise<TmdbData | null> {
+  const name = titleHint?.trim();
+  if (!name) return null;
+  try {
+    const item = imdbId
+      ? await titleByImdbId(imdbId, { title: name })
+      : await matchTitle(name);
+    if (!item || !hasPresentation(item)) return null;
+    const facts = titleFacts(item);
+    return {
+      posterUrl: facts.posterUrl,
+      backdropUrl: facts.backdropUrl,
+      overview: facts.overview,
+      tagline: facts.tagline,
+      cast: facts.cast,
+      // nichedb carries no writers or certification; the tmdb_data columns stay null.
+      writers: null,
+      contentRating: null,
+      tmdbId: facts.tmdbId,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchTmdbData(imdbId: string, titleHint?: string): Promise<TmdbData> {
   const tmdbKey = process.env.TMDB_API_KEY;
-  if (!tmdbKey) return EMPTY;
+  const useNichedb = nichedbTitlesEnabled();
+  if (!tmdbKey && !useNichedb) return EMPTY;
   if (!imdbId && !titleHint) return EMPTY;
 
   // Check cache first
   const cacheKey = getCacheKey(imdbId, titleHint);
   const cached = await getCached(cacheKey);
   if (cached) return cached;
+
+  // nichedb first when switched on; the answer lands in tmdb_data exactly as a
+  // TMDB one would, so every reader of the cache is unchanged.
+  if (useNichedb) {
+    const fromNichedb = await fetchNichedbData(imdbId, titleHint);
+    if (fromNichedb) {
+      await setCache(cacheKey, fromNichedb);
+      return fromNichedb;
+    }
+  }
+  if (!tmdbKey) return EMPTY;
 
   try {
     let tmdbId: number | null = null;
