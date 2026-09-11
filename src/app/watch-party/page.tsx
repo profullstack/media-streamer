@@ -7,8 +7,9 @@
  * Free for anyone without requiring login.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { MainLayout } from '@/components/layout';
+import { NixampPanel } from '@/components/watch-party';
 import { cn } from '@/lib/utils';
 import { PartyIcon, PlusIcon, UsersIcon } from '@/components/ui/icons';
 
@@ -65,6 +66,9 @@ export default function WatchPartyPage(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setIsMediaModalOpen] = useState(false);
+  // The host's own player, so its position can be told to nixamp. Everybody
+  // else follows; only the host states where the film is.
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const handleCreateParty = useCallback(async () => {
     if (!hostName.trim()) {
@@ -224,6 +228,7 @@ export default function WatchPartyPage(): React.ReactElement {
               )}>
                 {party.mediaUrl ? (
                   <video
+                    ref={videoRef}
                     src={party.mediaUrl}
                     controls={isHost || !party.settings.hostOnlyControl}
                     className="w-full h-full rounded-xl"
@@ -258,6 +263,21 @@ export default function WatchPartyPage(): React.ReactElement {
 
             {/* Chat & Members Sidebar */}
             <div className="space-y-4">
+              {/* The same party, as a nixamp room */}
+              <NixampPanel
+                partyCode={party.code}
+                isHost={isHost}
+                mediaTitle={party.mediaTitle}
+                positionSeconds={
+                  isHost
+                    ? () => ({
+                        positionSeconds: videoRef.current?.currentTime ?? 0,
+                        playing: videoRef.current ? !videoRef.current.paused : false,
+                      })
+                    : undefined
+                }
+              />
+
               {/* Members List */}
               <div className="rounded-xl bg-bg-secondary border border-border-subtle p-4">
                 <h3 className="font-semibold text-text-primary mb-3">

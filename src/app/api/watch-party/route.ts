@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import {
   createWatchParty,
   validatePartyCode,
@@ -42,8 +43,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Generate a guest ID if not provided (for anonymous users)
-    const hostId = body.hostId ?? `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    // Whoever is signed in IS the host, ahead of anything the body claims.
+    //
+    // A party still needs no account -- an anonymous host gets a guest id as
+    // before -- but a signed-in one gets their real user id, and that is what
+    // makes the nixamp bridge possible: putting the party on nixamp has to be
+    // provably the host's doing, and a guest string proves nothing.
+    const user = await getCurrentUser();
+    const hostId =
+      user?.id ?? body.hostId ?? `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
     // Create the party options
     const options: CreatePartyOptions = {
