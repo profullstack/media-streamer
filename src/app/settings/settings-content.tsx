@@ -11,12 +11,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
-import { SettingsIcon, UserIcon, TvIcon, VideoIcon, TrashIcon, ExternalLinkIcon, LoadingSpinner, MailIcon } from '@/components/ui/icons';
+import { SettingsIcon, UserIcon, TvIcon, VideoIcon, TrashIcon, ExternalLinkIcon, LoadingSpinner, MailIcon, LinkIcon } from '@/components/ui/icons';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 import { EmailAccountsSection } from './email-accounts-section';
+import { ConnectionsSection } from './connections-section';
 
-type SettingsTab = 'account' | 'playback' | 'iptv' | 'email';
+type SettingsTab = 'account' | 'playback' | 'iptv' | 'email' | 'connections';
 
 /**
  * IPTV Playlist data from API
@@ -56,11 +57,12 @@ export function SettingsContent(): React.ReactElement {
     { id: 'playback' as const, label: 'Playback', icon: VideoIcon },
     { id: 'iptv' as const, label: 'IPTV', icon: TvIcon },
     { id: 'email' as const, label: 'Email', icon: MailIcon },
+    { id: 'connections' as const, label: 'Connections', icon: LinkIcon },
   ];
 
   const tabParam = searchParams.get('tab');
   const activeTab: SettingsTab =
-    tabParam === 'email' || tabParam === 'playback' || tabParam === 'iptv'
+    tabParam === 'email' || tabParam === 'playback' || tabParam === 'iptv' || tabParam === 'connections'
       ? tabParam
       : 'account';
 
@@ -388,6 +390,8 @@ export function SettingsContent(): React.ReactElement {
             )}
 
             {activeTab === 'email' && <EmailAccountsSection />}
+
+            {activeTab === 'connections' && <ConnectionsSection />}
           </div>
         </div>
       </div>

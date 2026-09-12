@@ -5,3 +5,4 @@
  */
 
 export { MediaSelectionModal } from './media-selection-modal';
+export { NixampPanel, type NixampPanelProps } from './nixamp-panel';

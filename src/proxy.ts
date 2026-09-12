@@ -391,6 +391,10 @@ const PROFILE_EXEMPT_PATHS = [
   '/pricing',
   '/api/auth',
   '/api/profiles',
+  // The nixamp OAuth round trip. Bouncing somebody to /select-profile in the
+  // middle of a consent flow loses the code, the state and the verifier, and
+  // lands them back here with nothing connected and no way to tell why.
+  '/api/v1/nixamp',
   '/_next',
   '/favicon',
   '/manifest',
