@@ -1,0 +1,53 @@
+{
+  "openaccess": "0.1",
+  "name": "Bittorrented",
+  "url": "https://bittorrented.com",
+  "operator": "https://logicsrc.com/.well-known/openprofile.md",
+  "redirect_uris": [
+    "https://bittorrented.com/api/v1/openaccess/callback"
+  ],
+  "jwks": {
+    "keys": [
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "kid": "EItUjNrfYQj-",
+        "x": "zl7On7wcQkPscwarc_7wpf2QvcKCPLzrcjCFik4a2co",
+        "alg": "EdDSA",
+        "use": "sig"
+      }
+    ]
+  },
+  "scopes": {},
+  "offers": [
+    {
+      "product": "bittorrented.com/premium",
+      "name": "Premium",
+      "price": "4.99 USD/month",
+      "links": {
+        "pay": "https://bittorrented.com/pricing?principal={principal}",
+        "cancel": "https://bittorrented.com/settings",
+        "manage": "https://bittorrented.com/settings"
+      }
+    },
+    {
+      "product": "bittorrented.com/family",
+      "name": "Family",
+      "price": "9.99 USD/month",
+      "links": {
+        "pay": "https://bittorrented.com/pricing?principal={principal}",
+        "cancel": "https://bittorrented.com/settings",
+        "manage": "https://bittorrented.com/settings"
+      }
+    }
+  ],
+  "honours": [
+    "profullstack.com/all-access",
+    "bittorrented.com/premium",
+    "bittorrented.com/family"
+  ],
+  "webhooks": "https://bittorrented.com/api/v1/openaccess/events",
+  "hubs": [
+    "https://openaccess.logicsrc.com"
+  ]
+}
