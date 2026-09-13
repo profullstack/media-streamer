@@ -60,6 +60,12 @@ export default function LoginPage(): React.ReactElement {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="w-full max-w-md">
           {/* Reason message for redirects */}
+          {reason === 'members' && (
+            <div className="mb-4 rounded-lg border border-accent-primary/30 bg-accent-primary/10 px-4 py-3 text-center text-sm text-text-primary">
+              BitTorrented is members only. Sign in, or{' '}
+              <Link href="/signup" className="underline">create an account</Link>, to continue.
+            </div>
+          )}
           {reason === 'live-tv' && (
             <div className="mb-4 rounded-lg border border-accent-primary/30 bg-accent-primary/10 px-4 py-3 text-center text-sm text-text-primary">
               Sign in to access Live TV — add your IPTV playlists and stream live channels.

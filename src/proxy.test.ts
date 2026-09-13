@@ -12,6 +12,8 @@
  *   throttle: the routes nobody listed are the ones that get walked
  * - Supabase session: refreshed (cookie rewritten) when the access token expires within 60s
  * - ?ref=CODE: stored in the referral_code cookie when valid
+ * - Members only: with no session cookie or Authorization header, a page is
+ *   sent to /login and an API call gets 401, except on the public paths
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -23,6 +25,17 @@ function expectPassThrough(res: Response | undefined): asserts res is NextRespon
   expect(res).toBeDefined();
   expect(res!.status).toBe(200);
   expect(res!.headers.get('x-middleware-next')).toBe('1');
+}
+
+/**
+ * A response the edge did not refuse: no toll (402), no block (403), no
+ * throttle (429). A signed-out request then meets the members-only gate
+ * (307 to /login, or 401 on the API), which is the site's answer, not the
+ * edge's, so it counts as "through" here.
+ */
+function expectNotRefused(res: Response | undefined): asserts res is NextResponse {
+  expect(res).toBeDefined();
+  expect([402, 403, 429]).not.toContain(res!.status);
 }
 
 describe('Bot Handling Middleware', () => {
@@ -38,15 +51,18 @@ describe('Bot Handling Middleware', () => {
     return middleware(req);
   }
 
-  it('should allow Googlebot on non-expensive API routes (rate-limited, not blocked)', async () => {
+  it('should let Googlebot past the bot block on non-expensive API routes (rate-limited, not 403)', async () => {
     const res = await callMiddleware('/api/torrents/123', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
-    // Good bots are allowed through (rate-limited at 10/min but first request passes)
-    expectPassThrough(res);
+    // Good bots are not blocked (rate-limited at 10/min); with no session the
+    // members-only gate then answers 401, never 403.
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(401);
   });
 
-  it('should allow Bingbot on non-expensive API routes', async () => {
+  it('should let Bingbot past the bot block on non-expensive API routes', async () => {
     const res = await callMiddleware('/api/stream', 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)');
-    expectPassThrough(res);
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(401);
   });
 
   it('should block bad bots from expensive API routes with 403', async () => {
@@ -61,25 +77,31 @@ describe('Bot Handling Middleware', () => {
     expect(res!.status).toBe(402);
   });
 
-  it('should allow bad bots on non-expensive API routes (rate-limited)', async () => {
-    // Bad bots on non-expensive routes are rate-limited but not immediately blocked
+  it('should not 403 bad bots on non-expensive API routes (rate-limited, then the members gate)', async () => {
+    // Bad bots on non-expensive routes are rate-limited but not blocked; the
+    // 401 is the members-only gate, which every signed-out request meets.
     const res = await callMiddleware('/api/torrents/123', 'SomeBot/1.0');
-    expectPassThrough(res);
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(401);
   });
 
-  it('should allow normal browsers to access API routes', async () => {
+  it('should not bot-block normal browsers on API routes (signed out: 401, not 403)', async () => {
     const res = await callMiddleware('/api/torrents/123', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-    expectPassThrough(res);
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(401);
   });
 
-  it('should allow requests with no user-agent', async () => {
+  it('should not bot-block requests with no user-agent', async () => {
     const res = await callMiddleware('/api/torrents/123', null);
-    expectPassThrough(res);
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(401);
   });
 
-  it('should not block bots from non-API routes', async () => {
+  it('should send bots on non-API routes to /login like everyone else', async () => {
     const res = await callMiddleware('/torrents/123', 'Googlebot/2.1');
-    expectPassThrough(res);
+    expect(res).toBeDefined();
+    expect(res!.status).toBe(307);
+    expect(new URL(res!.headers.get('location')!).pathname).toBe('/login');
   });
 
   it('should block AhrefsBot from expensive API routes', async () => {
@@ -146,19 +168,21 @@ describe('Crawl Gateway (x402)', () => {
     expectPassThrough(res);
   });
 
-  it('passes a Chrome browser through to the existing behaviour', async () => {
+  it('passes a Chrome browser through to the existing behaviour (signed out: the members gate)', async () => {
     const res = await callProxy('/browse', CHROME_UA);
-    expectPassThrough(res);
+    expectNotRefused(res);
+    expect(res.status).toBe(307);
   });
 
   it('passes a Chrome browser through on expensive API routes (rate limit, not 402)', async () => {
     const res = await callProxy('/api/search/torrents', CHROME_UA);
-    expectPassThrough(res);
+    expectNotRefused(res);
+    expect(res.status).toBe(401); // signed out: the members gate, not the toll
   });
 
-  it('passes Googlebot and a retrieval crawler through', async () => {
-    expectPassThrough(await callProxy('/browse', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'));
-    expectPassThrough(await callProxy('/browse', 'Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)'));
+  it('passes Googlebot and a retrieval crawler through the toll (to the members gate)', async () => {
+    expectNotRefused(await callProxy('/browse', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'));
+    expectNotRefused(await callProxy('/browse', 'Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)'));
   });
 
   it('serves the sales page at /crawl to anyone, including a browser', async () => {
@@ -253,9 +277,9 @@ describe('Supabase session refresh and referral cookie', () => {
     expect(res.cookies.get('sb-auth-token')).toBeUndefined();
   });
 
-  it('does nothing for a browser with no session', async () => {
+  it('does nothing for a browser with no session (which the members gate then turns away)', async () => {
     const res = await call('/browse');
-    expectPassThrough(res);
+    expect(res.status).toBe(307);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(res.headers.get('set-cookie')).toBeNull();
   });
@@ -303,9 +327,92 @@ describe('Supabase session refresh and referral cookie', () => {
     expect(JSON.parse(decodeURIComponent(res.cookies.get('sb-auth-token')!.value)).refresh_token).toBe('new-refresh');
   });
 
-  it('stores a valid ?ref= code in the referral_code cookie', async () => {
+  describe('members only', () => {
+    it('sends a signed-out browser on a page to /login with the way back', async () => {
+      const res = await call('/dht/abc?x=1');
+      expect(res.status).toBe(307);
+      const to = new URL(res.headers.get('location')!);
+      expect(to.pathname).toBe('/login');
+      expect(to.searchParams.get('reason')).toBe('members');
+      expect(to.searchParams.get('redirect')).toBe('/dht/abc?x=1');
+    });
+
+    it('sends the signed-out home page to /login with no redirect back', async () => {
+      const res = await call('/');
+      expect(res.status).toBe(307);
+      const to = new URL(res.headers.get('location')!);
+      expect(to.pathname).toBe('/login');
+      expect(to.searchParams.get('redirect')).toBeNull();
+    });
+
+    it('answers a signed-out API call with 401 JSON', async () => {
+      const res = await call('/api/torrents/123');
+      expect(res.status).toBe(401);
+      expect(res.headers.get('content-type')).toBe('application/json');
+      expect(await res.json()).toEqual({ error: 'Sign in required' });
+    });
+
+    it('leaves the public paths open', async () => {
+      for (const path of [
+        '/login',
+        '/signup',
+        '/forgot-password',
+        '/reset-password?token=t',
+        '/pricing',
+        '/terms',
+        '/privacy',
+        '/blog',
+        '/blog/some-post',
+        '/crawl',
+        '/robots.txt',
+        '/sitemap.xml',
+        '/sitemaps/static.xml',
+        '/sw.js',
+        '/manifest.json',
+        '/.well-known/openaccess.json',
+        '/api/auth/login',
+        '/api/webhooks/coinpayportal',
+        '/api/cron/expire-subscriptions',
+        '/api/health',
+        '/api/public/shares/abc',
+      ]) {
+        const res = await call(path);
+        expect(res.status, path).not.toBe(307);
+        expect(res.status, path).not.toBe(401);
+      }
+    });
+
+    it('does not mistake a longer path for a public one', async () => {
+      expect((await call('/blogger')).status).toBe(307);
+      expect((await call('/api/authors')).status).toBe(401);
+      expect((await call('/loginx')).status).toBe(307);
+    });
+
+    it('lets a session cookie through', async () => {
+      const res = await call('/dht', { cookies: { 'sb-auth-token': authCookie(3600), 'x-profile-id': 'p1' } });
+      expectPassThrough(res);
+    });
+
+    it('lets an Authorization header through to the route that verifies it', async () => {
+      const res = await call('/api/v1/me', { headers: { authorization: 'Bearer some-api-token-for-a-tv' } });
+      expectPassThrough(res);
+    });
+
+    it('passes a still-valid-looking cookie and clears it when Supabase says it is revoked', async () => {
+      fetchMock.mockResolvedValue(new Response('{}', { status: 401 }));
+      const res = await call('/dht', { cookies: { 'sb-auth-token': authCookie(30), 'x-profile-id': 'p1' } });
+      // The gate reads the cookie's shape, not Supabase; the 401 from the
+      // refresh clears it on this response, so the next request meets /login.
+      expectPassThrough(res);
+      expect(res.cookies.get('sb-auth-token')?.value).toBe('');
+    });
+  });
+
+  it('stores a valid ?ref= code in the referral_code cookie, on the redirect a stranger gets', async () => {
     const res = await call('/browse?ref=ABC-123_x');
-    expectPassThrough(res);
+    expectNotRefused(res);
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get('location')!).searchParams.get('redirect')).toBe('/browse?ref=ABC-123_x');
     const cookie = res.cookies.get('referral_code');
     expect(cookie?.value).toBe('ABC-123_x');
     expect(cookie?.httpOnly).toBe(false);
@@ -313,7 +420,8 @@ describe('Supabase session refresh and referral cookie', () => {
 
   it('ignores a malformed ?ref=', async () => {
     const res = await call('/browse?ref=' + encodeURIComponent('<script>'));
-    expectPassThrough(res);
+    expectNotRefused(res);
+    expect(res.status).toBe(307);
     expect(res.cookies.get('referral_code')).toBeUndefined();
   });
 
@@ -378,7 +486,7 @@ describe('Edge controls: hosting ranges and spoofed browsers', () => {
         'sec-fetch-mode': 'navigate',
         'x-forwarded-for': '51.38.12.34, 203.0.113.9',
       });
-      expectPassThrough(res);
+      expectNotRefused(res);
     });
 
     it('covers every listed range', async () => {
@@ -399,22 +507,22 @@ describe('Edge controls: hosting ranges and spoofed browsers', () => {
 
     it('passes the same Chrome user agent with Sec-Fetch-Mode to the existing behaviour', async () => {
       const res = await raw('/browse', { 'user-agent': CHROME_UA, 'sec-fetch-mode': 'navigate' });
-      expectPassThrough(res);
+      expectNotRefused(res);
     });
 
     it('never judges Googlebot\'s evergreen Chrome string', async () => {
       const res = await raw('/browse', { 'user-agent': GOOGLEBOT_EVERGREEN_UA });
-      expectPassThrough(res);
+      expectNotRefused(res);
     });
 
     it('never judges Bingbot\'s evergreen Chrome string', async () => {
       const res = await raw('/browse', { 'user-agent': BINGBOT_UA });
-      expectPassThrough(res);
+      expectNotRefused(res);
     });
 
     it('never judges Firefox, which older builds send without Sec-Fetch', async () => {
       const res = await raw('/browse', { 'user-agent': FIREFOX_UA });
-      expectPassThrough(res);
+      expectNotRefused(res);
     });
 
     it('still lets a spoofed browser read robots.txt and the sales page', async () => {
@@ -475,11 +583,17 @@ describe('The site-wide allowance', () => {
     );
   }
 
+  /**
+   * How many requests the limiters let by before a 429. A signed-out caller
+   * meets the members-only gate (307 or 401) past the limiters, which is
+   * still "allowed" as far as the allowance is concerned; only the 429 ends
+   * the count.
+   */
   async function countUntilLimited(pathname: string, ip: string, attempts: number) {
     let allowed = 0;
     for (let i = 0; i < attempts; i++) {
       const res = await call(pathname, ip);
-      if (res && res.status !== 200) break;
+      if (res && res.status === 429) break;
       allowed++;
     }
     return allowed;

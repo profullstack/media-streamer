@@ -25,17 +25,16 @@ export async function GET(_req: NextRequest, ctx: RouteContext): Promise<NextRes
 
   // Static pages sitemap
   if (cleaned === 'static') {
+    // Only the pages a signed-out reader can open: everything else answers
+    // with a redirect to /login (src/proxy.ts), which a crawler should not be
+    // invited to.
     const staticPages = [
-      { loc: 'https://bittorrented.com/', priority: '1.0', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/dht', priority: '0.9', changefreq: 'hourly' },
-      { loc: 'https://bittorrented.com/search', priority: '0.8', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/browse/movie', priority: '0.8', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/browse/tvshow', priority: '0.8', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/browse/music', priority: '0.8', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/browse/book', priority: '0.7', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/live-tv', priority: '0.7', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/radio', priority: '0.7', changefreq: 'daily' },
-      { loc: 'https://bittorrented.com/news', priority: '0.7', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/', priority: '1.0', changefreq: 'weekly' },
+      { loc: 'https://bittorrented.com/pricing', priority: '0.9', changefreq: 'weekly' },
+      { loc: 'https://bittorrented.com/blog', priority: '0.8', changefreq: 'daily' },
+      { loc: 'https://bittorrented.com/signup', priority: '0.7', changefreq: 'monthly' },
+      { loc: 'https://bittorrented.com/terms', priority: '0.3', changefreq: 'yearly' },
+      { loc: 'https://bittorrented.com/privacy', priority: '0.3', changefreq: 'yearly' },
     ];
 
     const urls = staticPages
