@@ -412,8 +412,9 @@ function isProfileExempt(pathname: string): boolean {
 
 /**
  * bittorrented.com is members-only. A request that carries neither a session
- * cookie nor an Authorization header is sent to /login (a page) or answered
- * 401 (an API call), unless the path is one of the few a stranger needs: the
+ * cookie, nor an Authorization header, nor a live crawl pass is sent to
+ * /login (a page) or answered 401 (an API call), unless the path is one of
+ * the few a stranger needs: the
  * way in, the pages that say what the service is and costs, the blog, the
  * crawl sales page, what search engines read, the auth API, and the endpoints
  * other machines call with credentials of their own (payment and autoblog
@@ -456,6 +457,12 @@ export function isPublicPath(pathname: string): boolean {
 /** A session cookie, or any Authorization header: the route behind it verifies the token. */
 function isSignedIn(request: NextRequest): boolean {
   return hasSessionCookie(request) || Boolean(request.headers.get('authorization'));
+}
+
+/** A live crawl pass opens the door too: a day of the site is exactly what the crawler bought at /crawl. */
+async function hasCrawlPass(request: NextRequest): Promise<boolean> {
+  const token = gateway.passFrom(request);
+  return token ? gateway.verifyPass(token) : false;
 }
 
 function membersOnlyResponse(request: NextRequest, isApiRoute: boolean): NextResponse {
@@ -571,7 +578,7 @@ export async function proxy(request: NextRequest): Promise<Response> {
   // --- Members only ---
   // A referral link is for a stranger, and a stranger is exactly who lands
   // here, so the ?ref= cookie rides the redirect to /login too.
-  if (!isPublicPath(pathname) && !isSignedIn(request)) {
+  if (!isPublicPath(pathname) && !isSignedIn(request) && !(await hasCrawlPass(request))) {
     return withSession(withReferral(request, membersOnlyResponse(request, isApiRoute)), session);
   }
 

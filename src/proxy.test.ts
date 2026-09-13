@@ -393,6 +393,11 @@ describe('Supabase session refresh and referral cookie', () => {
       expectPassThrough(res);
     });
 
+    it('does not open the door for a crawl pass the gateway never minted', async () => {
+      const res = await call('/dht', { headers: { 'x-crawl-pass': 'not-a-real-pass' } });
+      expect(res.status).toBe(307);
+    });
+
     it('lets an Authorization header through to the route that verifies it', async () => {
       const res = await call('/api/v1/me', { headers: { authorization: 'Bearer some-api-token-for-a-tv' } });
       expectPassThrough(res);
