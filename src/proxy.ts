@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { trackReferralCode } from '@profullstack/stack/referrals';
-import { gateway } from '@/lib/crawl-gateway';
+import { gateway, hasSessionCookie } from '@/lib/crawl-gateway';
 import { meter } from '@/lib/throttle';
 
 // =============================================================================
@@ -407,6 +407,81 @@ function isProfileExempt(pathname: string): boolean {
 }
 
 // =============================================================================
+// Members only
+// =============================================================================
+
+/**
+ * bittorrented.com is members-only. A request that carries neither a session
+ * cookie, nor an Authorization header, nor a live crawl pass is sent to
+ * /login (a page) or answered 401 (an API call), unless the path is one of
+ * the few a stranger needs: the
+ * way in, the pages that say what the service is and costs, the blog, the
+ * crawl sales page, what search engines read, the auth API, and the endpoints
+ * other machines call with credentials of their own (payment and autoblog
+ * webhooks, cron, health, and the share and playlist URLs whose address is
+ * the credential).
+ *
+ * The gate runs after the crawl gateway and the rate limits, so a training
+ * crawler is still charged and a flood is still throttled, and before the
+ * profile check, so nobody without a session is bounced to /select-profile.
+ * Search engines and preview bots are not exempt: the point is that nothing
+ * behind the door is on the open web any more.
+ */
+const PUBLIC_PATHS = [
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+  '/pricing',
+  '/terms',
+  '/privacy',
+  '/blog',
+  '/crawl',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/sitemaps',
+  '/sw.js',
+  '/.well-known',
+  '/api/auth',
+  '/api/webhooks',
+  '/api/cron',
+  '/api/health',
+  '/api/public',
+];
+
+export function isPublicPath(pathname: string): boolean {
+  if (pathname.startsWith('/manifest')) return true; // manifest.json / manifest.webmanifest
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/** A session cookie, or any Authorization header: the route behind it verifies the token. */
+function isSignedIn(request: NextRequest): boolean {
+  return hasSessionCookie(request) || Boolean(request.headers.get('authorization'));
+}
+
+/** A live crawl pass opens the door too: a day of the site is exactly what the crawler bought at /crawl. */
+async function hasCrawlPass(request: NextRequest): Promise<boolean> {
+  const token = gateway.passFrom(request);
+  return token ? gateway.verifyPass(token) : false;
+}
+
+function membersOnlyResponse(request: NextRequest, isApiRoute: boolean): NextResponse {
+  if (isApiRoute) {
+    return new NextResponse(JSON.stringify({ error: 'Sign in required' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  const url = request.nextUrl.clone();
+  const { pathname, search } = request.nextUrl;
+  url.pathname = '/login';
+  url.search = '';
+  url.searchParams.set('reason', 'members');
+  if (pathname !== '/') url.searchParams.set('redirect', `${pathname}${search}`);
+  return NextResponse.redirect(url);
+}
+
+// =============================================================================
 // Middleware
 // =============================================================================
 
@@ -500,6 +575,13 @@ export async function proxy(request: NextRequest): Promise<Response> {
     return withSession(overLimit as NextResponse, session);
   }
 
+  // --- Members only ---
+  // A referral link is for a stranger, and a stranger is exactly who lands
+  // here, so the ?ref= cookie rides the redirect to /login too.
+  if (!isPublicPath(pathname) && !isSignedIn(request) && !(await hasCrawlPass(request))) {
+    return withSession(withReferral(request, membersOnlyResponse(request, isApiRoute)), session);
+  }
+
   // --- Profile enforcement: authenticated users must select a profile ---
   const hasAuth = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const hasProfile = request.cookies.get('x-profile-id')?.value;
@@ -514,18 +596,21 @@ export async function proxy(request: NextRequest): Promise<Response> {
     }
   }
 
-  const response = NextResponse.next();
+  return withSession(withReferral(request, NextResponse.next()), session);
+}
 
-  // --- Referral cookie ---
-  // Validate ref before storing: alphanumeric + hyphens/underscores, max 64
-  // chars. Without validation, an attacker can inject arbitrary values via a
-  // crafted URL, enabling referral fraud and overflowing the cookie header.
+/**
+ * Store a valid ?ref= on the outgoing response. Validated before storing:
+ * alphanumeric plus hyphens and underscores, at most 64 characters. Without
+ * that, a crafted URL could inject arbitrary values, enabling referral fraud
+ * and overflowing the cookie header.
+ */
+function withReferral<T extends NextResponse>(request: NextRequest, response: T): T {
   const ref = request.nextUrl.searchParams.get('ref');
   if (ref && /^[a-zA-Z0-9_-]{1,64}$/.test(ref)) {
     trackReferralCode(request, response);
   }
-
-  return withSession(response, session);
+  return response;
 }
 
 export const config = {
