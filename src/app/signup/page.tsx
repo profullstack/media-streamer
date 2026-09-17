@@ -219,6 +219,25 @@ export default function SignupPage(): React.ReactElement {
             </button>
           </form>
 
+          {/* Sign up with nixamp: an account here from the one there, no password */}
+          <div className="mt-6">
+            <div className="relative text-center text-xs text-text-muted mb-4">
+              <span className="bg-bg-secondary px-2 relative z-10">or</span>
+              <span className="absolute inset-x-0 top-1/2 border-t border-border-subtle" aria-hidden="true" />
+            </div>
+            <a
+              href="/api/v1/nixamp/oauth/start?redirect=%2F"
+              className={cn(
+                'w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3',
+                'border border-border-default bg-bg-tertiary text-text-primary font-medium',
+                'hover:border-accent-primary transition-colors'
+              )}
+            >
+              <span aria-hidden="true">⣿</span>
+              <span>Continue with nixamp</span>
+            </a>
+          </div>
+
           {/* Sign in link */}
           <p className="mt-6 text-center text-sm text-text-secondary">
             Already have an account?{' '}

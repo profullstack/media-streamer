@@ -13,6 +13,8 @@ const nixamp = vi.hoisted(() => ({
   endBridgedParty: vi.fn(),
   getBridgedRoom: vi.fn(),
   pushPlayback: vi.fn(),
+  readRoomChat: vi.fn(),
+  postRoomChat: vi.fn(),
   NixampNotConnected: class NixampNotConnected extends Error {},
   NixampConnectionLost: class NixampConnectionLost extends Error {},
 }));
@@ -129,7 +131,7 @@ describe('POST', () => {
     nixamp.bridgeParty.mockRejectedValue(new nixamp.NixampNotConnected());
     const res = await POST(post({ code: 'ABC123' }));
     expect(res.status).toBe(409);
-    expect((await res.json()).connect).toBe('/api/v1/nixamp/oauth/start');
+    expect((await res.json()).connect).toBe('/api/v1/nixamp/oauth/start?redirect=%2Fwatch-party%3Fcode%3DABC123');
   });
 
   it('says to connect again when the grant has been withdrawn', async () => {
@@ -148,5 +150,40 @@ describe('POST', () => {
   it('will not take an action it does not have', async () => {
     const res = await POST(post({ code: 'ABC123', action: 'delete-everything' }));
     expect(res.status).toBe(400);
+  });
+});
+
+describe('chat', () => {
+  it('reads the room to anybody, since the code was the invitation', async () => {
+    auth.getCurrentUser.mockResolvedValue(null);
+    nixamp.getBridgedRoom.mockResolvedValue(room);
+    nixamp.readRoomChat.mockResolvedValue([{ id: 'm1', authorName: 'chovy', body: 'hi', createdAt: '2026-09-17T00:00:00.000Z' }]);
+    const res = await GET(new NextRequest('https://bittorrented.test/api/watch-party/nixamp?code=ABC123&chat=1&after=2026-09-16T00:00:00.000Z'));
+    expect(res.status).toBe(200);
+    expect((await res.json()).messages).toHaveLength(1);
+    expect(nixamp.readRoomChat).toHaveBeenCalledWith(room, '2026-09-16T00:00:00.000Z');
+  });
+
+  it('lets any member post, as their own nixamp self', async () => {
+    auth.getCurrentUser.mockResolvedValue({ id: 'user-2', email: 'b@b.test' });
+    nixamp.getBridgedRoom.mockResolvedValue(room);
+    nixamp.postRoomChat.mockResolvedValue({ id: 'm2', authorName: 'bob', body: 'hello', createdAt: 'now' });
+    const res = await POST(post({ code: 'ABC123', action: 'chat', body: 'hello' }));
+    expect(res.status).toBe(200);
+    expect(nixamp.postRoomChat).toHaveBeenCalledWith('user-2', room, 'hello');
+  });
+
+  it('sends a member without nixamp to connect it, and back to this party', async () => {
+    auth.getCurrentUser.mockResolvedValue({ id: 'user-2', email: 'b@b.test' });
+    nixamp.getBridgedRoom.mockResolvedValue(room);
+    nixamp.postRoomChat.mockRejectedValue(new nixamp.NixampNotConnected());
+    const res = await POST(post({ code: 'ABC123', action: 'chat', body: 'hello' }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).connect).toBe('/api/v1/nixamp/oauth/start?redirect=%2Fwatch-party%3Fcode%3DABC123');
+  });
+
+  it('has nothing to say in a party that is not on nixamp', async () => {
+    const res = await POST(post({ code: 'ABC123', action: 'chat', body: 'hello' }));
+    expect(res.status).toBe(409);
   });
 });

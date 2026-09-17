@@ -22,6 +22,15 @@ export interface NixampPanelProps {
   /** Where the host's own player is, asked for at the moment of a sync. */
   positionSeconds?: () => { positionSeconds: number; playing: boolean };
   mediaTitle?: string;
+  /**
+   * Bridge without being asked, once. A host who has already connected nixamp
+   * has said what they want; the button is for the one who has not.
+   */
+  autoBridge?: boolean;
+  /** Bumped by the host's player on play, pause and seek: sync now, not in 15 s. */
+  syncSignal?: number;
+  /** Told whether the party is on nixamp, so the page can open the chat. */
+  onRoom?: (bridged: boolean) => void;
 }
 
 interface Room {
@@ -43,7 +52,15 @@ interface BridgeAnswer {
 /** How often the host's position is pushed while a bridged party is playing. */
 const SYNC_EVERY_MS = 15_000;
 
-export function NixampPanel({ partyCode, isHost, positionSeconds, mediaTitle }: NixampPanelProps): React.ReactElement | null {
+export function NixampPanel({
+  partyCode,
+  isHost,
+  positionSeconds,
+  mediaTitle,
+  autoBridge = false,
+  syncSignal = 0,
+  onRoom,
+}: NixampPanelProps): React.ReactElement | null {
   const [room, setRoom] = useState<Room | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +74,15 @@ export function NixampPanel({ partyCode, isHost, positionSeconds, mediaTitle }: 
   useEffect(() => {
     positionRef.current = positionSeconds;
   }, [positionSeconds]);
+  const onRoomRef = useRef(onRoom);
+  useEffect(() => {
+    onRoomRef.current = onRoom;
+  }, [onRoom]);
+  useEffect(() => {
+    onRoomRef.current?.(room !== null);
+  }, [room]);
 
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -67,6 +92,8 @@ export function NixampPanel({ partyCode, isHost, positionSeconds, mediaTitle }: 
         if (alive && body.bridged && body.room) setRoom(body.room);
       } catch {
         // Not bridged, as far as anybody here is concerned.
+      } finally {
+        if (alive) setAsked(true);
       }
     })();
     return () => {
@@ -108,6 +135,24 @@ export function NixampPanel({ partyCode, isHost, positionSeconds, mediaTitle }: 
     const where = positionRef.current?.();
     await post({ action: 'sync', ...(where ?? {}) });
   }, [post]);
+
+  // A connected host's party goes on nixamp the moment they open it. The
+  // answer is idempotent on both sides, so a reload asks for the same room.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (!autoBridge || !isHost || !asked || room || autoTried.current) return;
+    autoTried.current = true;
+    void bridge();
+  }, [autoBridge, isHost, asked, room, bridge]);
+
+  // The host pressed play, paused or seeked: everybody on nixamp should know
+  // now, not at the next quarter-minute.
+  const lastSignal = useRef(syncSignal);
+  useEffect(() => {
+    if (syncSignal === lastSignal.current) return;
+    lastSignal.current = syncSignal;
+    if (room && isHost) void sync();
+  }, [syncSignal, room, isHost, sync]);
 
   // While a host holds a bridged party, the position goes over on its own.
   // Somebody opening the room from a terminal an hour in should land an hour

@@ -13,17 +13,35 @@ import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/icons';
 
+/** What went wrong on the way back from nixamp, in words. */
+const NIXAMP_REFUSALS: Record<string, string> = {
+  access_denied: 'You did not allow it on nixamp, so nothing was signed in.',
+  no_email: 'nixamp did not share an email address, and one is needed to know which account here is yours.',
+  state_mismatch: 'That nixamp sign-in took too long or was reused. Try it again.',
+  exchange_failed: 'nixamp did not finish the sign-in. Try it again.',
+};
+
+/** Sign in with nixamp, landing wherever the visit was going. */
+function nixampSignInHref(redirect: string): string {
+  return `/api/v1/nixamp/oauth/start?redirect=${encodeURIComponent(redirect)}`;
+}
+
 export default function LoginPage(): React.ReactElement {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
 
+  const [redirect, setRedirect] = useState('/');
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setReason(params.get('reason'));
+    setRedirect(params.get('redirect') || '/');
+    const refused = params.get('nixamp_error');
+    if (refused) setError(NIXAMP_REFUSALS[refused] ?? `nixamp sign-in did not finish (${refused}).`);
   }, []);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -170,6 +188,28 @@ export default function LoginPage(): React.ReactElement {
               )}
             </button>
           </form>
+
+          {/* Sign in with nixamp: the same person, as nixamp.com knows them */}
+          <div className="mt-6">
+            <div className="relative text-center text-xs text-text-muted mb-4">
+              <span className="bg-bg-secondary px-2 relative z-10">or</span>
+              <span className="absolute inset-x-0 top-1/2 border-t border-border-subtle" aria-hidden="true" />
+            </div>
+            <a
+              href={nixampSignInHref(redirect)}
+              className={cn(
+                'w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3',
+                'border border-border-default bg-bg-tertiary text-text-primary font-medium',
+                'hover:border-accent-primary transition-colors'
+              )}
+            >
+              <span aria-hidden="true">⣿</span>
+              <span>Sign in with nixamp</span>
+            </a>
+            <p className="mt-2 text-center text-xs text-text-muted">
+              OAuth 2.1 with nixamp.com. A watch party here is a room there.
+            </p>
+          </div>
 
           {/* Sign up link */}
           <p className="mt-6 text-center text-sm text-text-secondary">
