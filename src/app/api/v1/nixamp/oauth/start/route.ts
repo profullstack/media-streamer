@@ -1,8 +1,11 @@
 /**
  * GET /api/v1/nixamp/oauth/start
  *
- * Begins the OAuth 2.1 flow that connects a nixamp account to this one.
+ * Begins the OAuth 2.1 flow that connects a nixamp account to this one, or,
+ * for somebody signed out, signs them in here as their nixamp self.
  * nixamp is the authorization server; we are the client.
+ *
+ *   ?redirect=/watch-party?code=ABC123   where to land afterwards (this site only)
  *
  * Two secrets go out in one httpOnly cookie and neither ever reaches the
  * browser's JavaScript: the CSRF state, which proves the callback belongs to
@@ -22,17 +25,18 @@ import {
   getNixampOAuthConfig,
   NIXAMP_OAUTH_STATE_COOKIE,
   NIXAMP_OAUTH_STATE_MAX_AGE_SECONDS,
+  safeRedirect,
 } from '@/lib/nixamp';
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const origin = new URL(request.url).origin;
+  const url = new URL(request.url);
+  const origin = url.origin;
+  const redirect = safeRedirect(url.searchParams.get('redirect'));
   const user = await getCurrentUser();
-  if (!user) {
-    // Connecting is an act of an account: there has to be one to connect TO.
-    const back = new URL('/login', origin);
-    back.searchParams.set('redirect', '/settings?tab=connections');
-    return NextResponse.redirect(back);
-  }
+  // Signed out, this is "Sign in with nixamp": the same round trip, and the
+  // callback makes the account here from the identity there. Signed in, it
+  // connects nixamp to the account that is already here.
+  const signin = !user;
 
   let config;
   try {
@@ -48,7 +52,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const authUrl = buildAuthUrl(config, metadata, state, await codeChallenge(verifier));
 
   const response = NextResponse.redirect(authUrl);
-  response.cookies.set(NIXAMP_OAUTH_STATE_COOKIE, JSON.stringify({ state, verifier }), {
+  response.cookies.set(NIXAMP_OAUTH_STATE_COOKIE, JSON.stringify({ state, verifier, redirect, signin }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

@@ -27,11 +27,13 @@ export const NIXAMP_DEFAULT_CLIENT_ID = 'bittorrented';
  *
  * `profile` is the handle, which is what a party shows other people --
  * never the account email, which on nixamp is a credential rather than a
- * name. `parties` is the whole point. `offline_access` keeps the connection
- * alive across the hour an access token lives, so somebody who connected on
- * Monday can still host on Friday without approving again.
+ * name. `email` is that address, asked for because "Sign in with nixamp" has
+ * to know which account here is theirs, and is used for nothing else.
+ * `parties` is the whole point. `offline_access` keeps the connection alive
+ * across the hour an access token lives, so somebody who connected on Monday
+ * can still host on Friday without approving again.
  */
-export const NIXAMP_SCOPES = ['profile', 'parties', 'offline_access'] as const;
+export const NIXAMP_SCOPES = ['profile', 'email', 'parties', 'offline_access'] as const;
 
 /** Cookie holding the PKCE verifier and CSRF state during the round trip. */
 export const NIXAMP_OAUTH_STATE_COOKIE = 'nixamp_oauth';

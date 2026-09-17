@@ -443,6 +443,9 @@ const PUBLIC_PATHS = [
   '/sw.js',
   '/.well-known',
   '/api/auth',
+  // Sign in with nixamp: the OAuth round trip starts and ends without a
+  // session here, because getting one is what it is for.
+  '/api/v1/nixamp/oauth',
   '/api/webhooks',
   '/api/cron',
   '/api/health',

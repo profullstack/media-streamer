@@ -49,7 +49,21 @@ export {
   bridgeParty,
   endBridgedParty,
   getBridgedRoom,
+  postRoomChat,
   pushPlayback,
+  readRoomChat,
   watchPartyUrl,
   type BridgedRoom,
+  type RoomChatMessage,
 } from './rooms';
+
+export {
+  AUTH_COOKIE_MAX_AGE,
+  AUTH_COOKIE_NAME,
+  NixampSignInError,
+  safeRedirect,
+  sessionCookieValue,
+  sessionForNixampIdentity,
+  type MintedSession,
+  type NixampIdentity,
+} from './signin';

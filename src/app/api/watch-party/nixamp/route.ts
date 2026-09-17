@@ -1,8 +1,10 @@
 /**
  * The bridge between a watch party here and a room on nixamp.
  *
- *   GET  /api/watch-party/nixamp?code=ABC123   where the room is (public)
- *   POST /api/watch-party/nixamp               bridge, sync or end (host only)
+ *   GET  /api/watch-party/nixamp?code=ABC123          where the room is (public)
+ *   GET  /api/watch-party/nixamp?code=ABC123&chat=1   the room's chat (public)
+ *   POST /api/watch-party/nixamp                      bridge, sync or end (host only)
+ *                                                     chat (any member with nixamp connected)
  *
  * The film stays here; the room goes there. Once a party is bridged, anybody
  * on nixamp -- the web app, the terminal, the desktop app, a television, an
@@ -29,13 +31,17 @@ import {
   bridgeParty,
   endBridgedParty,
   getBridgedRoom,
+  postRoomChat,
   pushPlayback,
+  readRoomChat,
 } from '@/lib/nixamp';
 import { getParty } from '../_store';
 
 interface BridgeBody {
   code?: string;
-  action?: 'bridge' | 'sync' | 'end';
+  action?: 'bridge' | 'sync' | 'end' | 'chat';
+  /** For `chat`: the line. */
+  body?: string;
   title?: string;
   mediaTitle?: string;
   positionSeconds?: number;
@@ -51,11 +57,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const code = cleanCode(new URL(request.url).searchParams.get('code'));
   if (!code) return NextResponse.json({ error: 'A valid party code is required' }, { status: 400 });
 
+  const params = new URL(request.url).searchParams;
   const room = await getBridgedRoom(code);
   if (!room) {
     // Not an error: most parties are never bridged, and the page asks about
     // every one it shows.
     return NextResponse.json({ success: true, bridged: false });
+  }
+  if (params.get('chat')) {
+    try {
+      const messages = await readRoomChat(room, params.get('after') ?? undefined);
+      return NextResponse.json({ success: true, bridged: true, messages });
+    } catch (error) {
+      console.error('[WatchParty] nixamp chat read failed:', error);
+      return NextResponse.json({ error: 'Could not read the room' }, { status: 502 });
+    }
   }
   return NextResponse.json({
     success: true,
@@ -85,14 +101,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const party = getParty(code);
   if (!party) return NextResponse.json({ error: 'Party not found' }, { status: 404 });
-  if (party.hostId !== user.id) {
-    return NextResponse.json({ error: 'Only the host can put this party on nixamp' }, { status: 403 });
-  }
 
   const origin = new URL(request.url).origin;
   const action = body.action ?? 'bridge';
 
   try {
+    if (action === 'chat') {
+      // Any member, not only the host: the line is signed with their own
+      // nixamp handle, which is the whole reason it needs their own account.
+      const text = typeof body.body === 'string' ? body.body.trim() : '';
+      if (!text) return NextResponse.json({ error: 'Say something' }, { status: 400 });
+      const room = await getBridgedRoom(code);
+      if (!room) return NextResponse.json({ error: 'This party is not on nixamp yet' }, { status: 409 });
+      const message = await postRoomChat(user.id, room, text);
+      return NextResponse.json({ success: true, message });
+    }
+
+    if (party.hostId !== user.id) {
+      return NextResponse.json({ error: 'Only the host can put this party on nixamp' }, { status: 403 });
+    }
+
     if (action === 'bridge') {
       const room = await bridgeParty({
         userId: user.id,
@@ -132,17 +160,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ error: 'action must be bridge, sync or end' }, { status: 400 });
   } catch (error) {
+    // Back to this party once nixamp is connected, not to the settings page.
+    const connect = `/api/v1/nixamp/oauth/start?redirect=${encodeURIComponent(`/watch-party?code=${code}`)}`;
     if (error instanceof NixampNotConnected) {
-      return NextResponse.json(
-        { error: 'Connect your nixamp account first.', connect: '/api/v1/nixamp/oauth/start' },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'Connect your nixamp account first.', connect }, { status: 409 });
     }
     if (error instanceof NixampConnectionLost) {
-      return NextResponse.json(
-        { error: 'That nixamp connection has ended. Connect it again.', connect: '/api/v1/nixamp/oauth/start' },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'That nixamp connection has ended. Connect it again.', connect }, { status: 409 });
     }
     console.error('[WatchParty] nixamp bridge failed:', error);
     return NextResponse.json({ error: 'Could not reach nixamp' }, { status: 502 });

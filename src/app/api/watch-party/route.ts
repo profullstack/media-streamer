@@ -18,6 +18,7 @@ import {
   type PartySettings,
 } from '@/lib/watch-party';
 import { getParty, setParty, cleanupOldParties } from './_store';
+import { isHostOf } from './_view';
 
 interface CreatePartyBody {
   hostId?: string;
@@ -173,7 +174,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 interface UpdatePartyBody {
   code: string;
-  hostId: string;
+  hostId?: string;
   mediaUrl?: string;
   mediaTitle?: string;
   torrentId?: string;
@@ -196,13 +197,6 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (!body.hostId || typeof body.hostId !== 'string') {
-      return NextResponse.json(
-        { error: 'Host ID is required' },
-        { status: 400 }
-      );
-    }
-
     const code = body.code.toUpperCase();
 
     if (!validatePartyCode(code)) {
@@ -221,8 +215,10 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Verify the requester is the host
-    if (party.hostId !== body.hostId) {
+    // Verify the requester is the host: the session for a signed-in host,
+    // the guest id only for a guest-hosted party.
+    const user = await getCurrentUser();
+    if (!isHostOf(party, user?.id, typeof body.hostId === 'string' ? body.hostId : undefined)) {
       return NextResponse.json(
         { error: 'Only the host can update party media' },
         { status: 403 }

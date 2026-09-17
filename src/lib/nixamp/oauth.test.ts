@@ -78,7 +78,7 @@ describe('the authorization URL', () => {
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(url.searchParams.get('code_challenge')).toHaveLength(43);
     expect(url.searchParams.get('redirect_uri')).toBe(config.redirectUri);
-    expect(url.searchParams.get('scope')).toBe('profile parties offline_access');
+    expect(url.searchParams.get('scope')).toBe('profile email parties offline_access');
     expect(url.searchParams.get('state')).toBe('st4te');
   });
 });
@@ -126,7 +126,7 @@ describe('the token endpoint', () => {
       // A public client sends no secret, and PKCE is what replaces it.
       expect(body.get('client_secret')).toBeNull();
       return new Response(
-        JSON.stringify({ access_token: 'nxa_1_a', token_type: 'Bearer', expires_in: 3600, refresh_token: 'nxr_1_b', scope: 'profile parties offline_access' }),
+        JSON.stringify({ access_token: 'nxa_1_a', token_type: 'Bearer', expires_in: 3600, refresh_token: 'nxr_1_b', scope: 'profile email parties offline_access' }),
         { status: 200, headers: { 'content-type': 'application/json' } }
       );
     }) as unknown as typeof fetch;
@@ -174,7 +174,7 @@ describe('refresh rotation', () => {
       access_token: 'nxa_2_a',
       refresh_token: 'nxr_2_b',
       expires_in: 3600,
-      scope: 'profile parties offline_access',
+      scope: 'profile email parties offline_access',
     });
     const next = await refreshTokens(config, metadata, 'nxr_1_b', fetcher);
     expect(next.refresh_token).toBe('nxr_2_b');

@@ -195,3 +195,54 @@ export async function endBridgedParty(userId: string, partyCode: string, fetcher
     return false;
   }
 }
+
+// ---- the room's chat --------------------------------------------------------
+//
+// A bridged party's chat is the nixamp room's chat, and nothing else: the
+// same lines are read in the nixamp app, the terminal, the desktop app and
+// on a television, so a member here is in the same conversation as a member
+// there. Reading needs no account -- the party is unlisted, and the code is
+// the invitation -- but a line is signed with a nixamp handle, so posting
+// takes the member's own nixamp connection.
+
+export interface RoomChatMessage {
+  id: string;
+  authorId?: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+}
+
+/** The lines since `after` (an ISO time), oldest first. */
+export async function readRoomChat(
+  room: BridgedRoom,
+  after?: string,
+  fetcher: typeof fetch = fetch
+): Promise<RoomChatMessage[]> {
+  const url = new URL(`${room.nixampSite}/api/v1/events/${encodeURIComponent(room.eventId)}/chat`);
+  if (after) url.searchParams.set('after', after);
+  const res = await fetcher(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`nixamp would not read the room (${res.status})`);
+  const body = (await res.json().catch(() => ({}))) as { messages?: RoomChatMessage[] };
+  return body.messages ?? [];
+}
+
+/** Say something in the room, as the member's own nixamp account. */
+export async function postRoomChat(
+  userId: string,
+  room: BridgedRoom,
+  text: string,
+  fetcher: typeof fetch = fetch
+): Promise<RoomChatMessage> {
+  const account = await getNixampAccount(userId);
+  if (!account) throw new NixampNotConnected();
+  const { accessToken } = await usableAccessToken(account, fetcher);
+  const res = await fetcher(`${room.nixampSite}/api/v1/events/${encodeURIComponent(room.eventId)}/chat`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body: text }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { message?: RoomChatMessage; error?: string };
+  if (!res.ok || !body.message) throw new Error(body.error ?? `nixamp would not take that line (${res.status})`);
+  return body.message;
+}
