@@ -41,8 +41,8 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2
       '@profullstack/x402-gateway':
-        specifier: ^0.6.0
-        version: 0.6.0
+        specifier: ^0.7.0
+        version: 0.7.0
       '@radix-ui/react-dialog':
         specifier: ^1.1.23
         version: 1.1.23(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1280,6 +1280,10 @@ packages:
     resolution: {integrity: sha512-RGLGfQhjq40f+JqEhSmsJnS0I5sFWjYdrYx4VYtkUqz8xvioN2yyR+6uFK0mnDAStKrYytlngg3meUsrChm/OQ==}
     engines: {node: '>=20'}
 
+  '@profullstack/keys@0.1.0':
+    resolution: {integrity: sha512-Vys47LvS5ivhdZu4SYOxh9Le3DEmWhjP0+CtrU45RhXAbY0ZFG/2Dk9V1bIIUGDp8UWMJqctvUD21JrNjfh04w==}
+    engines: {node: '>=20.11'}
+
   '@profullstack/player@0.7.0':
     resolution: {integrity: sha512-DmshIcHTrWVl0A2p4DpuV7kI5hXPdaSL7zHesJVszA93cGyucaYppvvRm8S1eCC7GgyA8X0iRFKFdcF0P3LUrw==}
     engines: {node: '>=20'}
@@ -1319,6 +1323,10 @@ packages:
 
   '@profullstack/x402-gateway@0.6.0':
     resolution: {integrity: sha512-n9/7NixIM9wVOMGWDc+3RtFsGABG+HAYfkZ11JxoEIlF/FDRGEXbvHFlNL/M97RNy01964FhAbQp34OMJoxqZg==}
+    engines: {node: '>=20.11'}
+
+  '@profullstack/x402-gateway@0.7.0':
+    resolution: {integrity: sha512-xsZRWHdOD9Y9EuRS4PsRmykVS2geOu/luY0jBlliOF3SEgxiLhgmx7ks+2jOUtGlq+cIfSonnk5eEObRGCOJ9w==}
     engines: {node: '>=20.11'}
 
   '@puppeteer/browsers@3.2.2':
@@ -6148,6 +6156,8 @@ snapshots:
 
   '@profullstack/form-guard@0.1.1': {}
 
+  '@profullstack/keys@0.1.0': {}
+
   '@profullstack/player@0.7.0(react@19.3.0)':
     dependencies:
       hls.js: 1.7.3
@@ -6173,6 +6183,10 @@ snapshots:
       '@profullstack/x402-gateway': 0.6.0
 
   '@profullstack/x402-gateway@0.6.0': {}
+
+  '@profullstack/x402-gateway@0.7.0':
+    dependencies:
+      '@profullstack/keys': 0.1.0
 
   '@puppeteer/browsers@3.2.2(yauzl@2.10.0)':
     dependencies:
