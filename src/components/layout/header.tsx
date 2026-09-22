@@ -12,7 +12,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, LogOutIcon, SettingsIcon, ChevronDownIcon, UsersIcon } from '@/components/ui/icons';
+import { SearchIcon, LoadingSpinner, UserIcon, LogInIcon, LogOutIcon, SettingsIcon, ChevronDownIcon, UsersIcon, KeyIcon } from '@/components/ui/icons';
 
 /**
  * Search categories for filtering
@@ -31,12 +31,14 @@ type SearchCategory = typeof SEARCH_CATEGORIES[number]['value'];
 export interface HeaderProps {
   className?: string;
   isLoggedIn?: boolean;
+  /** Shows the Admin link in the user menu. */
+  isAdmin?: boolean;
   userEmail?: string;
   displayName?: string;
   onLogout?: () => void;
 }
 
-export function Header({ className, isLoggedIn = false, userEmail, displayName, onLogout }: HeaderProps): React.ReactElement {
+export function Header({ className, isLoggedIn = false, isAdmin = false, userEmail, displayName, onLogout }: HeaderProps): React.ReactElement {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('');
@@ -257,6 +259,23 @@ export function Header({ className, isLoggedIn = false, userEmail, displayName, 
                     <SettingsIcon size={16} />
                     <span>Account Settings</span>
                   </Link>
+
+                  {/* Admin console, admins only */}
+                  {isAdmin ? (
+                    <Link
+                      href="/admin"
+                      onClick={handleUserMenuLinkClick}
+                      data-testid="user-menu-admin-link"
+                      className={cn(
+                        'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
+                        'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                        'transition-colors'
+                      )}
+                    >
+                      <KeyIcon size={16} />
+                      <span>Admin</span>
+                    </Link>
+                  ) : null}
 
                   {/* Divider */}
                   <div className="my-1 border-t border-border-subtle" />

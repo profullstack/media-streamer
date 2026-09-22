@@ -385,6 +385,8 @@ function withSession<T extends NextResponse>(response: T, update: SessionCookieU
  */
 const PROFILE_EXEMPT_PATHS = [
   '/select-profile',
+  // The admin console is account-level; it does not need a viewing profile.
+  '/admin',
   '/login',
   '/signup',
   '/auth',

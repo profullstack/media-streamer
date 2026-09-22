@@ -59,6 +59,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
         {/* Header */}
         <Header
           isLoggedIn={isLoggedIn}
+          isAdmin={user?.is_admin === true}
           userEmail={user?.email}
           displayName={activeProfile?.name}
           onLogout={handleLogout}

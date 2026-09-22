@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
-import { findAuthUserByEmail, requireAdminUser } from "@/lib/admin";
+import { findAuthUserByEmail, requireAdminUser, setUserAdmin } from "@/lib/admin";
 import { getServerClient } from "@/lib/supabase";
 
 type Ok<T = undefined> = { ok: true } & (T extends undefined ? object : T);
@@ -85,4 +85,27 @@ export async function upgradeUserByEmail(input: {
 
   revalidatePath("/admin");
   return { ok: true, email: target.email, tier: input.tier, expiresAt };
+}
+
+export async function setUserAdminByUserId(input: {
+  userId: string;
+  isAdmin: boolean;
+}): Promise<Ok | Err> {
+  const adminCheck = await assertAdmin();
+  if (!adminCheck.ok) return adminCheck;
+
+  const userId = input.userId.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return { ok: false, error: "Valid user id is required." };
+  if (userId === adminCheck.adminId && !input.isAdmin) {
+    return { ok: false, error: "You cannot revoke your own admin access." };
+  }
+
+  try {
+    await setUserAdmin(userId, Boolean(input.isAdmin));
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Failed to update admin flag." };
+  }
+
+  revalidatePath("/admin/users");
+  return { ok: true };
 }
