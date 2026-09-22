@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { checkUserAdmin } from '@/lib/admin';
 
 /**
  * Cookie name for auth token
@@ -130,12 +131,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Get user subscription info
-  const { data: subscription } = await supabase
-    .from('user_subscriptions')
-    .select('tier, status, trial_expires_at, subscription_expires_at')
-    .eq('user_id', user.id)
-    .single();
+  // Get user subscription info and the admin flag (drives the Admin link in the header)
+  const [{ data: subscription }, adminCheck] = await Promise.all([
+    supabase
+      .from('user_subscriptions')
+      .select('tier, status, trial_expires_at, subscription_expires_at')
+      .eq('user_id', user.id)
+      .single(),
+    checkUserAdmin(user.id).catch(() => ({ isAdmin: false, source: null })),
+  ]);
 
   // Check if subscription is expired
   const now = new Date();
@@ -161,6 +165,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     subscription_expires_at: subscription?.subscription_expires_at ?? null,
     display_name: user.user_metadata?.display_name as string | undefined,
     avatar_url: user.user_metadata?.avatar_url as string | undefined,
+    is_admin: adminCheck.isAdmin,
   };
 
   const response = NextResponse.json(

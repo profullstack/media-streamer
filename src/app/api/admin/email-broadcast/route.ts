@@ -41,11 +41,13 @@ function bodyToHtml(body: string): string {
 </html>`;
 }
 
-async function assertAdmin(request: NextRequest): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+async function assertAdmin(
+  request: NextRequest
+): Promise<{ ok: true; email: string } | { ok: false; status: number; error: string }> {
   const user = await getAuthenticatedUser(request);
   if (!user) return { ok: false, status: 401, error: "Authentication required" };
   if (!(await requireAdminUser(user.id))) return { ok: false, status: 403, error: "Admin only" };
-  return { ok: true };
+  return { ok: true, email: user.email };
 }
 
 export async function GET(request: NextRequest) {
@@ -63,9 +65,12 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     subject?: unknown;
     body?: unknown;
+    test?: unknown;
   } | null;
   const subject = typeof body?.subject === "string" ? body.subject.trim() : "";
   const text = typeof body?.body === "string" ? body.body.trim() : "";
+  // A test send goes to the admin alone, so a typo never reaches every account.
+  const test = body?.test === true;
 
   if (!subject) return NextResponse.json({ error: "Subject is required" }, { status: 400 });
   if (!text) return NextResponse.json({ error: "Email body is required" }, { status: 400 });
@@ -73,13 +78,13 @@ export async function POST(request: NextRequest) {
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) return NextResponse.json({ error: "RESEND_API_KEY is not configured" }, { status: 500 });
 
-  const emails = await listAuthUserEmails();
+  const emails = test ? [admin.email.trim().toLowerCase()] : await listAuthUserEmails();
   if (emails.length === 0) return NextResponse.json({ error: "No recipient emails found" }, { status: 400 });
 
   const emailer = createEmailer({ resendApiKey, defaultFrom: getFromAddress() });
   const result = await emailer.sendBulk({
     to: emails,
-    subject,
+    subject: test ? `[TEST] ${subject}` : subject,
     html: bodyToHtml(text),
     text,
     batchSize: 100,
@@ -87,6 +92,7 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({
+    test,
     recipients: emails.length,
     sent: result.sent,
     failed: result.failed,

@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { notFound, redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/auth';
 import { getServerClient } from '@/lib/supabase';
 
 type AnyClient = SupabaseClient<any>;
@@ -37,6 +39,45 @@ export async function checkUserAdmin(
 
 export async function requireAdminUser(userId: string): Promise<boolean> {
   return (await checkUserAdmin(userId)).isAdmin;
+}
+
+export type AdminPageUser = { id: string; email: string };
+
+/**
+ * Page-level admin gate. Sends a logged-out visitor to /login (and back here
+ * afterwards) and gives a signed-in non-admin a 404, so the console's
+ * existence is not confirmed to anyone who is not on it.
+ */
+export async function requireAdminPage(redirectTo = '/admin'): Promise<AdminPageUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect(`/login?redirect=${encodeURIComponent(redirectTo)}`);
+  if (!(await requireAdminUser(user.id))) notFound();
+  return { id: user.id, email: user.email };
+}
+
+/**
+ * Grant or revoke admin. Writes the user_profiles flag when the account has a
+ * profile row, and always mirrors into the legacy admin_users table so both
+ * paths checkUserAdmin() reads stay in agreement.
+ */
+export async function setUserAdmin(
+  userId: string,
+  isAdmin: boolean,
+  client: AnyClient = getServerClient() as AnyClient
+): Promise<void> {
+  const { error: profileError } = await client
+    .from('user_profiles')
+    .update({ is_admin: isAdmin, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  if (profileError) throw new Error(profileError.message);
+
+  if (isAdmin) {
+    const { error } = await client.from('admin_users').upsert({ user_id: userId }, { onConflict: 'user_id' });
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await client.from('admin_users').delete().eq('user_id', userId);
+    if (error) throw new Error(error.message);
+  }
 }
 
 export async function listAuthUserEmails(client: AnyClient = getServerClient() as AnyClient): Promise<string[]> {

@@ -8,11 +8,16 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import { checkUserAdmin } from '@/lib/admin';
 
 // Mock Supabase client - MUST be at top level for hoisting
 const mockSetSession = vi.fn();
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
+
+vi.mock('@/lib/admin', () => ({
+  checkUserAdmin: vi.fn(),
+}));
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: () => ({
@@ -27,6 +32,8 @@ vi.mock('@/lib/supabase', () => ({
 describe('GET /api/auth/me', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // afterEach resets every mock, so the admin check must be re-armed per test.
+    vi.mocked(checkUserAdmin).mockResolvedValue({ isAdmin: false, source: null });
   });
 
   afterEach(() => {
@@ -139,6 +146,7 @@ describe('GET /api/auth/me', () => {
         subscription_expires_at: null,
         display_name: 'Test User',
         avatar_url: 'https://example.com/avatar.jpg',
+        is_admin: false,
       });
     });
 
