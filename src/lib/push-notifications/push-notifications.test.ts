@@ -12,20 +12,26 @@ import {
   type PushSubscriptionData,
   type NotificationPayload,
 } from './push-notifications';
+import { sendPush, type PushResult } from '@profullstack/notifications/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 
-// Mock web-push
-vi.mock('web-push', () => ({
-  setVapidDetails: vi.fn(),
-  sendNotification: vi.fn(),
-  generateVAPIDKeys: vi.fn(function() {
-    return {
-      publicKey: 'test-public-key',
-      privateKey: 'test-private-key',
-    };
-  }),
+// Mock the push sender; everything else in the package stays real
+vi.mock('@profullstack/notifications/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@profullstack/notifications/server')>()),
+  sendPush: vi.fn(),
 }));
+
+/** What sendPush resolves to for an HTTP status */
+function pushResult(status: number, error: string | null = null): PushResult {
+  return {
+    endpoint: 'https://push.example.com/send/abc123',
+    status,
+    sent: status >= 200 && status < 300,
+    gone: status === 404 || status === 410,
+    error,
+  };
+}
 
 // Mock Supabase client
 function createMockClient() {
@@ -185,8 +191,7 @@ describe('PushNotificationService', () => {
 
   describe('sendNotification', () => {
     it('should send notification to a subscription', async () => {
-      const webPush = await import('web-push');
-      (webPush.sendNotification as ReturnType<typeof vi.fn>).mockResolvedValue({ statusCode: 201 });
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
 
       const subscription: PushSubscriptionData = {
         endpoint: 'https://push.example.com/send/abc123',
@@ -208,21 +213,22 @@ describe('PushNotificationService', () => {
       const result = await service.sendNotification(subscription, payload);
 
       expect(result.success).toBe(true);
-      expect(webPush.sendNotification).toHaveBeenCalledWith(
+      expect(sendPush).toHaveBeenCalledWith(
         {
           endpoint: subscription.endpoint,
           keys: subscription.keys,
         },
         JSON.stringify(payload),
-        expect.anything()
+        {
+          keys: { publicKey: 'test-public-key', privateKey: 'test-private-key' },
+          subject: 'mailto:test@example.com',
+          ttl: 60 * 60 * 24,
+        }
       );
     });
 
     it('should return failure when notification fails', async () => {
-      const webPush = await import('web-push');
-      (webPush.sendNotification as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('Push service unavailable')
-      );
+      vi.mocked(sendPush).mockResolvedValue(pushResult(503, 'Push service unavailable'));
 
       const subscription: PushSubscriptionData = {
         endpoint: 'https://push.example.com/send/abc123',
@@ -244,10 +250,7 @@ describe('PushNotificationService', () => {
     });
 
     it('should handle 410 Gone response by marking subscription inactive', async () => {
-      const webPush = await import('web-push');
-      const goneError = new Error('Gone') as Error & { statusCode: number };
-      goneError.statusCode = 410;
-      (webPush.sendNotification as ReturnType<typeof vi.fn>).mockRejectedValue(goneError);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(410, 'push service answered 410'));
 
       mockClient._mocks.eq.mockResolvedValue({ error: null });
 
@@ -296,8 +299,7 @@ describe('PushNotificationService', () => {
       const selectMock = vi.fn().mockReturnValue({ eq: firstEq });
       mockClient._mocks.from.mockReturnValue({ select: selectMock });
 
-      const webPush = await import('web-push');
-      (webPush.sendNotification as ReturnType<typeof vi.fn>).mockResolvedValue({ statusCode: 201 });
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
 
       const payload: NotificationPayload = {
         title: 'New Episode',
@@ -308,7 +310,7 @@ describe('PushNotificationService', () => {
 
       expect(results).toHaveLength(2);
       expect(results.every(r => r.success)).toBe(true);
-      expect(webPush.sendNotification).toHaveBeenCalledTimes(2);
+      expect(sendPush).toHaveBeenCalledTimes(2);
     });
 
     it('should return empty array when user has no subscriptions', async () => {

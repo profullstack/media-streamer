@@ -375,6 +375,7 @@ describe('Supabase session refresh and referral cookie', () => {
         '/api/cron/expire-subscriptions',
         '/api/health',
         '/api/public/shares/abc',
+        '/api/push/vapid-public-key',
       ]) {
         const res = await call(path);
         expect(res.status, path).not.toBe(307);
@@ -386,6 +387,8 @@ describe('Supabase session refresh and referral cookie', () => {
       expect((await call('/blogger')).status).toBe(307);
       expect((await call('/api/authors')).status).toBe(401);
       expect((await call('/loginx')).status).toBe(307);
+      // Only the key is public: subscribing still needs a session
+      expect((await call('/api/push/subscribe')).status).toBe(401);
     });
 
     it('lets a session cookie through', async () => {

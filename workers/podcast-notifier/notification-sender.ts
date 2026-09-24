@@ -4,19 +4,19 @@
  * Sends web push notifications for new podcast episodes.
  */
 
-import webPush from 'web-push';
+import { sendPush, vapidKeysFromEnv, type VapidKeys } from '@profullstack/notifications/server';
 import { PROCESSING_CONFIG, LOG_PREFIX } from './config';
 import type { UserToNotify, NotificationPayload, PushSubscriptionData, Podcast, PodcastEpisode } from './types';
 import { recordNotification, markPushSubscriptionInactive } from './supabase-client';
 
-let vapidConfigured = false;
+let vapidKeys: VapidKeys | null = null;
 let missingVapidWarningLogged = false;
 
 /**
  * Return whether push notifications can be sent.
  */
 export function arePushNotificationsConfigured(): boolean {
-  return Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+  return vapidKeysFromEnv(process.env) !== null;
 }
 
 /**
@@ -34,23 +34,20 @@ function warnMissingVapidConfiguration(): void {
 }
 
 /**
- * Configure VAPID details for web push
+ * VAPID keys for web push, read from the environment once
  */
-function configureVapid(): void {
-  if (vapidConfigured) return;
+function getVapidKeys(): VapidKeys {
+  if (vapidKeys) return vapidKeys;
 
-  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-  const vapidSubject = process.env.VAPID_SUBJECT ?? 'mailto:admin@example.com';
-
-  if (!vapidPublicKey || !vapidPrivateKey) {
+  const keys = vapidKeysFromEnv(process.env);
+  if (!keys) {
     throw new Error(
       'VAPID keys not configured. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY environment variables.'
     );
   }
 
-  webPush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-  vapidConfigured = true;
+  vapidKeys = keys;
+  return keys;
 }
 
 /**
@@ -67,39 +64,44 @@ async function sendPushNotification(
   subscription: PushSubscriptionData,
   payload: NotificationPayload
 ): Promise<{ success: boolean; expired?: boolean; error?: string }> {
+  let keys: VapidKeys;
   try {
-    configureVapid();
-
-    await webPush.sendNotification(
-      {
-        endpoint: subscription.endpoint,
-        keys: subscription.keys,
-      },
-      JSON.stringify(payload),
-      {
-        TTL: 60 * 60 * 24, // 24 hours
-      }
-    );
-
-    return { success: true };
+    keys = getVapidKeys();
   } catch (error) {
-    const err = error as Error & { statusCode?: number };
+    return { success: false, error: (error as Error).message };
+  }
 
-    // Handle expired/invalid subscriptions (410 Gone or 404 Not Found)
-    if (err.statusCode === 410 || err.statusCode === 404) {
-      await markPushSubscriptionInactive(subscription.endpoint);
-      return {
-        success: false,
-        expired: true,
-        error: err.message,
-      };
+  const result = await sendPush(
+    {
+      endpoint: subscription.endpoint,
+      keys: subscription.keys,
+    },
+    JSON.stringify(payload),
+    {
+      keys,
+      subject: process.env.VAPID_SUBJECT ?? 'mailto:admin@example.com',
+      ttl: 60 * 60 * 24, // 24 hours
     }
+  );
 
+  if (result.sent) {
+    return { success: true };
+  }
+
+  // Handle expired/invalid subscriptions (410 Gone or 404 Not Found)
+  if (result.gone) {
+    await markPushSubscriptionInactive(subscription.endpoint);
     return {
       success: false,
-      error: err.message,
+      expired: true,
+      error: result.error ?? `push service answered ${result.status}`,
     };
   }
+
+  return {
+    success: false,
+    error: result.error ?? 'Failed to send notification',
+  };
 }
 
 /**

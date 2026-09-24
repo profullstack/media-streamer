@@ -2,9 +2,11 @@
  * Push Notifications Service
  * 
  * Server-side service for managing web push notifications.
- * Uses the Web Push protocol to send notifications to subscribed browsers.
+ * Sends through @profullstack/notifications (VAPID + RFC 8291 encryption from
+ * node:crypto, no dependencies); keys are the same format web-push used.
  */
 
+import { sendPush, vapidKeysFromEnv } from '@profullstack/notifications/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Database,
@@ -113,20 +115,7 @@ export function createPushNotificationService(
   client: SupabaseClient<Database>,
   config: VapidConfig
 ): PushNotificationService {
-  // Lazy load web-push to avoid issues in environments where it's not available
-  let webPushModule: typeof import('web-push') | null = null;
-
-  async function getWebPush(): Promise<typeof import('web-push')> {
-    if (!webPushModule) {
-      webPushModule = await import('web-push');
-      webPushModule.setVapidDetails(
-        config.vapidSubject,
-        config.vapidPublicKey,
-        config.vapidPrivateKey
-      );
-    }
-    return webPushModule;
-  }
+  const keys = { publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey };
 
   return {
     /**
@@ -182,44 +171,42 @@ export function createPushNotificationService(
       subscription: PushSubscriptionData,
       payload: NotificationPayload
     ): Promise<SendNotificationResult> {
-      try {
-        const webPush = await getWebPush();
-        
-        await webPush.sendNotification(
-          {
-            endpoint: subscription.endpoint,
-            keys: subscription.keys,
-          },
-          JSON.stringify(payload),
-          {
-            TTL: 60 * 60 * 24, // 24 hours
-          }
-        );
-
-        return { success: true };
-      } catch (error) {
-        const err = error as Error & { statusCode?: number };
-        
-        // Handle expired/invalid subscriptions (410 Gone or 404 Not Found)
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          // Mark subscription as inactive
-          await client
-            .from('push_subscriptions')
-            .update({ is_active: false })
-            .eq('endpoint', subscription.endpoint);
-
-          return {
-            success: false,
-            error: err.message,
-            expired: true,
-          };
+      const result = await sendPush(
+        {
+          endpoint: subscription.endpoint,
+          keys: subscription.keys,
+        },
+        JSON.stringify(payload),
+        {
+          keys,
+          subject: config.vapidSubject,
+          ttl: 60 * 60 * 24, // 24 hours
         }
+      );
+
+      if (result.sent) {
+        return { success: true };
+      }
+
+      // Handle expired/invalid subscriptions (410 Gone or 404 Not Found)
+      if (result.gone) {
+        // Mark subscription as inactive
+        await client
+          .from('push_subscriptions')
+          .update({ is_active: false })
+          .eq('endpoint', subscription.endpoint);
 
         return {
           success: false,
-          error: err.message,
+          error: result.error ?? `push service answered ${result.status}`,
+          expired: true,
         };
       }
+
+      return {
+        success: false,
+        error: result.error ?? 'Failed to send notification',
+      };
     },
 
     /**
@@ -313,19 +300,21 @@ let serviceInstance: PushNotificationService | null = null;
  */
 export function getPushNotificationService(): PushNotificationService {
   if (!serviceInstance) {
-    const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-    const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+    // Read at RUN time; vapidKeysFromEnv also accepts the
+    // NEXT_PUBLIC_VAPID_PUBLIC_KEY name, looked up dynamically so Next cannot
+    // inline it at build time.
+    const keys = vapidKeysFromEnv(process.env);
     const vapidSubject = process.env.VAPID_SUBJECT ?? 'mailto:admin@example.com';
 
-    if (!vapidPublicKey || !vapidPrivateKey) {
+    if (!keys) {
       throw new Error(
         'VAPID keys not configured. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY environment variables.'
       );
     }
 
     serviceInstance = createPushNotificationService(getServerClient(), {
-      vapidPublicKey,
-      vapidPrivateKey,
+      vapidPublicKey: keys.publicKey,
+      vapidPrivateKey: keys.privateKey,
       vapidSubject,
     });
   }
