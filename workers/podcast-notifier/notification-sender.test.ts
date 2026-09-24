@@ -7,12 +7,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Podcast, PodcastEpisode, UserToNotify } from './types';
 
-// Mock web-push before importing the module
-vi.mock('web-push', () => ({
-  default: {
-    setVapidDetails: vi.fn(),
-    sendNotification: vi.fn(),
-  },
+// Mock the push sender before importing the module; key parsing stays real
+vi.mock('@profullstack/notifications/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@profullstack/notifications/server')>()),
+  sendPush: vi.fn(),
 }));
 
 // Mock supabase-client
@@ -27,8 +25,19 @@ process.env.VAPID_PRIVATE_KEY = 'test-private-key';
 process.env.VAPID_SUBJECT = 'mailto:test@example.com';
 
 import { sendNewEpisodeNotifications } from './notification-sender';
-import webPush from 'web-push';
+import { sendPush, type PushResult } from '@profullstack/notifications/server';
 import { recordNotification, markPushSubscriptionInactive } from './supabase-client';
+
+/** What sendPush resolves to for one endpoint and HTTP status */
+function pushResult(status: number, error: string | null = null): PushResult {
+  return {
+    endpoint: 'https://push.example.com/user1',
+    status,
+    sent: status >= 200 && status < 300,
+    gone: status === 404 || status === 410,
+    error,
+  };
+}
 
 describe('NotificationSender', () => {
   const mockPodcast: Podcast = {
@@ -90,7 +99,7 @@ describe('NotificationSender', () => {
       const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, []);
 
       expect(result).toEqual({ sent: 0, failed: 0 });
-      expect(webPush.sendNotification).not.toHaveBeenCalled();
+      expect(sendPush).not.toHaveBeenCalled();
     });
 
     it('should skip sending when VAPID keys are missing', async () => {
@@ -103,7 +112,7 @@ describe('NotificationSender', () => {
       const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
 
       expect(result).toEqual({ sent: 0, failed: 0 });
-      expect(webPush.sendNotification).not.toHaveBeenCalled();
+      expect(sendPush).not.toHaveBeenCalled();
       expect(recordNotification).not.toHaveBeenCalled();
 
       process.env.VAPID_PUBLIC_KEY = previousPublicKey;
@@ -111,23 +120,23 @@ describe('NotificationSender', () => {
     });
 
     it('should send notifications to all users successfully', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, mockUsers);
 
       expect(result).toEqual({ sent: 2, failed: 0 });
-      expect(webPush.sendNotification).toHaveBeenCalledTimes(2);
+      expect(sendPush).toHaveBeenCalledTimes(2);
       expect(recordNotification).toHaveBeenCalledTimes(2);
     });
 
     it('should send notification with correct payload structure', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
 
-      expect(webPush.sendNotification).toHaveBeenCalledWith(
+      expect(sendPush).toHaveBeenCalledWith(
         {
           endpoint: 'https://push.example.com/user1',
           keys: {
@@ -137,18 +146,20 @@ describe('NotificationSender', () => {
         },
         expect.stringContaining('"title":"New Episode: Test Podcast"'),
         expect.objectContaining({
-          TTL: 86400, // 24 hours
+          ttl: 86400, // 24 hours
+          subject: 'mailto:test@example.com',
+          keys: { publicKey: 'test-public-key', privateKey: 'test-private-key' },
         })
       );
     });
 
     it('should include episode info in notification body', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
 
-      const call = vi.mocked(webPush.sendNotification).mock.calls[0];
+      const call = vi.mocked(sendPush).mock.calls[0];
       const payload = JSON.parse(call[1] as string);
 
       expect(payload.title).toBe('New Episode: Test Podcast');
@@ -165,7 +176,7 @@ describe('NotificationSender', () => {
     });
 
     it('should truncate long episode titles in notification body', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       const longEpisode: PodcastEpisode = {
@@ -175,7 +186,7 @@ describe('NotificationSender', () => {
 
       await sendNewEpisodeNotifications(mockPodcast, longEpisode, [mockUsers[0]]);
 
-      const call = vi.mocked(webPush.sendNotification).mock.calls[0];
+      const call = vi.mocked(sendPush).mock.calls[0];
       const payload = JSON.parse(call[1] as string);
 
       expect(payload.body.length).toBeLessThanOrEqual(100);
@@ -183,7 +194,7 @@ describe('NotificationSender', () => {
     });
 
     it('should record successful notifications', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
@@ -200,7 +211,7 @@ describe('NotificationSender', () => {
     });
 
     it('should handle failed notifications', async () => {
-      vi.mocked(webPush.sendNotification).mockRejectedValue(new Error('Push failed'));
+      vi.mocked(sendPush).mockResolvedValue(pushResult(500, 'Push failed'));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, mockUsers);
@@ -216,10 +227,7 @@ describe('NotificationSender', () => {
     });
 
     it('should mark expired subscriptions as inactive (410 Gone)', async () => {
-      const expiredError = new Error('Push subscription expired') as Error & { statusCode: number };
-      expiredError.statusCode = 410;
-
-      vi.mocked(webPush.sendNotification).mockRejectedValue(expiredError);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(410, 'push service answered 410'));
       vi.mocked(markPushSubscriptionInactive).mockResolvedValue(undefined);
 
       const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
@@ -231,10 +239,7 @@ describe('NotificationSender', () => {
     });
 
     it('should mark not found subscriptions as inactive (404)', async () => {
-      const notFoundError = new Error('Subscription not found') as Error & { statusCode: number };
-      notFoundError.statusCode = 404;
-
-      vi.mocked(webPush.sendNotification).mockRejectedValue(notFoundError);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(404, 'push service answered 404'));
       vi.mocked(markPushSubscriptionInactive).mockResolvedValue(undefined);
 
       const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
@@ -244,40 +249,42 @@ describe('NotificationSender', () => {
     });
 
     it('should handle mixed success and failure', async () => {
-      vi.mocked(webPush.sendNotification)
-        .mockResolvedValueOnce({} as never) // First succeeds
-        .mockRejectedValueOnce(new Error('Push failed')); // Second fails
+      vi.mocked(sendPush)
+        .mockResolvedValueOnce(pushResult(201)) // First succeeds
+        .mockResolvedValueOnce(pushResult(500, 'Push failed')); // Second fails
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       const result = await sendNewEpisodeNotifications(mockPodcast, mockEpisode, mockUsers);
 
       expect(result).toEqual({ sent: 1, failed: 1 });
-      expect(webPush.sendNotification).toHaveBeenCalledTimes(2);
+      expect(sendPush).toHaveBeenCalledTimes(2);
       expect(recordNotification).toHaveBeenCalledTimes(2);
     });
 
     it('should send with correct TTL value', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
 
-      expect(webPush.sendNotification).toHaveBeenCalledWith(
+      expect(sendPush).toHaveBeenCalledWith(
         expect.any(Object),
         expect.any(String),
         expect.objectContaining({
-          TTL: 86400, // 24 hours
+          ttl: 86400, // 24 hours
+          subject: 'mailto:test@example.com',
+          keys: { publicKey: 'test-public-key', privateKey: 'test-private-key' },
         })
       );
     });
 
     it('should include action buttons in notification', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       await sendNewEpisodeNotifications(mockPodcast, mockEpisode, [mockUsers[0]]);
 
-      const call = vi.mocked(webPush.sendNotification).mock.calls[0];
+      const call = vi.mocked(sendPush).mock.calls[0];
       const payload = JSON.parse(call[1] as string);
 
       expect(payload.actions).toEqual([
@@ -287,7 +294,7 @@ describe('NotificationSender', () => {
     });
 
     it('should handle podcast without image (uses episode image)', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       const podcastWithoutImage: Podcast = {
@@ -297,7 +304,7 @@ describe('NotificationSender', () => {
 
       await sendNewEpisodeNotifications(podcastWithoutImage, mockEpisode, [mockUsers[0]]);
 
-      const call = vi.mocked(webPush.sendNotification).mock.calls[0];
+      const call = vi.mocked(sendPush).mock.calls[0];
       const payload = JSON.parse(call[1] as string);
 
       // Should use episode image when podcast has no image
@@ -305,7 +312,7 @@ describe('NotificationSender', () => {
     });
 
     it('should handle both podcast and episode without image (falls back to app logo)', async () => {
-      vi.mocked(webPush.sendNotification).mockResolvedValue({} as never);
+      vi.mocked(sendPush).mockResolvedValue(pushResult(201));
       vi.mocked(recordNotification).mockResolvedValue(undefined);
 
       const podcastWithoutImage: Podcast = {
@@ -320,7 +327,7 @@ describe('NotificationSender', () => {
 
       await sendNewEpisodeNotifications(podcastWithoutImage, episodeWithoutImage, [mockUsers[0]]);
 
-      const call = vi.mocked(webPush.sendNotification).mock.calls[0];
+      const call = vi.mocked(sendPush).mock.calls[0];
       const payload = JSON.parse(call[1] as string);
 
       // Falls back to app logo when no episode or podcast image

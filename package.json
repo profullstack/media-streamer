@@ -38,6 +38,7 @@
     "@noriginmedia/norigin-spatial-navigation": "^3.3.0",
     "@profullstack/autoblog": "https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af",
     "@profullstack/emailer": "^1.0.3",
+    "@profullstack/notifications": "^0.1.0",
     "@profullstack/player": "0.7.0",
     "@profullstack/referrals": "^0.1.0",
     "@profullstack/stack": "^0.2.0",
@@ -83,7 +84,6 @@
     "tailwind-merge": "^3.7.0",
     "undici": "^8.10.2",
     "video.js": "^8.24.1",
-    "web-push": "^3.6.7",
     "webtorrent": "^3.0.21"
   },
   "devDependencies": {
@@ -99,7 +99,6 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/sax": "^1.2.7",
-    "@types/web-push": "^3.6.4",
     "@types/webtorrent": "^3.0.0",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^5.0.1",

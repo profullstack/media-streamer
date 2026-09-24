@@ -445,6 +445,9 @@ const PUBLIC_PATHS = [
   '/sw.js',
   '/.well-known',
   '/api/auth',
+  // The VAPID public key is public by definition (every subscribed browser
+  // holds it); serving it without a session keeps the push setup checkable.
+  '/api/push/vapid-public-key',
   // Sign in with nixamp: the OAuth round trip starts and ends without a
   // session here, because getting one is what it is for.
   '/api/v1/nixamp/oauth',

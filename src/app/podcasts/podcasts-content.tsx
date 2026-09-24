@@ -14,6 +14,12 @@
 
 import { useState, useCallback, useEffect, useRef, memo, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
+import {
+  getSubscription as getPushSubscription,
+  pushSupport,
+  subscribe as subscribePush,
+  unsubscribe as unsubscribePush,
+} from '@profullstack/notifications/client';
 import DOMPurify from 'isomorphic-dompurify';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
@@ -97,21 +103,6 @@ function decodeHtmlEntities(text: string): string {
   }
   decodeCache.set(text, result);
   return result;
-}
-
-/**
- * Convert base64 VAPID key to Uint8Array for push subscription
- */
-function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const buffer = new ArrayBuffer(rawData.length);
-  const outputArray = new Uint8Array(buffer);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
 }
 
 /**
@@ -413,16 +404,12 @@ export function PodcastsContent(): React.ReactElement {
   // Check push notification support (including actual availability, not just API presence)
   useEffect(() => {
     const checkPushSupport = async (): Promise<void> => {
-      // Check basic API support
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      // Check API support, HTTPS, iOS Home Screen install and a blocked
+      // permission; each comes with a sentence to show instead of the button
+      const support = pushSupport();
+      if (!support.supported) {
         setIsPushSupported(false);
-        return;
-      }
-
-      // Check if notifications are denied at browser level
-      if ('Notification' in window && Notification.permission === 'denied') {
-        setIsPushSupported(false);
-        setPushError('Notifications are blocked in your browser settings');
+        setPushError(support.message);
         return;
       }
 
@@ -766,11 +753,8 @@ export function PodcastsContent(): React.ReactElement {
     const checkPushStatus = async (): Promise<void> => {
       try {
         // Use root scope '/' since that's the default scope when registering /sw.js
-        const registration = await navigator.serviceWorker.getRegistration('/');
-        if (registration) {
-          const subscription = await registration.pushManager.getSubscription();
-          setIsPushEnabled(subscription !== null);
-        }
+        const subscription = await getPushSubscription({ scope: '/' });
+        setIsPushEnabled(subscription !== null);
       } catch (err) {
         console.error('[Podcasts] Error checking push status:', err);
       }
@@ -787,28 +771,22 @@ export function PodcastsContent(): React.ReactElement {
     setPushError(null);
 
     try {
-      const keyResponse = await fetch('/api/push/subscribe');
-      if (!keyResponse.ok) throw new Error('Failed to get push key');
-      const { vapidPublicKey } = await keyResponse.json() as { vapidPublicKey: string };
+      // Asks permission, fetches the VAPID key from /api/push/vapid-public-key
+      // at runtime and registers /sw.js if needed
+      await subscribePush({
+        vapidKeyUrl: '/api/push/vapid-public-key',
+        serviceWorkerUrl: '/sw.js',
+        scope: '/',
+        save: async (subscription) => {
+          const response = await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription }),
+          });
 
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('Notification permission denied. Please allow notifications in your browser settings.');
-
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
-
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          if (!response.ok) throw new Error('Failed to register push subscription');
+        },
       });
-
-      const response = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription: subscription.toJSON() }),
-      });
-
-      if (!response.ok) throw new Error('Failed to register push subscription');
 
       setIsPushEnabled(true);
       setPushError(null);
@@ -829,17 +807,14 @@ export function PodcastsContent(): React.ReactElement {
 
     try {
       // Use root scope '/' since that's the default scope when registering /sw.js
-      const registration = await navigator.serviceWorker.getRegistration('/');
-      if (!registration) throw new Error('Service worker not found');
-
-      const subscription = await registration.pushManager.getSubscription();
+      const subscription = await getPushSubscription({ scope: '/' });
       if (!subscription) {
         setIsPushEnabled(false);
         return;
       }
 
       // Unsubscribe from push manager
-      await subscription.unsubscribe();
+      await unsubscribePush({ scope: '/' });
 
       // Remove subscription from server
       const response = await fetch(
@@ -912,6 +887,9 @@ export function PodcastsContent(): React.ReactElement {
               </button>
               {pushError ? <p className="text-xs text-red-400 max-w-xs text-right">{pushError}</p> : null}
             </div> : null}
+          {isLoggedIn && !isPushSupported && pushError ? (
+            <p className="text-xs text-text-secondary max-w-xs sm:text-right">{pushError}</p>
+          ) : null}
         </div>
 
         {/* Tabs */}
