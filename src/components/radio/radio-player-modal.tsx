@@ -40,7 +40,10 @@ interface RadioPlayerModalProps {
  * but the inventory is one five-second spot and the listener asked for a
  * station, not an ad slot.
  */
-const AD_EVERY_SECONDS = 300;
+// TEMPORARY: 10 seconds while the ad network is being tested end to end.
+// Nobody would ship an advert every ten seconds; this goes back to 300 once
+// the fills, the impressions and the playback have been watched working.
+const AD_EVERY_SECONDS = 10;
 
 export function RadioPlayerModal({
   station,
