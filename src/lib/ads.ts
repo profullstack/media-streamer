@@ -22,7 +22,22 @@ const AD_ORIGIN = process.env.AD_ORIGIN ?? 'https://crawlproof.com';
  * has no advertising relationship and should not spend a request per break
  * being told so.
  */
-const AD_SLOT = process.env.AD_SLOT ?? '';
+/**
+ * bittorrented's own slot at the network.
+ *
+ * Defaulted in code rather than left to the environment, because it is not a
+ * secret: the browser sends it on every break, so it is already public, and a
+ * property's own slot is no more configuration than its own domain is. The
+ * droplet deploy writes .env from one opaque GitHub secret, so leaving it to
+ * the environment meant nobody could add it without rewriting that whole blob
+ * blind — a secret cannot be read back to append to safely.
+ *
+ * AD_SLOT still overrides, which is what a staging copy pointing at a test slot
+ * would use. Setting it to an empty string turns adverts off.
+ */
+const DEFAULT_AD_SLOT = 'a60770cc-ab90-46f5-943d-a820583202cb';
+
+const AD_SLOT = process.env.AD_SLOT ?? DEFAULT_AD_SLOT;
 
 /**
  * How long to wait.
