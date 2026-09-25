@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { proxy as middleware } from './proxy';
+import { isPublicPath, proxy as middleware } from './proxy';
 import { NextRequest, NextResponse } from 'next/server';
 
 /** A response that lets the request carry on to the app (NextResponse.next()). */
@@ -620,5 +620,19 @@ describe('The site-wide allowance', () => {
   it('gives each caller its own allowance', async () => {
     expect(await countUntilLimited('/torrent/abc123', '10.9.0.3', 5)).toBe(5);
     expect(await countUntilLimited('/torrent/abc123', '10.9.0.4', 5)).toBe(5);
+  });
+});
+
+describe('the advert route is public', () => {
+  it('is not behind the members gate', () => {
+    // A break is filled for the listener who has not signed in — that is who
+    // adverts are for. Behind the gate the route answered "Sign in required"
+    // and every break went unfilled.
+    expect(isPublicPath('/api/ads/next')).toBe(true);
+  });
+
+  it('does not open anything else under /api', () => {
+    expect(isPublicPath('/api/account')).toBe(false);
+    expect(isPublicPath('/api/adsomething')).toBe(false);
   });
 });
