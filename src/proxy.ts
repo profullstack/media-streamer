@@ -455,6 +455,12 @@ const PUBLIC_PATHS = [
   '/api/cron',
   '/api/health',
   '/api/public',
+  // The advert for a break. Behind the members gate it answered
+  // "Sign in required" rather than a creative, so every break went unfilled —
+  // and the listener an advert exists to monetise is exactly the one who has
+  // not signed in. Nothing here is private: it returns one public media URL
+  // that the ad network chose and metered.
+  '/api/ads',
 ];
 
 export function isPublicPath(pathname: string): boolean {
