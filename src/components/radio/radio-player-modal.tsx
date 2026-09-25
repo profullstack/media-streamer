@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { attachSource } from '@profullstack/player';
+import { attachAds, attachSource } from '@profullstack/player';
 import {
   CloseIcon,
   PlayIcon,
@@ -32,6 +32,15 @@ interface RadioPlayerModalProps {
   onClose: () => void;
   quality?: '256' | '128' | '64' | '32';
 }
+
+/**
+ * How often a break comes round.
+ *
+ * Five minutes is the house default. Radio convention is far more frequent,
+ * but the inventory is one five-second spot and the listener asked for a
+ * station, not an ad slot.
+ */
+const AD_EVERY_SECONDS = 300;
 
 export function RadioPlayerModal({
   station,
@@ -81,6 +90,7 @@ export function RadioPlayerModal({
     let cancelled = false;
     /** @type {{ destroy: () => void } | null} */
     let attached: { destroy: () => void } | null = null;
+    let ads: { destroy: () => void } | null = null;
 
     /*
      * Which engine plays this station is not ours to decide any more.
@@ -109,6 +119,38 @@ export function RadioPlayerModal({
           return;
         }
         attached = result;
+
+        /*
+         * Adverts between songs, for listeners who are not paying.
+         *
+         * attachAds is the house player's own break machinery, so scheduling
+         * and playback are not reimplemented here. What it needs is a source of
+         * creatives, and that is the server route: it proxies the ad network,
+         * which runs the auction and meters the impression.
+         *
+         * Attached only once the stream is actually playing. A break scheduled
+         * against a station that never connected would interrupt silence.
+         */
+        ads = attachAds(audio.parentElement ?? audio, audio, {
+          everySeconds: AD_EVERY_SECONDS,
+          next: async () => {
+            try {
+              const answer = await fetch('/api/ads/next', {
+                headers: { accept: 'application/json' },
+              });
+              if (!answer.ok) return null;
+              const body = (await answer.json()) as { url?: unknown; kind?: unknown };
+              return typeof body.url === 'string'
+                ? { url: body.url, kind: body.kind as 'audio' | 'video' | undefined }
+                : null;
+            } catch {
+              // A break nobody can fill does not happen; the station plays on.
+              return null;
+            }
+          },
+          onError: (error) => console.warn('[RadioPlayer] advert failed', error),
+        });
+
         audio.play().catch((err) => {
           console.error('[RadioPlayer] Play error:', err);
           if (!cancelled) setAudioError('Failed to play audio');
@@ -120,6 +162,10 @@ export function RadioPlayerModal({
 
     return () => {
       cancelled = true;
+      // The break controller holds a timer and listeners on this element. A
+      // station switched twice would otherwise leave two of them running
+      // against elements nobody can hear.
+      ads?.destroy();
       attached?.destroy();
     };
     // Volume/mute are applied by the effect below so changing them never
