@@ -39,7 +39,7 @@
     "@profullstack/autoblog": "https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af",
     "@profullstack/emailer": "^1.0.3",
     "@profullstack/notifications": "^0.1.0",
-    "@profullstack/player": "0.7.0",
+    "@profullstack/player": "0.12.0",
     "@profullstack/referrals": "^0.1.0",
     "@profullstack/stack": "^0.2.0",
     "@profullstack/throttle": "^0.2.2",
