@@ -32,8 +32,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@profullstack/player':
-        specifier: 0.7.0
-        version: 0.7.0(react@19.3.0)
+        specifier: 0.12.0
+        version: 0.12.0(react@19.3.0)
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.3.0)
@@ -1285,8 +1285,8 @@ packages:
     resolution: {integrity: sha512-17jiBCRiZVDcIyWnWKYr5E2eVog/1iHgXaruGbmlw7j7Ob4zd6oOqGjh8BP8wm13iFwikczYObQwSrGadBdnGw==}
     engines: {node: '>=20.11'}
 
-  '@profullstack/player@0.7.0':
-    resolution: {integrity: sha512-DmshIcHTrWVl0A2p4DpuV7kI5hXPdaSL7zHesJVszA93cGyucaYppvvRm8S1eCC7GgyA8X0iRFKFdcF0P3LUrw==}
+  '@profullstack/player@0.12.0':
+    resolution: {integrity: sha512-DkMVbsbOhm96MB9aten3BcLmWoP94p1j3q+lsmVC72nQj869EIkbPXZPbU5M+KnW4wSWEoL1KcDRJncRhRHlXQ==}
     engines: {node: '>=20'}
     peerDependencies:
       react: '>=18'
@@ -6120,7 +6120,7 @@ snapshots:
 
   '@profullstack/notifications@0.1.0': {}
 
-  '@profullstack/player@0.7.0(react@19.3.0)':
+  '@profullstack/player@0.12.0(react@19.3.0)':
     dependencies:
       hls.js: 1.7.3
       mpegts.js: 1.8.2
