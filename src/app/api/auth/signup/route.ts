@@ -223,9 +223,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const trialDays = existingCount > 0 ? 1 : 3;
 
-  // Create user subscription record (trial tier)
-  // Use upsert to handle cases where user re-signs up (e.g., unconfirmed email retry)
-  const trialExpiresAt = new Date();
+  // Record the trial this route computed.
+  //
+  // The database trigger on_auth_user_created_subscription (create_trial_subscription)
+  // has ALREADY inserted a plain 3-day trial row for this user by the time signUp
+  // returns, because it covers OAuth and magic-link signups that never reach this
+  // route. So the row always exists here, and this upsert must WIN the conflict:
+  // merge our columns (signup_ip, trial window) over the trigger's row. With
+  // ignoreDuplicates the row was silently left alone, signup_ip stayed NULL on
+  // every user and the 1-day repeat-IP trial never applied. Columns not listed
+  // below (id, created_at, renewal flags, subscription_*) are kept as-is.
+  const trialStartedAt = new Date();
+  const trialExpiresAt = new Date(trialStartedAt);
   trialExpiresAt.setDate(trialExpiresAt.getDate() + trialDays);
 
   const { error: subscriptionError } = await supabase
@@ -235,13 +244,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         user_id: data.user.id,
         tier: 'trial',
         status: 'active',
-        trial_started_at: new Date().toISOString(),
+        trial_started_at: trialStartedAt.toISOString(),
         trial_expires_at: trialExpiresAt.toISOString(),
         signup_ip: signupIp,
       },
       {
         onConflict: 'user_id',
-        ignoreDuplicates: true, // Don't update if already exists
+        ignoreDuplicates: false, // UPDATE the trigger's row rather than skipping it
       }
     );
 
