@@ -178,6 +178,108 @@ describe('Signup API - POST /api/auth/signup', () => {
     });
   });
 
+  describe('Trial anti-abuse (signup_ip)', () => {
+    // The DB trigger has already inserted a 3-day trial row by the time signUp
+    // returns, so the route's upsert must UPDATE that row, not be ignored.
+    const FIXED_NOW = new Date('2026-03-01T12:00:00.000Z');
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(FIXED_NOW);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function mockSignUpOk(userId: string) {
+      mockSignUp.mockResolvedValueOnce({
+        data: {
+          user: { id: userId, email: 'test@example.com', email_confirmed_at: null },
+          session: null,
+        },
+        error: null,
+      });
+    }
+
+    function mockIpLookup(rows: Array<{ id: string; user_id: string; status: string; signup_ip: string }>) {
+      const neq = vi.fn().mockResolvedValue({ data: rows, error: null });
+      const eq = vi.fn().mockReturnValue({ neq });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({ eq }),
+      });
+      return { eq, neq };
+    }
+
+    function mockUpsert() {
+      const upsert = vi.fn().mockResolvedValueOnce({ error: null });
+      mockFrom.mockReturnValueOnce({ upsert });
+      return upsert;
+    }
+
+    function signupRequest(ip: string) {
+      return new NextRequest('http://localhost/api/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'test@example.com', password: 'Password123!' }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Forwarded-For': `${ip}, 10.0.0.1`,
+        },
+      });
+    }
+
+    it('fresh IP: records signup_ip and a 3-day trial, overwriting the trigger row', async () => {
+      mockSignUpOk('user-fresh');
+      const { eq, neq } = mockIpLookup([]);
+      const upsert = mockUpsert();
+
+      const { POST } = await import('./route');
+      const response = await POST(signupRequest('203.0.113.7'));
+      expect(response.status).toBe(201);
+
+      // Looked up by the first X-Forwarded-For hop, excluding the new user's own row
+      expect(eq).toHaveBeenCalledWith('signup_ip', '203.0.113.7');
+      expect(neq).toHaveBeenCalledWith('user_id', 'user-fresh');
+
+      expect(upsert).toHaveBeenCalledTimes(1);
+      const [payload, options] = upsert.mock.calls[0];
+      expect(payload).toEqual({
+        user_id: 'user-fresh',
+        tier: 'trial',
+        status: 'active',
+        trial_started_at: '2026-03-01T12:00:00.000Z',
+        trial_expires_at: '2026-03-04T12:00:00.000Z',
+        signup_ip: '203.0.113.7',
+      });
+      // Must merge over the trigger's row; ignoreDuplicates would leave signup_ip NULL
+      expect(options).toEqual({ onConflict: 'user_id', ignoreDuplicates: false });
+    });
+
+    it('repeat IP: records signup_ip and shortens the trial to 1 day', async () => {
+      mockSignUpOk('user-repeat');
+      mockIpLookup([
+        { id: 'sub-1', user_id: 'user-earlier', status: 'active', signup_ip: '203.0.113.7' },
+      ]);
+      const upsert = mockUpsert();
+
+      const { POST } = await import('./route');
+      const response = await POST(signupRequest('203.0.113.7'));
+      expect(response.status).toBe(201);
+
+      expect(upsert).toHaveBeenCalledTimes(1);
+      const [payload, options] = upsert.mock.calls[0];
+      expect(payload).toMatchObject({
+        user_id: 'user-repeat',
+        tier: 'trial',
+        status: 'active',
+        trial_started_at: '2026-03-01T12:00:00.000Z',
+        trial_expires_at: '2026-03-02T12:00:00.000Z',
+        signup_ip: '203.0.113.7',
+      });
+      expect(options).toEqual({ onConflict: 'user_id', ignoreDuplicates: false });
+    });
+  });
+
   describe('Error Handling', () => {
     it('should return 409 when email already exists', async () => {
       mockSignUp.mockResolvedValueOnce({
