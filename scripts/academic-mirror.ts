@@ -5,7 +5,7 @@
  *   pnpm academic:mirror apply                        queue this rung's picks on the seedbox
  *   pnpm academic:mirror hash-cmd <infohash>          the command that hashes a finished download
  *   pnpm academic:mirror record <infohash> <sha256>   mark one mirrored (lists it in openfile.json)
- *   pnpm academic:mirror finish --host user@box        hash + record every finished download, refresh used
+ *   pnpm academic:mirror finish --host user@box        record finished, drop seederless, top up to budget
  *   pnpm academic:mirror set capacity <tb> | used <bytes>
  *
  * `apply` speaks torlnk's HTTP API, which only listens on the box's localhost,
@@ -20,7 +20,8 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { type Catalog, type MirrorState, magnetFor, planMirror } from '../src/lib/academic/catalog';
+import { type Catalog, type CatalogEntry, type MirrorState, magnetFor, planMirror } from '../src/lib/academic/catalog';
+import { hasSeeders, scrape } from '../src/lib/academic/scrape';
 import { shouldClimb } from '../src/lib/academic/ladder';
 import { isSellable } from '../src/lib/academic/license';
 import { buildHttpConfig, emptySeedboxConfig } from '../src/lib/seedbox/config';
@@ -97,35 +98,81 @@ async function main() {
       const host = flag('--host');
       if (!host || !/^[\w.-]+@[\w.-]+$/.test(host)) throw new Error('finish --host user@box');
       const run = (script: string) => execFileSync('ssh', ['-o', 'BatchMode=yes', host, script], { encoding: 'utf8', maxBuffer: 64 << 20 });
+      const b64 = (text: string) => Buffer.from(text).toString('base64');
       // The token never leaves the box: it is read from the daemon's environment and used there.
-      const listing = JSON.parse(
-        run(
-          'PID=$(systemctl --user show -p MainPID --value torlink-serve.service); ' +
-            'TOK=$(tr "\\0" "\\n" < /proc/$PID/environ | grep ^TORLINK_API_TOKEN= | cut -d= -f2-); ' +
-            'curl -s localhost:9161/downloads -H "Authorization: Bearer $TOK"'
-        )
-      ) as { seeds: { id: string; name: string }[] };
-      const sellable = new Set(catalog.entries.filter((e) => isSellable(e.verdict)).map((e) => e.infohash));
+      // Bodies go over as base64 so no torrent name or magnet can break out of the remote shell.
+      const torlnk = <T>(path: '/downloads' | '/add' | '/control', body?: object): T =>
+        JSON.parse(
+          run(
+            'PID=$(systemctl --user show -p MainPID --value torlink-serve.service); ' +
+              'TOK=$(tr "\\0" "\\n" < /proc/$PID/environ | grep ^TORLINK_API_TOKEN= | cut -d= -f2-); ' +
+              (body
+                ? `echo ${b64(JSON.stringify(body))} | base64 -d | curl -s -X POST localhost:9161${path} -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" --data-binary @-`
+                : `curl -s localhost:9161${path} -H "Authorization: Bearer $TOK"`)
+          )
+        ) as T;
+      const pause = () => new Promise((r) => setTimeout(r, 1000));
+      const skip = (infohash: string, reason: string) => {
+        const others = (mirror.skipped ?? []).filter((x) => x.infohash !== infohash);
+        mirror.skipped = [...others, { infohash, reason, at: new Date().toISOString() }];
+      };
+
+      type Torrent = { id: string; name: string; status: string };
+      const listing = torlnk<{ downloads: Torrent[]; seeds: Torrent[] }>('/downloads');
+      const byHash = new Map(catalog.entries.filter((e) => isSellable(e.verdict)).map((e) => [e.infohash, e]));
       const have = new Set(mirror.mirrored.map((m) => m.infohash));
-      const finished = listing.seeds.filter((t) => sellable.has(t.id) && !have.has(t.id));
+
+      // 1. Record what finished.
+      const finished = listing.seeds.filter((t) => byHash.has(t.id) && !have.has(t.id));
       for (const t of finished) {
-        // The name goes over as base64 so no torrent name can break out of the remote shell.
-        const b64 = Buffer.from(t.name).toString('base64');
         const out = run(
-          `P="$HOME/Downloads/done/$(echo ${b64} | base64 -d)"; ` +
+          `P="$HOME/Downloads/done/$(echo ${b64(t.name)} | base64 -d)"; ` +
             'if [ -f "$P" ]; then sha256sum < "$P"; elif [ -d "$P" ]; then cd "$P" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 cat | sha256sum; else echo missing; fi'
         ).trim();
         const sha256 = out.split(/\s+/)[0];
         if (!/^[0-9a-f]{64}$/.test(sha256)) {
-          console.log(`skip    ${t.id}  ${t.name}: ${out.slice(0, 60)}`);
+          console.log(`unhashed ${t.id}  ${t.name}: ${out.slice(0, 60)}`);
           continue;
         }
         mirror.mirrored.push({ infohash: t.id, sha256, mirroredAt: new Date().toISOString() });
-        console.log(`record  ${t.id}  ${t.name}`);
+        console.log(`record   ${t.id}  ${t.name}`);
       }
       mirror.usedBytes = Number(run('df -B1 --output=used "$HOME/Downloads" | tail -1').trim()) || mirror.usedBytes;
+
+      // 2. Drop queued or downloading torrents nobody seeds: they hold a slot and never finish.
+      const inFlight: CatalogEntry[] = [];
+      for (const t of listing.downloads.filter((d) => byHash.has(d.id))) {
+        const counts = await scrape(t.id);
+        await pause();
+        if (counts && !hasSeeders(counts)) {
+          torlnk('/control', { id: t.id, action: 'remove' });
+          skip(t.id, 'no seeders');
+          console.log(`drop     ${t.id}  ${t.name} (0 seeders, ${counts.incomplete} leechers)`);
+        } else {
+          inFlight.push(byHash.get(t.id)!);
+        }
+      }
+
+      // 3. Top up with the next datasets that fit and have seeders.
+      let added = 0;
+      for (const p of planMirror(catalog, mirror, inFlight).picks) {
+        const counts = await scrape(p.infohash);
+        await pause();
+        if (!counts || !hasSeeders(counts)) {
+          if (counts) skip(p.infohash, 'no seeders');
+          continue;
+        }
+        const res = torlnk<{ ok?: boolean; error?: string }>('/add', { magnet: magnetFor(p) });
+        const note = res.ok ? '' : ` ${res.error ?? ''}`;
+        console.log(`${res.ok ? 'queue   ' : 'FAILED  '} ${p.infohash}  ${p.title} (${counts.complete} seeders)${note}`);
+        if (res.ok) added++;
+      }
+
       save(mirror);
-      console.log(`${finished.length} finished, ${mirror.mirrored.length} mirrored in all, ${tb(mirror.usedBytes)} used on the box`);
+      console.log(
+        `${finished.length} finished, ${added} queued, ${inFlight.length} in flight, ` +
+          `${mirror.mirrored.length} mirrored, ${(mirror.skipped ?? []).length} resting, ${tb(mirror.usedBytes)} used`
+      );
       return;
     }
     case 'set': {

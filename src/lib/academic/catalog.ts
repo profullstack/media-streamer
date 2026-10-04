@@ -42,11 +42,22 @@ export interface MirroredEntry {
   mirroredAt: string;
 }
 
+/** A torrent dropped for having no seeders; retried once {@link SKIP_RETRY_MS} has passed. */
+export interface SkippedEntry {
+  infohash: string;
+  reason: string;
+  at: string;
+}
+
 export interface MirrorState {
   capacityTb: number;
   usedBytes: number;
   mirrored: MirroredEntry[];
+  skipped?: SkippedEntry[];
 }
+
+/** Seeders come back; a dead torrent is worth one more look after a week. */
+export const SKIP_RETRY_MS = 7 * 24 * 3600 * 1000;
 
 const CATEGORY_ORDER: Record<string, number> = { Dataset: 0, Course: 1 };
 
@@ -56,10 +67,13 @@ const CATEGORY_ORDER: Record<string, number> = { Dataset: 0, Course: 1 };
  * torlnk slot held by a stalled swarm blocks the queue), then datasets before
  * courses, then smallest first.
  */
-export function candidates(catalog: Catalog, mirror: MirrorState): CatalogEntry[] {
+export function candidates(catalog: Catalog, mirror: MirrorState, now = Date.now()): CatalogEntry[] {
   const have = new Set(mirror.mirrored.map((m) => m.infohash));
+  const resting = new Set(
+    (mirror.skipped ?? []).filter((s) => now - Date.parse(s.at) < SKIP_RETRY_MS).map((s) => s.infohash)
+  );
   return catalog.entries
-    .filter((e) => isSellable(e.verdict) && !have.has(e.infohash))
+    .filter((e) => isSellable(e.verdict) && !have.has(e.infohash) && !resting.has(e.infohash))
     .sort(
       (a, b) =>
         Number(!a.webseeds?.length) - Number(!b.webseeds?.length) ||
@@ -75,10 +89,19 @@ export interface MirrorPlan {
   bytes: number;
 }
 
-export function planMirror(catalog: Catalog, mirror: MirrorState): MirrorPlan {
+/**
+ * What to fetch next. `inFlight` is what is already queued or downloading:
+ * its bytes come out of the budget (partly downloaded ones are counted twice,
+ * which errs on the side of room) and it is never picked again.
+ */
+export function planMirror(catalog: Catalog, mirror: MirrorState, inFlight: readonly CatalogEntry[] = []): MirrorPlan {
   const rungTb = rungFor(mirror.capacityTb);
-  const budget = budgetBytes(rungTb, mirror.usedBytes);
-  const picks = fillBudget(candidates(catalog, mirror), budget);
+  const queued = new Set(inFlight.map((e) => e.infohash));
+  const budget = Math.max(0, budgetBytes(rungTb, mirror.usedBytes) - inFlight.reduce((n, e) => n + e.size, 0));
+  const picks = fillBudget(
+    candidates(catalog, mirror).filter((e) => !queued.has(e.infohash)),
+    budget
+  );
   return { rungTb, budget, picks, bytes: picks.reduce((n, p) => n + p.size, 0) };
 }
 
