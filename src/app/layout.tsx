@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { ReferralProvider } from '@profullstack/referrals/react';
-import { FeedbackWidget } from '@profullstack/stack/feedback';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
@@ -136,7 +135,6 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
 
         {/* CrawlProof ad loader — slots are placed per-page via <AdBanner>/<AdRectangle> and shown only to logged-out visitors. */}
         <Script src="https://crawlproof.com/ad.js" strategy="afterInteractive" />
-      <FeedbackWidget property="bittorrented.com" />
       </body>
     </html>
   );
