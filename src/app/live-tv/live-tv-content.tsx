@@ -21,7 +21,6 @@ import { TvIcon, PlusIcon, SearchIcon, PlayIcon, LoadingSpinner, EditIcon, Trash
 import { AddPlaylistModal, EditPlaylistModal, HlsPlayerModal, type PlaylistData } from '@/components/live-tv';
 import { useAuth } from '@/hooks/use-auth';
 import { useIptvChannelFavorites } from '@/hooks/use-favorites';
-import { useModalOpen } from '@/hooks/use-modal-open';
 import type { Channel } from '@/lib/iptv';
 import Link from 'next/link';
 
@@ -151,8 +150,6 @@ export function LiveTvContent(): React.ReactElement {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deletingPlaylist, setDeletingPlaylist] = useState<PlaylistData | null>(null);
 
-  // Hide page-level chrome (e.g. the floating feedback button) while open
-  useModalOpen(Boolean(deletingPlaylist));
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   

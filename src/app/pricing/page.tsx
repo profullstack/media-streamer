@@ -12,7 +12,6 @@ import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { useSupportedCoins } from '@/hooks/use-supported-coins';
-import { useModalOpen } from '@/hooks/use-modal-open';
 import { IptvOfferCard } from '@/components/live-tv/iptv-offer-card';
 
 interface PlanFeature {
@@ -109,8 +108,6 @@ export default function PricingPage(): React.ReactElement {
   const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
-  // Hide page-level chrome (e.g. the floating feedback button) while open
-  useModalOpen(Boolean(selectedPlan && !selectedPlan.isTrial));
   const [selectedCrypto, setSelectedCrypto] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

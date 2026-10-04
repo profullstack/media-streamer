@@ -8,7 +8,6 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useModalOpen } from '@/hooks/use-modal-open';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout';
 import { FileTree } from '@/components/files';
@@ -182,8 +181,6 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
   const [reportDetails, setReportDetails] = useState('');
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-  // Hide page-level chrome (e.g. the floating feedback button) while open
-  useModalOpen(isReportModalOpen);
   const [isReportingTorrent, setIsReportingTorrent] = useState(false);
   const [reportTorrentStatus, setReportTorrentStatus] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus | null>(null);

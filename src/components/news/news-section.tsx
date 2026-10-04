@@ -13,7 +13,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, ExternalLink, RefreshCw, Newspaper, Sparkles, FileText, Loader2, ChevronUp, ChevronDown, AlertCircle, Play, Pause, Volume2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import { useModalOpen } from '@/hooks/use-modal-open';
 
 // Supported categories from TheNewsAPI
 const NEWS_CATEGORIES = [
@@ -87,8 +86,6 @@ export function NewsSection({ searchTerm, limit = 10 }: NewsSectionProps): React
   const [error, setError] = useState<string | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
 
-  // Hide page-level chrome (e.g. the floating feedback button) while open
-  useModalOpen(Boolean(selectedArticle));
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory | null>(null);
 
   // AI Summary state

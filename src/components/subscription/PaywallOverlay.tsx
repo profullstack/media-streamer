@@ -7,15 +7,12 @@
  * Prompts them to subscribe to continue using the service.
  */
 
-import { useModalOpen } from '@/hooks/use-modal-open';
 
 interface PaywallOverlayProps {
   onClose?: () => void;
 }
 
 export function PaywallOverlay({ onClose }: PaywallOverlayProps) {
-  // Hide page-level chrome (e.g. the floating feedback button) while shown
-  useModalOpen(true);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs">
