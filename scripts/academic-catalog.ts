@@ -16,10 +16,13 @@ import { decideLicense, type AcademicLicense } from '../src/lib/academic/license
 import type { Catalog, CatalogEntry } from '../src/lib/academic/catalog';
 import { isSellable } from '../src/lib/academic/license';
 import { isWebseed, readTorrent } from '../src/lib/seedbox/torrent-file';
+import { type Organization, publisherDomains, resolveDomain } from '../src/lib/academic/orgs';
 
 const DATABASE = 'https://academictorrents.com/database.xml';
 const CACHE = process.env.ACADEMIC_LICENSE_CACHE ?? '.academic-licenses.jsonl';
 const SEED_CACHE = process.env.ACADEMIC_WEBSEED_CACHE ?? '.academic-webseeds.jsonl';
+const PAGE_CACHE = process.env.ACADEMIC_PAGE_CACHE ?? '.academic-pages.jsonl';
+const ORG_CACHE = process.env.ACADEMIC_ORG_CACHE ?? '.academic-orgs.jsonl';
 const OUT = 'src/data/academic/catalog.json';
 const CATEGORIES = new Set(['Dataset', 'Course']);
 const PAUSE_MS = 1500;
@@ -65,6 +68,42 @@ function readCache(): Map<string, AcademicLicense | null> {
     cache.set(row.infohash, row.license);
   }
   return cache;
+}
+
+/** A cache of `{key, value}` lines; a value of null is an answer ("nothing found"), not a miss. */
+function readJsonl<T>(path: string): Map<string, T> {
+  const cache = new Map<string, T>();
+  if (!existsSync(path)) return cache;
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    if (line.trim()) {
+      const row = JSON.parse(line) as { key: string; value: T };
+      cache.set(row.key, row.value);
+    }
+  }
+  return cache;
+}
+
+interface DetailsPage {
+  creator: string | null;
+  citeUrl: string | null;
+  published: string | null;
+}
+
+/** What a details page says about provenance: its schema.org Dataset block and BibTeX. */
+async function fetchDetailsPage(infohash: string): Promise<DetailsPage> {
+  if (!INFOHASH.test(infohash)) throw new Error('not a v1 infohash');
+  const url = new URL(`/details/${infohash}`, 'https://academictorrents.com');
+  const res = await fetch(url, { headers: { 'user-agent': UA } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const html = await res.text();
+  const creator = html.match(/"creator":\s*\{[^}]*?"name":\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? null;
+  const published = html.match(/"datePublished":\s*"([^"]+)"/)?.[1] ?? null;
+  const citeUrl = html.match(/\burl= \{([^}]*)\}/)?.[1]?.trim() || null;
+  return {
+    creator: creator ? JSON.parse(`"${creator}"`).trim() || null : null,
+    citeUrl,
+    published: published ? new Date(`${published.replace(' ', 'T')}Z`).toISOString() : null,
+  };
 }
 
 async function fetchLicense(infohash: string): Promise<AcademicLicense | null> {
@@ -151,6 +190,46 @@ async function main() {
     // Filtered again here so a rule tightened after a crawl applies to the cache too.
     const webseeds = seeds.get(e.infohash)?.filter(isWebseed);
     if (webseeds?.length) e.webseeds = webseeds;
+  }
+
+  // Who is behind each sellable dataset: the details page's creator, date and
+  // citation URL, then its publisher domains resolved through ROR and Wikidata.
+  const pages = readJsonl<DetailsPage>(PAGE_CACHE);
+  const orgs = readJsonl<Organization | null>(ORG_CACHE);
+  const sellable = entries.filter((e) => isSellable(e.verdict));
+  if (!offline) {
+    const todo = sellable.filter((e) => !pages.has(e.infohash));
+    if (todo.length) console.log(`${todo.length} details pages to read for publishers`);
+    for (const e of todo) {
+      try {
+        const page = await fetchDetailsPage(e.infohash);
+        pages.set(e.infohash, page);
+        appendFileSync(PAGE_CACHE, `${JSON.stringify({ key: e.infohash, value: page })}\n`);
+      } catch (error) {
+        console.warn(`  ${e.infohash}: ${(error as Error).message}`);
+      }
+      await new Promise((r) => setTimeout(r, PAUSE_MS));
+    }
+    const domains = new Set(sellable.flatMap((e) => publisherDomains(pages.get(e.infohash)?.citeUrl, e.description)));
+    const unresolved = [...domains].filter((d) => !orgs.has(d));
+    if (unresolved.length) console.log(`${unresolved.length} publisher domains to resolve`);
+    for (const domain of unresolved) {
+      const org = await resolveDomain(domain);
+      orgs.set(domain, org);
+      appendFileSync(ORG_CACHE, `${JSON.stringify({ key: domain, value: org })}\n`);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+  for (const e of sellable) {
+    const page = pages.get(e.infohash);
+    if (page?.creator) e.creator = page.creator;
+    if (page?.published) e.published = page.published;
+    const found = publisherDomains(page?.citeUrl, e.description)
+      .map((d) => orgs.get(d))
+      .filter((o): o is Organization => Boolean(o));
+    // One organisation once, however many of its domains the text mentions.
+    const unique = [...new Map(found.map((o) => [o.ror ?? o.wikidata ?? o.name, o])).values()];
+    if (unique.length) e.organizations = unique;
   }
 
   const catalog: Catalog = { source: DATABASE, fetchedAt: new Date().toISOString(), entries };
