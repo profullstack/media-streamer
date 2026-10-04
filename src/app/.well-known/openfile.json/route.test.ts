@@ -7,6 +7,9 @@ describe('GET /.well-known/openfile.json', () => {
     const res = GET(new NextRequest('https://bittorrented.com/.well-known/openfile.json'));
     expect(res.status).toBe(200);
     const body = await res.json();
+    // Withdrawn 2026-10-04: a valid descriptor with no files and the reason beside it.
+    expect(body.files).toEqual([]);
+    expect(body.bittorrented.withdrawn.listed).toBe(false);
     expect(body.publisher.name).toBeTruthy();
     expect(Array.isArray(body.files)).toBe(true);
     for (const f of body.files) {

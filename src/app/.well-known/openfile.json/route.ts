@@ -1,6 +1,7 @@
 /** @route GET /.well-known/openfile.json — the dataset mirror as an OpenFile descriptor (logicsrc.com/openfile). */
 import { NextRequest, NextResponse } from 'next/server';
 import { type Catalog, type MirrorState, openFileDescriptor } from '@/lib/academic/catalog';
+import { ACADEMIC_LISTING } from '@/lib/academic/listing';
 import { getSubscriptionPrice } from '@/lib/payments';
 import { publicOrigin } from '@/lib/openswarm/service';
 import catalog from '@/data/academic/catalog.json';
@@ -16,9 +17,13 @@ export function GET(request: NextRequest): NextResponse {
     amountUsd: getSubscriptionPrice(plan).usd,
     per: 'year' as const,
   }));
-  const body = openFileDescriptor(catalog as Catalog, mirror as MirrorState, origin, {
+  const descriptor = openFileDescriptor(catalog as Catalog, mirror as MirrorState, origin, {
     plans,
     signup: `${origin}/pricing`,
   });
-  return NextResponse.json(body, { headers: { 'cache-control': 'public, max-age=3600' } });
+  // Withdrawn: still a valid descriptor, with nothing in it and the reason beside it.
+  const body = ACADEMIC_LISTING.listed
+    ? descriptor
+    : { ...descriptor, files: [], bittorrented: { ...descriptor.bittorrented, withdrawn: ACADEMIC_LISTING } };
+  return NextResponse.json(body, { headers: { 'cache-control': 'public, max-age=300' } });
 }
