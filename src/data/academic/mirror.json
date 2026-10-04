@@ -1,5 +1,26 @@
 {
   "capacityTb": 2,
-  "usedBytes": 1000000000000,
-  "mirrored": []
+  "usedBytes": 688668913664,
+  "mirrored": [
+    {
+      "infohash": "cab7744573688b0b39c521ef66453435785762ac",
+      "sha256": "568fd76fe019a8c3b9dc1fc45251eeba07225b99de88c4915916aaa4faba8e11",
+      "mirroredAt": "2026-10-04T14:25:12.270Z"
+    },
+    {
+      "infohash": "34079b029c6a8230f196593164e3fab8956e9ee5",
+      "sha256": "b037be30a2540edc1e06a8e5e30a49e2e9ec1c4325180aef92203dd535ddb9d8",
+      "mirroredAt": "2026-10-04T14:25:12.949Z"
+    },
+    {
+      "infohash": "a8d14f22c9ce1cc59c9f480df5deb0f7e94861f4",
+      "sha256": "a339f866a387685ce2d885cc5db51a96fbc88975a17a60e28a62fbfa890f69cd",
+      "mirroredAt": "2026-10-04T14:25:13.768Z"
+    },
+    {
+      "infohash": "c87688437fb416f66eecbd8c419aba00dd12997f",
+      "sha256": "bc79444dce0dc75a0fe11c870f4b4e0a949644d55ebf8d7e08824cc262a0329b",
+      "mirroredAt": "2026-10-04T14:25:14.553Z"
+    }
+  ]
 }
