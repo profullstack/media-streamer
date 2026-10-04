@@ -11,6 +11,7 @@
 
 import { type AcademicLicense, type LicenseVerdict, isSellable, openFileBasis } from './license';
 import { budgetBytes, fillBudget, rungFor } from './ladder';
+import type { Organization } from './orgs';
 
 export interface CatalogEntry {
   infohash: string;
@@ -24,6 +25,12 @@ export interface CatalogEntry {
   webseeds?: string[];
   /** Academic Torrents' own description; kept for sellable entries only. */
   description?: string;
+  /** Who the details page credits, usually author names. */
+  creator?: string;
+  /** When it was published on Academic Torrents. */
+  published?: string;
+  /** Publishers resolved from the dataset's own URLs through ROR and Wikidata (open, CC0). */
+  organizations?: Organization[];
 }
 
 export interface Catalog {
@@ -189,6 +196,9 @@ export function datasetsFeed(catalog: Catalog, mirror: MirrorState, origin: stri
         category: e.category,
         size: e.size,
         description: e.description ?? '',
+        creator: e.creator ?? null,
+        published: e.published ?? null,
+        organizations: e.organizations ?? [],
         url: `https://academictorrents.com/details/${e.infohash}`,
         attestation: { basis, ...(basis === 'open-license' && e.license?.canonical ? { license: e.license.canonical } : {}) },
         verdict: e.verdict,

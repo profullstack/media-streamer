@@ -59,3 +59,5 @@ proxies.txt
 # academic dataset mirror: resumable licence crawl cache (scripts/academic-catalog.ts)
 .academic-licenses.jsonl
 .academic-webseeds.jsonl
+.academic-pages.jsonl
+.academic-orgs.jsonl
