@@ -73,10 +73,21 @@ function stringAt(buf: Buffer, start: number, end: number): string {
   return buf.toString('utf8', colon + 1, end);
 }
 
+/**
+ * Whether a url-list value is a usable webseed. Torrents in the wild carry
+ * blanks, host-relative junk, and links to another .torrent file here; only an
+ * absolute http(s) URL to the bytes fetches.
+ */
+export function isWebseed(url: string): boolean {
+  return /^https?:\/\/[^/]+\//i.test(url) && !/\.torrent(\?.*)?$/i.test(url);
+}
+
 export interface TorrentSummary {
   infoHash: string;
   name: string;
   trackers: string[];
+  /** BEP 19 webseeds (`url-list`): plain HTTP sources for the same bytes. */
+  webseeds?: string[];
 }
 
 /**
@@ -92,6 +103,7 @@ export function readTorrent(bytes: Buffer): TorrentSummary | null {
     let infoHash: string | null = null;
     let name = '';
     const trackers: string[] = [];
+    const webseeds: string[] = [];
 
     for (const { key, start, end } of entries(bytes)) {
       if (key === 'info') {
@@ -102,6 +114,17 @@ export function readTorrent(bytes: Buffer): TorrentSummary | null {
       } else if (key === 'announce') {
         const url = stringAt(bytes, start, end);
         if (url) trackers.push(url);
+      } else if (key === 'url-list') {
+        // One URL as a string, or a list of them.
+        if (bytes[start] === LIST) {
+          for (let inner = start + 1; bytes[inner] !== END && inner < end; ) {
+            const urlEnd = spanEnd(bytes, inner);
+            webseeds.push(stringAt(bytes, inner, urlEnd));
+            inner = urlEnd;
+          }
+        } else {
+          webseeds.push(stringAt(bytes, start, end));
+        }
       } else if (key === 'announce-list') {
         // A list of lists (tiers). Only the strings inside matter here.
         for (let cursor = start + 1; bytes[cursor] !== END && cursor < end; ) {
@@ -118,19 +141,22 @@ export function readTorrent(bytes: Buffer): TorrentSummary | null {
     }
 
     if (!infoHash) return null;
-    return { infoHash, name: name || infoHash, trackers: [...new Set(trackers)] };
+    const seeds = [...new Set(webseeds.filter(isWebseed))];
+    return { infoHash, name: name || infoHash, trackers: [...new Set(trackers)], ...(seeds.length ? { webseeds: seeds } : {}) };
   } catch {
     return null;
   }
 }
 
 /** A magnet URI for a torrent we just read, carrying its own announce list. */
-export function magnetFor({ infoHash, name, trackers }: TorrentSummary): string {
+export function magnetFor({ infoHash, name, trackers, webseeds = [] }: TorrentSummary): string {
   const parts = [`magnet:?xt=urn:btih:${infoHash}`];
   if (name) parts.push(`dn=${encodeURIComponent(name)}`);
   // The torrent's own trackers have to survive into the magnet: a torrent that
   // is not on the public DHT sits at zero peers forever without them, and on a
   // private tracker the passkey that makes an announce work lives in that URL.
   for (const tracker of trackers) parts.push(`tr=${encodeURIComponent(tracker)}`);
+  // Webseeds likewise: a torrent whose swarm is dead still downloads at HTTP speed from them.
+  for (const seed of webseeds) parts.push(`ws=${encodeURIComponent(seed)}`);
   return parts.join('&');
 }

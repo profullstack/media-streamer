@@ -20,6 +20,8 @@ export interface CatalogEntry {
   license: AcademicLicense | null;
   verdict: LicenseVerdict;
   reason: string;
+  /** HTTP sources from the .torrent's url-list (often archive.org); absent when it has none. */
+  webseeds?: string[];
 }
 
 export interface Catalog {
@@ -48,12 +50,22 @@ export interface MirrorState {
 
 const CATEGORY_ORDER: Record<string, number> = { Dataset: 0, Course: 1 };
 
-/** Sellable entries not yet mirrored, datasets before courses, smallest first. */
+/**
+ * Sellable entries not yet mirrored, in the order worth fetching: anything with
+ * an HTTP webseed first (most Academic Torrents swarms are near dead, and a
+ * torlnk slot held by a stalled swarm blocks the queue), then datasets before
+ * courses, then smallest first.
+ */
 export function candidates(catalog: Catalog, mirror: MirrorState): CatalogEntry[] {
   const have = new Set(mirror.mirrored.map((m) => m.infohash));
   return catalog.entries
     .filter((e) => isSellable(e.verdict) && !have.has(e.infohash))
-    .sort((a, b) => (CATEGORY_ORDER[a.category] ?? 9) - (CATEGORY_ORDER[b.category] ?? 9) || a.size - b.size);
+    .sort(
+      (a, b) =>
+        Number(!a.webseeds?.length) - Number(!b.webseeds?.length) ||
+        (CATEGORY_ORDER[a.category] ?? 9) - (CATEGORY_ORDER[b.category] ?? 9) ||
+        a.size - b.size
+    );
 }
 
 export interface MirrorPlan {
@@ -70,9 +82,10 @@ export function planMirror(catalog: Catalog, mirror: MirrorState): MirrorPlan {
   return { rungTb, budget, picks, bytes: picks.reduce((n, p) => n + p.size, 0) };
 }
 
-export function magnetFor(entry: Pick<CatalogEntry, 'infohash' | 'title'>): string {
+export function magnetFor(entry: Pick<CatalogEntry, 'infohash' | 'title' | 'webseeds'>): string {
   const dn = encodeURIComponent(entry.title);
-  return `magnet:?xt=urn:btih:${entry.infohash}&dn=${dn}&tr=${encodeURIComponent('https://academictorrents.com/announce.php')}&tr=${encodeURIComponent('udp://tracker.opentrackr.org:1337/announce')}`;
+  const ws = (entry.webseeds ?? []).map((u) => `&ws=${encodeURIComponent(u)}`).join('');
+  return `magnet:?xt=urn:btih:${entry.infohash}&dn=${dn}&tr=${encodeURIComponent('https://academictorrents.com/announce.php')}&tr=${encodeURIComponent('udp://tracker.opentrackr.org:1337/announce')}${ws}`;
 }
 
 export interface MembershipAccess {
