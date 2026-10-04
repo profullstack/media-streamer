@@ -52,6 +52,19 @@ describe('readTorrent', () => {
     expect(trackers.filter((t) => t === 'udp://one.test:1337/announce')).toHaveLength(1);
   });
 
+  it('reads webseeds from url-list, keeping only absolute http(s) URLs', () => {
+    // The shape Academic Torrents serves for Internet Archive items, blanks and host-relative junk included.
+    const list = `l${bstr('https://archive.org/download/')}${bstr('')}${bstr('/27/items/')}${bstr('http://ia1.us.archive.org/27/items/')}e`;
+    const withList = Buffer.from(`d4:info${INFO}8:url-list${list}e`, 'utf8');
+    expect(readTorrent(withList)?.webseeds).toEqual(['https://archive.org/download/', 'http://ia1.us.archive.org/27/items/']);
+    const single = Buffer.from(`d4:info${INFO}8:url-list${bstr('https://mirror.test/')}e`, 'utf8');
+    expect(readTorrent(single)?.webseeds).toEqual(['https://mirror.test/']);
+    expect(readTorrent(TORRENT)?.webseeds).toBeUndefined();
+    // Some uploaders put the archive's own .torrent link here; a client cannot fetch bytes from it.
+    const bogus = Buffer.from(`d4:info${INFO}8:url-list${bstr('https://archive.org/download/x/x_archive.torrent')}e`, 'utf8');
+    expect(readTorrent(bogus)?.webseeds).toBeUndefined();
+  });
+
   /*
    * Null, not a throw: this runs on a file somebody picked in a file dialog,
    * where "that is not a torrent" is an ordinary thing to have happened and
@@ -75,5 +88,10 @@ describe('magnetFor', () => {
     expect(magnet).toContain('dn=my%20thing');
     // Encoded, or the tracker's own ? and & would be read as magnet parameters.
     expect(magnet).toContain(encodeURIComponent('udp://a'));
+  });
+
+  it('carries webseeds as ws= so a dead swarm still downloads over HTTP', () => {
+    const magnet = magnetFor({ infoHash: 'a'.repeat(40), name: 'x', trackers: [], webseeds: ['https://archive.org/download/'] });
+    expect(magnet).toContain(`ws=${encodeURIComponent('https://archive.org/download/')}`);
   });
 });

@@ -14,9 +14,12 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { decideLicense, type AcademicLicense } from '../src/lib/academic/license';
 import type { Catalog, CatalogEntry } from '../src/lib/academic/catalog';
+import { isSellable } from '../src/lib/academic/license';
+import { isWebseed, readTorrent } from '../src/lib/seedbox/torrent-file';
 
 const DATABASE = 'https://academictorrents.com/database.xml';
 const CACHE = process.env.ACADEMIC_LICENSE_CACHE ?? '.academic-licenses.jsonl';
+const SEED_CACHE = process.env.ACADEMIC_WEBSEED_CACHE ?? '.academic-webseeds.jsonl';
 const OUT = 'src/data/academic/catalog.json';
 const CATEGORIES = new Set(['Dataset', 'Course']);
 const PAUSE_MS = 1500;
@@ -63,6 +66,27 @@ async function fetchLicense(infohash: string): Promise<AcademicLicense | null> {
   return match ? (JSON.parse(match[1]) as AcademicLicense) : null;
 }
 
+function readSeedCache(): Map<string, string[]> {
+  const cache = new Map<string, string[]>();
+  if (!existsSync(SEED_CACHE)) return cache;
+  for (const line of readFileSync(SEED_CACHE, 'utf8').split('\n')) {
+    if (line.trim()) {
+      const row = JSON.parse(line) as { infohash: string; webseeds: string[] };
+      cache.set(row.infohash, row.webseeds);
+    }
+  }
+  return cache;
+}
+
+/** The .torrent's url-list. Most swarms here are near dead; these HTTP sources are what finish. */
+async function fetchWebseeds(infohash: string): Promise<string[]> {
+  if (!INFOHASH.test(infohash)) throw new Error('not a v1 infohash');
+  const url = new URL(`/download/${infohash}.torrent`, 'https://academictorrents.com');
+  const res = await fetch(url, { headers: { 'user-agent': UA } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return readTorrent(Buffer.from(await res.arrayBuffer()))?.webseeds ?? [];
+}
+
 async function main() {
   const offline = process.argv.includes('--offline');
   const res = await fetch('https://academictorrents.com/database.xml', { headers: { 'user-agent': UA } });
@@ -95,6 +119,28 @@ async function main() {
       const kept = license ? { raw: license.raw ?? null, canonical: spdx, label: license.label ?? null, confidence: license.confidence ?? null } : null;
       return { ...i, license: kept, verdict, reason };
     });
+  // Webseeds only matter for what we would mirror, so only sellable entries cost a request.
+  const seeds = readSeedCache();
+  if (!offline) {
+    const todo = entries.filter((e) => isSellable(e.verdict) && !seeds.has(e.infohash));
+    if (todo.length) console.log(`${todo.length} sellable torrents to read for webseeds`);
+    for (const e of todo) {
+      try {
+        const webseeds = await fetchWebseeds(e.infohash);
+        seeds.set(e.infohash, webseeds);
+        appendFileSync(SEED_CACHE, `${JSON.stringify({ infohash: e.infohash, webseeds })}\n`);
+      } catch (error) {
+        console.warn(`  ${e.infohash}: ${(error as Error).message}`);
+      }
+      await new Promise((r) => setTimeout(r, PAUSE_MS));
+    }
+  }
+  for (const e of entries) {
+    // Filtered again here so a rule tightened after a crawl applies to the cache too.
+    const webseeds = seeds.get(e.infohash)?.filter(isWebseed);
+    if (webseeds?.length) e.webseeds = webseeds;
+  }
+
   const catalog: Catalog = { source: DATABASE, fetchedAt: new Date().toISOString(), entries };
   writeFileSync(OUT, `${JSON.stringify(catalog, null, 1)}\n`);
 

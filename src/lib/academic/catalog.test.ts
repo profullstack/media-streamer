@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type Catalog, type CatalogEntry, type MirrorState, candidates, openFileDescriptor, planMirror } from './catalog';
+import { type Catalog, type CatalogEntry, type MirrorState, candidates, magnetFor, openFileDescriptor, planMirror } from './catalog';
 
 const TB = 1e12;
 const entry = (infohash: string, over: Partial<CatalogEntry> = {}): CatalogEntry => ({
@@ -30,6 +30,14 @@ describe('candidates', () => {
   it('drops unsellable and mirrored entries, datasets first, smallest first', () => {
     const mirror = { ...empty, mirrored: [{ infohash: 'pd', sha256: 'aa', mirroredAt: '2026-10-04T00:00:00Z' }] };
     expect(candidates(catalog, mirror).map((e) => e.infohash)).toEqual(['small', 'big', 'course']);
+  });
+});
+
+describe('webseeds', () => {
+  it('puts entries with an HTTP source first and carries it in the magnet', () => {
+    const withSeed: Catalog = { ...catalog, entries: [...catalog.entries, entry('seeded', { size: 9e11 / 10, webseeds: ['https://archive.org/download/'] })] };
+    expect(candidates(withSeed, empty)[0].infohash).toBe('seeded');
+    expect(magnetFor(withSeed.entries.at(-1)!)).toContain(`&ws=${encodeURIComponent('https://archive.org/download/')}`);
   });
 });
 

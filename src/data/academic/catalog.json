@@ -1,6 +1,6 @@
 {
  "source": "https://academictorrents.com/database.xml",
- "fetchedAt": "2026-10-04T13:48:50.055Z",
+ "fetchedAt": "2026-10-04T14:17:54.883Z",
  "entries": [
   {
    "title": "Computer Systems Security (MIT 6.858) - Video lectures 2014",
@@ -56,7 +56,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://courses.csail.mit.edu/6.042/spring18/"
+   ]
   },
   {
    "title": "Algorithmic Lower Bounds: Fun with Hardness Proofs (MIT 6.890) - Video lectures 2014",
@@ -406,7 +409,12 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release220/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release220/",
+    "https://data.gtdb.aau.ecogenomic.org/releases/release220/"
+   ]
   },
   {
    "title": "GTDB R07-RS207",
@@ -420,7 +428,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release207/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release207/"
+   ]
   },
   {
    "title": "GTDB R06-RS202",
@@ -434,7 +446,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release202/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release202/"
+   ]
   },
   {
    "title": "GTDB R04-RS89",
@@ -448,7 +464,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release89/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release89/"
+   ]
   },
   {
    "title": "GTDB R03-RS86.2",
@@ -462,7 +482,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release86/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release86/"
+   ]
   },
   {
    "title": "GTDB R05-RS95",
@@ -476,7 +500,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release95/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release95/"
+   ]
   },
   {
    "title": "GTDB R03-RS86",
@@ -490,7 +518,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release86/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release86/"
+   ]
   },
   {
    "title": "GTDB R01-RS80",
@@ -504,7 +536,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release80/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release80/"
+   ]
   },
   {
    "title": "GTDB R02-RS83",
@@ -518,7 +554,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.ecogenomic.org/releases/release83/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release83/"
+   ]
   },
   {
    "title": "GTDB R11-RS232",
@@ -532,7 +572,12 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://data.gtdb.aau.ecogenomic.org/releases/release232/",
+    "https://data.gtdb.ecogenomic.org/releases/release232/",
+    "https://data.ace.uq.edu.au/public/gtdb/data/releases/release232/"
+   ]
   },
   {
    "title": "enwiki-20260601-pages-articles-multistream.xml.bz2",
@@ -826,7 +871,10 @@
     "confidence": "high"
    },
    "verdict": "public-domain",
-   "reason": "public domain"
+   "reason": "public domain",
+   "webseeds": [
+    "https://huggingface.co/datasets/nyuuzyou/phishing-snapshots/raw/main/"
+   ]
   },
   {
    "title": "PPT Online",
@@ -924,7 +972,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://huggingface.co/datasets/nyuuzyou/wikis/raw/main/"
+   ]
   },
   {
    "title": "9111.ru Questions Dataset",
@@ -952,7 +1003,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://huggingface.co/datasets/nyuuzyou/fandom/raw/main/"
+   ]
   },
   {
    "title": "ca-on_province_of_ontario-2024A000235_drape_eastern_ontario_orthoimagery_2024_16cm_v0.1.0-beta.pmtiles",
@@ -1064,7 +1118,10 @@
     "confidence": "high"
    },
    "verdict": "public-domain",
-   "reason": "public domain"
+   "reason": "public domain",
+   "webseeds": [
+    "https://huggingface.co/datasets/nyuuzyou/edutexts/resolve/main/"
+   ]
   },
   {
    "title": "Animations Dataset",
@@ -2296,7 +2353,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://mirror.accum.se/mirror/wikimedia.org/dumps/ruwiki/20250601/",
+    "https://wikipedia.c3sl.ufpr.br/ruwiki/20250601/",
+    "http://ia600402.us.archive.org/34/items/wikipedia-20250601-ru-pages-articles/",
+    "http://ia800402.us.archive.org/34/items/wikipedia-20250601-ru-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-ru-pages-articles/"
+   ]
   },
   {
    "title": "jawiki-20250601-pages-articles-multistream.xml.bz2",
@@ -2310,7 +2374,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://wikidata.aerotechnet.com/jawiki/20250601/",
+    "https://wikipedia.c3sl.ufpr.br/jawiki/20250601/",
+    "http://ia600905.us.archive.org/8/items/wikipedia-20250601-ja-pages-articles/",
+    "http://ia800905.us.archive.org/8/items/wikipedia-20250601-ja-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-ja-pages-articles/"
+   ]
   },
   {
    "title": "ptwiki-20250601-pages-articles-multistream.xml.bz2",
@@ -2324,7 +2395,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://wikipedia.c3sl.ufpr.br/ptwiki/20250601/",
+    "https://mirror.accum.se/mirror/wikimedia.org/dumps/ptwiki/20250601/",
+    "http://ia600902.us.archive.org/34/items/wikipedia-20250601-pt-pages-articles/",
+    "http://ia800902.us.archive.org/34/items/wikipedia-20250601-pt-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-pt-pages-articles/"
+   ]
   },
   {
    "title": "plwiki-20250601-pages-articles-multistream.xml.bz2",
@@ -2338,7 +2416,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://mirror.accum.se/mirror/wikimedia.org/dumps/plwiki/20250601/",
+    "https://wikipedia.c3sl.ufpr.br/plwiki/20250601/",
+    "http://ia600901.us.archive.org/35/items/wikipedia-20250601-pl-pages-articles/",
+    "http://ia800901.us.archive.org/35/items/wikipedia-20250601-pl-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-pl-pages-articles/"
+   ]
   },
   {
    "title": "itwiki-20250601-pages-articles-multistream.xml.bz2",
@@ -2352,7 +2437,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://wikidata.aerotechnet.com/itwiki/20250601/",
+    "https://mirror.accum.se/mirror/wikimedia.org/dumps/itwiki/20250601/",
+    "http://ia601200.us.archive.org/3/items/wikipedia-20250601-it-pages-articles/",
+    "http://ia801200.us.archive.org/3/items/wikipedia-20250601-it-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-it-pages-articles/"
+   ]
   },
   {
    "title": "frwiki-20250601-pages-articles-multistream.xml.bz2",
@@ -2366,7 +2458,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://mirror.accum.se/mirror/wikimedia.org/dumps/frwiki/20250601/",
+    "https://wikipedia.c3sl.ufpr.br/frwiki/20250601/",
+    "http://ia600705.us.archive.org/5/items/wikipedia-20250601-fr-pages-articles/",
+    "http://ia800705.us.archive.org/5/items/wikipedia-20250601-fr-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-fr-pages-articles/"
+   ]
   },
   {
    "title": "eswiki-20250601-pages-articles-multistream.xml.bz2",
@@ -2380,7 +2479,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://wikipedia.c3sl.ufpr.br/eswiki/20250601/",
+    "https://mirror.accum.se/mirror/wikimedia.org/dumps/eswiki/20250601/",
+    "http://ia600908.us.archive.org/1/items/wikipedia-20250601-es-pages-articles/",
+    "http://ia800908.us.archive.org/1/items/wikipedia-20250601-es-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-es-pages-articles/"
+   ]
   },
   {
    "title": "dewiki-20250601-pages-articles-multistream.xml.bz2",
@@ -2394,7 +2500,14 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://wikidata.aerotechnet.com/dewiki/20250601/",
+    "https://mirror.accum.se/mirror/wikimedia.org/dumps/dewiki/20250601/",
+    "http://ia600907.us.archive.org/16/items/wikipedia-20250601-de-pages-articles/",
+    "http://ia800907.us.archive.org/16/items/wikipedia-20250601-de-pages-articles/",
+    "https://archive.org/download/wikipedia-20250601-de-pages-articles/"
+   ]
   },
   {
    "title": "noaa-ncei-climate-normals-annual-monthly-daily-hourly",
@@ -3234,7 +3347,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://huggingface.co/datasets/erotemic/shitspotter"
+   ]
   },
   {
    "title": "noaa-ncei-global-ocean-current-database",
@@ -5012,7 +5128,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://www.iztok.space/static/publications/SnailDataset.zip"
+   ]
   },
   {
    "title": "Stack Exchange Data Dump (2024-12-31)",
@@ -5320,7 +5439,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://archive.org/download/goose-rosbags/"
+   ]
   },
   {
    "title": "Excavating in the Wild: The GOOSE-Ex Dataset for Semantic Segmentation",
@@ -5334,7 +5456,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://archive.org/download/GOOSE-Ex/"
+   ]
   },
   {
    "title": "The GOOSE Dataset for Perception in Unstructured Environments",
@@ -5474,7 +5599,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://dumps.wikimedia.org/enwiki/20241201/enwiki-20241201-pages-articles-multistream.xml.bz2"
+   ]
   },
   {
    "title": "Reddit comments/submissions 2024-11",
@@ -5558,7 +5686,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://dumps.wikimedia.org/enwiki/20241101/enwiki-20241101-pages-articles-multistream.xml.bz2"
+   ]
   },
   {
    "title": "Stack Exchange Data Dump (2024-02-29)",
@@ -5684,7 +5815,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://dumps.wikimedia.org/enwiki/20241001/enwiki-20241001-pages-articles-multistream.xml.bz2"
+   ]
   },
   {
    "title": "Reddit comments/submissions 2024-09",
@@ -5978,7 +6112,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://dumps.wikimedia.org/wikidatawiki/entities/20240902/wikidata-20240902-all.json.bz2"
+   ]
   },
   {
    "title": "enwiki-20240901-pages-articles-multistream.xml.bz2",
@@ -5992,7 +6129,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://dumps.wikimedia.org/enwiki/20240901/enwiki-20240901-pages-articles-multistream.xml.bz2",
+    "https://s3.us-east-2.amazonaws.com/willbeason.enwiki/enwiki-20240901-pages-articles-multistream.xml.bz2"
+   ]
   },
   {
    "title": "wikidata-20240805-all.json.bz2",
@@ -6006,7 +6147,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://dumps.wikimedia.org/wikidatawiki/entities/20240805/wikidata-20240805-all.json.bz2"
+   ]
   },
   {
    "title": "wikidata-20240701-all.json.bz2",
@@ -6076,7 +6220,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://ipfs.io/ipfs/bafybeiedwp2zvmdyb2c2axrcl455xfbv2mgdbhgkc3dile4dftiimwth2y"
+   ]
   },
   {
    "title": "enwiki-20240801-pages-articles-multistream.xml.bz2",
@@ -6090,7 +6237,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://dumps.wikimedia.org/enwiki/20240801/enwiki-20240801-pages-articles-multistream.xml.bz2",
+    "https://s3.us-east-2.amazonaws.com/willbeason.enwiki/enwiki-20240801-pages-articles-multistream.xml.bz2"
+   ]
   },
   {
    "title": "enwiki-20240701-pages-articles-multistream.xml.bz2",
@@ -6804,7 +6955,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://archive.org/download/",
+    "http://ia601401.us.archive.org/27/items/"
+   ]
   },
   {
    "title": "Russian Wiktionary parsed ruwikt20230901",
@@ -6832,7 +6987,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://zenodo.org/record/7155725/files/amos22.zip?download=1"
+   ]
   },
   {
    "title": "TotalSegmentator CT Dataset V2",
@@ -6846,7 +7004,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://zenodo.org/record/8367088/files/Totalsegmentator_dataset_v2.zip?download=1"
+   ]
   },
   {
    "title": "mistral-7B-v0.1",
@@ -6958,7 +7119,12 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://archive.org/download/",
+    "http://ia902702.us.archive.org/22/items/",
+    "http://ia802702.us.archive.org/22/items/"
+   ]
   },
   {
    "title": "Data Structure and Algorithms Courses by Algoexpert and Neetcode",
@@ -7336,7 +7502,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://www.campar.in.tum.de/public_datasets/2022_plosone_eilers/US_data.zip"
+   ]
   },
   {
    "title": "CAMUS Cardiac Acquisitions for Multi-structure Ultrasound Segmentation",
@@ -8596,7 +8765,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://zenodo.org/record/6802614/files/Totalsegmentator_dataset.zip?download=1"
+   ]
   },
   {
    "title": "VGG Human Pose Estimation datasets",
@@ -8820,7 +8992,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "http://host2.academictorrents.com/",
+    "http://academictorrents1.cfhcable.net/"
+   ]
   },
   {
    "title": "1dsfm",
@@ -9128,7 +9304,10 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://archive.org/download/rapppid_dataset/rapppid.zip"
+   ]
   },
   {
    "title": "wikidata-20220103-all.json.gz",
@@ -9142,7 +9321,10 @@
     "confidence": "high"
    },
    "verdict": "public-domain",
-   "reason": "public domain"
+   "reason": "public domain",
+   "webseeds": [
+    "https://dumps.wikimedia.org/wikidatawiki/entities/20220103/wikidata-20220103-all.json.gz"
+   ]
   },
   {
    "title": "Open License Music 2008-2013 (Jamendo)",
@@ -9394,7 +9576,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://archive.org/download/"
+   ]
   },
   {
    "title": "GeneralIndex.ngrams.4",
@@ -9828,7 +10013,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://drive.google.com/drive/folders/1WocxvZ4GEZ1DI8dOz30aSj2zT6pkATYS https://drive.google.com/drive/folders/1u2xu7bSrWxrbUxk-dT-UvEJq8IjdmNTP https://github.com/NVlabs/ffhq-dataset/blob/bb67086731d3bd70bc58ebee243880403726197a/download_ffhq.py"
+   ]
   },
   {
    "title": "Breast Ultrasound Images Dataset (Dataset BUSI)",
@@ -10234,7 +10422,11 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://archive.org/download/medical-imaging-deep-learning-tutorial-2020",
+    "http://cdn1.academictorrents.org/"
+   ]
   },
   {
    "title": "Darknet Market Archives 2013-2015 (dnmarchives)",
@@ -11102,7 +11294,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://cdn1.academictorrents.org/"
+   ]
   },
   {
    "title": "PADCHEST_SJ (Resized 224x224) (Fixed cropping)",
@@ -11116,7 +11311,13 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/",
+    "http://host2.academictorrents.com/",
+    "http://academictorrents1.cfhcable.net/",
+    "https://archive.org/download/PADCHEST-dataset-224"
+   ]
   },
   {
    "title": "PANDAcap – SSH Honeypot Dataset",
@@ -11130,7 +11331,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://zenodo.org/record/3759652"
+   ]
   },
   {
    "title": "TrackingNet: A Large-Scale Dataset and Benchmark for Object Tracking in the Wild",
@@ -11942,7 +12146,12 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/",
+    "http://host2.academictorrents.com/",
+    "http://academictorrents1.cfhcable.net/"
+   ]
   },
   {
    "title": "Medical Handbook for Limited Resource Settings",
@@ -12376,7 +12585,12 @@
     "confidence": "high"
    },
    "verdict": "public-domain",
-   "reason": "public domain"
+   "reason": "public domain",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/",
+    "http://host2.academictorrents.com/",
+    "https://archive.org/download/CAMELYON17"
+   ]
   },
   {
    "title": "2_2_5_1",
@@ -14126,7 +14340,12 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/",
+    "http://host2.academictorrents.com/",
+    "http://academictorrents1.cfhcable.net/"
+   ]
   },
   {
    "title": "Lung CT Segmentation Challenge 2017 (LCTSC)",
@@ -14140,7 +14359,12 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/",
+    "https://academictorrents.cloud.seedboxes.cc/share/",
+    "http://host2.academictorrents.com/"
+   ]
   },
   {
    "title": "Flickr8k Dataset",
@@ -14616,7 +14840,14 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://data.mendeley.com/datasets/rscbjbr9sj/2/files/9e8f7acf-7d3a-487f-8eb5-0bd3255b9685/OCT2017.tar.gz",
+    "http://host1.academictorrents.com/share/OCT2017.tar.gz",
+    "https://academictorrents.cloud.seedboxes.cc/share/OCT2017.tar.gz",
+    "https://archive.org/download/OCT2017_201901/OCT2017.tar.gz",
+    "http://host2.academictorrents.com/OCT2017.tar.gz"
+   ]
   },
   {
    "title": "Chest X-Ray Images (Pediatric Pneumonia)",
@@ -14630,7 +14861,14 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/chest-xray-pneumonia.zip",
+    "https://academictorrents.cloud.seedboxes.cc/share/chest-xray-pneumonia.zip",
+    "https://archive.org/download/chest-xray-pneumonia/chest-xray-pneumonia.zip",
+    "https://osf.io/mzv9k/download",
+    "http://host2.academictorrents.com/chest-xray-pneumonia.zip"
+   ]
   },
   {
    "title": "comma2k19",
@@ -14770,7 +15008,12 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/",
+    "https://academictorrents.cloud.seedboxes.cc/share/",
+    "http://www-ens.iro.umontreal.ca/~cohenjos/data/"
+   ]
   },
   {
    "title": "flyingthings3d__optical_flow.tar.bz2",
@@ -15512,7 +15755,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/",
+    "https://academictorrents.cloud.seedboxes.cc/share/"
+   ]
   },
   {
    "title": "nyu_depth_v2_labeled.mat",
@@ -15568,7 +15815,12 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://host1.academictorrents.com/share/MoNuSeg_Training_Data.zip",
+    "https://academictorrents.cloud.seedboxes.cc/share/MoNuSeg_Training_Data.zip",
+    "https://osf.io/rs67v/download"
+   ]
   },
   {
    "title": "[Coursera] Case-Based Introduction to Biostatistics",
@@ -15638,7 +15890,12 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://ivc.ischool.utexas.edu/VizWiz/data/VizWiz_data_ver1.tar.gz",
+    "http://host1.academictorrents.com/share/VizWiz_data_ver1.tar.gz",
+    "https://academictorrents.cloud.seedboxes.cc/share/VizWiz_data_ver1.tar.gz"
+   ]
   },
   {
    "title": "Human MCF7 cells – compound-profiling experiment (BBBC021v1)",
@@ -16254,7 +16511,12 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://archive.org/download/NSCLC-Radiomics-Genomics/",
+    "http://ia601504.us.archive.org/30/items/NSCLC-Radiomics-Genomics/",
+    "http://ia801504.us.archive.org/30/items/NSCLC-Radiomics-Genomics/"
+   ]
   },
   {
    "title": "Still Box",
@@ -16296,7 +16558,15 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://archive.org/download/Pancreas-CT/",
+    "http://ia601504.us.archive.org/30/items/Pancreas-CT/",
+    "http://ia801504.us.archive.org/30/items/Pancreas-CT/",
+    "http://host1.academictorrents.com/share/",
+    "https://academictorrents.cloud.seedboxes.cc/share/",
+    "http://cdn1.academictorrents.org/"
+   ]
   },
   {
    "title": "N+1 fish, N+2 fish dataset (train_videos)",
@@ -16562,7 +16832,11 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://caltech.box.com/shared/static/4vh4uw5zw7yj6e2yokypb2h2j2366dks.h5",
+    "https://public.boxcloud.com/d/1/Nopkax-wY2mEs56vuCOHBT92ke3P694AH4f5QRTvLyM53SgwPmLedlzNKjZHNfKgpyUERx8lutAZpQxE2TH9LomegZ4TONvnfXLjoeA8qu4-H2fNc5Mu0NVzJSAp6M-vRiTyf2Dvhkxy4T-cY2gaGJ1eqwu00jH26lFo-95glhLmyle_V7b5LJhMVbS-xcAicpqDZY4lpRBXsm_GbiWJUm4_bjT_NT2Xyty1naqlTRrwah_Nfetco_7DG4pC6V4hK5TweyUx9_Xle-xtLJSjib1lf_99KGgWH1s8-y4TAe6IjqoR_Jf5n1pavJyQHNM3mdF-j8K9_r9TG0ISstkVtav1PhAAL70WM48f09h1s1mtRyO-lA6rEsFKN44a4ML2aVX4vft4YlkB-7PMBzjj0WdpAGPujmmDKJhFKlCJWD1xEaNRbmSFb0XQD6jNrvvzUVVVKdRgGkiz4m0Sg0d5laVh9LcNAWpAI89RZUMZo3QFrBSFY_KtDZhF9LMCtLyNgKR3vVEcVWJ1TpQo6uG0K8pdC9_vtUGCa530vPDnEpnzgd9ppcDseNf0u4pGX7_rdXB4sDBVb_Uv35K07J-u9V-JxUkJWbbyCfn6iTOwvXYJ9DUxTZaHIipeVHJR66lv4Alpw9Fo_s9rAhQcRu5qPzGQkU55xHaGkKLvBkcvFsoLjpwH-X89XVo4TMdd0dRoYh9s3Z0qTOgK4cbbY_Vw2ATGAaiE8etr1MryIcKy5gS_38Euc09EuK7SDtv9y8DeVoM7m2G4SCfqFwUnFI_1zWq9koIZMuiW12ESlyEDPuDCaNd7V63IIdNWlHDoRY6I7Fxum7myybTi0ESAyCDNYCwyVDgt6halRBKmtVfNBTvTS_l6IRg9ea2qqBcx5dLQ_44NcaoByKP8GMbeltXftwU6Egzg_iGgu2M3uoszXpFs58QbO9vGtohYKyA6DwW6ifXTZzmXq2nL64I4SusJbpcQKwVTv-J2MxDF6KZ3ZZN9cA9ya3Fin7yK89rpbp3OLfBwQtvZdrM8VOSv3YlN5NBH711kjl2CDugIb5DvwHhTmRomY_7XQJpSB3lqMzm2AoID9yuDrjDE9EUGY1xgKuD4J0Iww1FNLMaOSlF58D9VSByzGoBLkh9-EYRsLeNpQtlQrU_P4b45GLMfek_i51QA-mGX3qufquY6LFKNhl7pGugN/download"
+   ]
   },
   {
    "title": "Udacity / Didi $100k Competition Calibration Dataset",
@@ -17780,7 +18054,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://iesl.cs.umass.edu/downloads/"
+   ]
   },
   {
    "title": "Wikilinks: A Large-scale Cross-Document Coreference Corpus Labeled via Links to Wikipedia (Original Dataset)",
@@ -17794,7 +18071,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/"
+   ]
   },
   {
    "title": "Open Payments Dataset - 2015 Program Year",
@@ -18634,7 +18914,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://caltech.box.com/shared/static/9eufpftfblxhmmc2x6eowoq9zenfj35j.h5"
+   ]
   },
   {
    "title": "Scendesmus dataset",
@@ -18648,7 +18931,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://caltech.box.com/shared/static/tutkmckdusd1wyfikv50u6mr1j251ice.h5"
+   ]
   },
   {
    "title": "10-715 Advanced Introduction to Machine Learning - CMU - Fall 2015",
@@ -18774,7 +19060,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://ueod-globe.net/globe/"
+   ]
   },
   {
    "title": "Sentiment Labelled Sentences Data Set",
@@ -19166,7 +19455,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "https://cs.stanford.edu/people/rak248"
+   ]
   },
   {
    "title": "The Visual Genome Dataset v1.0 Metadata",
@@ -20580,7 +20872,10 @@
     "confidence": "high"
    },
    "verdict": "attribution",
-   "reason": "sellable with credit to the source"
+   "reason": "sellable with credit to the source",
+   "webseeds": [
+    "http://autolab.cmpt.sfu.ca/files/datasets/sfu-mountain/"
+   ]
   },
   {
    "title": "CT data of simple and thick gooseneck joint before and after testing",
@@ -21308,7 +21603,10 @@
     "confidence": "high"
    },
    "verdict": "public-domain",
-   "reason": "public domain"
+   "reason": "public domain",
+   "webseeds": [
+    "https://academictorrents.cloud.seedboxes.cc/share/"
+   ]
   },
   {
    "title": "Internet Census 2012",
@@ -21406,7 +21704,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "http://dumps.wikimedia.your.org/enwiki/20140707/enwiki-20140707-pages-articles.xml.bz2",
+    "http://dumps.wikimedia.org/enwiki/20140707/enwiki-20140707-pages-articles.xml.bz2"
+   ]
   },
   {
    "title": "The MacTeX 2014 Distribution",
@@ -21658,7 +21960,11 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "http://dumps.wikimedia.org/enwiki/20140102/enwiki-20140102-pages-articles.xml.bz2",
+    "http://wikipedia.c3sl.ufpr.br/enwiki/20140102/enwiki-20140102-pages-articles.xml.bz2"
+   ]
   },
   {
    "title": "Wikipedia English Official Offline Edition 2014-02-03",
@@ -21672,7 +21978,13 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "http://dumps.wikimedia.org/enwiki/20140203/enwiki-20140203-pages-articles.xml.bz2",
+    "http://dumps.wikimedia.your.org/enwiki/20140203/enwiki-20140203-pages-articles.xml.bz2",
+    "http://wikipedia.c3sl.ufpr.br/enwiki/20140203/enwiki-20140203-pages-articles.xml.bz2",
+    "https://6aeb1cafd1e599290ec65974e41184d7a9f34d02.googledrive.com/host/0B1qvqY0-RmU_ZklFZ3J1Q3RTbEU/enwiki-20140203-pages-articles.xml.bz2"
+   ]
   },
   {
    "title": "Census-Rural-Urban NTIA-Mashup",
@@ -23170,7 +23482,15 @@
     "confidence": "high"
    },
    "verdict": "share-alike",
-   "reason": "sellable; buyers may re-share under the same licence"
+   "reason": "sellable; buyers may re-share under the same licence",
+   "webseeds": [
+    "https://28dd179d2dff971aa686828cd54deb6acd0c5ddd.googledrive.com/host/0B9654DS1_3rFa0Y2bEdqX1Rta0E/Wikipedia_English_Official_Offline_Edition_(version_20130805)_%5BXprt%5D.xml.bz2",
+    "http://dumps.wikimedia.org/enwiki/20130805/enwiki-20130805-pages-articles.xml.bz2",
+    "http://wikipedia.c3sl.ufpr.br/enwiki/20130805/enwiki-20130805-pages-articles.xml.bz2",
+    "http://someones.name/share/Wikipedia_English_Official_Offline_Edition_(version_20130805)_[Xprt].xml.bz2",
+    "http://merb.cs.umb.edu/share/Wikipedia_English_Official_Offline_Edition_(version_20130805)_[Xprt].xml.bz2",
+    "https://googledrive.com/host/0B9654DS1_3rFQzVLNGd4UUlKcUk"
+   ]
   }
  ]
 }

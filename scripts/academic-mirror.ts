@@ -5,6 +5,7 @@
  *   pnpm academic:mirror apply                        queue this rung's picks on the seedbox
  *   pnpm academic:mirror hash-cmd <infohash>          the command that hashes a finished download
  *   pnpm academic:mirror record <infohash> <sha256>   mark one mirrored (lists it in openfile.json)
+ *   pnpm academic:mirror finish --host user@box        hash + record every finished download, refresh used
  *   pnpm academic:mirror set capacity <tb> | used <bytes>
  *
  * `apply` speaks torlnk's HTTP API, which only listens on the box's localhost,
@@ -17,9 +18,11 @@
  * so `plan` only says when the numbers justify it.
  */
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { type Catalog, type MirrorState, magnetFor, planMirror } from '../src/lib/academic/catalog';
 import { shouldClimb } from '../src/lib/academic/ladder';
+import { isSellable } from '../src/lib/academic/license';
 import { buildHttpConfig, emptySeedboxConfig } from '../src/lib/seedbox/config';
 import { sendTorrentToSeedbox } from '../src/lib/seedbox/send';
 
@@ -88,6 +91,41 @@ async function main() {
       mirror.mirrored.push({ infohash, sha256, mirroredAt: new Date().toISOString() });
       save(mirror);
       console.log(`recorded ${infohash}; it is listed in /.well-known/openfile.json from the next deploy`);
+      return;
+    }
+    case 'finish': {
+      const host = flag('--host');
+      if (!host || !/^[\w.-]+@[\w.-]+$/.test(host)) throw new Error('finish --host user@box');
+      const run = (script: string) => execFileSync('ssh', ['-o', 'BatchMode=yes', host, script], { encoding: 'utf8', maxBuffer: 64 << 20 });
+      // The token never leaves the box: it is read from the daemon's environment and used there.
+      const listing = JSON.parse(
+        run(
+          'PID=$(systemctl --user show -p MainPID --value torlink-serve.service); ' +
+            'TOK=$(tr "\\0" "\\n" < /proc/$PID/environ | grep ^TORLINK_API_TOKEN= | cut -d= -f2-); ' +
+            'curl -s localhost:9161/downloads -H "Authorization: Bearer $TOK"'
+        )
+      ) as { seeds: { id: string; name: string }[] };
+      const sellable = new Set(catalog.entries.filter((e) => isSellable(e.verdict)).map((e) => e.infohash));
+      const have = new Set(mirror.mirrored.map((m) => m.infohash));
+      const finished = listing.seeds.filter((t) => sellable.has(t.id) && !have.has(t.id));
+      for (const t of finished) {
+        // The name goes over as base64 so no torrent name can break out of the remote shell.
+        const b64 = Buffer.from(t.name).toString('base64');
+        const out = run(
+          `P="$HOME/Downloads/done/$(echo ${b64} | base64 -d)"; ` +
+            'if [ -f "$P" ]; then sha256sum < "$P"; elif [ -d "$P" ]; then cd "$P" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 cat | sha256sum; else echo missing; fi'
+        ).trim();
+        const sha256 = out.split(/\s+/)[0];
+        if (!/^[0-9a-f]{64}$/.test(sha256)) {
+          console.log(`skip    ${t.id}  ${t.name}: ${out.slice(0, 60)}`);
+          continue;
+        }
+        mirror.mirrored.push({ infohash: t.id, sha256, mirroredAt: new Date().toISOString() });
+        console.log(`record  ${t.id}  ${t.name}`);
+      }
+      mirror.usedBytes = Number(run('df -B1 --output=used "$HOME/Downloads" | tail -1').trim()) || mirror.usedBytes;
+      save(mirror);
+      console.log(`${finished.length} finished, ${mirror.mirrored.length} mirrored in all, ${tb(mirror.usedBytes)} used on the box`);
       return;
     }
     case 'set': {
