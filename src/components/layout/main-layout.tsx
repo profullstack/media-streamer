@@ -87,6 +87,28 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
           <span className="mx-2">·</span>
           <a href="https://github.com/profullstack/media-streamer" target="_blank" rel="noopener noreferrer" className="hover:text-text-primary transition-colors">GitHub</a>
 
+          <nav className="webring mt-2" aria-label="Profullstack webring">
+            <a
+              href="https://rssamplifier.com/ring/profullstack/previous?from=https%3A%2F%2Fbittorrented.com%2F"
+              rel="prev"
+              className="hover:text-text-primary transition-colors"
+            >
+              {"<<"}
+            </a>
+            <span className="mx-2">·</span>
+            <a href="https://rssamplifier.com/ring/profullstack" className="hover:text-text-primary transition-colors">
+              Profullstack
+            </a>
+            <span className="mx-2">·</span>
+            <a
+              href="https://rssamplifier.com/ring/profullstack/next?from=https%3A%2F%2Fbittorrented.com%2F"
+              rel="next"
+              className="hover:text-text-primary transition-colors"
+            >
+              {">>"}
+            </a>
+          </nav>
+
           {/* Launchpadly badge */}
           <div className="mt-3">
             <a
