@@ -41,6 +41,15 @@ describe('webseeds', () => {
   });
 });
 
+describe('skipped', () => {
+  it('rests a seederless torrent for a week, then tries it again', () => {
+    const now = Date.parse('2026-10-10T00:00:00Z');
+    const mirror = (at: string): MirrorState => ({ ...empty, skipped: [{ infohash: 'small', reason: 'no seeders', at }] });
+    expect(candidates(catalog, mirror('2026-10-09T00:00:00Z'), now).map((e) => e.infohash)).not.toContain('small');
+    expect(candidates(catalog, mirror('2026-10-01T00:00:00Z'), now).map((e) => e.infohash)).toContain('small');
+  });
+});
+
 describe('planMirror', () => {
   it('fills the free part of the 2 TB rung', () => {
     const plan = planMirror(catalog, empty);
@@ -48,6 +57,15 @@ describe('planMirror', () => {
     expect(plan.budget).toBe(0.8 * TB);
     expect(plan.picks.map((p) => p.infohash)).toContain('big');
     expect(plan.picks.map((p) => p.infohash)).not.toContain('nc');
+  });
+});
+
+describe('planMirror with downloads in flight', () => {
+  it('takes their bytes out of the budget and never picks them twice', () => {
+    const big = catalog.entries.find((e) => e.infohash === 'big')!;
+    const plan = planMirror(catalog, empty, [big]);
+    expect(plan.budget).toBe(0.8 * TB - big.size);
+    expect(plan.picks.map((p) => p.infohash)).not.toContain('big');
   });
 });
 

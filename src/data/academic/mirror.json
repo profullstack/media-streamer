@@ -1,6 +1,6 @@
 {
   "capacityTb": 2,
-  "usedBytes": 688668913664,
+  "usedBytes": 699023884288,
   "mirrored": [
     {
       "infohash": "cab7744573688b0b39c521ef66453435785762ac",
@@ -21,6 +21,108 @@
       "infohash": "c87688437fb416f66eecbd8c419aba00dd12997f",
       "sha256": "bc79444dce0dc75a0fe11c870f4b4e0a949644d55ebf8d7e08824cc262a0329b",
       "mirroredAt": "2026-10-04T14:25:14.553Z"
+    },
+    {
+      "infohash": "aca221de8a3917804fb8be301eeee05067966f3a",
+      "sha256": "1c75dcb956be62858425eec76edd138c158aa03af5b9ddc2397131565dc49ebf",
+      "mirroredAt": "2026-10-04T15:25:02.661Z"
+    },
+    {
+      "infohash": "1f6b373346a0fa34de6b4d916984d698e0a623b3",
+      "sha256": "a398dbd762d40119174a1b8a7994dfb6279bafca20c32b940f69698a9d0df583",
+      "mirroredAt": "2026-10-04T15:25:14.296Z"
+    },
+    {
+      "infohash": "973fb709bdb9db6066213bbc5529482a190098ce",
+      "sha256": "5a82428ac9baffedb3a01aae01370dce42963ee2612613e4d567901fa99a5529",
+      "mirroredAt": "2026-10-04T15:25:23.022Z"
+    },
+    {
+      "infohash": "338a9fb90e5dccda4106d623768b6d40f3956ab0",
+      "sha256": "27da00c54705141151d8bf48aa35e617d5b6a3f34eee1804b756ba095b86f787",
+      "mirroredAt": "2026-10-04T15:25:30.131Z"
+    },
+    {
+      "infohash": "b18bbd9ba03d50b0f7f479acc9f4228a408cecc1",
+      "sha256": "959a152fd30251cad5ff57f053baee4bd0b9b732daefa6a8377a74fa19e0b7a2",
+      "mirroredAt": "2026-10-04T15:25:44.251Z"
+    },
+    {
+      "infohash": "7208a86910cc518ae8feaa9021bf7f8565b97644",
+      "sha256": "0db6720a4747d92d76dc3fd504cfa8d2d9259cdd7769e865c37e758e7cb21687",
+      "mirroredAt": "2026-10-04T15:26:02.976Z"
+    },
+    {
+      "infohash": "951f829a8eeb4d2839c4a535db95078a9175010b",
+      "sha256": "411af9647cdd19d9ef6cea916ce598d6da153663182aecfbb5d65daaae535461",
+      "mirroredAt": "2026-10-04T15:26:40.478Z"
+    },
+    {
+      "infohash": "8464b9f9166c143040fee655f0284085fe251a80",
+      "sha256": "64099f7b9161229d1ebab432326477cef8d13fd6bfd7fbfccc76ea781e647fb5",
+      "mirroredAt": "2026-10-04T15:27:05.132Z"
+    },
+    {
+      "infohash": "beefa2ec4161432cd1d9f693a88d3670aae68357",
+      "sha256": "f3fe6de34ab1d018c635792ea7c41ba1df0ffcbd6e6ad6bb75350dcd10517f37",
+      "mirroredAt": "2026-10-04T15:27:42.392Z"
+    }
+  ],
+  "skipped": [
+    {
+      "infohash": "6c690018c5786dbbb00161f62b0712d69296df97",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:27:45.609Z"
+    },
+    {
+      "infohash": "ab530b4e6493c7e7c5539b65cdbe84263d15b4e6",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:27:49.468Z"
+    },
+    {
+      "infohash": "d0c67ff5bdba2ca1b1f20ec756d554bc85142537",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:28:00.839Z"
+    },
+    {
+      "infohash": "11093a9450b26514f34bc24f1f41c759d2cfac23",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:28:10.608Z"
+    },
+    {
+      "infohash": "e95526a0bc4f39a5bbf423b24708d65fa4542d20",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:28:12.541Z"
+    },
+    {
+      "infohash": "d8ceccf6d9a57b799003205e0567e630b0ecb90e",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:28:35.927Z"
+    },
+    {
+      "infohash": "e58406cf3c21e608dc0d8c0be63387eab77040dc",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:28:45.704Z"
+    },
+    {
+      "infohash": "3ddc1eb44eb97e58d7636a9ffaa6924f2ed9fb40",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:29:12.509Z"
+    },
+    {
+      "infohash": "30ac2ef27829b1b5a7d0644097f55f335ca5241b",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:29:14.530Z"
+    },
+    {
+      "infohash": "feb5891fd364f357b03a9ebbf3b7d83a0aabe1ec",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:29:19.837Z"
+    },
+    {
+      "infohash": "fe977c0e13549b85bf14e37300676c0f8cc8e97a",
+      "reason": "no seeders",
+      "at": "2026-10-04T15:29:42.014Z"
     }
   ]
 }
