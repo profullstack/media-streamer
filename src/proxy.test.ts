@@ -25,6 +25,11 @@ vi.mock('@/lib/site-offline', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/site-offline')>()),
   SITE_OFFLINE: false,
 }));
+// Likewise the gate's original behaviour, with legal mode off; legal mode is tested in legal-mode.test.ts.
+vi.mock('@/lib/legal-mode', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/legal-mode')>()),
+  LEGAL_MODE: false,
+}));
 
 /** A response that lets the request carry on to the app (NextResponse.next()). */
 function expectPassThrough(res: Response | undefined): asserts res is NextResponse {
