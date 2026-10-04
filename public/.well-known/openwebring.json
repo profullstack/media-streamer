@@ -1,0 +1,6 @@
+{
+  "openwebring": "0.1",
+  "site": { "url": "https://bittorrented.com/", "name": "BitTorrented" },
+  "made_by": "both",
+  "rings": [{ "ring": "https://rssamplifier.com/ring/profullstack", "slug": "bittorrented-blog" }]
+}
