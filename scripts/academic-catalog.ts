@@ -32,7 +32,11 @@ interface Item {
   category: string;
   infohash: string;
   size: number;
+  description: string;
 }
+
+/** Descriptions are kept for sellable entries only, capped where nichedb caps a summary. */
+const DESCRIPTION_MAX = 4000;
 
 const unescape = (s: string) =>
   s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, '&');
@@ -40,7 +44,13 @@ const unescape = (s: string) =>
 function parseDatabase(xml: string): Item[] {
   return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, it]) => {
     const tag = (t: string) => it.match(new RegExp(`<${t}>([\\s\\S]*?)</${t}>`))?.[1] ?? '';
-    return { title: unescape(tag('title')).trim(), category: tag('category'), infohash: tag('infohash').toLowerCase(), size: Number(tag('size')) || 0 };
+    return {
+      title: unescape(tag('title')).trim(),
+      category: tag('category'),
+      infohash: tag('infohash').toLowerCase(),
+      size: Number(tag('size')) || 0,
+      description: unescape(tag('description')).replace(/\s+/g, ' ').trim().slice(0, DESCRIPTION_MAX),
+    };
   });
 }
 
@@ -117,7 +127,9 @@ async function main() {
       const { verdict, reason, spdx } = decideLicense(license);
       // `canonical` is what we decided on (it may come from a bare URL); `raw` is what the uploader wrote.
       const kept = license ? { raw: license.raw ?? null, canonical: spdx, label: license.label ?? null, confidence: license.confidence ?? null } : null;
-      return { ...i, license: kept, verdict, reason };
+      const { description, ...rest } = i;
+      // 1,452 unsellable descriptions would only bloat the bundle; nothing reads them.
+      return { ...rest, ...(isSellable(verdict) && description ? { description } : {}), license: kept, verdict, reason };
     });
   // Webseeds only matter for what we would mirror, so only sellable entries cost a request.
   const seeds = readSeedCache();

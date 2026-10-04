@@ -22,6 +22,8 @@ export interface CatalogEntry {
   reason: string;
   /** HTTP sources from the .torrent's url-list (often archive.org); absent when it has none. */
   webseeds?: string[];
+  /** Academic Torrents' own description; kept for sellable entries only. */
+  description?: string;
 }
 
 export interface Catalog {
@@ -162,5 +164,47 @@ export function openFileDescriptor(catalog: Catalog, mirror: MirrorState, origin
     updated,
     bittorrented: { access },
     files,
+  };
+}
+
+/**
+ * Every dataset we may resell, as OpenFile file objects (logicsrc.com/openfile),
+ * for directories such as nichedb.dev. Served at /api/public/datasets.
+ *
+ * It sits beside openfile.json rather than inside it because OpenFile's `id` is
+ * the SHA-256 of the bytes, which we only know once a dataset is on our disk:
+ * here `mirrored` carries that id when it exists and is null until then. The
+ * licence gate is the same one: nothing with a `no` verdict is ever listed.
+ */
+export function datasetsFeed(catalog: Catalog, mirror: MirrorState, origin: string) {
+  const mirrored = new Map(mirror.mirrored.map((m) => [m.infohash, m]));
+  const datasets = catalog.entries.flatMap((e) => {
+    const basis = openFileBasis(e.verdict);
+    if (!basis) return [];
+    const m = mirrored.get(e.infohash);
+    return [
+      {
+        infohash: e.infohash,
+        name: e.title,
+        category: e.category,
+        size: e.size,
+        description: e.description ?? '',
+        url: `https://academictorrents.com/details/${e.infohash}`,
+        attestation: { basis, ...(basis === 'open-license' && e.license?.canonical ? { license: e.license.canonical } : {}) },
+        verdict: e.verdict,
+        terms: e.reason,
+        magnet: magnetFor(e),
+        webseeds: e.webseeds ?? [],
+        mirrored: m ? { id: `sha256:${m.sha256}`, at: m.mirroredAt } : null,
+      },
+    ];
+  });
+  const updated = [catalog.fetchedAt, ...mirror.mirrored.map((m) => m.mirroredAt)].sort().at(-1);
+  return {
+    publisher: { name: 'bittorrented.com dataset mirror', web: origin },
+    spec: 'https://logicsrc.com/openfile',
+    source: catalog.source,
+    updated,
+    datasets,
   };
 }
