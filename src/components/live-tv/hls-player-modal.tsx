@@ -17,7 +17,6 @@ import Hls from 'hls.js';
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
 import { useTvDetection } from '@/hooks/use-tv-detection';
-import { useModalOpen } from '@/hooks/use-modal-open';
 import { IptvChannelFavoriteButton } from '@/components/ui/iptv-channel-favorite-button';
 import { hasRecovered, retryDelayMs } from '@/lib/live-tv/recovery';
 
@@ -127,8 +126,6 @@ export function HlsPlayerModal({
     ))
   ) : false;
 
-  // Hide page-level chrome (e.g. the floating feedback button) while open
-  useModalOpen(isOpen);
 
   // Handle escape key and overflow
   useEffect(() => {
