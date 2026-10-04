@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from './route';
 
@@ -17,6 +17,15 @@ describe('GET /.well-known/openfile.json', () => {
       { plan: 'premium', amountUsd: 4.99, per: 'year' },
       { plan: 'family', amountUsd: 9.99, per: 'year' },
     ]);
+    expect(body.bittorrented.access.signup).toBe('https://bittorrented.com/pricing');
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('advertises the public app URL, not the proxy origin', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://bittorrented.com');
+    const body = await GET(new NextRequest('https://localhost:3000/.well-known/openfile.json')).json();
+    expect(body.publisher.web).toBe('https://bittorrented.com');
     expect(body.bittorrented.access.signup).toBe('https://bittorrented.com/pricing');
   });
 });
