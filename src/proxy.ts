@@ -19,6 +19,7 @@ import { trackReferralCode } from '@profullstack/stack/referrals';
 import { gateway, hasSessionCookie } from '@/lib/crawl-gateway';
 import { meter } from '@/lib/throttle';
 import { SITE_OFFLINE, offlineResponse, stillServed } from '@/lib/site-offline';
+import { LEGAL_MODE, goneResponse, legallyServed } from '@/lib/legal-mode';
 
 // =============================================================================
 // Rate Limiting (in-memory sliding window)
@@ -526,6 +527,14 @@ export async function proxy(request: NextRequest): Promise<Response> {
   // --- 0. The site is offline (see src/lib/site-offline.ts) ---
   if (SITE_OFFLINE && !stillServed(request.nextUrl.pathname)) {
     return offlineResponse(request.nextUrl.pathname);
+  }
+
+  // --- 0b. Legal mode: only reviewed features are served (see src/lib/legal-mode.ts) ---
+  if (LEGAL_MODE) {
+    const path = request.nextUrl.pathname;
+    // The home page lists torrent media; until the licensed catalog replaces it, send people to membership.
+    if (path === '/') return NextResponse.redirect(new URL('/pricing', request.url));
+    if (!legallyServed(path)) return goneResponse(path);
   }
 
   // --- 1. Crawl gateway: training crawlers pay, everyone else carries on ---
