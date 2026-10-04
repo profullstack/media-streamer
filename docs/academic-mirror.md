@@ -1,5 +1,12 @@
 # Academic Torrents dataset mirror
 
+> **Withdrawn 2026-10-04.** Nothing is listed or mirrored. A licence check turned out not to be
+> enough: some "sellable" datasets are personal data (YASP / OpenDota match dumps, millions of
+> players' Steam ids) and some are patient-derived medical imaging. `src/lib/academic/listing.ts`
+> is the switch: while `listed` is false both public endpoints return empty lists and
+> `academic:mirror apply|finish` refuse to run. Review every dataset for personal and medical
+> data before turning it back on.
+
 Members get fast access to datasets from academictorrents.com that we are allowed to sell, kept on our
 seedbox and published as an [OpenFile](https://logicsrc.com/openfile) descriptor at
 `/.well-known/openfile.json`. The rest stay out.

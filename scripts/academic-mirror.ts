@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { type Catalog, type CatalogEntry, type MirrorState, magnetFor, planMirror } from '../src/lib/academic/catalog';
 import { hasSeeders, scrape } from '../src/lib/academic/scrape';
 import { shouldClimb } from '../src/lib/academic/ladder';
+import { ACADEMIC_LISTING } from '../src/lib/academic/listing';
 import { isSellable } from '../src/lib/academic/license';
 import { buildHttpConfig, emptySeedboxConfig } from '../src/lib/seedbox/config';
 import { sendTorrentToSeedbox } from '../src/lib/seedbox/send';
@@ -49,6 +50,10 @@ async function main() {
   const [command, ...args] = process.argv.slice(2).filter((a, i, all) => !a.startsWith('--') && !all[i - 1]?.startsWith('--'));
   const catalog = load<Catalog>(CATALOG);
   const mirror = load<MirrorState>(MIRROR);
+
+  if ((command === 'apply' || command === 'finish') && !ACADEMIC_LISTING.listed) {
+    throw new Error(`the datasets are withdrawn (${ACADEMIC_LISTING.since}: ${ACADEMIC_LISTING.reason}); see src/lib/academic/listing.ts`);
+  }
 
   switch (command ?? 'plan') {
     case 'plan': {
