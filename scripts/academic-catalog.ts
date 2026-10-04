@@ -20,6 +20,8 @@ const CACHE = process.env.ACADEMIC_LICENSE_CACHE ?? '.academic-licenses.jsonl';
 const OUT = 'src/data/academic/catalog.json';
 const CATEGORIES = new Set(['Dataset', 'Course']);
 const PAUSE_MS = 1500;
+// database.xml is remote input; only a v1 infohash may ever reach a details URL.
+const INFOHASH = /^[0-9a-f]{40}$/;
 const UA = 'Mozilla/5.0 (compatible; bittorrented-dataset-mirror; +https://bittorrented.com)';
 
 interface Item {
@@ -53,7 +55,9 @@ function readCache(): Map<string, AcademicLicense | null> {
 }
 
 async function fetchLicense(infohash: string): Promise<AcademicLicense | null> {
-  const res = await fetch(`https://academictorrents.com/details/${infohash}`, { headers: { 'user-agent': UA } });
+  if (!INFOHASH.test(infohash)) throw new Error('not a v1 infohash');
+  const url = new URL(`/details/${infohash}`, 'https://academictorrents.com');
+  const res = await fetch(url, { headers: { 'user-agent': UA } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const match = (await res.text()).match(/window\.detailsLicense = (\{.*?\});/);
   return match ? (JSON.parse(match[1]) as AcademicLicense) : null;
@@ -61,9 +65,9 @@ async function fetchLicense(infohash: string): Promise<AcademicLicense | null> {
 
 async function main() {
   const offline = process.argv.includes('--offline');
-  const res = await fetch(DATABASE, { headers: { 'user-agent': UA } });
+  const res = await fetch('https://academictorrents.com/database.xml', { headers: { 'user-agent': UA } });
   if (!res.ok) throw new Error(`database.xml: HTTP ${res.status}`);
-  const items = parseDatabase(await res.text()).filter((i) => CATEGORIES.has(i.category) && i.infohash);
+  const items = parseDatabase(await res.text()).filter((i) => CATEGORIES.has(i.category) && INFOHASH.test(i.infohash));
   const cache = readCache();
 
   if (!offline) {

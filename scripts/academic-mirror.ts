@@ -35,6 +35,12 @@ function flag(name: string): string | undefined {
   return at > -1 ? process.argv[at + 1] : undefined;
 }
 
+/** The tunnelled torlnk API. Kept apart from any output so the token never reaches a log. */
+function torlinkConfig() {
+  const http = buildHttpConfig({ baseUrl: process.env.SEEDBOX_URL ?? 'http://127.0.0.1:9161', token: process.env.SEEDBOX_TOKEN });
+  return http ? { ...emptySeedboxConfig(), http } : null;
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2).filter((a, i, all) => !a.startsWith('--') && !all[i - 1]?.startsWith('--'));
   const catalog = load<Catalog>(CATALOG);
@@ -52,9 +58,11 @@ async function main() {
       return;
     }
     case 'apply': {
-      const http = buildHttpConfig({ baseUrl: process.env.SEEDBOX_URL ?? 'http://127.0.0.1:9161', token: process.env.SEEDBOX_TOKEN });
-      if (!http) throw new Error('SEEDBOX_TOKEN is required (the torlnk serve token; see the header of this file)');
-      const config = { ...emptySeedboxConfig(), http };
+      const config = torlinkConfig();
+      if (!config) {
+        console.error('set the torlnk serve token in the environment first; see the header of this file');
+        process.exit(1);
+      }
       for (const p of planMirror(catalog, mirror).picks) {
         const result = await sendTorrentToSeedbox(magnetFor(p), p.title, 'http', config);
         console.log(`${result.ok ? 'queued' : 'FAILED'}  ${p.infohash}  ${p.title}${result.ok ? '' : `  ${result.message ?? ''}`}`);
