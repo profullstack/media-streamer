@@ -1,0 +1,2456 @@
+{
+ "source": "https://academictorrents.com/database.xml",
+ "fetchedAt": "2026-10-04T13:09:27.800Z",
+ "entries": [
+  {
+   "title": "Computer Systems Security (MIT 6.858) - Video lectures 2014",
+   "category": "Course",
+   "infohash": "4b9c8a79866e71648bde841d682ad33ea3c7101b",
+   "size": 11035213824,
+   "license": {
+    "raw": "http://creativecommons.org/licenses/by-nc-sa/3.0/",
+    "canonical": "CC-BY-NC-SA-3.0",
+    "label": "CC BY-NC-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Celebrity in Places",
+   "category": "Dataset",
+   "infohash": "04200d16ba377e1bc0c5690d87ee047e1e70a5b5",
+   "size": 1976719940,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Mathematics for Computer Science (MIT 6.1200J) - Video lectures 2024",
+   "category": "Course",
+   "infohash": "fb8e884242c26e60f38dedf17b37327bdcffb1d6",
+   "size": 4588568576,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "canonical": "CC-BY-NC-SA-4.0",
+    "label": "CC BY-NC-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Mathematics for Computer Science - Textbook, 2018 revision",
+   "category": "Course",
+   "infohash": "e0d6ee4d1c31328e50fb51c3b9bf7be6958bc74b",
+   "size": 13269308,
+   "license": {
+    "raw": "http://creativecommons.org/licenses/by-sa/3.0/",
+    "canonical": "CC-BY-SA-3.0",
+    "label": "CC BY-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Algorithmic Lower Bounds: Fun with Hardness Proofs (MIT 6.890) - Video lectures 2014",
+   "category": "Course",
+   "infohash": "f447784b18231897c892dbe45d943924583eab64",
+   "size": 6169821184,
+   "license": {
+    "raw": "http://creativecommons.org/licenses/by-nc-sa/3.0/",
+    "canonical": "CC-BY-NC-SA-3.0",
+    "label": "CC BY-NC-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-08",
+   "category": "Dataset",
+   "infohash": "f4848163a5fb650e4b15eee0202858447bca120a",
+   "size": 74613168905,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "UnityLV-MultiX Dataset echocardiography videos",
+   "category": "Dataset",
+   "infohash": "6e8a8eac48777052f4f8b8f5b30954036d59405d",
+   "size": 34590597,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "canonical": "CC-BY-NC-SA-4.0",
+    "label": "CC BY-NC-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Advanced Data Structures (MIT 6.851) - Video lectures 2012",
+   "category": "Course",
+   "infohash": "a7ef136c1ad6c7924642a1ac399bc0800d9da4f4",
+   "size": 14407434240,
+   "license": {
+    "raw": "http://creativecommons.org/licenses/by-nc-sa/3.0/",
+    "canonical": "CC-BY-NC-SA-3.0",
+    "label": "CC BY-NC-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Results - Energy Landscape Controllers for XX Spin Rings - Robustness",
+   "category": "Dataset",
+   "infohash": "dcb9178653b651c7ca4526e11fa8e22f74e2fd7a",
+   "size": 71000122956,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Results - Robustness of Energy Landscape Control - Sensitivity vs RIM",
+   "category": "Dataset",
+   "infohash": "ddd4cbd3647db0e6f03dff94884b0e3b59f1c220",
+   "size": 21872846359,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Data - Static Bias Controllers for XX Spin Rings",
+   "category": "Dataset",
+   "infohash": "0bd5aa6f397a5ea4f13f1b16d857e37520702d9d",
+   "size": 13754044142,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Data - Energy Landscape Controllers for XX Spin Rings",
+   "category": "Dataset",
+   "infohash": "52aeb71e1e2c4dc1618b380498cacbef722071a7",
+   "size": 189786121,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Design and Analysis of Algorithms (MIT 6.046J) - Video lectures 2015",
+   "category": "Course",
+   "infohash": "033e3357cc20338aa43ce6494d35f6324eb98063",
+   "size": 7381975040,
+   "license": {
+    "raw": "http://creativecommons.org/licenses/by-nc-sa/3.0/",
+    "canonical": "CC-BY-NC-SA-3.0",
+    "label": "CC BY-NC-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "enwiki-20260801-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "7d6adf33cd9976877fdc4b487607c3bdaf733241",
+   "size": 26668484995,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20260801-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "4d29de8b54945597064c1148b78b3e79546d07e5",
+   "size": 283588691,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Introduction to Algorithms (MIT 6.006) - Video lectures 2020",
+   "category": "Course",
+   "infohash": "1e6d57c0d31127fe9b97f5aac62c43c4fd9ffa65",
+   "size": 5117050880,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "canonical": "CC-BY-NC-SA-4.0",
+    "label": "CC BY-NC-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Cara.app Art Dataset — Full Metadata Database for 52,045 Top Posts with 674k Comment Trees (SQLite)",
+   "category": "Dataset",
+   "infohash": "cab03c1b0cbc8ed99a0495d491d281d80517146a",
+   "size": 403398656,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Cara.app Art Dataset — 123,056 Original Images from Top Community Posts (120 GB)",
+   "category": "Dataset",
+   "infohash": "77d4e2a65852258420a8e47bf29c8f3a5043a446",
+   "size": 119981202380,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Stack Exchange Data Dump (2026-06-30)",
+   "category": "Dataset",
+   "infohash": "794176de24c33cc0e8b629b45a746cd870f3e95f",
+   "size": 99396616192,
+   "license": {
+    "raw": "Various versions of CC-By-SA",
+    "canonical": "UNSPECIFIED",
+    "label": "CC BY-SA",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Reddit comments/submissions 2005-06 to 2024-12",
+   "category": "Dataset",
+   "infohash": "ba051999301b109eab37d16f027b3f49ade2de13",
+   "size": 3124743990853,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-07",
+   "category": "Dataset",
+   "infohash": "e04a4fda12826ab1d181eef6512b36aca63c70ff",
+   "size": 80272561702,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "What Should I Become? When LLMs Present a Slice of Opportunity as the Whole",
+   "category": "Dataset",
+   "infohash": "a77baccadceb644bed72cdbfb7cca22a08b493f7",
+   "size": 151257088,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by/4.0/",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-06",
+   "category": "Dataset",
+   "infohash": "3bac8bd352bbb74bbb23df4273cf3da5d66ee5a5",
+   "size": 70377849294,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "LUMINOUS Database: Lumbar Multifidus Muscle Segmentation From Ultrasound",
+   "category": "Dataset",
+   "infohash": "cab7744573688b0b39c521ef66453435785762ac",
+   "size": 60553822,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by/4.0/",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "FALLMUD : FAscicle Lower Leg Muscle Ultrasound Dataset",
+   "category": "Dataset",
+   "infohash": "c0f740a1261fb1d646bf4df1395c86581399d879",
+   "size": 130725729,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Wikipedia European languages 2026-06-01",
+   "category": "Dataset",
+   "infohash": "04c55531c1617744bd76a3b126a19c4ba48cb2a2",
+   "size": 53381860475,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-05",
+   "category": "Dataset",
+   "infohash": "55199eff9368cde1f5c1262dd7c1af09f7503ea5",
+   "size": 71668069069,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Crossref Event Data Archive",
+   "category": "Dataset",
+   "infohash": "16396475b640d8487a6b723eada8a440fb33d3ce",
+   "size": 107590238836,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "GTDB R09-RS220",
+   "category": "Dataset",
+   "infohash": "d4056fe87d24aaed9d366453f17abb08f7c4c62d",
+   "size": 410496532480,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R07-RS207",
+   "category": "Dataset",
+   "infohash": "13e25c59c31920abce5599a071991a8d8ca94e89",
+   "size": 317416538112,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R06-RS202",
+   "category": "Dataset",
+   "infohash": "4ad45a3bcd78a36f700530060ae7839638b09840",
+   "size": 191990071296,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R04-RS89",
+   "category": "Dataset",
+   "infohash": "fe8c256fd07464c365c2403b6f34be3ef510aae1",
+   "size": 103494451200,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R03-RS86.2",
+   "category": "Dataset",
+   "infohash": "937539d2e0c9d774c63625af5106c0e6d4bc5a7a",
+   "size": 27277656064,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R05-RS95",
+   "category": "Dataset",
+   "infohash": "4793809ff9e07b0217baed7a4fe6980a0444ac20",
+   "size": 132191879168,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R03-RS86",
+   "category": "Dataset",
+   "infohash": "7ced89299d243e10b37664a5ee1799444eee8c5b",
+   "size": 29144121344,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R01-RS80",
+   "category": "Dataset",
+   "infohash": "8020b6f824e38c9937d669c52cd7a577dca63f65",
+   "size": 3929014272,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R02-RS83",
+   "category": "Dataset",
+   "infohash": "3b2c4748e377147559c0a9fc6b2e30c40aed166f",
+   "size": 28099739648,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "GTDB R11-RS232",
+   "category": "Dataset",
+   "infohash": "642f971d1229cbf0cbe1de5903c969fb82cc4365",
+   "size": 611596632064,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20260601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "bac5df1f39fd83fc87826a8dc546e56db34f2322",
+   "size": 26437250146,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20260601-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "c1236c4d35b6d2adcba502e3271d6a3c5261b1ab",
+   "size": 281979710,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Places in the Wild: Ecologically-sampled RAW photographs",
+   "category": "Dataset",
+   "infohash": "a1d810fbb54c21dfe8a68538d917c668e48663de",
+   "size": 2618655068160,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "canonical": "CC-BY-NC-SA-4.0",
+    "label": "CC BY-NC-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Edus2 Ultrasounds",
+   "category": "Dataset",
+   "infohash": "e59a4244be98b0123c47f4205c94c95123318935",
+   "size": 121597065,
+   "license": {
+    "raw": "http://creativecommons.org/licenses/by-nc-sa/3.0/",
+    "canonical": "CC-BY-NC-SA-3.0",
+    "label": "CC BY-NC-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-04",
+   "category": "Dataset",
+   "infohash": "85d017ddd06920534187e7d45f21c7cec90c9bca",
+   "size": 68544608390,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Wikipedia Asian languages 2026-05-01",
+   "category": "Dataset",
+   "infohash": "0d6c1cb68beb572c88f302048be4f2917d226168",
+   "size": 31820494896,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Stack Exchange Data Dump (2026-03-31)",
+   "category": "Dataset",
+   "infohash": "95d3cd024872ccb240b867afb7ba4ea275a9d7a8",
+   "size": 98446659547,
+   "license": {
+    "raw": "Various versions of CC-By-SA",
+    "canonical": "UNSPECIFIED",
+    "label": "CC BY-SA",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "IUGC: A benchmark of landmark detection in end-to-end intrapartum ultrasound biometry",
+   "category": "Dataset",
+   "infohash": "f7b5259dfeadf9869d919276006f53c1969c74cd",
+   "size": 1204118461,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc/4.0/",
+    "canonical": "CC-BY-NC-4.0",
+    "label": "CC BY-NC 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Annotated Ultrasound Liver images",
+   "category": "Dataset",
+   "infohash": "cf97c52651867d2e78d234aebb1fa45432ddbe9a",
+   "size": 70369237,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by/4.0/",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "TRUSTED: The Paired 3D Ultrasound and CT Human Data for Kidney Segmentation and Registration Research",
+   "category": "Dataset",
+   "infohash": "aff393b0688d0bf396407cb8d02b4284879c1cf7",
+   "size": 15987228105,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Abdominal Ultrasound Image Dataset for Organ Classification and Disease Detection",
+   "category": "Dataset",
+   "infohash": "fb252da63e5ba59bea91821018e5c83d172346ba",
+   "size": 1491269509,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by/4.0/",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-03",
+   "category": "Dataset",
+   "infohash": "668087bb8c8c9c763b27a1a4c5e7fcb6add25f2c",
+   "size": 68404242141,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "UIdataGB Gallblader Diseases Dataset",
+   "category": "Dataset",
+   "infohash": "aa2092fb6910c90c467a62293f74042a6ff7d251",
+   "size": 2042724460,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by/4.0/",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "enwiki-20260401-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "8ed9dcc05b0fdecb47f998186e9e5c30f8212cfc",
+   "size": 280349081,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20260401-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "2b2ffc80941b61dcfe55fc444a6a78a60eef5944",
+   "size": 26207949994,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "EchoCP_dataset",
+   "category": "Dataset",
+   "infohash": "22508526b4bf4b08641b3dbba010eb083388322c",
+   "size": 5554695068,
+   "license": {
+    "raw": "https://www.apache.org/licenses/LICENSE-2.0",
+    "canonical": "Apache-2.0",
+    "label": "https://www.apache.org/licenses/LICENSE-2.0",
+    "confidence": "medium"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "cardiacUDC_dataset",
+   "category": "Dataset",
+   "infohash": "55cce2068badb8204b5de896922afc301c37a691",
+   "size": 4547904911,
+   "license": {
+    "raw": "https://www.apache.org/licenses/LICENSE-2.0",
+    "canonical": "Apache-2.0",
+    "label": "https://www.apache.org/licenses/LICENSE-2.0",
+    "confidence": "medium"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "ImperialAIEchocardiographyDataset_2020-12-05",
+   "category": "Dataset",
+   "infohash": "eeb1fb0e2e0e7bb8c6873f3357e45b545cba9fac",
+   "size": 1274051668,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+    "canonical": "CC-BY-NC-ND-4.0",
+    "label": "CC BY-NC-ND 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Cardiac Assessment and Classification of Ultrasound (CACTUS) dataset",
+   "category": "Dataset",
+   "infohash": "329c0ee4a0037a2628e2f2dba826066f764f193c",
+   "size": 13184921358,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "EchoUNAL a benchmarking study for automatic classification of six echocardiographic views",
+   "category": "Dataset",
+   "infohash": "50969c9b0b452e66e9648d1d31c60f8adbf3ec9b",
+   "size": 4302279602,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc/4.0/",
+    "canonical": "CC-BY-NC-4.0",
+    "label": "CC BY-NC 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Phishing & Malware Website Snapshots",
+   "category": "Dataset",
+   "infohash": "8beb63ba7bb1ed7affb2fbe77ec18f4ab6a55d20",
+   "size": 2097072302,
+   "license": {
+    "raw": "CC0-1.0",
+    "canonical": "CC0-1.0",
+    "label": "CC0 1.0",
+    "confidence": "high"
+   },
+   "verdict": "public-domain",
+   "reason": "public domain"
+  },
+  {
+   "title": "PPT Online",
+   "category": "Dataset",
+   "infohash": "9a63af9f7305cbf9f060f1e4080ef5d703a3a4f5",
+   "size": 3053250450,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "March 2026 Public Data File from Crossref",
+   "category": "Dataset",
+   "infohash": "b5ee0e102689b3e67023dd024694c0f5f124646f",
+   "size": 223053729528,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "[Sample Dataset] March 2026 Public Data File from Crossref",
+   "category": "Dataset",
+   "infohash": "f692802461d1277d14551526ecb292a9637af254",
+   "size": 30841803,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-02",
+   "category": "Dataset",
+   "infohash": "c5ba00048236b60f819dbf010e9034d24fc291fb",
+   "size": 60377154786,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "IUGC Ultrasound Dataset (MICCAI 2025)",
+   "category": "Dataset",
+   "infohash": "71dee5920278325bb73eb735cade3b0f3550e9f9",
+   "size": 1204118461,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc/4.0/",
+    "canonical": "CC-BY-NC-4.0",
+    "label": "CC BY-NC 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Wikipedia European languages 2026-03-01",
+   "category": "Dataset",
+   "infohash": "357aed6775e72b4bac4688497590a262d87d2e2a",
+   "size": 52792595523,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Public MediaWiki Collection",
+   "category": "Dataset",
+   "infohash": "3ec30d9d8817f62d338ae76783d24ba207b6e9de",
+   "size": 1167900670,
+   "license": {
+    "raw": "CC-BY-SA 4.0",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "9111.ru Questions Dataset",
+   "category": "Dataset",
+   "infohash": "3fa77d9c4028fd6aa8a6dbdad67a218fc1ad7a5d",
+   "size": 2938274461,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Fandom.com Community Database Dumps Dataset",
+   "category": "Dataset",
+   "infohash": "0a0ad3dd44e05af1725fd8d17f5aeba856078d5f",
+   "size": 6224651822,
+   "license": {
+    "raw": "CC-BY-SA 3.0",
+    "canonical": "CC-BY-SA-3.0",
+    "label": "CC BY-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "ca-on_province_of_ontario-2024A000235_drape_eastern_ontario_orthoimagery_2024_16cm_v0.1.0-beta.pmtiles",
+   "category": "Dataset",
+   "infohash": "adb5741cdcb9352848cc80c976629b44720a04c2",
+   "size": 215750229448,
+   "license": {
+    "raw": "Open Government Licence - Ontario",
+    "canonical": "UNSPECIFIED",
+    "label": "Open Government Licence - Ontario",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Street-Level Imagery Dataset",
+   "category": "Dataset",
+   "infohash": "207ba45161f6ba12114cb6d97ad25d222d5125c9",
+   "size": 651707506,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Lung Ultrasound Dataset (LUS-Dataset-Katumba)",
+   "category": "Dataset",
+   "infohash": "e6e9a5594174aaffee53b8f086e3bf86c02c45ad",
+   "size": 281447804,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Wikipedia Asian languages 2026-02-01",
+   "category": "Dataset",
+   "infohash": "1bde58b51e4aad60f03ce1b688b691552fb3041e",
+   "size": 31208780863,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Reddit comments/submissions 2026-01",
+   "category": "Dataset",
+   "infohash": "8412b89151101d88c915334c45d9c223169a1a60",
+   "size": 61629104259,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Begemot.ai Dataset",
+   "category": "Dataset",
+   "infohash": "3ada9903be4621cf7e34cd5cf44f191b4124ccfe",
+   "size": 1708074039,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "OpenPOCUS - Lung Ultrasound Image Database",
+   "category": "Dataset",
+   "infohash": "63ad0470f43e022cc73407be9c760449d947cb97",
+   "size": 5256546243,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "canonical": "CC-BY-NC-SA-4.0",
+    "label": "CC BY-NC-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Russian Educational Text Collection",
+   "category": "Dataset",
+   "infohash": "1f6b373346a0fa34de6b4d916984d698e0a623b3",
+   "size": 304218686,
+   "license": {
+    "raw": "Creative Commons Zero (CC0)",
+    "canonical": "CC0-1.0",
+    "label": "CC0 1.0",
+    "confidence": "high"
+   },
+   "verdict": "public-domain",
+   "reason": "public domain"
+  },
+  {
+   "title": "Animations Dataset",
+   "category": "Dataset",
+   "infohash": "8799f1e66bf0a63a77e89a7917fbe281c13bcd9f",
+   "size": 4374676620,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Sprite Compositing & Animation Dataset",
+   "category": "Dataset",
+   "infohash": "df2a3742526f44dac4dbb80299333e84132c5b45",
+   "size": 27130846899,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "NNTP Discussion Archives",
+   "category": "Dataset",
+   "infohash": "cac053d01e256ae3001bf40c5c98eefa86cdc870",
+   "size": 204065504201,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "RU-OK? Uptime measurements of Russian/Belarusian DDoS targets of IT ARMY",
+   "category": "Dataset",
+   "infohash": "87b8ba53e3f7d58ac3845f1be81f49682c2c68f2",
+   "size": 1609147173,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Wikipedia Wikidata 2026-01-01",
+   "category": "Dataset",
+   "infohash": "91f29e60cc4a65747a346109ef49a48808c6a2cd",
+   "size": 175980564292,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Wikipedia Commons 2026-01-01",
+   "category": "Dataset",
+   "infohash": "83f2cfd35db16f696000bd3dee56e3837fe3e60c",
+   "size": 106644000008,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-12",
+   "category": "Dataset",
+   "infohash": "481bf2eac43172ae724fd6c75dbcb8e27de77734",
+   "size": 56418645823,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "GitGud Code Dataset",
+   "category": "Dataset",
+   "infohash": "221571632238b826f0aa6ec4f370af633575cae4",
+   "size": 18751337953,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Mos.Hub Code Dataset",
+   "category": "Dataset",
+   "infohash": "991f0d7eaa11bfda7f08e9bd82466458982cd430",
+   "size": 554021034,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Google Code Archive Dataset",
+   "category": "Dataset",
+   "infohash": "a342da363792ac5fa018039d5a57c81be74e4b52",
+   "size": 50126651493,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "NotaBug Code Dataset",
+   "category": "Dataset",
+   "infohash": "ba10507193e4169b1b2420fb81e6b4999840e0f5",
+   "size": 12602550935,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "JihuLab Code Dataset",
+   "category": "Dataset",
+   "infohash": "004c9565d325cf8951aa23d3a56ebb806898fc7f",
+   "size": 1506303268,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "GitVerse Code Dataset",
+   "category": "Dataset",
+   "infohash": "8d4375542da8412f19d7d867413e3c29eeb6f4a0",
+   "size": 2113649354,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "GitFlic Code Dataset",
+   "category": "Dataset",
+   "infohash": "ac3849c0ddceb432d9733ed19a000befe88e1e82",
+   "size": 6911382788,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Gitee Code Dataset",
+   "category": "Dataset",
+   "infohash": "e572ddd8459e96ed50ba40f1ee991734805f2259",
+   "size": 574748274837,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "GitCode Code Dataset",
+   "category": "Dataset",
+   "infohash": "c1dd455d6f9bbeb7f1e88de92a952df5e04f64c4",
+   "size": 42220690870,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Russian QnA 333K",
+   "category": "Dataset",
+   "infohash": "8282e7191ddec974eb94c56ce83d424cc8184204",
+   "size": 225873026,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "enwiki-20260101-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "54315dcb073c43c81fecdcdc941b7100c2169259",
+   "size": 277651040,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20260101-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "e7d78d128db80266830e64c0142a67d0c5413ced",
+   "size": 25897924587,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Stack Exchange Data Dump (2025-12-31)",
+   "category": "Dataset",
+   "infohash": "0d1d597fa7809f0e85f127b5eb3088219ddbad39",
+   "size": 98336346062,
+   "license": {
+    "raw": "Various versions of CC-By-SA",
+    "canonical": "UNSPECIFIED",
+    "label": "CC BY-SA",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "314T Pi Part 4",
+   "category": "Dataset",
+   "infohash": "5a84284bc2773f8d64e2042a0731f5a73ca342ea",
+   "size": 33052632018944,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "314T Pi Part 3",
+   "category": "Dataset",
+   "infohash": "cd004a3444233c52395ed100d1cdec49b35d4e5a",
+   "size": 33052632018944,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "314T Pi Part 2",
+   "category": "Dataset",
+   "infohash": "30569eac2a9ac9580856a31bd314384b0fccaa73",
+   "size": 33052632018944,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "314T Pi Part 1",
+   "category": "Dataset",
+   "infohash": "9dcad1ceda73694af896610c4279f2a642a95414",
+   "size": 33052632018944,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Wikipedia African languages 2026-01-01",
+   "category": "Dataset",
+   "infohash": "ab209f47f91d718ade7910121bc875001379be01",
+   "size": 3052544534,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-11",
+   "category": "Dataset",
+   "infohash": "2d056b22743718ac81915f25b094b6226668663f",
+   "size": 54516332195,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Main dataset for PatchSeeker paper",
+   "category": "Dataset",
+   "infohash": "bbad518053332f3578794b476405555a58232d77",
+   "size": 310896916665,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "enwiki-20251201-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "963d0890784aacfe7d2f9c3a703cecfcfbbe0930",
+   "size": 276690635,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20251201-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "3d6a771c09c048bd7e7ee470391b739bfd1b39c1",
+   "size": 25803484989,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Wikipedia European languages 2025-12-01",
+   "category": "Dataset",
+   "infohash": "6dce84d7905e4e632cbcaadbccce72fe83511528",
+   "size": 52127652208,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "frwiki-20251001-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "2a17388783d71f69087a8e588c037eb92b2bdb5b",
+   "size": 62365151,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "frwiki-20251001-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "41c5843a5190f19d3471063279f0077209495b49",
+   "size": 6931829432,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "frwiki-20251101-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "ca16180467b0470653592d9b26153a9fe1d23591",
+   "size": 62529375,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "frwiki-20251101-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "8c469bfba755ff3e8a8a9017ede0aa543500197a",
+   "size": 6963574312,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "English Wikipedia dump from May 2022 (wikipedia_en_all_maxi_2022-05, pre-ChatGPT)",
+   "category": "Dataset",
+   "infohash": "ab13148ab9b64f11c9548fb87bf05f8ce64cb15a",
+   "size": 95199730590,
+   "license": {
+    "raw": "CC BY-SA ( https://en.wikipedia.org/wiki/Wikipedia:Copyrights , https://creativecommons.org/licenses/by-sa/4.0/ )",
+    "canonical": null,
+    "label": "CC BY-SA (  ,  )",
+    "confidence": "medium"
+   },
+   "verdict": "no",
+   "reason": "no licence stated"
+  },
+  {
+   "title": "Wikimedia Enterprise HTML Dump 2025-03-20",
+   "category": "Dataset",
+   "infohash": "088035ffe42ce7276645c4217bab9296324b5474",
+   "size": 983380932428,
+   "license": {
+    "raw": "https://dumps.wikimedia.org/legal.html",
+    "canonical": null,
+    "label": "https://dumps.wikimedia.org/legal.html",
+    "confidence": "medium"
+   },
+   "verdict": "no",
+   "reason": "no licence stated"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-10",
+   "category": "Dataset",
+   "infohash": "cb4fa22ea76ea0a2bb38885b27323c94a5d9d16c",
+   "size": 56113055913,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "enwiki-20251101-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "4fa9b17b68b06e5bff43001579d0a7f0be29f399",
+   "size": 275924420,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20251101-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "1383d067a266af4a163f591531c9b64af458b107",
+   "size": 25714481462,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Wikipedia Asian languages 2025-11-01",
+   "category": "Dataset",
+   "infohash": "515a4ffb36640e60998e05d65a6f05aea9a86c87",
+   "size": 30672631789,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Computation Structures (MIT 6.004) - Video lectures 2017",
+   "category": "Course",
+   "infohash": "87292517b2cd3f16e1ac142112b6a99fe4dfe712",
+   "size": 8027897856,
+   "license": {
+    "raw": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "canonical": "CC-BY-NC-SA-4.0",
+    "label": "CC BY-NC-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-09",
+   "category": "Dataset",
+   "infohash": "a92ce24b4180e4aa9295353f4d26f050031e3058",
+   "size": 55663729678,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "enwiki-20251001-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "a514e8e39fc4cb3c20f0e7251fd9a08a5088d42b",
+   "size": 25601050952,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "enwiki-20251001-pages-articles-multistream-index.txt.bz2",
+   "category": "Dataset",
+   "infohash": "c1063d7eeaa77bcf0bfada744b840e32c8848090",
+   "size": 275068786,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "No Answer Needed: Predicting LLM Answer Accuracy from Question-Only Linear Probes",
+   "category": "Dataset",
+   "infohash": "011a9b941bd460d219e563eb5eccc470aadd8f20",
+   "size": 615429611520,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Stack Exchange Data Dump (2025-09-30)",
+   "category": "Dataset",
+   "infohash": "5fc984dcd7cf67203c0cb63ad814a17c3d486322",
+   "size": 97365409817,
+   "license": {
+    "raw": "Various versions of CC-By-SA",
+    "canonical": "UNSPECIFIED",
+    "label": "CC BY-SA",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Wikipedia African languages 2025-10-01",
+   "category": "Dataset",
+   "infohash": "ef843283d5e9598f933a1086834b1c8b57fcd3a9",
+   "size": 2965791521,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "enwiki-20250901-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "d4d8a81c8b5ba37b8960f38e250b34a970ca78fa",
+   "size": 25481731365,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-08",
+   "category": "Dataset",
+   "infohash": "c71a97c1f7f676c56963c4e15a81f20afb0109be",
+   "size": 58018269156,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Wikipedia European languages 2025-09-01",
+   "category": "Dataset",
+   "infohash": "59b3c5bcda9ece205eeb46a63874a414791df604",
+   "size": 51294286821,
+   "license": {
+    "raw": "GNU Free Documentation License (GFDL) and the Creative Commons Attribution-Share-Alike 4.0 License",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "noaa-ncei-International-quality-controlled-ocean-db",
+   "category": "Dataset",
+   "infohash": "cf9bcf97ab6306a4ed8af838e4f83910d0b4d075",
+   "size": 211694031687,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "JEFF-3.3 nuclear data processed by NEA and formatted for OpenMC",
+   "category": "Dataset",
+   "infohash": "f08d30161db51aea5597aa2ee5e53c52dfaf8679",
+   "size": 2350318592,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "ENDF/B-VII.1 nuclear data processed by LANL and formatted for OpenMC",
+   "category": "Dataset",
+   "infohash": "49a63cef9053a88285cf9e8648e530280921aa8b",
+   "size": 1649637524,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "ENDF/B-VII.0 nuclear data processed by LANL as LIB70 and formatted for OpenMC",
+   "category": "Dataset",
+   "infohash": "dc86b377ce6fda76aac92eacb55d0401c5d29968",
+   "size": 782776372,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "JEFF-3.2 Nuclear Data processed by NEA and formatted for OpenMC",
+   "category": "Dataset",
+   "infohash": "c02cf6f1659fdda471224d5ee60c72d08ad01cf8",
+   "size": 1954347284,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "FENDL-3.2 Nuclear Data for OpenMC",
+   "category": "Dataset",
+   "infohash": "0bf3984552a128eb4a06771712dcb28374ac67c2",
+   "size": 335955104,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "JEFF-3.3 Nuclear Data processed for OpenMC",
+   "category": "Dataset",
+   "infohash": "bab935ed2632773a35da8b171e0eb5c8ab2ba508",
+   "size": 2706223740,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "END/B-VIII.0 nuclear data processed for OpenMc",
+   "category": "Dataset",
+   "infohash": "2db3e41a0231b2c14c45c7cc8d30285ccebd60a2",
+   "size": 3382208012,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "ENDF/B-VII.1 nuclear data processed for OpenMC",
+   "category": "Dataset",
+   "infohash": "be99c621fb8aef3663448d50a91626b202ef007e",
+   "size": 1697275216,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "ENDF/B-VIII.0 nuclear data processed by LANL as Lib80x and prepared for OpenMC",
+   "category": "Dataset",
+   "infohash": "d8961ddc2ba3f041c1c0215820dcd8722ae25c8e",
+   "size": 3663422944,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-07",
+   "category": "Dataset",
+   "infohash": "b6a7ccf72368a7d39c018c423e01bc15aa551122",
+   "size": 58351467718,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "noaa-ncei-land-surface-reflectance",
+   "category": "Dataset",
+   "infohash": "3d53caff9f8133d8cbf949610e183358ca421a63",
+   "size": 1925156633265,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "enwiki-20250801-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "19f6e3d1c44d4bc997cce8d2325964c28895c9cb",
+   "size": 25351930112,
+   "license": {
+    "raw": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "Stack Exchange Data Dump (2025-06-30, revision 2)",
+   "category": "Dataset",
+   "infohash": "53d504734619bc57bf4f4ec81fdf2a2536b3b501",
+   "size": 97361592423,
+   "license": {
+    "raw": "Various versions of CC-By-SA",
+    "canonical": "UNSPECIFIED",
+    "label": "CC BY-SA",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "PastVu Historical Photographs (2025-07-23)",
+   "category": "Dataset",
+   "infohash": "8cf94961303049e94ed82374221602aba17f6926",
+   "size": 1799720013096,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Zuse-Z1-Panorama-Photos",
+   "category": "Dataset",
+   "infohash": "74a18f91b2b72c4ee31041e3a711606a07a0d72e",
+   "size": 7138293195,
+   "license": {
+    "raw": "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported",
+    "canonical": "CC-BY-NC-SA-3.0",
+    "label": "CC BY-NC-SA 3.0",
+    "confidence": "high"
+   },
+   "verdict": "no",
+   "reason": "non-commercial or research-only"
+  },
+  {
+   "title": "Audius (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "7cfe1a9fb3ede275fe1f2fde27e290ad012479e4",
+   "size": 187629532,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "side7 (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "4bb0f419102d7919eac6f759065b5f0ebf0b6e22",
+   "size": 8848577820,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Tamago (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "5211929574baedb66c8876535d9c81eba80dbd9d",
+   "size": 30719490198,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Piczel (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "fd377f9a290e7a7a45235389d41f5ef654de4cc5",
+   "size": 136366809085,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Fimfiction (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "08d162a9c91f0801549e2e3907f9b6884b5a2547",
+   "size": 4076591866,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "FicWad (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "d410fa33a2e5a00c275e751145b256249a625560",
+   "size": 391680979,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "CharacterHub Metadata (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "9b782f5745dd42bf436817c0596fab8986ad6721",
+   "size": 87291679,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "PaperDemon Writings (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "ed31b5544fe542a2d7bd67de0553f10a835329d1",
+   "size": 22537838,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "itaku metadata (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "ea62baba01e5bf5df8f428e22f47c3f6b0b26534",
+   "size": 108170942,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Artfol Metadata (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "6160ed74f0579e7f5cbd94a2fdb816061077671d",
+   "size": 75575714,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "PaperDemon Art (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "133e186dd3ff07892a23f246de77b0b419669a71",
+   "size": 46072951212,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "PaintBerri Art [2025-04-25]",
+   "category": "Dataset",
+   "infohash": "5624a329219d0f13a1dd4dae56ca7a3d14311b29",
+   "size": 17202941697,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Archive Of Our Own [12.6 mil] (2025-04-25)",
+   "category": "Dataset",
+   "infohash": "51c21fd1ae2896d6d5307347960da059236e6bd9",
+   "size": 163802124885,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Stack Exchange Data Dump (2025-06-30)",
+   "category": "Dataset",
+   "infohash": "7c8c9a8ffff4d962e052674e236ea0b7390cd9c0",
+   "size": 97339542034,
+   "license": {
+    "raw": "Various versions of CC-By-SA",
+    "canonical": "UNSPECIFIED",
+    "label": "CC BY-SA",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Computational NeuroScience",
+   "category": "Course",
+   "infohash": "4a16e5c3b12ad16246ff773337851ddca669d0a5",
+   "size": 1000642215,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "[Apna College] Alpha Batch 5.0 | Complete Placement Course",
+   "category": "Course",
+   "infohash": "25eee12586a360305ace93346f385630a7cb2774",
+   "size": 27292703903,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-06",
+   "category": "Dataset",
+   "infohash": "bec5590bd3bc6c0f2d868f36ec92bec1aff4480e",
+   "size": 56457099285,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "gRPC Masterclass with Java & Spring Boot",
+   "category": "Course",
+   "infohash": "1e5e059497095699c2c063effaecd6ee0859dc3e",
+   "size": 7111697934,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Apache Kafka for Developers using Spring Boot",
+   "category": "Course",
+   "infohash": "8d6bce26eb6e625e9f2baaae0fd1fffbdcc7d77a",
+   "size": 3610749189,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "noaa-global-surface-temperature",
+   "category": "Dataset",
+   "infohash": "f98189ad498d773acd831b590dd8b1612cf6111d",
+   "size": 2598745640,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "Build Reactive Microservices using Spring WebFlux SpringBoot",
+   "category": "Course",
+   "infohash": "03519f3ce52dbf100c444d42106f05fa7f4cdb69",
+   "size": 2704142203,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "ruwiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "a808c21cd92487fa9a28c238b88a13dcc7ebaf4e",
+   "size": 5858685246,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "jawiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "62b086e1ecb4c231af09683be375adba34f1c381",
+   "size": 4530521499,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "ptwiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "bdeab08ba4e95049b6b31b591f761847fc23562c",
+   "size": 2574679468,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "plwiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "d017be591fc7fd51d217de9307eec503b12c5648",
+   "size": 2730072604,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "itwiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "8d6ce555e1b6fcb4060c6b71ee5327431e2ec238",
+   "size": 4192513459,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "frwiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "63a083c3b5e0ecc6fd524f0c699853c4a45a4054",
+   "size": 6821495711,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "eswiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "13329bab40a1456fad8f7f7f5bd04efda72ae12a",
+   "size": 5013958579,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "dewiki-20250601-pages-articles-multistream.xml.bz2",
+   "category": "Dataset",
+   "infohash": "1b9bfc16bff664233f2affc474d40bbf0b6213e1",
+   "size": 7795225491,
+   "license": {
+    "raw": "CC-BY-SA 4.0 International",
+    "canonical": "CC-BY-SA-4.0",
+    "label": "CC BY-SA 4.0",
+    "confidence": "high"
+   },
+   "verdict": "share-alike",
+   "reason": "sellable; buyers may re-share under the same licence"
+  },
+  {
+   "title": "noaa-ncei-climate-normals-annual-monthly-daily-hourly",
+   "category": "Dataset",
+   "infohash": "e49ada3218036c3a5523b8f02e59955205f6a59a",
+   "size": 4195242104,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "FishTrack23: An Ensemble Underwater Dataset for Multi-Object Tracking",
+   "category": "Dataset",
+   "infohash": "70695b973afa53be67dbfb72a2478775885598b9",
+   "size": 53004861167,
+   "license": {
+    "raw": "CC-BY-4.0",
+    "canonical": "CC-BY-4.0",
+    "label": "CC BY 4.0",
+    "confidence": "high"
+   },
+   "verdict": "attribution",
+   "reason": "sellable with credit to the source"
+  },
+  {
+   "title": "Reddit comments/submissions 2025-05",
+   "category": "Dataset",
+   "infohash": "186a0f85a52ff4f1b08677cd312423ace9b34976",
+   "size": 56891545099,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  },
+  {
+   "title": "noaa-ncei-hydrological-properties",
+   "category": "Dataset",
+   "infohash": "afe8462fd46ad9e9c54978ca01e474434710d462",
+   "size": 582935465840,
+   "license": {
+    "raw": "",
+    "canonical": "UNSPECIFIED",
+    "label": "No license specified, the work may be protected by copyright.",
+    "confidence": "low"
+   },
+   "verdict": "no",
+   "reason": "licence detected with low confidence; review by hand"
+  }
+ ]
+}

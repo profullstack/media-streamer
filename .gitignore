@@ -55,3 +55,6 @@ proxies.txt
 # while processing globals.css and dies with "leaves the filesystem root",
 # which failed the droplet build and left the site serving a stale bundle.
 .claude
+
+# academic dataset mirror: resumable licence crawl cache (scripts/academic-catalog.ts)
+.academic-licenses.jsonl
