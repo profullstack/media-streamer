@@ -206,6 +206,18 @@ jobs:
             sudo systemctl restart bittorrented-podcast-worker || echo "Warning: Could not restart podcast worker"
             echo "✓ Podcast worker restart attempted"
 
+            # Site offline (src/lib/site-offline.ts, 2026-10-04): the web service stays up to
+            # serve the notice; everything that crawls, restreams or fetches in the background
+            # is stopped and disabled so a reboot does not bring it back. Nothing is deleted.
+            if grep -q '^export const SITE_OFFLINE = true;' "${APP_DIR:-/home/ubuntu/www/bittorrented.com/media-streamer}/src/lib/site-offline.ts" 2>/dev/null; then
+              echo "=== Site is OFFLINE: stopping background services ==="
+              for unit in bitmagnet dht-api bittorrented-iptv-worker bittorrented-podcast-worker; do
+                sudo systemctl stop "$unit" 2>/dev/null || true
+                sudo systemctl disable "$unit" 2>/dev/null || true
+                echo "  $unit: $(systemctl is-active "$unit" 2>/dev/null) / $(systemctl is-enabled "$unit" 2>/dev/null)"
+              done
+            fi
+
             echo ""
             echo "=== Verifying deployment ==="
             # Give the unit a moment to either become active or crash so the
