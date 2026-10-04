@@ -20,6 +20,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isPublicPath, proxy as middleware } from './proxy';
 import { NextRequest, NextResponse } from 'next/server';
 
+// These tests describe the gate when the site is up; the offline notice has its own (site-offline.test.ts).
+vi.mock('@/lib/site-offline', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/site-offline')>()),
+  SITE_OFFLINE: false,
+}));
+
 /** A response that lets the request carry on to the app (NextResponse.next()). */
 function expectPassThrough(res: Response | undefined): asserts res is NextResponse {
   expect(res).toBeDefined();

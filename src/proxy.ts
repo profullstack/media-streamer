@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { trackReferralCode } from '@profullstack/stack/referrals';
 import { gateway, hasSessionCookie } from '@/lib/crawl-gateway';
 import { meter } from '@/lib/throttle';
+import { SITE_OFFLINE, offlineResponse, stillServed } from '@/lib/site-offline';
 
 // =============================================================================
 // Rate Limiting (in-memory sliding window)
@@ -522,6 +523,11 @@ function make429Response(retryAfterSec: number, isJson: boolean): NextResponse {
 }
 
 export async function proxy(request: NextRequest): Promise<Response> {
+  // --- 0. The site is offline (see src/lib/site-offline.ts) ---
+  if (SITE_OFFLINE && !stillServed(request.nextUrl.pathname)) {
+    return offlineResponse(request.nextUrl.pathname);
+  }
+
   // --- 1. Crawl gateway: training crawlers pay, everyone else carries on ---
   // Answers 402 (with an x402 offer) for GPTBot, ClaudeBot, CCBot,
   // meta-externalagent and friends, the sales page at /crawl for anyone, and
