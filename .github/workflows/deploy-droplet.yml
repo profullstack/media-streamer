@@ -7,13 +7,10 @@
 
 name: Deploy to Droplet
 
+# Retired 2026-10-05: bittorrented.com moved to dev2 (deploy-dev2.yml). Manual only,
+# kept so the droplet can still be redeployed by hand while it exists.
 on:
-  # Run after CI workflow completes successfully
-  workflow_run:
-    workflows: ["CI Pipeline"]
-    types: [completed]
-    branches: [main, master]
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 concurrency:
   group: deploy-droplet

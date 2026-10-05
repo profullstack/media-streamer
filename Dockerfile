@@ -34,6 +34,21 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Public values are inlined by `next build`, so they must exist at build time.
+# dev2's deploy-app.sh passes them as compose build args from app.env.
+ARG NEXT_PUBLIC_APP_NAME
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_TURN_SERVER_URL
+ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
+    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
+    NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID=$NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_TURN_SERVER_URL=$NEXT_PUBLIC_TURN_SERVER_URL
+
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
@@ -77,13 +92,9 @@ ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copy bin directory for torge-all.sh script
-COPY --from=builder --chown=nextjs:nodejs /app/bin ./bin
+# Copy the whole built app: next.config deliberately has no `output: 'standalone'`
+# (see the note there), so the image runs `next start` like the droplet did.
+COPY --from=builder --chown=nextjs:nodejs /app ./
 RUN chmod +x ./bin/*.sh
 
 # Switch to non-root user
@@ -100,4 +111,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider "http://localhost:${PORT:-3000}/api/health" || exit 1
 
 # Start the application
-CMD ["node", "server.js"]
+CMD ["node_modules/.bin/next", "start"]
