@@ -63,6 +63,28 @@ describe('admin gate', () => {
     expect(await isAdminRequest(cookies('unreachable-token'), null)).toBe(false);
   });
 
+  it('lets an admin in on an hour-old login: the session is refreshed first, then checked', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://db.test');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon');
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const expired = `${b64({ alg: 'none' })}.${b64({ sub: 'admin-1', exp: Math.floor(Date.now() / 1000) - 3600 })}.sig`;
+    const fresh = `${b64({ alg: 'none' })}.${b64({ sub: 'admin-1', exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/auth/v1/token')) {
+          return Response.json({ access_token: fresh, refresh_token: 'rotated', expires_in: 3600, expires_at: 0, token_type: 'bearer', user: { id: 'admin-1' } });
+        }
+        const auth = new Headers(init?.headers).get('authorization');
+        return auth === `Bearer ${fresh}` ? Response.json({ id: 'admin-1' }) : new Response('{}', { status: 401 });
+      })
+    );
+    const cookie = encodeURIComponent(JSON.stringify({ access_token: expired, refresh_token: 'old' }));
+    const res = await proxy(new NextRequest('https://bittorrented.com/dht', { headers: { cookie: `sb-auth-token=${cookie}` } }));
+    expect(res.status).toBe(410); // past the offline gate; /dht itself is retired by legal mode
+    expect(res.headers.get('set-cookie')).toContain('sb-auth-token='); // the rotated tokens are kept
+  });
+
   it('through the gate: notice for a paying member, the site for an admin', async () => {
     stubSupabase();
     const as = (token: string, path: string) =>
