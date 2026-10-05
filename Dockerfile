@@ -111,4 +111,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider "http://localhost:${PORT:-3000}/api/health" || exit 1
 
 # Start the application
-CMD ["node_modules/.bin/next", "start"]
+# pnpm start used to set npm_package_version (the health route reports it); keep that.
+CMD ["sh", "-c", "export npm_package_version=$(node -p \"require('./package.json').version\") && exec node_modules/.bin/next start"]
