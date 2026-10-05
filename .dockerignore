@@ -31,11 +31,9 @@ coverage
 .nyc_output
 *.test.ts
 *.spec.ts
-*.test.tsx
-*.spec.tsx
 __tests__
 vitest.config.ts
-vitest.setup.ts
+# vitest.setup.ts stays: next build type-checks every .test.tsx, and their jest-dom matcher types come from it
 
 # Documentation
 *.md
