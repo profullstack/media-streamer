@@ -20,6 +20,7 @@ import { gateway, hasSessionCookie } from '@/lib/crawl-gateway';
 import { meter } from '@/lib/throttle';
 import { SITE_OFFLINE, offlineResponse, stillServed } from '@/lib/site-offline';
 import { LEGAL_MODE, goneResponse, legallyServed } from '@/lib/legal-mode';
+import { isAdminRequest, isSignInPath } from '@/lib/admin-gate';
 
 // =============================================================================
 // Rate Limiting (in-memory sliding window)
@@ -525,7 +526,13 @@ function make429Response(retryAfterSec: number, isJson: boolean): NextResponse {
 
 export async function proxy(request: NextRequest): Promise<Response> {
   // --- 0. The site is offline (see src/lib/site-offline.ts) ---
-  if (SITE_OFFLINE && !stillServed(request.nextUrl.pathname)) {
+  // Admins only (src/lib/admin-gate.ts): everyone else, paying or not, gets the notice.
+  if (
+    SITE_OFFLINE &&
+    !stillServed(request.nextUrl.pathname) &&
+    !isSignInPath(request.nextUrl.pathname) &&
+    !(await isAdminRequest(request.cookies, request.headers.get('authorization')))
+  ) {
     return offlineResponse(request.nextUrl.pathname);
   }
 
