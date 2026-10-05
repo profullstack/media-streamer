@@ -31,6 +31,8 @@ coverage
 .nyc_output
 *.test.ts
 *.spec.ts
+*.test.tsx
+*.spec.tsx
 __tests__
 vitest.config.ts
 vitest.setup.ts
