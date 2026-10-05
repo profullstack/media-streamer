@@ -81,7 +81,7 @@ describe('admin gate', () => {
     );
     const cookie = encodeURIComponent(JSON.stringify({ access_token: expired, refresh_token: 'old' }));
     const res = await proxy(new NextRequest('https://bittorrented.com/dht', { headers: { cookie: `sb-auth-token=${cookie}` } }));
-    expect(res.status).toBe(410); // past the offline gate; /dht itself is retired by legal mode
+    expect([503, 410]).not.toContain(res.status); // admins see every route: neither the notice nor 410
     expect(res.headers.get('set-cookie')).toContain('sb-auth-token='); // the rotated tokens are kept
   });
 
@@ -90,7 +90,10 @@ describe('admin gate', () => {
     const as = (token: string, path: string) =>
       proxy(new NextRequest(`https://bittorrented.com${path}`, { headers: { authorization: `Bearer ${token}` } }));
     expect((await as('member-token', '/account')).status).toBe(503);
-    expect((await as('admin-token', '/dht')).status).toBe(410); // legal mode still applies to admins
-    expect((await as('admin-token', '/')).status).toBe(307);
+    for (const p of ['/dht', '/torrents', '/']) {
+      const r = await as('admin-token', p);
+      expect([503, 410], p).not.toContain(r.status); // admins see every route
+      expect(r.headers.get('location') ?? '', p).not.toContain('/pricing');
+    }
   });
 });

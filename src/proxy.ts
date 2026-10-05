@@ -533,20 +533,25 @@ export async function proxy(request: NextRequest): Promise<Response> {
   const session = await refreshSession(request);
   const asNext = (res: Response) => withSession(res instanceof NextResponse ? res : new NextResponse(res.body, res), session);
 
+  // Whether this is an admin, asked at most once per request and only when it matters.
+  // The refreshed cookie, when there is one, holds the token to check.
+  const cookies = session?.value
+    ? { get: (name: string) => (name === 'sb-auth-token' ? { value: session.value } : request.cookies.get(name)) }
+    : request.cookies;
+  let admin: boolean | undefined;
+  const isAdmin = async () => (admin ??= await isAdminRequest(cookies, request.headers.get('authorization')));
+
   // --- 0a. The site is offline (see src/lib/site-offline.ts) ---
   // Admins only (src/lib/admin-gate.ts): everyone else, paying or not, gets the notice.
-  if (SITE_OFFLINE && !stillServed(request.nextUrl.pathname) && !isSignInPath(request.nextUrl.pathname)) {
-    // The refreshed cookie, when there is one, holds the token to check.
-    const cookies = session?.value
-      ? { get: (name: string) => (name === 'sb-auth-token' ? { value: session.value } : request.cookies.get(name)) }
-      : request.cookies;
-    if (!(await isAdminRequest(cookies, request.headers.get('authorization')))) {
-      return asNext(offlineResponse(request.nextUrl.pathname));
-    }
+  if (SITE_OFFLINE && !stillServed(request.nextUrl.pathname) && !isSignInPath(request.nextUrl.pathname) && !(await isAdmin())) {
+    return asNext(offlineResponse(request.nextUrl.pathname));
   }
 
   // --- 0b. Legal mode: only reviewed features are served (see src/lib/legal-mode.ts) ---
-  if (LEGAL_MODE) {
+  // Admins see every route (Anthony 2026-10-05: "fix all routes"); legal mode is what anyone
+  // else would get. Nothing new is crawled or distributed: the crawler, workers and seedbox
+  // content stay off on the boxes themselves.
+  if (LEGAL_MODE && !(await isAdmin())) {
     const path = request.nextUrl.pathname;
     // The home page lists torrent media; until the licensed catalog replaces it, send people to membership.
     if (path === '/') return asNext(NextResponse.redirect(new URL('/pricing', request.url)));
