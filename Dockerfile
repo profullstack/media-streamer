@@ -16,7 +16,8 @@ RUN cargo install --git https://github.com/librespot-org/librespot --rev ${LIBRE
 
 # Stage 1: Dependencies
 FROM node:26-alpine AS deps
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Node 26 images no longer ship corepack: install the packageManager pin directly.
+RUN npm install -g pnpm@9.15.1
 WORKDIR /app
 
 # Copy package files
@@ -27,7 +28,7 @@ RUN pnpm install --frozen-lockfile
 
 # Stage 2: Builder
 FROM node:26-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm@9.15.1
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -58,7 +59,6 @@ RUN pnpm build
 
 # Stage 3: Runner
 FROM node:26-alpine AS runner
-RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 # Install FFmpeg for video/audio transcoding, and build tools for reliq/torge
