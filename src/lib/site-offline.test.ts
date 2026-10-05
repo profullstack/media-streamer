@@ -11,7 +11,8 @@ describe('bittorrented.com offline', () => {
   });
 
   it('answers every page with the 503 notice', async () => {
-    for (const path of ['/', '/search?q=x', '/login', '/dht', '/torrents/abc', '/pricing']) {
+    // Without an admin session; /login stays reachable so an admin can sign in (admin-gate.test.ts).
+    for (const path of ['/', '/search?q=x', '/signup', '/dht', '/torrents/abc', '/pricing', '/account']) {
       const res = await get(path);
       expect(res.status).toBe(503);
       expect(await res.text()).toContain('BitTorrented is offline');
