@@ -20,7 +20,7 @@ const CACHE_MS = 60_000;
 
 const cache = new Map<string, { admin: boolean; until: number }>();
 
-/** Sign-in pages stay reachable so an admin can log in; signing up stays closed. */
+/** Sign-in pages stay reachable so an admin can log in. Signup is open only with an invite (site-offline.ts). */
 const SIGN_IN = ['/login', '/forgot-password', '/reset-password', '/api/auth'];
 
 export function isSignInPath(pathname: string): boolean {

@@ -11,6 +11,13 @@ import { NextRequest } from 'next/server';
 const mockSignUp = vi.fn();
 const mockFrom = vi.fn();
 
+const mockIsOpenInvite = vi.fn();
+
+vi.mock('@/lib/invites', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/invites')>()),
+  isOpenInvite: (...args: unknown[]) => mockIsOpenInvite(...args),
+}));
+
 vi.mock('@/lib/supabase', () => ({
   createServerClient: () => ({
     auth: {
@@ -23,6 +30,7 @@ vi.mock('@/lib/supabase', () => ({
 describe('Signup API - POST /api/auth/signup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsOpenInvite.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -120,7 +128,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'test@example.com',
-          password: 'Password123!',
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -161,7 +169,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'test@example.com',
-          password: 'Password123!',
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -173,6 +181,8 @@ describe('Signup API - POST /api/auth/signup', () => {
         password: 'Password123!',
         options: expect.objectContaining({
           emailRedirectTo: expect.any(String),
+          // The trigger on auth.users reads it from here, normalised.
+          data: expect.objectContaining({ invite_code: 'ABCDEFGHJK' }),
         }),
       });
     });
@@ -220,7 +230,7 @@ describe('Signup API - POST /api/auth/signup', () => {
     function signupRequest(ip: string) {
       return new NextRequest('http://localhost/api/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({ email: 'test@example.com', password: 'Password123!' }),
+        body: JSON.stringify({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK' }),
         headers: {
           'Content-Type': 'application/json',
           'X-Forwarded-For': `${ip}, 10.0.0.1`,
@@ -280,6 +290,42 @@ describe('Signup API - POST /api/auth/signup', () => {
     });
   });
 
+  describe('Invite only', () => {
+    const post = async (body: Record<string, unknown>) => {
+      const { POST } = await import('./route');
+      return POST(
+        new NextRequest('http://localhost/api/auth/signup', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+    };
+
+    it('refuses a signup with no invite code, before touching Supabase', async () => {
+      const res = await post({ email: 'test@example.com', password: 'Password123!' });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/invite code is required/i);
+      expect(mockSignUp).not.toHaveBeenCalled();
+    });
+
+    it('refuses an unknown or used invite code', async () => {
+      mockIsOpenInvite.mockResolvedValue(false);
+      const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ZZZZZ-ZZZZZ' });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/invalid or has already been used/i);
+      expect(mockIsOpenInvite).toHaveBeenCalledWith(expect.anything(), 'ZZZZZZZZZZ');
+      expect(mockSignUp).not.toHaveBeenCalled();
+    });
+
+    it('reports the trigger refusing a code that was used in the meantime', async () => {
+      mockSignUp.mockResolvedValue({ data: { user: null }, error: { message: 'Database error saving new user' } });
+      const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK' });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/invalid or has already been used/i);
+    });
+  });
+
   describe('Error Handling', () => {
     it('should return 409 when email already exists', async () => {
       mockSignUp.mockResolvedValueOnce({
@@ -295,7 +341,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'existing@example.com',
-          password: 'Password123!',
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -320,7 +366,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'test@example.com',
-          password: 'Password123!',
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
         }),
         headers: { 'Content-Type': 'application/json' },
       });

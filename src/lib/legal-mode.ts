@@ -22,6 +22,8 @@ const ALLOWED = [
   // accounts and sign-in
   '/login',
   '/signup',
+  '/invite-only',
+  '/api/invites',
   '/forgot-password',
   '/reset-password',
   '/select-profile',

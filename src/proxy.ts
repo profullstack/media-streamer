@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { trackReferralCode } from '@profullstack/stack/referrals';
 import { gateway, hasSessionCookie } from '@/lib/crawl-gateway';
 import { meter } from '@/lib/throttle';
-import { SITE_OFFLINE, offlineResponse, stillServed } from '@/lib/site-offline';
+import { SITE_OFFLINE, offlineResponse, openWhileInviteOnly, stillServed } from '@/lib/site-offline';
 import { LEGAL_MODE, goneResponse, legallyServed } from '@/lib/legal-mode';
 import { isAdminRequest, isSignInPath } from '@/lib/admin-gate';
 
@@ -392,6 +392,10 @@ const PROFILE_EXEMPT_PATHS = [
   '/admin',
   '/login',
   '/signup',
+  // The invite-only screen is where the offline gate sends members; sending them on to
+  // /select-profile from there would bounce straight back (site-offline.ts).
+  '/invite-only',
+  '/api/invites',
   '/auth',
   '/pricing',
   '/api/auth',
@@ -435,6 +439,7 @@ function isProfileExempt(pathname: string): boolean {
 const PUBLIC_PATHS = [
   '/login',
   '/signup',
+  '/invite-only',
   '/forgot-password',
   '/reset-password',
   '/pricing',
@@ -541,9 +546,16 @@ export async function proxy(request: NextRequest): Promise<Response> {
   let admin: boolean | undefined;
   const isAdmin = async () => (admin ??= await isAdminRequest(cookies, request.headers.get('authorization')));
 
-  // --- 0a. The site is offline (see src/lib/site-offline.ts) ---
-  // Admins only (src/lib/admin-gate.ts): everyone else, paying or not, gets the notice.
-  if (SITE_OFFLINE && !stillServed(request.nextUrl.pathname) && !isSignInPath(request.nextUrl.pathname) && !(await isAdmin())) {
+  // --- 0a. The site is offline and invite only (see src/lib/site-offline.ts) ---
+  // Admins only (src/lib/admin-gate.ts): everyone else, paying or not, is sent to the
+  // invite-only screen, where they can sign up with an invite or manage their own.
+  if (
+    SITE_OFFLINE &&
+    !stillServed(request.nextUrl.pathname) &&
+    !isSignInPath(request.nextUrl.pathname) &&
+    !openWhileInviteOnly(request.nextUrl.pathname) &&
+    !(await isAdmin())
+  ) {
     return asNext(offlineResponse(request.nextUrl.pathname));
   }
 
