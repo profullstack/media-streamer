@@ -122,3 +122,8 @@ revoke all on function public.consume_invite_on_signup() from public, anon, auth
 grant execute on function public.invite_balance(uuid, timestamptz) to service_role;
 grant execute on function public.create_invite(uuid, text, boolean) to service_role;
 grant all on public.invites to service_role;
+
+-- PostgREST caches the schema: without this the API answers PGRST205 ("Could not
+-- find the table 'public.invites' in the schema cache") and every invite reads as
+-- invalid until something else reloads it. Seen on dev2 2026-10-06.
+notify pgrst, 'reload schema';
