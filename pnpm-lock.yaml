@@ -14,8 +14,8 @@ importers:
   .:
     dependencies:
       '@alpacahq/alpaca-trade-api':
-        specifier: ^4.0.4
-        version: 4.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+        specifier: ^5.0.0
+        version: 5.0.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
@@ -98,8 +98,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       framer-motion:
-        specifier: ^13.4.4
-        version: 13.4.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: ^14.0.0
+        version: 14.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       hls.js:
         specifier: ^1.7.3
         version: 1.7.3
@@ -252,8 +252,8 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
-  '@alpacahq/alpaca-trade-api@4.0.4':
-    resolution: {integrity: sha512-i2JX+pNJX4uq2oukaAoXkxdSRsLrMQJJ34uw8p96R3+NslGlnxOgIua9Fc8OKhTYragdqh9SrNGt/WxtZWiOHA==}
+  '@alpacahq/alpaca-trade-api@5.0.0':
+    resolution: {integrity: sha512-cdo2xS/eZU5Va++XL9ot+JfcLD+rdIpM1yUVY4VNTyVu+xIEgBrzWPTBEfO40iN9MVc0ENBTH+XHNZHIIdd9Cw==}
     engines: {node: '>=20'}
 
   '@asamuzakjp/css-color@7.1.2':
@@ -3279,8 +3279,8 @@ packages:
     resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
     engines: {node: '>=12.20.0'}
 
-  framer-motion@13.4.4:
-    resolution: {integrity: sha512-lbsZO95NGbulo6apz70zEt6Vxf/anoRwQI2ECEc/EQYWO5CGbITtl7plDW8P/VXgXw6e8wrbhH4a9i+ygke0Mg==}
+  framer-motion@14.0.0:
+    resolution: {integrity: sha512-QAtHmybrDFSliyW1sexMtSQTQd+1jw2ajibEmzpuI4XdPVzQkn+dAzJMm2sW3pl9MJuSS4xN51djQ7huhlP/VA==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -4022,11 +4022,11 @@ packages:
     resolution: {integrity: sha512-snEhs+6G5Tjd4I7tLCDOaoln2RgE0bD19RzEKgvgK2hZ5VKy3MpLhLTZ2fWpXSTg4K2cyPwp+VHATFJhxfnOeA==}
     engines: {node: '>=18.0.0'}
 
-  motion-dom@13.4.4:
-    resolution: {integrity: sha512-z2qN3RUABSci4G7cr5aHTFhqPNCWJsEMMfRlzxqtANQsSCIbVJmHvMV288m5x7doEQBTYbRTWbKdztmquCn4Sw==}
+  motion-dom@14.0.0:
+    resolution: {integrity: sha512-aU3ApXo1yTpeUi3JU+jbDk2TELjxPE3MbBMUP7nZHlARb6RweJK+ojmLjpuB0YsY6zhbBl1YWGo8LMsI1/Llqw==}
 
-  motion-utils@13.3.0:
-    resolution: {integrity: sha512-sgSschQp7EseHInIlR7hBbMuvet3RA0bs28KPZAXJcGKGdxHGvh1ogpYDilY3bOMtl73EqPNmp75sAKHYPU5sg==}
+  motion-utils@14.0.0:
+    resolution: {integrity: sha512-jBsyjVxTTRZNeuvd/v+btVXr90LQkYl4HhRu9T2ARc+PMnvkmjsjRVeAg4Qm10b6TlTw+kykWI8gu/6LuvpLSQ==}
 
   mpd-parser@1.4.0:
     resolution: {integrity: sha512-blbA7XpAaOdC/PR0Tu8GiUxlx6CpBuRowQPYV7lhi9Yr9G9+dkPXIUjqjzc/NCn/uZZPopluaJlIYntIEI/VLw==}
@@ -5291,7 +5291,7 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@alpacahq/alpaca-trade-api@4.0.4(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
+  '@alpacahq/alpaca-trade-api@5.0.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
     dependencies:
       '@msgpack/msgpack': 3.1.3
       lossless-json: 4.3.1
@@ -8345,10 +8345,10 @@ snapshots:
     dependencies:
       fetch-blob: 3.2.0
 
-  framer-motion@13.4.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  framer-motion@14.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
-      motion-dom: 13.4.4
-      motion-utils: 13.3.0
+      motion-dom: 14.0.0
+      motion-utils: 14.0.0
       tslib: 2.8.1
     optionalDependencies:
       react: 19.3.0
@@ -9093,11 +9093,11 @@ snapshots:
 
   modern-tar@0.8.5: {}
 
-  motion-dom@13.4.4:
+  motion-dom@14.0.0:
     dependencies:
-      motion-utils: 13.3.0
+      motion-utils: 14.0.0
 
-  motion-utils@13.3.0: {}
+  motion-utils@14.0.0: {}
 
   mpd-parser@1.4.0:
     dependencies:
