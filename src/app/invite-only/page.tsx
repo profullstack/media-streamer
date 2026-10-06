@@ -4,7 +4,8 @@
  * Invite-only screen
  *
  * Where everyone who is not an admin lands while bittorrented.com is invite only
- * (src/lib/site-offline.ts). Signed out: sign up with an invite, or sign in. Signed in:
+ * (src/lib/site-offline.ts). Signed out: what BitTorrented is (InviteLanding), then sign up
+ * with an invite, or sign in. Signed in:
  * the site is not open yet, and here are your invites (5 a month, unused ones carry over).
  *
  * "Create invite" opens a <dialog> for the invite's limits: an expiry date and/or a
@@ -13,9 +14,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { InviteLanding } from '@/components/home/invite-landing';
 
 interface InviteView {
   code: string;
@@ -168,7 +169,7 @@ export default function InviteOnlyPage(): React.ReactElement {
 
   return (
     <main className="min-h-screen bg-bg-primary text-text-primary flex items-start sm:items-center justify-center px-4 py-12">
-      <div className="w-full max-w-lg">
+      <div className={cn('w-full', state.kind === 'signed-out' ? 'max-w-3xl' : 'max-w-lg')}>
         <div className="mb-8 text-center">
           <Image src="/logo.svg" alt="BitTorrented" width={256} height={64} className="w-56 h-auto mx-auto" priority />
         </div>
@@ -184,19 +185,12 @@ export default function InviteOnlyPage(): React.ReactElement {
         ) : null}
 
         {state.kind === 'signed-out' ? (
-          <div className="text-center space-y-6">
-            <p className="text-text-secondary">
+          <div className="space-y-6">
+            <p className="text-center text-text-secondary">
               New accounts need an invite from a member. If someone sent you an invite link or code, you can create
               your account now.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/signup" className={primary}>
-                I have an invite
-              </Link>
-              <Link href="/login?redirect=%2Finvite-only" className={secondary}>
-                Sign in
-              </Link>
-            </div>
+            <InviteLanding className="pt-4" />
           </div>
         ) : null}
 
