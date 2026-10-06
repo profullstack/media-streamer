@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
+import { castClaimsFrom } from '@/lib/cast/token';
 import { loadAccountSeedboxConfig } from '@/lib/seedbox';
 import { streamSeedboxFile } from '@/lib/seedbox/stream';
 
@@ -14,7 +15,10 @@ import { streamSeedboxFile } from '@/lib/seedbox/stream';
 export const dynamic = 'force-dynamic';
 
 async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Response> {
-  const user = await getCurrentUser();
+  // Session cookie, or the signed ct a Chromecast carries for a cast file.
+  const sessionUser = await getCurrentUser();
+  const claims = sessionUser ? null : await castClaimsFrom(request.url);
+  const user = sessionUser ?? (claims ? { id: claims.userId } : null);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }

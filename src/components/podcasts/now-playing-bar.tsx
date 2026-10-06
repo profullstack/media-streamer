@@ -10,6 +10,7 @@
 
 import { useCallback } from 'react';
 import { usePodcastPlayer } from '@/contexts/podcast-player';
+import { CastButton } from '@/components/cast/cast-button';
 import { cn } from '@/lib/utils';
 import {
   PlayIcon,
@@ -181,6 +182,21 @@ export function NowPlayingBar(): React.ReactElement | null {
             </span>
           </div>
           
+          <CastButton
+            media={{
+              url: currentEpisode.audioUrl,
+              title: currentEpisode.title,
+              subtitle: currentPodcast?.title,
+              imageUrl: currentEpisode.imageUrl ?? currentPodcast?.imageUrl ?? null,
+              kind: 'audio',
+              startTime: currentTime,
+            }}
+            onCastStart={() => {
+              if (isPlaying) togglePlayPause();
+            }}
+            className="shrink-0"
+          />
+
           {/* Close Button */}
           <button
             onClick={stop}

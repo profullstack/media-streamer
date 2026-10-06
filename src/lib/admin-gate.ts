@@ -78,3 +78,41 @@ export async function isAdminRequest(
   cache.set(token, { admin, until: Date.now() + CACHE_MS });
   return admin;
 }
+
+/**
+ * A Chromecast fetching what an admin cast: no cookie, only the signed `ct`
+ * (src/lib/cast/token.ts), and only on the media routes a cast token opens.
+ * The token's user must be an admin by the same check as a session; it fails
+ * closed the same way.
+ */
+export async function isAdminCastRequest(
+  requestUrl: string,
+  check: (userId: string) => Promise<{ isAdmin: boolean }> = checkUserAdmin
+): Promise<boolean> {
+  const { CAST_TOKEN_PARAM, isCastablePath, verifyCastToken } = await import('@/lib/cast/token');
+  let url: URL;
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    return false;
+  }
+  if (!isCastablePath(url.pathname)) return false;
+  const token = url.searchParams.get(CAST_TOKEN_PARAM);
+  if (!token) return false;
+  const key = `cast:${token}`;
+  const hit = cache.get(key);
+  if (hit && hit.until > Date.now()) return hit.admin;
+  let admin = false;
+  // Never remember a yes past the token's own expiry.
+  let until = Date.now() + CACHE_MS;
+  try {
+    const claims = await verifyCastToken(token);
+    admin = claims ? (await check(claims.userId)).isAdmin : false;
+    if (claims) until = Math.min(until, claims.expiresAt * 1000);
+  } catch {
+    admin = false;
+  }
+  if (cache.size > 1000) cache.clear();
+  cache.set(key, { admin, until });
+  return admin;
+}

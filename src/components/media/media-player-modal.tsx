@@ -29,6 +29,8 @@ import { AudioPlayer } from '@/components/audio/audio-player';
 import { FileFavoriteButton } from '@/components/ui/file-favorite-button';
 import { PlaybackSourceBadge } from './playback-source-badge';
 import { RefreshIcon } from '@/components/ui/icons';
+import { CastButton } from '@/components/cast/cast-button';
+import { isCastableUrl, type CastMedia } from '@/lib/cast/sender';
 import { getMediaCategory } from '@/lib/utils';
 import { formatProgressTime } from '@/lib/progress/progress';
 import { useAnalytics, useWebTorrent, isNativeCompatible, useTvDetection, useAuth } from '@/hooks';
@@ -113,6 +115,8 @@ export function MediaPlayerModal({
 
   // Ref for video container to enable fullscreen on TV
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  /** Everything this modal renders, so the cast button can find and pause the local player. */
+  const castScopeRef = useRef<HTMLDivElement>(null);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -933,6 +937,20 @@ export function MediaPlayerModal({
   
   const isLoading = !isPlayerReady && !error;
 
+  // What a TV gets when this is cast. A WebTorrent (P2P) URL lives inside this
+  // tab, so the TV is handed the server stream of the same file instead.
+  const castMedia: CastMedia | null =
+    streamUrl && (mediaCategory === 'video' || mediaCategory === 'audio')
+      ? {
+          url: isCastableUrl(streamUrl) ? streamUrl : `/api/stream?infohash=${infohash}&fileIndex=${file.fileIndex}`,
+          filename: file.name,
+          title: displayTitle,
+          subtitle: artist ?? album ?? torrentName ?? undefined,
+          imageUrl: coverArt ?? null,
+          kind: mediaCategory,
+        }
+      : null;
+
   // For P2P streaming, use WebTorrent status; for server-side, use SSE connection status
   // Stream is ready when the stream URL is available - the service worker handles progressive streaming
   // We don't need to wait for a specific buffer amount - the player will buffer as needed
@@ -976,7 +994,7 @@ export function MediaPlayerModal({
       size="3xl"
       className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-3xl"
     >
-      <div className="space-y-2 sm:space-y-3">
+      <div ref={castScopeRef} className="space-y-2 sm:space-y-3">
         {source ? <PlaybackSourceBadge source={source} /> : null}
         {/* Metadata Header - Artist → Album → Song with Cover Art - compact for TV */}
         <div className="flex items-start gap-2 sm:gap-3 md:gap-4" data-testid="metadata-header">
@@ -1044,6 +1062,12 @@ export function MediaPlayerModal({
               size="md"
               className="shrink-0 hover:bg-bg-tertiary rounded-full"
             /> : null}
+
+          <CastButton
+            media={castMedia}
+            getMediaElement={() => castScopeRef.current?.querySelector<HTMLMediaElement>('video, audio') ?? null}
+            className="shrink-0"
+          />
 
           {/* Refresh Button */}
           <button

@@ -20,6 +20,7 @@ import { getStreamingService } from '@/lib/streaming';
 import { getTorrentByInfohash } from '@/lib/supabase';
 import { getFFmpegDemuxerForExtension } from '@/lib/codec-detection';
 import { getFFmpegManager } from '@/lib/ffmpeg-manager';
+import { castTokenParam, threadCastToken } from '@/lib/cast/playlist';
 
 const logger = createLogger('API:stream:hls');
 
@@ -155,8 +156,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
       .replace(/^(init\.mp4)$/gm, `${segBase}$1`)
       .replace(/#EXT-X-MAP:URI="init\.mp4"/g, `#EXT-X-MAP:URI="${segBase}init.mp4"`);
+    const playlistOut = threadCastToken(rewritten, castTokenParam(request.url));
     
-    return new Response(rewritten, {
+    return new Response(playlistOut, {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store',
@@ -508,8 +510,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       .replace(/^(segment\d+\.m4s)$/gm, `${segBase}$1`)
       .replace(/^(init\.mp4)$/gm, `${segBase}$1`)
       .replace(/#EXT-X-MAP:URI="init\.mp4"/g, `#EXT-X-MAP:URI="${segBase}init.mp4"`);
+    const playlistOut = threadCastToken(rewritten, castTokenParam(request.url));
 
-    return new Response(rewritten, {
+    return new Response(playlistOut, {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store',

@@ -69,3 +69,36 @@ describe('requireActiveSubscription', () => {
     expect(body.error).toBe('subscription_expired');
   });
 });
+
+describe('requireActiveSubscription with a cast token', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('CAST_TOKEN_SECRET', 'guard-test-secret');
+  });
+
+  async function castRequest(token: string) {
+    return new NextRequest(`http://localhost/api/stream?infohash=abc&ct=${encodeURIComponent(token)}`);
+  }
+
+  it("allows the token user's active subscription without a cookie", async () => {
+    const { createCastToken } = await import('@/lib/cast/token');
+    const { token } = await createCastToken('cast-user');
+    mockIsSubscriptionActive.mockResolvedValue({ active: true });
+    expect(await requireActiveSubscription(await castRequest(token))).toBeNull();
+    expect(mockIsSubscriptionActive).toHaveBeenCalledWith('cast-user');
+    expect(mockSetSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the token user's subscription has lapsed", async () => {
+    const { createCastToken } = await import('@/lib/cast/token');
+    const { token } = await createCastToken('cast-user');
+    mockIsSubscriptionActive.mockResolvedValue({ active: false });
+    expect((await requireActiveSubscription(await castRequest(token)))!.status).toBe(403);
+  });
+
+  it('refuses a bad token with 401', async () => {
+    const result = await requireActiveSubscription(await castRequest('bogus.token'));
+    expect(result!.status).toBe(401);
+    expect(mockIsSubscriptionActive).not.toHaveBeenCalled();
+  });
+});

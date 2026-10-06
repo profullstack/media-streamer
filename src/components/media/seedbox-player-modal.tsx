@@ -10,9 +10,10 @@
  * the seedbox, so there's nothing to transcode on the fly).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { PlaybackSourceBadge } from './playback-source-badge';
+import { CastButton } from '@/components/cast/cast-button';
 import type { TorrentFile } from '@/types';
 
 interface SeedboxPlayerModalProps {
@@ -34,6 +35,7 @@ export function SeedboxPlayerModal({
     [file]
   );
   const [failed, setFailed] = useState(false);
+  const scopeRef = useRef<HTMLDivElement>(null);
 
   // Reset the error state whenever a new file is opened.
   useEffect(() => {
@@ -44,9 +46,15 @@ export function SeedboxPlayerModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={file.name} size="4xl">
-      <div className="p-2">
-        <div className="mb-2">
+      <div ref={scopeRef} className="p-2">
+        <div className="mb-2 flex items-center justify-between gap-2">
           <PlaybackSourceBadge source="seedbox" />
+          {!failed && (file.mediaCategory === 'video' || file.mediaCategory === 'audio') ? (
+            <CastButton
+              media={{ url: src, filename: file.name, title: file.name, kind: file.mediaCategory }}
+              getMediaElement={() => scopeRef.current?.querySelector<HTMLMediaElement>('video, audio') ?? null}
+            />
+          ) : null}
         </div>
         {failed ? (
           <div className="py-8 text-center">

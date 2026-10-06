@@ -25,6 +25,7 @@
  */
 
 import { createGateway } from '@profullstack/x402-gateway';
+import { CAST_TOKEN_PARAM, isCastablePath } from '@/lib/cast/token';
 
 /**
  * OVH VPS fleet ranges, measured 2026-08-28 on rssamplifier: vps-*.vps.ovh.net
@@ -47,6 +48,8 @@ const SESSION_COOKIE_NAME = 'sb-auth-token';
 
 /** A v1 API token from src/lib/api-tokens: `btr_` + 32 random bytes as hex. */
 const API_BEARER_RE = /^Bearer\s+btr_[0-9a-f]{64}$/i;
+/** base64url(userId.exp) . base64url(HMAC-SHA256): see src/lib/cast/token.ts. */
+const CAST_TOKEN_RE = /^[A-Za-z0-9_-]{8,400}\.[A-Za-z0-9_-]{43}$/;
 
 /** Three base64url segments: the shape of the Supabase access token. */
 const JWT_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
@@ -90,6 +93,24 @@ export function hasApiBearer(request: Request): boolean {
   return API_BEARER_RE.test(request.headers.get('authorization') ?? '');
 }
 
+/**
+ * Whether a media request carries a cast-token-shaped `ct`: a Chromecast
+ * fetching what a member cast. Older Cast firmware sends a Chrome user agent
+ * without Sec-Fetch-Mode, which the spoof check would otherwise charge.
+ * Shape only, like the cookie check above: the members gate in src/proxy.ts
+ * verifies the signature next, so a forged one is still turned away.
+ */
+export function hasCastTokenShape(request: Request): boolean {
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return false;
+  }
+  if (!isCastablePath(url.pathname)) return false;
+  return CAST_TOKEN_RE.test(url.searchParams.get(CAST_TOKEN_PARAM) ?? '');
+}
+
 export const gateway = createGateway({
   siteUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'https://bittorrented.com',
   siteName: 'bittorrented',
@@ -97,5 +118,5 @@ export const gateway = createGateway({
   payTo: process.env.CRAWL_PAY_TO,
   denyCidrs: OVH_VPS_FLEET_CIDRS,
   chargeSpoofedBrowsers: true,
-  exempt: (request) => hasSessionCookie(request) || hasApiBearer(request),
+  exempt: (request) => hasSessionCookie(request) || hasApiBearer(request) || hasCastTokenShape(request),
 });
