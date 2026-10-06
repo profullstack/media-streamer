@@ -35,7 +35,7 @@
     "podcast-worker:dev": "tsx --watch --env-file=.env workers/podcast-notifier/index.ts"
   },
   "dependencies": {
-    "@alpacahq/alpaca-trade-api": "^4.0.4",
+    "@alpacahq/alpaca-trade-api": "^5.0.0",
     "@mozilla/readability": "^0.6.0",
     "@noriginmedia/norigin-spatial-navigation": "^3.3.0",
     "@profullstack/autoblog": "https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af",
@@ -63,7 +63,7 @@
     "clsx": "^2.1.1",
     "epubjs": "^0.3.93",
     "foliate-js": "^1.0.1",
-    "framer-motion": "^13.4.4",
+    "framer-motion": "^14.0.0",
     "hls.js": "^1.7.3",
     "imapflow": "^2.2.1",
     "ioredis": "^6.0.0",
