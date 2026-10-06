@@ -313,7 +313,7 @@ describe('Signup API - POST /api/auth/signup', () => {
       mockIsOpenInvite.mockResolvedValue(false);
       const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ZZZZZ-ZZZZZ' });
       expect(res.status).toBe(400);
-      expect((await res.json()).error).toMatch(/invalid or has already been used/i);
+      expect((await res.json()).error).toMatch(/invalid, expired or used up/i);
       expect(mockIsOpenInvite).toHaveBeenCalledWith(expect.anything(), 'ZZZZZZZZZZ');
       expect(mockSignUp).not.toHaveBeenCalled();
     });
@@ -322,7 +322,7 @@ describe('Signup API - POST /api/auth/signup', () => {
       mockSignUp.mockResolvedValue({ data: { user: null }, error: { message: 'Database error saving new user' } });
       const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK' });
       expect(res.status).toBe(400);
-      expect((await res.json()).error).toMatch(/invalid or has already been used/i);
+      expect((await res.json()).error).toMatch(/invalid, expired or used up/i);
     });
   });
 
