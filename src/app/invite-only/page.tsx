@@ -6,9 +6,13 @@
  * Where everyone who is not an admin lands while bittorrented.com is invite only
  * (src/lib/site-offline.ts). Signed out: sign up with an invite, or sign in. Signed in:
  * the site is not open yet, and here are your invites (5 a month, unused ones carry over).
+ *
+ * "Create invite" opens a <dialog> for the invite's limits: an expiry date and/or a
+ * number of uses, or neither, in which case it works forever. Each allowed use costs
+ * one of the allowance; only admins may leave the uses open.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -18,6 +22,10 @@ interface InviteView {
   link: string;
   createdAt: string;
   usedAt: string | null;
+  expiresAt: string | null;
+  maxUses: number | null;
+  useCount: number;
+  open: boolean;
 }
 
 interface InvitesResponse {
@@ -40,11 +48,55 @@ function day(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/** yyyy-mm-dd in local time, `days` from today: the value an <input type="date"> takes. */
+function dateInput(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** An expiry date means "through the end of that day", in the creator's time zone. */
+function endOfDay(value: string): string {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+}
+
+/** One line on what an invite allows and where it stands. */
+function inviteStatus(invite: InviteView): string {
+  const uses =
+    invite.maxUses === null
+      ? `${invite.useCount} used, no limit`
+      : invite.maxUses === 1
+        ? invite.useCount
+          ? 'used'
+          : 'single use'
+        : `${invite.useCount} of ${invite.maxUses} used`;
+  const expired = invite.expiresAt !== null && Date.parse(invite.expiresAt) <= Date.now();
+  const when = invite.expiresAt
+    ? `${expired ? 'expired' : 'expires'} ${day(invite.expiresAt)}`
+    : invite.maxUses === null
+      ? 'works forever'
+      : 'no expiry';
+  const last = invite.usedAt ? ` · last used ${day(invite.usedAt)}` : '';
+  return `Created ${day(invite.createdAt)} · ${uses} · ${when}${last}`;
+}
+
+const field = cn(
+  'w-full rounded-lg border border-border-default bg-bg-tertiary px-3 py-2 text-text-primary',
+  'focus:border-accent-primary focus:outline-none disabled:opacity-40'
+);
+
 export default function InviteOnlyPage(): React.ReactElement {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [limitUses, setLimitUses] = useState(true);
+  const [uses, setUses] = useState('1');
+  const [expires, setExpires] = useState(false);
+  const [expiry, setExpiry] = useState(dateInput(7));
+  const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -61,16 +113,39 @@ export default function InviteOnlyPage(): React.ReactElement {
     void load();
   }, [load]);
 
-  const create = async () => {
+  const openDialog = (unlimited: boolean) => {
+    // Admins start at "works forever"; members can only make limited invites.
+    setLimitUses(!unlimited);
+    setUses('1');
+    setExpires(false);
+    setExpiry(dateInput(7));
+    setFormError(null);
+    dialog.current?.showModal();
+  };
+
+  const create = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setCreating(true);
+    setFormError(null);
     setError(null);
     try {
-      const res = await fetch('/api/invites', { method: 'POST' });
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          maxUses: limitUses ? Number(uses) : null,
+          expiresAt: expires ? endOfDay(expiry) : null,
+        }),
+      });
       const body = (await res.json()) as { error?: string };
-      if (!res.ok) setError(body.error ?? 'Could not create an invite');
+      if (!res.ok) {
+        setFormError(body.error ?? 'Could not create an invite');
+        return;
+      }
+      dialog.current?.close();
       await load();
     } catch {
-      setError('Could not create an invite');
+      setFormError('Could not create an invite');
     } finally {
       setCreating(false);
     }
@@ -145,10 +220,10 @@ export default function InviteOnlyPage(): React.ReactElement {
                 <button
                   type="button"
                   className={primary}
-                  onClick={() => void create()}
-                  disabled={creating || (!state.data.unlimited && (state.data.remaining ?? 0) <= 0)}
+                  onClick={() => openDialog(state.data.unlimited)}
+                  disabled={!state.data.unlimited && (state.data.remaining ?? 0) <= 0}
                 >
-                  {creating ? 'Creating…' : 'Create invite'}
+                  Create invite
                 </button>
               </div>
 
@@ -166,11 +241,9 @@ export default function InviteOnlyPage(): React.ReactElement {
                     <li key={invite.code} className="py-3 flex items-center justify-between gap-3 flex-wrap">
                       <div className="min-w-0">
                         <code className="font-mono text-base">{invite.code}</code>
-                        <p className="text-xs text-text-muted">
-                          {invite.usedAt ? `Used ${day(invite.usedAt)}` : `Created ${day(invite.createdAt)} · unused`}
-                        </p>
+                        <p className="text-xs text-text-muted">{inviteStatus(invite)}</p>
                       </div>
-                      {invite.usedAt ? null : (
+                      {!invite.open ? null : (
                         <button type="button" className={cn(secondary, 'py-2 text-sm')} onClick={() => void copy(invite)}>
                           {copied === invite.code ? 'Copied' : 'Copy link'}
                         </button>
@@ -180,6 +253,23 @@ export default function InviteOnlyPage(): React.ReactElement {
                 </ul>
               )}
             </section>
+
+            <InviteDialog
+              ref={dialog}
+              unlimited={state.data.unlimited}
+              remaining={state.data.remaining ?? 0}
+              limitUses={limitUses}
+              setLimitUses={setLimitUses}
+              uses={uses}
+              setUses={setUses}
+              expires={expires}
+              setExpires={setExpires}
+              expiry={expiry}
+              setExpiry={setExpiry}
+              error={formError}
+              creating={creating}
+              onSubmit={create}
+            />
 
             <p className="text-center text-sm">
               <button type="button" className="text-text-secondary hover:text-text-primary" onClick={() => void signOut()}>
@@ -194,5 +284,142 @@ export default function InviteOnlyPage(): React.ReactElement {
         </p>
       </div>
     </main>
+  );
+}
+
+interface InviteDialogProps {
+  ref: React.Ref<HTMLDialogElement>;
+  unlimited: boolean;
+  remaining: number;
+  limitUses: boolean;
+  setLimitUses: (v: boolean) => void;
+  uses: string;
+  setUses: (v: string) => void;
+  expires: boolean;
+  setExpires: (v: boolean) => void;
+  expiry: string;
+  setExpiry: (v: string) => void;
+  error: string | null;
+  creating: boolean;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}
+
+/** The create form. A native <dialog>: Esc and the backdrop close it, focus is trapped. */
+function InviteDialog({ ref, ...props }: InviteDialogProps): React.ReactElement {
+  const { unlimited, remaining, limitUses, uses, expires, expiry } = props;
+  const maxUses = unlimited ? 1000 : Math.max(1, remaining);
+  const n = Number(uses);
+  const summary =
+    !limitUses && !expires
+      ? 'Works forever, for any number of people.'
+      : `${limitUses ? `Up to ${n || '…'} ${n === 1 ? 'person' : 'people'}` : 'Any number of people'}, ${
+          expires && expiry ? `until the end of ${day(`${expiry}T12:00:00`)}` : 'with no expiry'
+        }.`;
+  const close = (event: React.MouseEvent<HTMLDialogElement>) => {
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  };
+
+  return (
+    <dialog
+      ref={ref}
+      onClick={close}
+      aria-labelledby="invite-dialog-title"
+      className={cn(
+        'm-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border border-border-default bg-bg-secondary p-0 text-text-primary',
+        'backdrop:bg-black/60'
+      )}
+    >
+      <form onSubmit={props.onSubmit} className="space-y-5 p-6">
+        <div>
+          <h2 id="invite-dialog-title" className="text-lg font-semibold">
+            New invite
+          </h2>
+          <p className="text-sm text-text-secondary">Set a limit, both, or neither.</p>
+        </div>
+
+        <fieldset className="space-y-2">
+          <label className="flex items-center gap-2 font-medium">
+            <input
+              type="checkbox"
+              checked={limitUses}
+              disabled={!unlimited}
+              onChange={(e) => props.setLimitUses(e.target.checked)}
+            />
+            Limit the number of uses
+          </label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={maxUses}
+            step={1}
+            required={limitUses}
+            disabled={!limitUses}
+            value={uses}
+            onChange={(e) => props.setUses(e.target.value)}
+            aria-label="Number of uses"
+            className={field}
+          />
+          <p className="text-xs text-text-muted">
+            {unlimited
+              ? 'Admin: invites cost nothing, and you may leave the uses open.'
+              : `Each use costs one invite. You have ${remaining}.`}
+          </p>
+        </fieldset>
+
+        <fieldset className="space-y-2">
+          <label className="flex items-center gap-2 font-medium">
+            <input type="checkbox" checked={expires} onChange={(e) => props.setExpires(e.target.checked)} />
+            Expires
+          </label>
+          <input
+            type="date"
+            min={dateInput(0)}
+            required={expires}
+            disabled={!expires}
+            value={expiry}
+            onChange={(e) => props.setExpiry(e.target.value)}
+            aria-label="Expiry date"
+            className={field}
+          />
+          <div className="flex gap-2">
+            {[1, 7, 30].map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={cn(secondary, 'px-3 py-1 text-xs')}
+                onClick={() => {
+                  props.setExpires(true);
+                  props.setExpiry(dateInput(d));
+                }}
+              >
+                {d === 1 ? 'Tomorrow' : `${d} days`}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <p className="rounded-lg bg-bg-tertiary p-3 text-sm">{summary}</p>
+
+        {props.error ? (
+          <p className="rounded-lg bg-status-error/10 border border-status-error/20 p-3 text-sm text-status-error">
+            {props.error}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            className={secondary}
+            onClick={(e) => (e.currentTarget.closest('dialog') as HTMLDialogElement | null)?.close()}
+          >
+            Cancel
+          </button>
+          <button type="submit" className={primary} disabled={props.creating}>
+            {props.creating ? 'Creating…' : 'Create invite'}
+          </button>
+        </div>
+      </form>
+    </dialog>
   );
 }

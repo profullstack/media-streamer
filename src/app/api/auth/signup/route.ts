@@ -70,7 +70,7 @@ function getBaseUrl(request: NextRequest): string {
  *
  * Returns:
  * - 201: User created, confirmation email sent
- * - 400: Invalid input, or a missing, unknown or used invite code
+ * - 400: Invalid input, or a missing, unknown, expired or used-up invite code
  * - 409: Email already exists
  * - 500: Server error
  */
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!(await isOpenInvite(supabase, inviteCode))) {
     return NextResponse.json(
-      { error: 'That invite code is invalid or has already been used' },
+      { error: 'That invite code is invalid, expired or used up' },
       { status: 400 }
     );
   }
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // The trigger refused the code: someone used it between our check and the insert.
     if (signUpError.message.includes('invite_') || signUpError.message.includes('Database error saving new user')) {
       return NextResponse.json(
-        { error: 'That invite code is invalid or has already been used' },
+        { error: 'That invite code is invalid, expired or used up' },
         { status: 400 }
       );
     }
