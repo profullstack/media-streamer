@@ -260,6 +260,21 @@ export function Header({ className, isLoggedIn = false, isAdmin = false, userEma
                     <span>Account Settings</span>
                   </Link>
 
+                  {/* Invites: the site is invite only; members hand these out (src/lib/invites.ts) */}
+                  <Link
+                    href="/invite-only"
+                    onClick={handleUserMenuLinkClick}
+                    data-testid="user-menu-invites-link"
+                    className={cn(
+                      'flex w-full items-center gap-3 px-4 py-2 text-left text-sm',
+                      'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                      'transition-colors'
+                    )}
+                  >
+                    <UsersIcon size={16} />
+                    <span>Invites</span>
+                  </Link>
+
                   {/* Admin console, admins only */}
                   {isAdmin ? (
                     <Link
