@@ -556,7 +556,7 @@ export async function proxy(request: NextRequest): Promise<Response> {
     !openWhileInviteOnly(request.nextUrl.pathname) &&
     !(await isAdmin())
   ) {
-    return asNext(offlineResponse(request.nextUrl.pathname));
+    return asNext(offlineResponse(request.nextUrl.pathname, request.url));
   }
 
   // --- 0b. Legal mode: only reviewed features are served (see src/lib/legal-mode.ts) ---

@@ -38,7 +38,7 @@ export function openWhileInviteOnly(pathname: string): boolean {
  * Pages go to the invite-only screen; the API answers 503 so clients and search
  * engines treat it as temporary.
  */
-export function offlineResponse(pathname: string): Response {
+export function offlineResponse(pathname: string, requestUrl: string | URL): Response {
   const headers = { 'cache-control': 'no-store' };
   if (pathname.startsWith('/api/')) {
     return Response.json(
@@ -46,5 +46,7 @@ export function offlineResponse(pathname: string): Response {
       { status: 503, headers: { ...headers, 'retry-after': '86400' } }
     );
   }
-  return new Response(null, { status: 307, headers: { ...headers, location: INVITE_ONLY_PAGE } });
+  // Absolute: Next.js answers 500 "Invalid URL" for a relative Location from the proxy.
+  const location = new URL(INVITE_ONLY_PAGE, requestUrl).toString();
+  return new Response(null, { status: 307, headers: { ...headers, location } });
 }

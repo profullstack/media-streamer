@@ -15,7 +15,8 @@ describe('bittorrented.com offline, invite only', () => {
     for (const path of ['/', '/search?q=x', '/dht', '/torrents/abc', '/pricing', '/account']) {
       const res = await get(path);
       expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toMatch(/\/invite-only$/);
+      // Absolute, or Next.js answers 500 "Invalid URL" in production.
+      expect(res.headers.get('location')).toBe('https://bittorrented.com/invite-only');
     }
   });
 
