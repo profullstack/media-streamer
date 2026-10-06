@@ -16,6 +16,7 @@
  * - Skips SSL certificate validation for IPTV providers with misconfigured certs
  */
 
+import { castTokenParam, threadCastToken } from '@/lib/cast/playlist';
 import { NextRequest } from 'next/server';
 import { Agent, fetch as undiciFetch } from 'undici';
 import {
@@ -284,7 +285,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (isHlsPlaylist(contentType) && upstreamResponse.body) {
       const text = await upstreamResponse.text();
       const proxyBaseUrl = '/api/iptv-proxy';
-      const rewrittenContent = rewriteHlsPlaylist(text, streamUrl, proxyBaseUrl);
+      const rewrittenContent = threadCastToken(
+        rewriteHlsPlaylist(text, streamUrl, proxyBaseUrl),
+        castTokenParam(request.url)
+      );
       const encoded = new TextEncoder().encode(rewrittenContent);
 
       return new Response(encoded, {

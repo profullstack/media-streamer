@@ -57,6 +57,19 @@ export async function requireActiveSubscription(request: NextRequest): Promise<N
     return NextResponse.json({ error: 'subscription_expired', message: 'Subscription required.' }, { status: 402 });
   }
 
+  // Cast token path (a Chromecast fetching what the viewer cast). The receiver
+  // carries no cookie; the signed `ct` names the user whose subscription counts.
+  const { CAST_TOKEN_PARAM, castClaimsFrom } = await import('@/lib/cast/token');
+  if (new URL(request.url).searchParams.has(CAST_TOKEN_PARAM) && !request.cookies.get(AUTH_COOKIE_NAME)?.value) {
+    const claims = await castClaimsFrom(request.url);
+    if (!claims) {
+      return NextResponse.json({ error: 'unauthorized', message: 'Invalid or expired cast token' }, { status: 401 });
+    }
+    const r = await isSubscriptionActive(claims.userId);
+    if (r.active) return null;
+    return NextResponse.json({ error: 'subscription_expired', message: 'Subscription required.' }, { status: 403 });
+  }
+
   const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const sessionToken = parseSessionCookie(cookieValue);
 

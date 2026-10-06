@@ -100,3 +100,35 @@ describe('admin gate', () => {
     }
   });
 });
+
+describe('admin gate: cast tokens (a Chromecast has no cookie)', () => {
+  async function token(userId: string) {
+    vi.stubEnv('CAST_TOKEN_SECRET', 'admin-gate-cast-secret');
+    const { createCastToken } = await import('@/lib/cast/token');
+    return encodeURIComponent((await createCastToken(userId)).token);
+  }
+  const SEGMENT = 'https://bittorrented.com/api/stream/hls/segment?infohash=a&fileIndex=0&sessionId=s&file=segment0.ts';
+
+  it("accepts an admin's token on a media route only", async () => {
+    const { isAdminCastRequest } = await import('./admin-gate');
+    const admin = await token('admin-1');
+    expect(await isAdminCastRequest(`${SEGMENT}&ct=${admin}`)).toBe(true);
+    expect(await isAdminCastRequest(`https://bittorrented.com/api/torrents?ct=${admin}`)).toBe(false);
+  });
+
+  it("refuses a member's token, a forged one and none", async () => {
+    const { isAdminCastRequest } = await import('./admin-gate');
+    expect(await isAdminCastRequest(`${SEGMENT}&ct=${await token('member-1')}`)).toBe(false);
+    expect(await isAdminCastRequest(`${SEGMENT}&ct=${Buffer.from('admin-1.9999999999').toString('base64url')}.${'A'.repeat(43)}`)).toBe(false);
+    expect(await isAdminCastRequest(SEGMENT)).toBe(false);
+  });
+
+  it('gets an admin cast past the invite-only notice, and nobody else', async () => {
+    const crkey = 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Safari/537.36 CrKey/1.56.500000';
+    const call = async (url: string) =>
+      proxy(new NextRequest(url, { headers: { 'user-agent': crkey, 'x-forwarded-for': '24.1.2.3' } }));
+    expect((await call(`${SEGMENT}&ct=${await token('admin-1')}`)).status).not.toBe(503);
+    expect((await call(`${SEGMENT}&ct=${await token('member-1')}`)).status).toBe(503);
+    expect((await call(SEGMENT)).status).toBe(503);
+  });
+});

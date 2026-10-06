@@ -18,9 +18,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { trackReferralCode } from '@profullstack/stack/referrals';
 import { gateway, hasSessionCookie } from '@/lib/crawl-gateway';
 import { meter } from '@/lib/throttle';
+import { CAST_TOKEN_PARAM, isCastablePath, verifyCastToken } from '@/lib/cast/token';
 import { SITE_OFFLINE, offlineResponse, openWhileInviteOnly, stillServed } from '@/lib/site-offline';
 import { LEGAL_MODE, goneResponse, legallyServed } from '@/lib/legal-mode';
-import { isAdminRequest, isSignInPath } from '@/lib/admin-gate';
+import { isAdminCastRequest, isAdminRequest, isSignInPath } from '@/lib/admin-gate';
 
 // =============================================================================
 // Rate Limiting (in-memory sliding window)
@@ -487,6 +488,17 @@ async function hasCrawlPass(request: NextRequest): Promise<boolean> {
   return token ? gateway.verifyPass(token) : false;
 }
 
+/**
+ * A Chromecast fetching a stream the viewer cast: it carries no cookie, only
+ * the signed `?ct=` token, and only the media routes accept one. The route
+ * still checks the token's user (subscription, SiriusXM account) itself.
+ */
+async function hasCastToken(request: NextRequest): Promise<boolean> {
+  if (!isCastablePath(request.nextUrl.pathname)) return false;
+  const token = request.nextUrl.searchParams.get(CAST_TOKEN_PARAM);
+  return token ? (await verifyCastToken(token)) !== null : false;
+}
+
 function membersOnlyResponse(request: NextRequest, isApiRoute: boolean): NextResponse {
   if (isApiRoute) {
     return new NextResponse(JSON.stringify({ error: 'Sign in required' }), {
@@ -544,7 +556,11 @@ export async function proxy(request: NextRequest): Promise<Response> {
     ? { get: (name: string) => (name === 'sb-auth-token' ? { value: session.value } : request.cookies.get(name)) }
     : request.cookies;
   let admin: boolean | undefined;
-  const isAdmin = async () => (admin ??= await isAdminRequest(cookies, request.headers.get('authorization')));
+  // A Chromecast casting for an admin carries no cookie, only a signed cast token.
+  const isAdmin = async () =>
+    (admin ??=
+      (await isAdminRequest(cookies, request.headers.get('authorization'))) ||
+      (await isAdminCastRequest(request.url)));
 
   // --- 0a. The site is offline and invite only (see src/lib/site-offline.ts) ---
   // Admins only (src/lib/admin-gate.ts): everyone else, paying or not, is sent to the
@@ -637,7 +653,12 @@ export async function proxy(request: NextRequest): Promise<Response> {
   // --- Members only ---
   // A referral link is for a stranger, and a stranger is exactly who lands
   // here, so the ?ref= cookie rides the redirect to /login too.
-  if (!isPublicPath(pathname) && !isSignedIn(request) && !(await hasCrawlPass(request))) {
+  if (
+    !isPublicPath(pathname) &&
+    !isSignedIn(request) &&
+    !(await hasCastToken(request)) &&
+    !(await hasCrawlPass(request))
+  ) {
     return withSession(withReferral(request, membersOnlyResponse(request, isApiRoute)), session);
   }
 

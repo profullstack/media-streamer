@@ -18,12 +18,22 @@ import {
   LoadingSpinner,
 } from '@/components/ui/icons';
 import { useRadioStream, type RadioStation } from '@/hooks/use-radio';
+import type { RadioStream } from '@/lib/radio/types';
+import { CastButton } from '@/components/cast/cast-button';
 import {
   setMediaSessionMetadata,
   updateMediaSessionPlaybackState,
   setMediaSessionActionHandlers,
   clearMediaSession,
 } from '@/lib/media-session';
+
+/** What a Cast receiver is told each stream type is; flash and html pages cannot be cast. */
+const RADIO_CAST_TYPES: Partial<Record<RadioStream['mediaType'], string>> = {
+  hls: 'application/x-mpegURL',
+  mp3: 'audio/mpeg',
+  aac: 'audio/aac',
+  ogg: 'audio/ogg',
+};
 
 interface RadioPlayerModalProps {
   station: RadioStation;
@@ -446,6 +456,20 @@ export function RadioPlayerModal({
                 aria-label="Volume"
               />
             </div>
+
+            <CastButton
+              media={RADIO_CAST_TYPES[preferredStream.mediaType] ? {
+                url: preferredStream.url,
+                contentType: RADIO_CAST_TYPES[preferredStream.mediaType],
+                title: station.name,
+                subtitle: station.genre ?? undefined,
+                imageUrl: station.imageUrl ?? null,
+                live: true,
+                kind: 'audio',
+              } : null}
+              getMediaElement={() => audioRef.current}
+              className="justify-center"
+            />
 
             <div className="text-center text-xs text-text-muted">
               {preferredStream.mediaType.toUpperCase()}

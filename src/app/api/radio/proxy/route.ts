@@ -10,6 +10,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { castClaimsFrom } from '@/lib/cast/token';
+import { castTokenParam, threadCastToken } from '@/lib/cast/playlist';
 import {
   decodeSiriusXmKeyJson,
   looksLikePlaylist,
@@ -70,6 +72,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (apiUser) user = { id: apiUser.id, email: apiUser.email ?? '' };
   }
   if (!user) {
+    // A Chromecast playing a station the viewer cast: no cookie, a signed ct.
+    const claims = await castClaimsFrom(request.url);
+    if (claims) user = { id: claims.userId, email: '' };
+  }
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -86,10 +93,31 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const origin = publicOriginFor(request);
-  return withSiriusXmUser(user.id, () => handleProxy(target, quality, origin));
+  const castToken = castTokenParam(request.url);
+  return withSiriusXmUser(user.id, () => handleProxy(target, quality, origin, castToken));
 }
 
-async function handleProxy(target: string, quality: SiriusXmQuality, origin: string): Promise<Response> {
+/**
+ * Cast receivers fetch from their own origin, so the playlist, key and
+ * segments need CORS. `*` carries no credentials: a cookie-authenticated read
+ * from another site is still refused by the browser.
+ */
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+  'Access-Control-Allow-Headers': 'Range, Content-Type',
+} as const;
+
+export async function OPTIONS(): Promise<Response> {
+  return new Response(null, { status: 204, headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' } });
+}
+
+async function handleProxy(
+  target: string,
+  quality: SiriusXmQuality,
+  origin: string,
+  castToken: string | null
+): Promise<Response> {
   let upstream: Response;
   try {
     const headers = await siriusXmHeaders({
@@ -133,6 +161,7 @@ async function handleProxy(target: string, quality: SiriusXmQuality, origin: str
           'Content-Type': 'application/octet-stream',
           'Content-Length': String(keyBytes.length),
           'Cache-Control': 'no-cache',
+          ...CORS_HEADERS,
         },
       });
     } catch (error) {
@@ -145,7 +174,7 @@ async function handleProxy(target: string, quality: SiriusXmQuality, origin: str
 
   if (looksLikePlaylist(target, contentType)) {
     const text = await upstream.text();
-    const rewritten = rewriteSiriusXmPlaylist(text, target, origin, quality);
+    const rewritten = threadCastToken(rewriteSiriusXmPlaylist(text, target, origin, quality), castToken, origin);
     return new Response(rewritten, {
       status: 200,
       headers: {
@@ -153,6 +182,7 @@ async function handleProxy(target: string, quality: SiriusXmQuality, origin: str
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         Pragma: 'no-cache',
         Expires: '0',
+        ...CORS_HEADERS,
       },
     });
   }
@@ -163,6 +193,7 @@ async function handleProxy(target: string, quality: SiriusXmQuality, origin: str
     headers: {
       'Content-Type': contentType || 'application/octet-stream',
       'Cache-Control': 'no-cache',
+      ...CORS_HEADERS,
     },
   });
 }

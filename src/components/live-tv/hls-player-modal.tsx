@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import Hls from 'hls.js';
+import { CastButton } from '@/components/cast/cast-button';
 // mpegts.js is dynamically imported to avoid SSR issues (it accesses window at module load)
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
@@ -749,6 +750,20 @@ export function HlsPlayerModal({
                 onToggle={onFavoriteToggle}
                 className="hover:bg-zinc-800"
               /> : null}
+
+            <CastButton
+              media={streamUrl ? {
+                url: streamUrl,
+                contentType: isHlsStream ? 'application/x-mpegURL' : undefined,
+                title: channel.name,
+                subtitle: channel.group ?? undefined,
+                imageUrl: channel.logo ?? null,
+                live: true,
+                kind: 'video',
+              } : null}
+              getMediaElement={() => videoRef.current}
+              className="text-zinc-300"
+            />
 
             {/* Picture-in-Picture Button */}
             {document.pictureInPictureEnabled ? <button

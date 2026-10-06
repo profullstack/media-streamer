@@ -18,6 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isPublicPath, proxy as middleware } from './proxy';
+import { createCastToken } from '@/lib/cast/token';
 import { NextRequest, NextResponse } from 'next/server';
 
 // These tests describe the gate when the site is up; the offline notice has its own (site-offline.test.ts).
@@ -392,6 +393,56 @@ describe('Supabase session refresh and referral cookie', () => {
         expect(res.status, path).not.toBe(307);
         expect(res.status, path).not.toBe(401);
       }
+    });
+
+    describe('cast tokens (a Chromecast has no cookie)', () => {
+      const CRKEY_UA =
+        'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Safari/537.36 CrKey/1.56.500000';
+      beforeEach(() => {
+        vi.stubEnv('CAST_TOKEN_SECRET', 'proxy-test-secret');
+      });
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      it('lets a valid ct through on the media routes', async () => {
+        const { token } = await createCastToken('user-1');
+        for (const path of [
+          '/api/stream?infohash=abc&fileIndex=0',
+          '/api/stream/hls/segment?infohash=abc&fileIndex=0&sessionId=s&file=segment0.ts',
+          '/api/iptv-proxy?url=x',
+          '/api/radio/proxy?u=x',
+          '/api/seedbox/stream?path=a.mp4',
+        ]) {
+          const res = await call(`${path}&ct=${encodeURIComponent(token)}`);
+          expect(res.status, path).not.toBe(401);
+        }
+      });
+
+      it('opens nothing but the media routes', async () => {
+        const { token } = await createCastToken('user-1');
+        expect((await call(`/api/torrents/123?ct=${encodeURIComponent(token)}`)).status).toBe(401);
+        expect((await call(`/api/admin/stats?ct=${encodeURIComponent(token)}`)).status).toBe(401);
+        expect((await call(`/account?ct=${encodeURIComponent(token)}`)).status).toBe(307);
+      });
+
+      it('turns away a forged or expired ct', async () => {
+        const { token } = await createCastToken('user-1', Date.now() - 7 * 3600_000);
+        expect((await call(`/api/stream?infohash=abc&fileIndex=0&ct=${encodeURIComponent(token)}`)).status).toBe(401);
+        const forged = `${Buffer.from('user-1.9999999999').toString('base64url')}.${'A'.repeat(43)}`;
+        expect((await call(`/api/stream?infohash=abc&fileIndex=0&ct=${forged}`)).status).toBe(401);
+      });
+
+      it('does not charge Cast firmware that sends no Sec-Fetch-Mode', async () => {
+        const { token } = await createCastToken('user-1');
+        const req = new NextRequest(
+          new URL(`http://localhost/api/stream?infohash=abc&fileIndex=0&ct=${encodeURIComponent(token)}`),
+          { headers: { 'user-agent': CRKEY_UA, 'x-forwarded-for': '24.1.2.3' } }
+        );
+        const res = await middleware(req);
+        expect(res.status).not.toBe(402);
+        expect(res.status).not.toBe(401);
+      });
     });
 
     it('does not mistake a longer path for a public one', async () => {
