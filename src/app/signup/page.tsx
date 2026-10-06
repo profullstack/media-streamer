@@ -4,7 +4,8 @@
  * Signup Page
  *
  * User registration with email/password. Invite only: an unused invite code is
- * required (a member's link fills it in from ?invite=).
+ * required (a member's link fills it in from ?invite=). Under the form, InviteLanding says
+ * what BitTorrented is, for whoever opened the link.
  */
 
 import { useEffect, useState } from 'react';
@@ -13,6 +14,7 @@ import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/icons';
+import { InviteLanding } from '@/components/home/invite-landing';
 
 export default function SignupPage(): React.ReactElement {
   const [inviteCode, setInviteCode] = useState('');
@@ -76,7 +78,7 @@ export default function SignupPage(): React.ReactElement {
 
   return (
     <MainLayout>
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center">
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="mb-8 text-center">
@@ -268,6 +270,9 @@ export default function SignupPage(): React.ReactElement {
           </>
           )}
         </div>
+
+        {/* Someone opening an invite link may not know what it is for. */}
+        {success ? null : <InviteLanding actions={false} className="mt-16 w-full max-w-3xl" />}
       </div>
     </MainLayout>
   );
