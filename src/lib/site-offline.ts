@@ -19,7 +19,9 @@
 
 export const SITE_OFFLINE = true;
 
-const STILL_SERVED = ['/api/health', '/api/webhooks'];
+// The web manifest too: every page links it, and a 307 to /invite-only for it was two
+// wasted requests per page view against a signed-out visitor's allowance.
+const STILL_SERVED = ['/api/health', '/api/webhooks', '/manifest.json'];
 
 export function stillServed(pathname: string): boolean {
   return STILL_SERVED.some((p) => pathname === p || pathname.startsWith(`${p}/`));

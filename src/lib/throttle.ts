@@ -48,6 +48,15 @@ export const throttle = createThrottle({
       ? (/^Bearer\s+(\S+)/i.exec(request.headers.get('authorization') ?? '')?.[1] ?? null)
       : null),
   credential: { limit: 600, ceiling: 1200 },
+  /*
+   * The way back in is never metered. While the site is invite only, a signed-out
+   * browser can reach almost nothing but these, and Next prefetches every one of
+   * them (plus a refetch of each 307 to /invite-only) on every page view: one
+   * logout and two reloads spent the whole hundred, and the person who tripped it
+   * was then refused the login page itself (2026-10-06). A paywall you cannot
+   * reach to sign in past is a wall.
+   */
+  openPaths: ['/invite-only', '/login', '/signup', '/forgot-password', '/reset-password', '/manifest.json'],
   rules: [
     /* The expensive ones, at the numbers they were already tuned to. */
     { path: '/api/search/', limit: 30 },
@@ -57,6 +66,12 @@ export const throttle = createThrottle({
     { path: '/dht', limit: 60 },
     /* Sign-in stays address-bucketed, or a guess buys the session budget. */
     { path: '/api/auth/', limit: 10, credential: false },
+    /*
+     * Except "who am I", which every page asks on load. In the sign-in bucket it
+     * spent the ten guesses before anyone typed a password, so the login POST
+     * that followed a few page views was the request refused.
+     */
+    { path: '/api/auth/me', limit: 100 },
   ],
 });
 
