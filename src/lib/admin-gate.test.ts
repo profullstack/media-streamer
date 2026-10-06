@@ -85,15 +85,18 @@ describe('admin gate', () => {
     expect(res.headers.get('set-cookie')).toContain('sb-auth-token='); // the rotated tokens are kept
   });
 
-  it('through the gate: notice for a paying member, the site for an admin', async () => {
+  it('through the gate: invite-only screen for a paying member, the site for an admin', async () => {
     stubSupabase();
     const as = (token: string, path: string) =>
       proxy(new NextRequest(`https://bittorrented.com${path}`, { headers: { authorization: `Bearer ${token}` } }));
-    expect((await as('member-token', '/account')).status).toBe(503);
+    const member = await as('member-token', '/account');
+    expect(member.status).toBe(307);
+    expect(member.headers.get('location')).toMatch(/\/invite-only$/);
     for (const p of ['/dht', '/torrents', '/']) {
       const r = await as('admin-token', p);
       expect([503, 410], p).not.toContain(r.status); // admins see every route
       expect(r.headers.get('location') ?? '', p).not.toContain('/pricing');
+      expect(r.headers.get('location') ?? '', p).not.toContain('/invite-only');
     }
   });
 });

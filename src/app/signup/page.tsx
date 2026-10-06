@@ -3,10 +3,11 @@
 /**
  * Signup Page
  *
- * User registration with email/password.
+ * User registration with email/password. Invite only: an unused invite code is
+ * required (a member's link fills it in from ?invite=).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/icons';
 
 export default function SignupPage(): React.ReactElement {
+  const [inviteCode, setInviteCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,9 +24,20 @@ export default function SignupPage(): React.ReactElement {
 
   const [success, setSuccess] = useState(false);
 
+  // An invite link is /signup?invite=ABCDE-FGHJK.
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.search).get('invite');
+    if (fromLink) setInviteCode(fromLink);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     setError(null);
+
+    if (!inviteCode.trim()) {
+      setError('An invite code is required to sign up');
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -42,7 +55,7 @@ export default function SignupPage(): React.ReactElement {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, inviteCode }),
       });
 
       const data = await response.json() as { error?: string; message?: string };
@@ -79,7 +92,7 @@ export default function SignupPage(): React.ReactElement {
               />
             </Link>
             <h1 className="text-2xl font-bold text-text-primary">Create an account</h1>
-            <p className="text-text-secondary mt-1">Start streaming in seconds</p>
+            <p className="text-text-secondary mt-1">BitTorrented is invite only</p>
           </div>
 
           {/* Success Message */}
@@ -117,6 +130,29 @@ export default function SignupPage(): React.ReactElement {
             {error ? <div className="rounded-lg bg-status-error/10 border border-status-error/20 p-3 text-sm text-status-error">
                 {error}
               </div> : null}
+
+            <div>
+              <label htmlFor="inviteCode" className="block text-sm font-medium text-text-primary mb-1">
+                Invite code
+              </label>
+              <input
+                id="inviteCode"
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                required
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                className={cn(
+                  'w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3 font-mono uppercase',
+                  'text-text-primary placeholder:text-text-muted',
+                  'focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary'
+                )}
+                placeholder="ABCDE-FGHJK"
+              />
+              <p className="mt-1 text-xs text-text-muted">From a member&apos;s invite link or message</p>
+            </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-text-primary mb-1">
@@ -219,24 +255,8 @@ export default function SignupPage(): React.ReactElement {
             </button>
           </form>
 
-          {/* Sign up with nixamp: an account here from the one there, no password */}
-          <div className="mt-6">
-            <div className="relative text-center text-xs text-text-muted mb-4">
-              <span className="bg-bg-secondary px-2 relative z-10">or</span>
-              <span className="absolute inset-x-0 top-1/2 border-t border-border-subtle" aria-hidden="true" />
-            </div>
-            <a
-              href="/api/v1/nixamp/oauth/start?redirect=%2F"
-              className={cn(
-                'w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3',
-                'border border-border-default bg-bg-tertiary text-text-primary font-medium',
-                'hover:border-accent-primary transition-colors'
-              )}
-            >
-              <span aria-hidden="true">⣿</span>
-              <span>Continue with nixamp</span>
-            </a>
-          </div>
+          {/* No "Continue with nixamp" here: it would make an account without an invite,
+              and the database refuses that anyway. Linked accounts still sign in on /login. */}
 
           {/* Sign in link */}
           <p className="mt-6 text-center text-sm text-text-secondary">

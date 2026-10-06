@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { isOpenInvite, normalizeInviteCode } from '@/lib/invites';
 
 /**
  * Request body for signup
@@ -20,6 +21,7 @@ interface SignupRequest {
   email: string;
   password: string;
   name?: string;
+  inviteCode?: string;
 }
 
 /**
@@ -64,10 +66,11 @@ function getBaseUrl(request: NextRequest): string {
  * - email: (required) User's email address
  * - password: (required) Password (min 8 characters)
  * - name: (optional) Display name
+ * - inviteCode: (required) An unused invite; the site is invite only
  *
  * Returns:
  * - 201: User created, confirmation email sent
- * - 400: Invalid input
+ * - 400: Invalid input, or a missing, unknown or used invite code
  * - 409: Email already exists
  * - 500: Server error
  */
@@ -84,6 +87,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const { email, password, name } = body;
+  const inviteCode = normalizeInviteCode(body.inviteCode);
 
   // Validate email
   if (!email) {
@@ -115,8 +119,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Invite only. This check is for a clear message; the a_consume_invite_on_signup
+  // trigger on auth.users is what enforces it, for this route and every other way in.
+  if (!inviteCode) {
+    return NextResponse.json(
+      { error: 'An invite code is required to sign up' },
+      { status: 400 }
+    );
+  }
+
   const supabase = createServerClient();
   const baseUrl = getBaseUrl(request);
+
+  if (!(await isOpenInvite(supabase, inviteCode))) {
+    return NextResponse.json(
+      { error: 'That invite code is invalid or has already been used' },
+      { status: 400 }
+    );
+  }
 
   // Create user with Supabase Auth
   const { data, error: signUpError } = await supabase.auth.signUp({
@@ -126,6 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       emailRedirectTo: `${baseUrl}/login?confirmed=true`,
       data: {
         display_name: name ?? undefined,
+        invite_code: inviteCode,
       },
     },
   });
@@ -133,6 +154,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Handle signup errors
   if (signUpError) {
     console.error('[Signup] Supabase error:', signUpError.message);
+
+    // The trigger refused the code: someone used it between our check and the insert.
+    if (signUpError.message.includes('invite_') || signUpError.message.includes('Database error saving new user')) {
+      return NextResponse.json(
+        { error: 'That invite code is invalid or has already been used' },
+        { status: 400 }
+      );
+    }
 
     // Check for duplicate email
     if (
