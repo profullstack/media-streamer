@@ -45,4 +45,9 @@ describe('bittorrented.com offline, invite only', () => {
     expect(stillServed('/api/webhooks/coinpayportal')).toBe(true);
     expect(stillServed('/api/healthz-not-really')).toBe(false);
   });
+
+  it('serves the Profullstack ring descriptor', async () => {
+    expect(stillServed('/.well-known/openwebring.json')).toBe(true);
+    expect((await get('/.well-known/openwebring.json')).status).not.toBe(307);
+  });
 });
