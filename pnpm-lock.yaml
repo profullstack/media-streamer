@@ -28,6 +28,9 @@ importers:
       '@profullstack/emailer':
         specifier: ^1.0.3
         version: 1.0.3
+      '@profullstack/footer':
+        specifier: latest
+        version: 0.2.1(react@19.3.0)
       '@profullstack/notifications':
         specifier: ^0.1.4
         version: 0.1.4
@@ -1272,6 +1275,16 @@ packages:
 
   '@profullstack/emailer@1.0.3':
     resolution: {integrity: sha512-VyAtCcfnSI6LOwJvWogCr3ZNmEsaZw+iuWrqnosLsdcKsbRyCrCmXigMNZJZEjlgYlR+lK//PwNPG+xtCFvWAw==}
+
+  '@profullstack/footer@0.2.1':
+    resolution: {integrity: sha512-KHmKVwrlzCBrSAAJ4zobNFCxTg8VF0gvNMeAut00dX3+gbWCtk6eOwIR2AaqEC7smj6Aio6cIexzt/dUnv1McA==}
+    engines: {node: '>=18'}
+    hasBin: true
+    peerDependencies:
+      react: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@profullstack/form-guard@0.1.1':
     resolution: {integrity: sha512-RGLGfQhjq40f+JqEhSmsJnS0I5sFWjYdrYx4VYtkUqz8xvioN2yyR+6uFK0mnDAStKrYytlngg3meUsrChm/OQ==}
@@ -6115,6 +6128,10 @@ snapshots:
   '@profullstack/autoblog@https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af': {}
 
   '@profullstack/emailer@1.0.3': {}
+
+  '@profullstack/footer@0.2.1(react@19.3.0)':
+    optionalDependencies:
+      react: 19.3.0
 
   '@profullstack/form-guard@0.1.1': {}
 
