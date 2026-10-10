@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { useAuth } from '@/hooks/use-auth';
-import { Webring } from '@/components/layout/webring';
+import { useSiteFooter } from '@/components/layout/site-footer-context';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -23,6 +23,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, className }: MainLayoutProps): React.ReactElement {
   const router = useRouter();
+  const siteFooter = useSiteFooter();
   const pathname = usePathname();
   const { isLoggedIn, isPremium, user, clearAuth, needsProfileSelection, isLoading, activeProfile } = useAuth();
 
@@ -72,26 +73,11 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-border-primary px-4 py-4 text-center text-sm text-text-secondary md:px-6">
-          <span>&copy; {new Date().getFullYear()} Media Streamer</span>
-          <span className="mx-2">&middot;</span>
-          <a
-            href="mailto:support@bittorrented.com?subject=BitTorrented"
-            className="text-accent-primary hover:text-accent-primary/80 transition-colors"
-          >
-            Contact Us
-          </a>
-          <span className="mx-2">·</span>
-          <a href="/terms" className="hover:text-text-primary transition-colors">Terms</a>
-          <span className="mx-2">·</span>
-          <a href="/privacy" className="hover:text-text-primary transition-colors">Privacy</a>
-          <span className="mx-2">·</span>
-          <a href="https://github.com/profullstack/media-streamer" target="_blank" rel="noopener noreferrer" className="hover:text-text-primary transition-colors">GitHub</a>
-
-          <Webring />
+        <div className="text-text-secondary">
+          {siteFooter}
 
           {/* Launchpadly badge */}
-          <div className="mt-3">
+          <div className="pb-4 text-center">
             <a
               href="https://launchpadly.co/startup/bittorrented?ref=badge"
               target="_blank"
@@ -109,7 +95,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
               />
             </a>
           </div>
-        </footer>
+        </div>
       </div>
     </div>
   );

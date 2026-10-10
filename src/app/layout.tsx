@@ -5,6 +5,8 @@ import Script from 'next/script';
 import './globals.css';
 import { TvLayoutProvider } from '@/components/layout';
 import { Providers } from '@/components/providers';
+import { SiteFooter } from '@/components/layout/site-footer';
+import { SiteFooterProvider } from '@/components/layout/site-footer-context';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -112,7 +114,9 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
         <Providers>
           <TvLayoutProvider>
-            <ReferralProvider>{children}</ReferralProvider>
+            <ReferralProvider>
+              <SiteFooterProvider footer={<SiteFooter />}>{children}</SiteFooterProvider>
+            </ReferralProvider>
           </TvLayoutProvider>
         </Providers>
         
