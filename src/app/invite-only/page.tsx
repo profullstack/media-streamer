@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { InviteLanding } from '@/components/home/invite-landing';
+import { MainLayout } from '@/components/layout';
 
 interface InviteView {
   code: string;
@@ -168,116 +169,118 @@ export default function InviteOnlyPage(): React.ReactElement {
   };
 
   return (
-    <main className="min-h-screen bg-bg-primary text-text-primary flex items-start sm:items-center justify-center px-4 py-12">
-      <div className={cn('w-full', state.kind === 'signed-out' ? 'max-w-3xl' : 'max-w-lg')}>
-        <div className="mb-8 text-center">
-          <Image src="/logo.svg" alt="BitTorrented" width={256} height={64} className="w-56 h-auto mx-auto" priority />
-        </div>
-
-        <h1 className="text-2xl font-bold text-center mb-3">BitTorrented is invite only</h1>
-
-        {state.kind === 'loading' ? <p className="text-center text-text-secondary">Loading…</p> : null}
-
-        {state.kind === 'error' ? (
-          <p className="text-center text-text-secondary">
-            Something went wrong. <button className="text-accent-primary" onClick={() => void load()}>Try again</button>
-          </p>
-        ) : null}
-
-        {state.kind === 'signed-out' ? (
-          <div className="space-y-6">
-            <p className="text-center text-text-secondary">
-              New accounts need an invite from a member. If someone sent you an invite link or code, you can create
-              your account now.
-            </p>
-            <InviteLanding className="pt-4" />
+    <MainLayout>
+      <div className="flex min-h-[60vh] items-start sm:items-center justify-center py-8 text-text-primary">
+        <div className={cn('w-full', state.kind === 'signed-out' ? 'max-w-3xl' : 'max-w-lg')}>
+          <div className="mb-8 text-center">
+            <Image src="/logo.svg" alt="BitTorrented" width={256} height={64} className="w-56 h-auto mx-auto" priority />
           </div>
-        ) : null}
 
-        {state.kind === 'member' ? (
-          <div className="space-y-6">
+          <h1 className="text-2xl font-bold text-center mb-3">BitTorrented is invite only</h1>
+
+          {state.kind === 'loading' ? <p className="text-center text-text-secondary">Loading…</p> : null}
+
+          {state.kind === 'error' ? (
             <p className="text-center text-text-secondary">
-              You&apos;re in. The site isn&apos;t open yet; your account is kept and you&apos;ll hear from us when it
-              is. Meanwhile you can invite people.
+              Something went wrong. <button className="text-accent-primary" onClick={() => void load()}>Try again</button>
             </p>
+          ) : null}
 
-            <section className="rounded-lg border border-border-default bg-bg-secondary p-5">
-              <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-                <div>
-                  <h2 className="text-lg font-semibold">Your invites</h2>
-                  <p className="text-sm text-text-secondary">
-                    {state.data.unlimited
-                      ? 'Admin: no limit.'
-                      : `${state.data.remaining ?? 0} available. You get ${state.data.monthly} a month, and unused ones carry over.`}
-                  </p>
+          {state.kind === 'signed-out' ? (
+            <div className="space-y-6">
+              <p className="text-center text-text-secondary">
+                New accounts need an invite from a member. If someone sent you an invite link or code, you can create
+                your account now.
+              </p>
+              <InviteLanding className="pt-4" />
+            </div>
+          ) : null}
+
+          {state.kind === 'member' ? (
+            <div className="space-y-6">
+              <p className="text-center text-text-secondary">
+                You&apos;re in. The site isn&apos;t open yet; your account is kept and you&apos;ll hear from us when it
+                is. Meanwhile you can invite people.
+              </p>
+
+              <section className="rounded-lg border border-border-default bg-bg-secondary p-5">
+                <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Your invites</h2>
+                    <p className="text-sm text-text-secondary">
+                      {state.data.unlimited
+                        ? 'Admin: no limit.'
+                        : `${state.data.remaining ?? 0} available. You get ${state.data.monthly} a month, and unused ones carry over.`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={primary}
+                    onClick={() => openDialog(state.data.unlimited)}
+                    disabled={!state.data.unlimited && (state.data.remaining ?? 0) <= 0}
+                  >
+                    Create invite
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className={primary}
-                  onClick={() => openDialog(state.data.unlimited)}
-                  disabled={!state.data.unlimited && (state.data.remaining ?? 0) <= 0}
-                >
-                  Create invite
+
+                {error ? (
+                  <p className="mb-4 rounded-lg bg-status-error/10 border border-status-error/20 p-3 text-sm text-status-error">
+                    {error}
+                  </p>
+                ) : null}
+
+                {state.data.invites.length === 0 ? (
+                  <p className="text-sm text-text-muted">No invites yet.</p>
+                ) : (
+                  <ul className="divide-y divide-border-subtle">
+                    {state.data.invites.map((invite) => (
+                      <li key={invite.code} className="py-3 flex items-center justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                          <code className="font-mono text-base">{invite.code}</code>
+                          <p className="text-xs text-text-muted">{inviteStatus(invite)}</p>
+                        </div>
+                        {!invite.open ? null : (
+                          <button type="button" className={cn(secondary, 'py-2 text-sm')} onClick={() => void copy(invite)}>
+                            {copied === invite.code ? 'Copied' : 'Copy link'}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <InviteDialog
+                ref={dialog}
+                unlimited={state.data.unlimited}
+                remaining={state.data.remaining ?? 0}
+                limitUses={limitUses}
+                setLimitUses={setLimitUses}
+                uses={uses}
+                setUses={setUses}
+                expires={expires}
+                setExpires={setExpires}
+                expiry={expiry}
+                setExpiry={setExpiry}
+                error={formError}
+                creating={creating}
+                onSubmit={create}
+              />
+
+              <p className="text-center text-sm">
+                <button type="button" className="text-text-secondary hover:text-text-primary" onClick={() => void signOut()}>
+                  Sign out
                 </button>
-              </div>
+              </p>
+            </div>
+          ) : null}
 
-              {error ? (
-                <p className="mb-4 rounded-lg bg-status-error/10 border border-status-error/20 p-3 text-sm text-status-error">
-                  {error}
-                </p>
-              ) : null}
-
-              {state.data.invites.length === 0 ? (
-                <p className="text-sm text-text-muted">No invites yet.</p>
-              ) : (
-                <ul className="divide-y divide-border-subtle">
-                  {state.data.invites.map((invite) => (
-                    <li key={invite.code} className="py-3 flex items-center justify-between gap-3 flex-wrap">
-                      <div className="min-w-0">
-                        <code className="font-mono text-base">{invite.code}</code>
-                        <p className="text-xs text-text-muted">{inviteStatus(invite)}</p>
-                      </div>
-                      {!invite.open ? null : (
-                        <button type="button" className={cn(secondary, 'py-2 text-sm')} onClick={() => void copy(invite)}>
-                          {copied === invite.code ? 'Copied' : 'Copy link'}
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <InviteDialog
-              ref={dialog}
-              unlimited={state.data.unlimited}
-              remaining={state.data.remaining ?? 0}
-              limitUses={limitUses}
-              setLimitUses={setLimitUses}
-              uses={uses}
-              setUses={setUses}
-              expires={expires}
-              setExpires={setExpires}
-              expiry={expiry}
-              setExpiry={setExpiry}
-              error={formError}
-              creating={creating}
-              onSubmit={create}
-            />
-
-            <p className="text-center text-sm">
-              <button type="button" className="text-text-secondary hover:text-text-primary" onClick={() => void signOut()}>
-                Sign out
-              </button>
-            </p>
-          </div>
-        ) : null}
-
-        <p className="mt-10 text-center text-xs text-text-muted">
-          Questions: <a href="mailto:support@profullstack.com" className="underline">support@profullstack.com</a>
-        </p>
+          <p className="mt-10 text-center text-xs text-text-muted">
+            Questions: <a href="mailto:support@profullstack.com" className="underline">support@profullstack.com</a>
+          </p>
+        </div>
       </div>
-    </main>
+    </MainLayout>
   );
 }
 
