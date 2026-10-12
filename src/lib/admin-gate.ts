@@ -1,10 +1,10 @@
 /**
- * Admins only: while bittorrented.com is offline, an admin account is the one way in.
+ * Who is asking: a signed-in member, and whether that member is an admin.
  *
- * Anthony, 2026-10-05: "it only serves is_admin accounts from now on" and "no way for anyone
- * to access the data even if they pay". A paid membership is not enough; only an account
- * that checkUserAdmin accepts (user_profiles.is_admin, or the legacy admin_users table)
- * gets past the offline notice. Legal mode still applies to admins.
+ * The site is invite only (site-offline.ts): any verified account gets in, and since an
+ * account can only be created with an invite, that is the invitation check. Anthony,
+ * 2026-10-12: "its all live its just invite only". Admins (checkUserAdmin:
+ * user_profiles.is_admin, or the legacy admin_users table) are also exempt from legal mode.
  *
  * The session is verified by Supabase (/auth/v1/user), not by decoding the cookie ourselves,
  * so a forged or expired token is refused. Every failure (no cookie, bad token, Supabase
@@ -18,7 +18,21 @@ const VERIFY_TIMEOUT_MS = 3000;
 /** How long one verified answer is reused for the same access token. */
 const CACHE_MS = 60_000;
 
-const cache = new Map<string, { admin: boolean; until: number }>();
+export interface Access {
+  /** A real, verified account. */
+  member: boolean;
+  admin: boolean;
+}
+
+const NOBODY: Access = { member: false, admin: false };
+
+const cache = new Map<string, Access & { until: number }>();
+
+function remember(key: string, access: Access, until = Date.now() + CACHE_MS): Access {
+  if (cache.size > 1000) cache.clear();
+  cache.set(key, { ...access, until });
+  return access;
+}
 
 /** Sign-in pages stay reachable so an admin can log in. Signup is open only with an invite (site-offline.ts). */
 const SIGN_IN = ['/login', '/forgot-password', '/reset-password', '/api/auth'];
@@ -58,61 +72,74 @@ async function verifiedUserId(token: string): Promise<string | null> {
   return typeof user.id === 'string' ? user.id : null;
 }
 
+export async function requestAccess(
+  cookies: CookieReader,
+  authorization: string | null,
+  check: (userId: string) => Promise<{ isAdmin: boolean }> = checkUserAdmin
+): Promise<Access> {
+  const token = accessTokenOf(cookies, authorization);
+  if (!token) return NOBODY;
+  const hit = cache.get(token);
+  if (hit && hit.until > Date.now()) return { member: hit.member, admin: hit.admin };
+  let access = NOBODY;
+  try {
+    const userId = await verifiedUserId(token);
+    if (userId) access = { member: true, admin: (await check(userId)).isAdmin };
+  } catch {
+    access = NOBODY;
+  }
+  return remember(token, access);
+}
+
 export async function isAdminRequest(
   cookies: CookieReader,
   authorization: string | null,
   check: (userId: string) => Promise<{ isAdmin: boolean }> = checkUserAdmin
 ): Promise<boolean> {
-  const token = accessTokenOf(cookies, authorization);
-  if (!token) return false;
-  const hit = cache.get(token);
-  if (hit && hit.until > Date.now()) return hit.admin;
-  let admin = false;
-  try {
-    const userId = await verifiedUserId(token);
-    admin = userId ? (await check(userId)).isAdmin : false;
-  } catch {
-    admin = false;
-  }
-  if (cache.size > 1000) cache.clear();
-  cache.set(token, { admin, until: Date.now() + CACHE_MS });
-  return admin;
+  return (await requestAccess(cookies, authorization, check)).admin;
 }
 
 /**
- * A Chromecast fetching what an admin cast: no cookie, only the signed `ct`
+ * A Chromecast fetching what a member cast: no cookie, only the signed `ct`
  * (src/lib/cast/token.ts), and only on the media routes a cast token opens.
- * The token's user must be an admin by the same check as a session; it fails
- * closed the same way.
+ * The token's user counts as a member, and as an admin by the same check as a
+ * session; it fails closed the same way.
  */
-export async function isAdminCastRequest(
+export async function castAccess(
   requestUrl: string,
   check: (userId: string) => Promise<{ isAdmin: boolean }> = checkUserAdmin
-): Promise<boolean> {
+): Promise<Access> {
   const { CAST_TOKEN_PARAM, isCastablePath, verifyCastToken } = await import('@/lib/cast/token');
   let url: URL;
   try {
     url = new URL(requestUrl);
   } catch {
-    return false;
+    return NOBODY;
   }
-  if (!isCastablePath(url.pathname)) return false;
+  if (!isCastablePath(url.pathname)) return NOBODY;
   const token = url.searchParams.get(CAST_TOKEN_PARAM);
-  if (!token) return false;
+  if (!token) return NOBODY;
   const key = `cast:${token}`;
   const hit = cache.get(key);
-  if (hit && hit.until > Date.now()) return hit.admin;
-  let admin = false;
+  if (hit && hit.until > Date.now()) return { member: hit.member, admin: hit.admin };
+  let access = NOBODY;
   // Never remember a yes past the token's own expiry.
   let until = Date.now() + CACHE_MS;
   try {
     const claims = await verifyCastToken(token);
-    admin = claims ? (await check(claims.userId)).isAdmin : false;
-    if (claims) until = Math.min(until, claims.expiresAt * 1000);
+    if (claims) {
+      access = { member: true, admin: (await check(claims.userId)).isAdmin };
+      until = Math.min(until, claims.expiresAt * 1000);
+    }
   } catch {
-    admin = false;
+    access = NOBODY;
   }
-  if (cache.size > 1000) cache.clear();
-  cache.set(key, { admin, until });
-  return admin;
+  return remember(key, access, until);
+}
+
+export async function isAdminCastRequest(
+  requestUrl: string,
+  check: (userId: string) => Promise<{ isAdmin: boolean }> = checkUserAdmin
+): Promise<boolean> {
+  return (await castAccess(requestUrl, check)).admin;
 }

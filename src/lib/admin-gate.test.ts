@@ -6,7 +6,7 @@ vi.mock('@/lib/admin', () => ({
   checkUserAdmin: vi.fn(async (id: string) => ({ isAdmin: id === 'admin-1', source: id === 'admin-1' ? 'user_profiles' : null })),
 }));
 
-const { accessTokenOf, isAdminRequest, isSignInPath } = await import('./admin-gate');
+const { accessTokenOf, isAdminRequest, isSignInPath, requestAccess } = await import('./admin-gate');
 const { proxy } = await import('@/proxy');
 
 const cookies = (token?: string) => ({
@@ -56,6 +56,14 @@ describe('admin gate', () => {
     expect(await isAdminRequest(cookies(), null)).toBe(false);
   });
 
+  it('counts any verified account as a member, and only checkUserAdmin as an admin', async () => {
+    stubSupabase();
+    expect(await requestAccess(cookies('admin-token'), null)).toEqual({ member: true, admin: true });
+    expect(await requestAccess(cookies('member-token'), null)).toEqual({ member: true, admin: false });
+    expect(await requestAccess(cookies('forged-token'), null)).toEqual({ member: false, admin: false });
+    expect(await requestAccess(cookies(), null)).toEqual({ member: false, admin: false });
+  });
+
   it('fails closed when Supabase cannot be reached', async () => {
     vi.stubEnv('SUPABASE_URL', 'https://db.test');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon');
@@ -85,13 +93,17 @@ describe('admin gate', () => {
     expect(res.headers.get('set-cookie')).toContain('sb-auth-token='); // the rotated tokens are kept
   });
 
-  it('through the gate: invite-only screen for a paying member, the site for an admin', async () => {
+  it('through the gate: the site for a member (legal mode applies), every route for an admin', async () => {
     stubSupabase();
     const as = (token: string, path: string) =>
       proxy(new NextRequest(`https://bittorrented.com${path}`, { headers: { authorization: `Bearer ${token}` } }));
     const member = await as('member-token', '/account');
-    expect(member.status).toBe(307);
-    expect(member.headers.get('location')).toMatch(/\/invite-only$/);
+    expect(member.status).not.toBe(503);
+    expect(member.headers.get('location') ?? '').not.toContain('/invite-only');
+    expect((await as('member-token', '/dht')).status).toBe(410); // legal mode still applies to members
+    const stranger = await as('forged-token', '/account');
+    expect(stranger.status).toBe(307);
+    expect(stranger.headers.get('location')).toMatch(/\/invite-only$/);
     for (const p of ['/dht', '/torrents', '/']) {
       const r = await as('admin-token', p);
       expect([503, 410], p).not.toContain(r.status); // admins see every route
@@ -123,12 +135,12 @@ describe('admin gate: cast tokens (a Chromecast has no cookie)', () => {
     expect(await isAdminCastRequest(SEGMENT)).toBe(false);
   });
 
-  it('gets an admin cast past the invite-only notice, and nobody else', async () => {
+  it('gets a member cast past the invite-only gate, and no one without a valid token', async () => {
     const crkey = 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Safari/537.36 CrKey/1.56.500000';
     const call = async (url: string) =>
       proxy(new NextRequest(url, { headers: { 'user-agent': crkey, 'x-forwarded-for': '24.1.2.3' } }));
-    expect((await call(`${SEGMENT}&ct=${await token('admin-1')}`)).status).not.toBe(503);
-    expect((await call(`${SEGMENT}&ct=${await token('member-1')}`)).status).toBe(503);
-    expect((await call(SEGMENT)).status).toBe(503);
+    expect((await call(`${SEGMENT}&ct=${await token('admin-1')}`)).status).not.toBe(401);
+    expect((await call(`${SEGMENT}&ct=${await token('member-1')}`)).status).toBe(410); // in, but legal mode
+    expect((await call(SEGMENT)).status).toBe(401);
   });
 });
