@@ -32,10 +32,10 @@ describe('bittorrented.com offline, invite only', () => {
     expect(openWhileInviteOnly('/api/invitesx')).toBe(false);
   });
 
-  it('answers the rest of the API with JSON 503s', async () => {
+  it('answers the rest of the API with JSON 401s for signed-out callers', async () => {
     for (const path of ['/api/search', '/api/seedbox/add', '/api/iptv/subscription', '/api/public/datasets']) {
       const res = await get(path);
-      expect(res.status).toBe(503);
+      expect(res.status).toBe(401);
       expect((await res.json()).error).toMatch(/invite only/);
     }
   });

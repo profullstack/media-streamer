@@ -3,10 +3,10 @@
 /**
  * Invite-only screen
  *
- * Where everyone who is not an admin lands while bittorrented.com is invite only
+ * Where signed-out visitors land while bittorrented.com is invite only
  * (src/lib/site-offline.ts). Signed out: what BitTorrented is (InviteLanding), then sign up
- * with an invite, or sign in. Signed in:
- * the site is not open yet, and here are your invites (5 a month, unused ones carry over).
+ * with an invite, or sign in. Signed in: the site is yours, and here are your invites
+ * (5 a month, unused ones carry over).
  *
  * "Create invite" opens a <dialog> for the invite's limits: an expiry date and/or a
  * number of uses, or neither, in which case it works forever. Each allowed use costs
@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { InviteLanding } from '@/components/home/invite-landing';
 import { MainLayout } from '@/components/layout';
@@ -199,8 +200,9 @@ export default function InviteOnlyPage(): React.ReactElement {
           {state.kind === 'member' ? (
             <div className="space-y-6">
               <p className="text-center text-text-secondary">
-                You&apos;re in. The site isn&apos;t open yet; your account is kept and you&apos;ll hear from us when it
-                is. Meanwhile you can invite people.
+                You&apos;re in. BitTorrented is live and invite only, so new members need an invite from someone
+                already here. <Link href="/" className="text-accent-primary hover:underline">Go to BitTorrented</Link>,
+                or invite people below.
               </p>
 
               <section className="rounded-lg border border-border-default bg-bg-secondary p-5">

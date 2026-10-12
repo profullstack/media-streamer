@@ -21,7 +21,7 @@ import { meter } from '@/lib/throttle';
 import { CAST_TOKEN_PARAM, isCastablePath, verifyCastToken } from '@/lib/cast/token';
 import { SITE_OFFLINE, offlineResponse, openWhileInviteOnly, stillServed } from '@/lib/site-offline';
 import { LEGAL_MODE, goneResponse, legallyServed } from '@/lib/legal-mode';
-import { isAdminCastRequest, isAdminRequest, isSignInPath } from '@/lib/admin-gate';
+import { type Access, castAccess, isSignInPath, requestAccess } from '@/lib/admin-gate';
 
 // =============================================================================
 // Rate Limiting (in-memory sliding window)
@@ -550,27 +550,31 @@ export async function proxy(request: NextRequest): Promise<Response> {
   const session = await refreshSession(request);
   const asNext = (res: Response) => withSession(res instanceof NextResponse ? res : new NextResponse(res.body, res), session);
 
-  // Whether this is an admin, asked at most once per request and only when it matters.
-  // The refreshed cookie, when there is one, holds the token to check.
+  // Whether this is a member, and an admin, asked at most once per request and only when it
+  // matters. The refreshed cookie, when there is one, holds the token to check.
   const cookies = session?.value
     ? { get: (name: string) => (name === 'sb-auth-token' ? { value: session.value } : request.cookies.get(name)) }
     : request.cookies;
-  let admin: boolean | undefined;
-  // A Chromecast casting for an admin carries no cookie, only a signed cast token.
-  const isAdmin = async () =>
-    (admin ??=
-      (await isAdminRequest(cookies, request.headers.get('authorization'))) ||
-      (await isAdminCastRequest(request.url)));
+  let access: Access | undefined;
+  // A Chromecast casting for a member carries no cookie, only a signed cast token.
+  const whoIs = async (): Promise<Access> => {
+    if (access) return access;
+    const viaSession = await requestAccess(cookies, request.headers.get('authorization'));
+    access = viaSession.member ? viaSession : await castAccess(request.url);
+    return access;
+  };
+  const isAdmin = async () => (await whoIs()).admin;
 
   // --- 0a. The site is offline and invite only (see src/lib/site-offline.ts) ---
-  // Admins only (src/lib/admin-gate.ts): everyone else, paying or not, is sent to the
-  // invite-only screen, where they can sign up with an invite or manage their own.
+  // Members only (src/lib/admin-gate.ts): an account needs an invite, so any signed-in
+  // member gets the site. Signed-out visitors are sent to the invite-only screen, where
+  // they can sign up with an invite or sign in.
   if (
     SITE_OFFLINE &&
     !stillServed(request.nextUrl.pathname) &&
     !isSignInPath(request.nextUrl.pathname) &&
     !openWhileInviteOnly(request.nextUrl.pathname) &&
-    !(await isAdmin())
+    !(await whoIs()).member
   ) {
     return asNext(offlineResponse(request.nextUrl.pathname, request.url));
   }
