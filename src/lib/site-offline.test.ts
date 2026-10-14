@@ -32,6 +32,19 @@ describe('bittorrented.com offline, invite only', () => {
     expect(openWhileInviteOnly('/api/invitesx')).toBe(false);
   });
 
+  it('serves the blog, its posts and its feed to everyone', async () => {
+    for (const path of ['/blog', '/blog/cord-cutting-guide-for-beginners', '/blog/rss.xml']) {
+      expect(openWhileInviteOnly(path)).toBe(true);
+      const res = await get(path);
+      expect(res.status).not.toBe(307);
+      expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(410);
+    }
+    // A prefix match on a path segment, not on the string.
+    expect(openWhileInviteOnly('/blogger')).toBe(false);
+    expect((await get('/blogger')).status).toBe(307);
+  });
+
   it('answers the rest of the API with JSON 401s for signed-out callers', async () => {
     for (const path of ['/api/search', '/api/seedbox/add', '/api/iptv/subscription', '/api/public/datasets']) {
       const res = await get(path);

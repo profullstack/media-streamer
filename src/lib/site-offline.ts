@@ -33,8 +33,14 @@ export function stillServed(pathname: string): boolean {
 
 export const INVITE_ONLY_PAGE = '/invite-only';
 
-/** Open to everyone while the site is invite only: the screen itself, signup, and the invites API. */
-const INVITE_ONLY_OPEN = [INVITE_ONLY_PAGE, '/signup', '/api/invites'];
+/**
+ * Open to everyone while the site is invite only: the screen itself, signup, the invites
+ * API, and the blog (Anthony, 2026-10-14: "for bittorrented.com/blog make it public").
+ * The blog is the crawlproof autoblog: it was already public under the members gate and
+ * legal mode, and only this list was turning it away. Under the full gate a post a day
+ * landed where nobody outside could read it.
+ */
+const INVITE_ONLY_OPEN = [INVITE_ONLY_PAGE, '/signup', '/api/invites', '/blog'];
 
 export function openWhileInviteOnly(pathname: string): boolean {
   return INVITE_ONLY_OPEN.some((p) => pathname === p || pathname.startsWith(`${p}/`));
