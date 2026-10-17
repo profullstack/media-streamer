@@ -15,6 +15,7 @@ import { SearchBar, type SearchFilters } from '@/components/search';
 import { ImageGalleryModal, MediaPlayerModal, PlaylistPlayerModal, SeedboxPlayerModal } from '@/components/media';
 import { CommentsSection, TorrentVoting } from '@/components/comments';
 import { SeedboxSendButton } from '@/components/torrents';
+import { BroadcastWithNixampButton } from '@/components/nixamp/broadcast-button';
 import {
   ChevronRightIcon,
   LoadingSpinner,
@@ -936,6 +937,9 @@ export default function TorrentDetailClient({ initialTorrent, initialFiles, torr
                   <ShuffleIcon size={14} />
                 </button>
               </div>
+            ) : null}
+            {user && allAudioFiles.length > 0 ? (
+              <BroadcastWithNixampButton torrentId={torrent.id} torrentName={torrent.name} audioFiles={allAudioFiles} />
             ) : null}
             {mediaCounts.audio && mediaCounts.audio > 0 ? <div className="flex items-center gap-2 rounded-full bg-accent-audio/10 px-3 py-1 text-sm">
                 <MusicIcon className="text-accent-audio" size={14} />

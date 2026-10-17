@@ -460,6 +460,9 @@ const PUBLIC_PATHS = [
   // Sign in with nixamp: the OAuth round trip starts and ends without a
   // session here, because getting one is what it is for.
   '/api/v1/nixamp/oauth',
+  // A member's own Nixamp server copying a file they handed over. No session:
+  // the signed, expiring, one-file grant in the path is the permission.
+  '/api/v1/nixamp/files',
   '/api/webhooks',
   '/api/cron',
   '/api/health',
