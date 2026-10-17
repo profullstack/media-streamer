@@ -25,7 +25,9 @@ export const SITE_OFFLINE = true;
 // The web manifest too: every page links it, and a 307 to /invite-only for it was two
 // wasted requests per page view against a signed-out visitor's allowance.
 // The ring descriptor too, so the Profullstack ring can read this site's membership.
-const STILL_SERVED = ['/api/health', '/api/webhooks', '/manifest.json', '/.well-known/openwebring.json'];
+// And a member's own Nixamp server fetching a file they handed over: a one-file
+// grant, minted only for a signed-in member, is the permission (lib/nixamp/handoff.ts).
+const STILL_SERVED = ['/api/health', '/api/webhooks', '/manifest.json', '/.well-known/openwebring.json', '/api/v1/nixamp/files'];
 
 export function stillServed(pathname: string): boolean {
   return STILL_SERVED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
