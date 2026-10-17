@@ -33,6 +33,11 @@ describe('legal mode', () => {
     expect(legallyServed('/manifest.webmanifest')).toBe(true);
   });
 
+  it('serves translated audio of what a member is playing', () => {
+    expect(legallyServed('/api/translate/hear')).toBe(true);
+    expect(legallyServed('/api/translate/synthesize')).toBe(true);
+  });
+
   it('does not let a lookalike prefix through', () => {
     expect(legallyServed('/pricing-hack')).toBe(false);
     expect(legallyServed('/api/authx')).toBe(false);

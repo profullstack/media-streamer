@@ -31,6 +31,9 @@ importers:
       '@profullstack/footer':
         specifier: latest
         version: 0.2.4(react@19.3.0)
+      '@profullstack/live-translate':
+        specifier: ^0.2.1
+        version: 0.2.1
       '@profullstack/notifications':
         specifier: ^0.1.4
         version: 0.1.4
@@ -1297,6 +1300,10 @@ packages:
   '@profullstack/keys@0.1.0':
     resolution: {integrity: sha512-Vys47LvS5ivhdZu4SYOxh9Le3DEmWhjP0+CtrU45RhXAbY0ZFG/2Dk9V1bIIUGDp8UWMJqctvUD21JrNjfh04w==}
     engines: {node: '>=20.11'}
+
+  '@profullstack/live-translate@0.2.1':
+    resolution: {integrity: sha512-Xg7IApfX6cfmg9gqZiTEF+ObEh2NL7Fc2Bx4FRoNEUuMmv5Ht3M2T4LGfCN5SqMQRY56eqQBPOISHlqwiVkJOA==}
+    engines: {node: '>=22.18'}
 
   '@profullstack/notifications@0.1.4':
     resolution: {integrity: sha512-4RSq9C4ghgf/W1YGK6Ai9oMJWWLW2WOSn8cl/J7tbdK/c8nhIr3z3BjQcYJyjGGIMdRuUBGVBAJmp3uAtY28+A==}
@@ -6123,6 +6130,8 @@ snapshots:
   '@profullstack/form-guard@0.1.1': {}
 
   '@profullstack/keys@0.1.0': {}
+
+  '@profullstack/live-translate@0.2.1': {}
 
   '@profullstack/notifications@0.1.4': {}
 
