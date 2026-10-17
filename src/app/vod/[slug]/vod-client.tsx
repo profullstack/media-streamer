@@ -9,6 +9,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { LiveTranslatePanel } from '@/components/vod/live-translate-panel';
+
 interface Provider {
   slug: string;
   title: string;
@@ -50,6 +52,7 @@ export function VodStorefront({ slug }: { slug: string }): React.ReactElement {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Title | null>(null);
   const [busy, setBusy] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const loadAccess = useCallback(async (): Promise<void> => {
     const res = await fetch(`${base}/access`, { cache: 'no-store' });
@@ -218,12 +221,15 @@ export function VodStorefront({ slug }: { slug: string }): React.ReactElement {
           {canPlay(selected.id) ? (
             <>
               <video
+                key={selected.id}
+                ref={videoRef}
                 className="aspect-video w-full"
                 controls
                 autoPlay
                 playsInline
                 src={`${base}/stream?titleId=${encodeURIComponent(selected.id)}`}
               />
+              <LiveTranslatePanel key={selected.id} video={videoRef} />
               {canDownload(selected.id) && (
                 <a
                   className="block bg-bg-secondary px-3 py-2 text-center text-xs text-accent-primary hover:underline"

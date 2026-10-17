@@ -57,6 +57,8 @@ const ALLOWED = [
   '/api/push',
   '/api/health',
   '/api/public',
+  // live translated audio of what a member is already playing (src/lib/translate)
+  '/api/translate',
   // podcasts: publishers distribute these freely by RSS; we play their feeds
   '/podcasts',
   '/api/podcasts',
