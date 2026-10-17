@@ -25,3 +25,8 @@ export function hashViewerKey(key: string): string {
 export function generateProviderSlug(): string {
   return randomBytes(9).toString('base64url'); // 12 chars
 }
+
+/** A library that sells neither a weekly pass nor per-title access streams free to everyone. */
+export function isFreeLibrary(p: { weeklyPriceUsd: number | null; perTitlePriceUsd: number | null }): boolean {
+  return p.weeklyPriceUsd == null && p.perTitlePriceUsd == null;
+}
