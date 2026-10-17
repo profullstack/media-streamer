@@ -4,7 +4,7 @@
 
 export * from './types';
 export { VodError } from './errors';
-export { vodViewerCookieName, generateViewerKey, hashViewerKey } from './pass';
+export { vodViewerCookieName, generateViewerKey, hashViewerKey, isFreeLibrary } from './pass';
 export { MAX_SYNC_TITLES } from './sync';
 export type { SyncResult } from './sync';
 export {

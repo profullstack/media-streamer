@@ -15,7 +15,13 @@ import { validateStreamUrl } from '@/lib/iptv-proxy/iptv-proxy';
 import * as adapters from './adapters';
 import { resolveSource } from './config';
 import { VodError } from './errors';
-import { generateProviderSlug, generateViewerKey, hashViewerKey, vodViewerCookieName } from './pass';
+import {
+  generateProviderSlug,
+  generateViewerKey,
+  hashViewerKey,
+  isFreeLibrary,
+  vodViewerCookieName,
+} from './pass';
 import * as repo from './repository';
 import { syncProviderCatalog, type SyncResult } from './sync';
 import type {
@@ -177,6 +183,7 @@ export function toPublicProvider(p: VodProvider): PublicProvider {
     passWindowMinutes: p.passWindowMinutes,
     catalogCount: p.catalogCount,
     active: isProviderOpen(p),
+    free: isFreeLibrary(p),
   };
 }
 
@@ -344,7 +351,7 @@ export async function getAccessSummary(
   if (!provider) return null;
   const access = await resolveAccess(provider.id, viewerKey);
   return {
-    weeklyActive: access.weeklyActive,
+    weeklyActive: access.weeklyActive || isFreeLibrary(provider),
     titles: Object.entries(access.titleModes).map(([id, mode]) => ({ id, mode })),
   };
 }
@@ -386,7 +393,7 @@ export async function streamTitle(
   if (!title) return jsonError('Title not found', 404);
 
   const isOwner = !!currentUserId && currentUserId === provider.ownerAccountId;
-  if (!isOwner) {
+  if (!isOwner && !isFreeLibrary(provider)) {
     const access = await resolveAccess(provider.id, viewerKey);
     const allowed = access.weeklyActive || Boolean(access.titleModes[title.id]);
     if (!allowed) return jsonError('Payment required', 402);

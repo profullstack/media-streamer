@@ -18,6 +18,7 @@ interface Provider {
   passWindowMinutes: number;
   catalogCount: number;
   active: boolean;
+  free: boolean;
 }
 
 interface Title {
@@ -170,6 +171,8 @@ export function VodStorefront({ slug }: { slug: string }): React.ReactElement {
       <div className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-bg-secondary p-3">
         {isOwner ? (
           <span className="text-sm text-text-secondary">You own this library — you watch everything free.</span>
+        ) : provider.free ? (
+          <span className="text-sm text-green-600">Free library — every title streams free.</span>
         ) : weeklyActive ? (
           <span className="text-sm text-green-600">✓ Weekly pass active — the whole catalog is unlocked.</span>
         ) : provider.weeklyPriceUsd != null ? (

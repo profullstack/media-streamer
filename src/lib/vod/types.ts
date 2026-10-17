@@ -52,6 +52,8 @@ export interface PublicProvider {
   passWindowMinutes: number;
   catalogCount: number;
   active: boolean;
+  /** No pass or per-title price is offered: every title streams free. */
+  free: boolean;
 }
 
 export interface VodTitle {
