@@ -28,6 +28,11 @@ describe('legal mode', () => {
     }
   });
 
+  it('serves the web manifest every page links', () => {
+    expect(legallyServed('/manifest.json')).toBe(true);
+    expect(legallyServed('/manifest.webmanifest')).toBe(true);
+  });
+
   it('does not let a lookalike prefix through', () => {
     expect(legallyServed('/pricing-hack')).toBe(false);
     expect(legallyServed('/api/authx')).toBe(false);

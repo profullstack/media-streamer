@@ -64,7 +64,9 @@ const ALLOWED = [
   '/.well-known',
   '/robots.txt',
   '/sw.js',
-  '/manifest',
+  // exact file names: under() matches a whole segment, so '/manifest' never matched these
+  '/manifest.json',
+  '/manifest.webmanifest',
   '/favicon.ico',
 ];
 
