@@ -38,6 +38,11 @@ describe('legal mode', () => {
     expect(legallyServed('/api/translate/synthesize')).toBe(true);
   });
 
+  it('serves VOD storefronts but not adding a library', () => {
+    expect(legallyServed('/vod/HQiE_OMRBuu6')).toBe(true);
+    expect(legallyServed('/api/vod/providers')).toBe(false);
+  });
+
   it('does not let a lookalike prefix through', () => {
     expect(legallyServed('/pricing-hack')).toBe(false);
     expect(legallyServed('/api/authx')).toBe(false);

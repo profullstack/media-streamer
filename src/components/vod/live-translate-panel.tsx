@@ -6,7 +6,8 @@
  * server (/api/translate/*) and re-voiced a few seconds behind the picture;
  * the original is turned down, not muted, while the translation plays.
  * Each viewer runs their own pipeline, since every viewer is at their own
- * position in the title.
+ * position in the title. Paid as nixamp.com is: free daily sessions, then
+ * passes (./translation-pass.tsx).
  */
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
@@ -17,6 +18,8 @@ import {
   type Caption,
   type VoiceChoice,
 } from '@profullstack/live-translate/browser';
+
+import { TranslationPassBuy, useTranslationPass } from './translation-pass';
 
 const LANGUAGE_NAMES = typeof Intl !== 'undefined' && 'DisplayNames' in Intl
   ? new Intl.DisplayNames(['en'], { type: 'language' })
@@ -32,6 +35,8 @@ export function LiveTranslatePanel({ video }: { video: RefObject<HTMLVideoElemen
   const [on, setOn] = useState(false);
   const [status, setStatus] = useState('');
   const [caption, setCaption] = useState<Caption | null>(null);
+  const [buying, setBuying] = useState(false);
+  const pass = useTranslationPass();
 
   const languageRef = useRef(language);
   const audio = useRef<{ context: AudioContext; source: MediaElementAudioSourceNode; original: GainNode } | null>(null);
@@ -72,6 +77,12 @@ export function LiveTranslatePanel({ video }: { video: RefObject<HTMLVideoElemen
     stop();
     scope.current ||= `vod-${crypto.randomUUID()}`;
     try {
+      try {
+        await pass.startSession(scope.current);
+      } catch (error) {
+        setBuying(true);
+        throw error;
+      }
       if (!audio.current) {
         // A media element can feed only one source node, ever: keep it for the element's life.
         const context = new AudioContext();
@@ -108,6 +119,12 @@ export function LiveTranslatePanel({ video }: { video: RefObject<HTMLVideoElemen
         },
       });
       const interpreter = new Interpreter({
+        // The free-session and billing key travels with every hear and translate call.
+        fetcher: (url, init) => {
+          const headers = new Headers(init?.headers);
+          headers.set('x-translation-session', scope.current);
+          return fetch(url, { ...init, headers });
+        },
         language: () => languageRef.current,
         speakers: () => true,
         voices: () => options.voices,
@@ -116,7 +133,10 @@ export function LiveTranslatePanel({ video }: { video: RefObject<HTMLVideoElemen
         // Lecture-length sentences: wait a little longer before cutting a phrase.
         phrase: { gapMs: 800, pauseMs: 750, maxMs: 5000 },
         status: setStatus,
-        failed: (message) => stop(message),
+        failed: (message) => {
+          stop(message);
+          void pass.refresh();
+        },
         lines: (lines) => {
           if (lines.length) setCaption(lines[lines.length - 1]!);
           player.pushBatch(lines.map((line) => ({
@@ -148,7 +168,7 @@ export function LiveTranslatePanel({ video }: { video: RefObject<HTMLVideoElemen
     } catch (error) {
       stop(error instanceof Error ? error.message : 'Translated audio could not start.');
     }
-  }, [options, stop, video]);
+  }, [options, pass, stop, video]);
 
   // A seek or pause makes queued speech wrong for the picture: drop it and listen afresh.
   useEffect(() => {
@@ -209,8 +229,13 @@ export function LiveTranslatePanel({ video }: { video: RefObject<HTMLVideoElemen
         >
           {on ? 'Stop' : 'Translate'}
         </button>
+        <button className="text-accent-primary hover:underline" onClick={() => setBuying((open) => !open)}>
+          {buying ? 'Hide passes' : 'Buy pass'}
+        </button>
         {status ? <span className="min-w-0 text-text-tertiary">{status}</span> : null}
       </div>
+      {pass.summary ? <p className="text-text-tertiary">{pass.summary}</p> : null}
+      {buying || (pass.access && !pass.ready) ? <TranslationPassBuy pass={pass} /> : null}
       {on && caption ? (
         <p className="text-sm text-text-primary">
           {caption.text}

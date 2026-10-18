@@ -3,15 +3,17 @@
  * the viewer's browser sends the playing title's audio, ElevenLabs Scribe
  * hears it, Gemini translates it and ElevenLabs Flash re-voices it.
  *
- * Free to signed-in members, so the provider budgets are the only brake.
- * They are deliberately small (the ElevenLabs plan is Starter) and tunable
- * from app.env without a deploy.
+ * Sold as nixamp sells it (./passes.ts): free daily sessions, then prepaid
+ * passes. The provider budgets below are a second brake on top, small because
+ * the ElevenLabs plan is Starter, and tunable from app.env without a deploy.
  */
 import { LiveVoice, SpeechError } from '@profullstack/live-translate';
 
 import { GeminiTranslator } from './gemini';
+import { getPasses, translationAvailable } from './passes';
 
 export { GeminiTranslator } from './gemini';
+export { getPasses, passesReturningTo, isTranslationPayment, RETURN_PATH } from './passes';
 export { SpeechError };
 
 const num = (name: string, fallback: number): number => {
@@ -25,6 +27,7 @@ let translator: GeminiTranslator | null = null;
 export function getLiveVoice(): LiveVoice {
   voice ??= new LiveVoice({
     tokenPrefix: 'btv_',
+    billing: translationAvailable() ? getPasses() : undefined,
     // Flash characters (spoken translation) and Scribe seconds (hearing) per day.
     dailyChars: num('LIVE_TRANSLATE_DAILY_CHARS', 20_000),
     userDailyChars: num('LIVE_TRANSLATE_USER_DAILY_CHARS', 6_000),
@@ -37,6 +40,12 @@ export function getLiveVoice(): LiveVoice {
 export function getTranslator(): GeminiTranslator {
   translator ??= new GeminiTranslator();
   return translator;
+}
+
+/** The playback session a request belongs to: the free-session and billing key. */
+export function sessionOf(request: Request): string {
+  const value = request.headers.get('x-translation-session') ?? '';
+  return /^[\w-]{1,80}$/.test(value) ? value : '';
 }
 
 /** JSON error body with the status a SpeechError carries. */
