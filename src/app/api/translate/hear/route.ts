@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { getLiveVoice, speechErrorResponse } from '@/lib/translate';
+import { getLiveVoice, sessionOf, speechErrorResponse } from '@/lib/translate';
 
 // Live translated audio: a short mono 16 kHz WAV of the playing title in,
 // speaker turns with word timings out (ElevenLabs Scribe).
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (bytes.length > MAX_BYTES) return Response.json({ error: 'send up to 15 seconds of audio' }, { status: 413 });
   const language = request.nextUrl.searchParams.get('language') ?? '';
   try {
-    return Response.json(await getLiveVoice().hear(bytes, user.id, request.signal, undefined, '', /^[a-z]{2,3}$/.test(language) ? language : ''));
+    return Response.json(await getLiveVoice().hear(bytes, user.id, request.signal, undefined, sessionOf(request), /^[a-z]{2,3}$/.test(language) ? language : ''));
   } catch (error) {
     return speechErrorResponse(error);
   }

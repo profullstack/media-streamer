@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
-import { getTranslator, speechErrorResponse } from '@/lib/translate';
+import { getPasses, getTranslator, sessionOf, speechErrorResponse } from '@/lib/translate';
 
 // Live translated audio: the heard phrases in, the same phrases translated out.
 export const runtime = 'nodejs';
@@ -27,6 +27,8 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!from || !to) return Response.json({ error: 'from and to are language codes, such as en and es' }, { status: 400 });
   if (from === to) return Response.json({ texts });
   try {
+    // Same access as hearing: a live free session or audio credit.
+    await getPasses().require(user.id, sessionOf(request));
     return Response.json(await getTranslator().translate(texts, from, to, { signal: request.signal }));
   } catch (error) {
     return speechErrorResponse(error);

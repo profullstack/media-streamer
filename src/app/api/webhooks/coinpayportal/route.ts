@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getWebhookHandler } from '@/lib/coinpayportal/webhook-handler';
 import { getCoinPayPortalClient } from '@/lib/coinpayportal/client';
 import type { WebhookPayload } from '@/lib/coinpayportal/types';
+import { getPasses, isTranslationPayment } from '@/lib/translate';
 
 // ============================================================================
 // Logging Utilities
@@ -382,6 +383,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     log(requestId, 'DEBUG', 'Webhook metadata', {
       fieldCount: Object.keys(payload.data.metadata).length,
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Translated audio passes: settled by asking CoinPay (src/lib/translate/passes.ts)
+  // -------------------------------------------------------------------------
+  if (isTranslationPayment(payload.data.metadata)) {
+    try {
+      const result = await getPasses().settle(payload.data.payment_id);
+      log(requestId, 'INFO', 'Translation pass webhook settled', { paymentId: payload.data.payment_id, ...result });
+      return NextResponse.json({ success: true, ...result, requestId });
+    } catch (error) {
+      // A 5xx makes CoinPay deliver it again, which an unreachable CoinPay or database needs.
+      log(requestId, 'ERROR', 'Translation pass webhook could not settle', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return NextResponse.json({ error: 'could not settle; retry', requestId }, { status: 500 });
+    }
   }
 
   // -------------------------------------------------------------------------

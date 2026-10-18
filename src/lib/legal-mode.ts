@@ -57,6 +57,8 @@ const ALLOWED = [
   '/api/push',
   '/api/health',
   '/api/public',
+  // VOD storefronts: only admins can add a library (/api/vod stays off), so every one is reviewed
+  '/vod',
   // live translated audio of what a member is already playing (src/lib/translate)
   '/api/translate',
   // podcasts: publishers distribute these freely by RSS; we play their feeds
