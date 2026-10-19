@@ -38,8 +38,8 @@ importers:
         specifier: ^0.1.4
         version: 0.1.4
       '@profullstack/player':
-        specifier: 0.14.0
-        version: 0.14.0(react@19.3.1)
+        specifier: 0.15.0
+        version: 0.15.0(react@19.3.1)
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.3.1)
@@ -106,9 +106,6 @@ importers:
       framer-motion:
         specifier: ^14.3.0
         version: 14.3.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      hls.js:
-        specifier: ^1.7.3
-        version: 1.7.3
       imapflow:
         specifier: ^2.5.2
         version: 2.5.2
@@ -130,9 +127,6 @@ importers:
       mailparser:
         specifier: ^3.9.40
         version: 3.9.40
-      mpegts.js:
-        specifier: ^1.8.2
-        version: 1.8.2
       next:
         specifier: 16.4.2
         version: 16.4.2(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1308,8 +1302,8 @@ packages:
     resolution: {integrity: sha512-4RSq9C4ghgf/W1YGK6Ai9oMJWWLW2WOSn8cl/J7tbdK/c8nhIr3z3BjQcYJyjGGIMdRuUBGVBAJmp3uAtY28+A==}
     engines: {node: '>=20.11'}
 
-  '@profullstack/player@0.14.0':
-    resolution: {integrity: sha512-HBDNkb17jGhZrkpksCp1iB07yWjfKIeDQq8LarhA04bKBZdX+vkRRTN1gsxXiAM3T4t0Zxj+99dpTA0uPtKofw==}
+  '@profullstack/player@0.15.0':
+    resolution: {integrity: sha512-vcOuLZ59jpHzTKAGbd1hjdhjYaNxKoAq5D8RCQszVYRYZEwobJCn/LJy1CeZzaBDfVBCRziWR2lwkWlYHVVFCg==}
     engines: {node: '>=20'}
     peerDependencies:
       react: '>=18'
@@ -6116,7 +6110,7 @@ snapshots:
 
   '@profullstack/notifications@0.1.4': {}
 
-  '@profullstack/player@0.14.0(react@19.3.1)':
+  '@profullstack/player@0.15.0(react@19.3.1)':
     dependencies:
       hls.js: 1.7.3
       mpegts.js: 1.8.2

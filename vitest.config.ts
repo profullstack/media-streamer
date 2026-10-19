@@ -40,8 +40,8 @@ export default defineConfig({
       'src/lib/progress/progress.test.ts',          // 539 lines
       'src/lib/xtream/xtream.test.ts',              // 536 lines
       'src/lib/argontv/repository.test.ts',         // 536 lines
-      // Tests that fail in CI due to browser API mocking issues (HLS.js, mpegts.js)
-      'src/components/live-tv/hls-player-modal.test.tsx',
+      // Tests that fail in CI due to browser API mocking issues. The live TV modal's
+      // test came back once it mocked @profullstack/player instead of hls.js.
       'src/components/media/playlist-player-modal.test.tsx',
       // WebTorrent-related tests - excluded to avoid native dependency issues in CI
       'src/hooks/use-webtorrent.test.ts',                  // 690 lines, WebTorrent hook tests

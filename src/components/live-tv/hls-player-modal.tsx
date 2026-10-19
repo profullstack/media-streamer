@@ -3,7 +3,11 @@
 /**
  * HLS Player Modal Component
  *
- * A modal component for playing live TV streams using HLS.js and mpegts.js.
+ * A modal component for playing live TV streams. Delivery is
+ * @profullstack/player's `attachSource`: it picks hls.js, native HLS (iOS) or
+ * mpegts.js for the source and attaches it to this component's own <video>,
+ * so the modal keeps its UI (refresh, favourites, cast, fullscreen) while the
+ * engine ladder is the one every fleet player shares.
  * Supports both HLS (.m3u8) and MPEG-TS (.ts) streams.
  * Displays channel information including logo and group.
  *
@@ -12,39 +16,13 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import Hls from 'hls.js';
+import { attachSource, type AttachedSource } from '@profullstack/player';
 import { CastButton } from '@/components/cast/cast-button';
-// mpegts.js is dynamically imported to avoid SSR issues (it accesses window at module load)
 import type { Channel } from '@/lib/iptv';
 import { CloseIcon, RefreshIcon, TvIcon } from '@/components/ui/icons';
 import { useTvDetection } from '@/hooks/use-tv-detection';
 import { IptvChannelFavoriteButton } from '@/components/ui/iptv-channel-favorite-button';
-import { hasRecovered, retryDelayMs } from '@/lib/live-tv/recovery';
-
-// Type for mpegts.js player - dynamically imported
-type MpegtsPlayer = {
-  attachMediaElement: (element: HTMLVideoElement) => void;
-  load: () => void;
-  destroy: () => void;
-  on: (event: string, callback: (...args: unknown[]) => void) => void;
-  off: (event: string, callback: (...args: unknown[]) => void) => void;
-};
-
-type MpegtsModule = {
-  default: {
-    isSupported: () => boolean;
-    createPlayer: (config: {
-      type: string;
-      isLive: boolean;
-      url: string;
-    }, options?: Record<string, unknown>) => MpegtsPlayer;
-    Events: {
-      MEDIA_INFO: string;
-      ERROR: string;
-      LOADING_COMPLETE: string;
-    };
-  };
-};
+import { retryDelayMs } from '@/lib/live-tv/recovery';
 
 export interface HlsPlayerModalProps {
   /** Whether the modal is open */
@@ -76,28 +54,19 @@ export function HlsPlayerModal({
   onFavoriteToggle,
 }: HlsPlayerModalProps): React.ReactElement | null {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const mpegtsRef = useRef<MpegtsPlayer | null>(null);
+  /** The attached engine (hls.js, native or mpegts.js) for the current build. */
+  const attachedRef = useRef<AttachedSource | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const stallCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastPlaybackTimeRef = useRef(0);
-  /*
-   * The pending "did startLoad() actually fix it?" check, and whether another
-   * fatal error landed while it was pending.
-   *
-   * Both are refs rather than locals because the timer has to be cancellable from
-   * the teardown and from the next error. A raw setTimeout per error -- which is
-   * what this was -- accumulates: three fatal errors in a burst scheduled three
-   * independent rebuilds, each one a fresh connection on a line that counts them.
-   */
-  const recoveryCheckRef = useRef<NodeJS.Timeout | null>(null);
-  const erroredAgainRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRecovering, setIsRecovering] = useState(false);
+  /** What the engine says while it recovers on its own, e.g. "Reconnecting... (2/5)". */
+  const [engineNotice, setEngineNotice] = useState<string | null>(null);
   const { isTv } = useTvDetection();
 
   // Maximum retry attempts before giving up
@@ -105,11 +74,14 @@ export function HlsPlayerModal({
   // Base delay for exponential backoff (ms)
   const BASE_RETRY_DELAY = 2000;
   /*
-   * How long HLS.js is given to fix a fatal error on its own before the player is
-   * rebuilt around it. Long enough for a playlist refetch and a segment to buffer;
-   * short enough that a stream which is genuinely gone is not left frozen.
+   * Read at attach time rather than listed as an effect dependency: TV
+   * detection can settle after the first render, and that must not tear down
+   * and reconnect a stream that is already playing.
    */
-  const RECOVERY_GRACE_MS = 5000;
+  const isTvRef = useRef(isTv);
+  useEffect(() => {
+    isTvRef.current = isTv;
+  }, [isTv]);
 
   // The stream URL is already proxied by the channels API if needed
   // HTTP URLs are converted to /api/iptv-proxy?url=... by the server
@@ -224,31 +196,25 @@ export function HlsPlayerModal({
     tryFullscreen();
   }, []);
 
+  // Tear down whatever engine is attached. Safe to call twice.
+  const destroyAttached = useCallback((): void => {
+    if (attachedRef.current) {
+      attachedRef.current.destroy();
+      attachedRef.current = null;
+    }
+  }, []);
+
   // Handle refresh button click to reload the stream
   const handleRefresh = useCallback((): void => {
     console.log('[HLS Player] Refreshing stream...');
 
-    // Clear any pending retry, and the pending "did it recover?" check with it --
-    // a refresh answers that question itself, and letting the check survive means
-    // it rebuilds the player the reader just rebuilt by hand.
+    // Clear any pending retry: a refresh is the rebuild it was waiting to do.
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
     }
-    if (recoveryCheckRef.current) {
-      clearTimeout(recoveryCheckRef.current);
-      recoveryCheckRef.current = null;
-    }
 
-    // Destroy existing players
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-    if (mpegtsRef.current) {
-      mpegtsRef.current.destroy();
-      mpegtsRef.current = null;
-    }
+    destroyAttached();
 
     // Reset retry count on manual refresh
     retryCountRef.current = 0;
@@ -258,7 +224,7 @@ export function HlsPlayerModal({
     setError(null);
     setIsRecovering(false);
     setRefreshKey((prev) => prev + 1);
-  }, []);
+  }, [destroyAttached]);
 
   // Auto-retry with exponential backoff
   const scheduleRetry = useCallback((): void => {
@@ -279,10 +245,9 @@ export function HlsPlayerModal({
     /*
      * Replace the pending retry rather than adding to it.
      *
-     * This used to assign over `retryTimeoutRef.current` without clearing what
-     * was already there, so two errors close together left two live timers and
-     * the second rebuild landed on top of the first -- two players, two sockets,
-     * and a reader watching whichever won.
+     * Two errors close together must not leave two live timers, or the second
+     * rebuild lands on top of the first -- two players, two sockets, and a
+     * reader watching whichever won.
      */
     if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
 
@@ -290,22 +255,14 @@ export function HlsPlayerModal({
       retryTimeoutRef.current = null;
       console.log('[HLS Player] Auto-retrying stream...');
 
-      // Destroy existing players
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-      if (mpegtsRef.current) {
-        mpegtsRef.current.destroy();
-        mpegtsRef.current = null;
-      }
+      destroyAttached();
 
       setIsLoading(true);
       setError(null);
       setIsRecovering(false);
       setRefreshKey((prev) => prev + 1);
     }, delay);
-  }, []);
+  }, [destroyAttached]);
 
   // Initialize video player
   useEffect(() => {
@@ -314,247 +271,117 @@ export function HlsPlayerModal({
     }
 
     console.log('[HLS Player] Initializing with URL:', streamUrl);
-    console.log('[HLS Player] Original channel URL:', channel.url);
     console.log('[HLS Player] Is HLS stream:', isHlsStream);
-    
+
     setIsLoading(true);
     setError(null);
+    setEngineNotice(null);
 
     const video = videoRef.current;
     let isMounted = true;
 
-    // For HLS streams (.m3u8), use HLS.js
-    if (isHlsStream) {
-      if (Hls.isSupported()) {
-        console.log('[HLS Player] HLS.js is supported, creating instance for HLS stream');
-        
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          debug: false, // Disable debug logging in production
-        });
+    /*
+     * The kind is stated, not detected. The package reads the URL path, and a
+     * proxied channel's path is /api/iptv-proxy -- the .m3u8 is in the query
+     * string, where detection deliberately never looks.
+     */
+    const kind = isHlsStream ? 'hls' : 'mpegts';
 
-        hlsRef.current = hls;
+    // mpegts.js resolves relative URLs against nothing useful off the main
+    // thread; an absolute URL is correct everywhere.
+    const src =
+      kind === 'mpegts' && streamUrl.startsWith('/')
+        ? `${window.location.origin}${streamUrl}`
+        : streamUrl;
 
-        console.log('[HLS Player] Loading HLS source:', streamUrl);
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('[HLS Player] HLS manifest parsed successfully');
-          if (isMounted) {
-            setIsLoading(false);
-            video.play().catch((err: unknown) => {
-              console.error('[HLS Player] Autoplay failed:', err);
-            });
-          }
-        });
-
-        /*
-         * Try the cheap recovery, then CHECK whether it worked.
-         *
-         * HLS.js can nearly always fix a fatal network error itself: startLoad()
-         * refetches the playlist, and a segment that 404'd across a discontinuity
-         * or a CDN that dropped one request simply resumes. A media error is the
-         * same shape of problem one layer down, and recoverMediaError() rebuilds
-         * the buffer without touching the connection.
-         *
-         * What both need is somebody to ask, a few seconds later, whether they
-         * worked -- and that is what was missing. The escalation was scheduled
-         * unconditionally, guarded only by "is this component still mounted and
-         * is this still the current HLS instance", which is exactly as true after
-         * a successful recovery as after a failed one. So a stream that had been
-         * playing again for four seconds was torn down and rebuilt anyway, and
-         * every rebuild is a fresh connection on a provider line that often
-         * permits precisely one.
-         *
-         * The evidence is the media clock, which is what the stall watcher below
-         * already trusts. The decision itself is in @/lib/live-tv/recovery so it
-         * can be tested -- this component's own tests are excluded from the suite
-         * over HLS.js and mpegts.js mocking.
-         */
-        const attemptRecovery = (kind: 'network' | 'media'): void => {
-          const timeAtError = video.currentTime;
-          erroredAgainRef.current = false;
-
-          if (kind === 'network') {
-            hls.startLoad();
-          } else {
-            hls.recoverMediaError();
-          }
-
-          // One pending check at a time. A burst of fatal errors used to schedule
-          // one independent rebuild each, all of which fired.
-          if (recoveryCheckRef.current) clearTimeout(recoveryCheckRef.current);
-
-          recoveryCheckRef.current = setTimeout(() => {
-            recoveryCheckRef.current = null;
-            if (!isMounted || hlsRef.current !== hls) return;
-
-            const recovered = hasRecovered({
-              timeAtError,
-              timeNow: video.currentTime,
-              paused: video.paused,
-              erroredAgain: erroredAgainRef.current,
-            });
-
-            if (recovered) {
-              // It is playing. Nothing to rebuild, and the budget goes back --
-              // the same rule `handlePlaying` applies, restated here because a
-              // recovery that never re-fired `playing` would otherwise leave the
-              // count spent.
-              console.log('[HLS Player] Recovered without a rebuild');
-              retryCountRef.current = 0;
-              setError(null);
-              setIsRecovering(false);
-              return;
-            }
-
-            console.log('[HLS Player] Recovery did not take, rebuilding');
-            scheduleRetry();
-          }, RECOVERY_GRACE_MS);
-        };
-
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          console.error('[HLS Player] HLS Error:', data.type, data.details, data);
-          if (data.fatal && isMounted) {
-            // Seen by a pending recovery check: a stream that produced a second of
-            // video and failed again has not recovered, whatever the clock says.
-            if (recoveryCheckRef.current) erroredAgainRef.current = true;
-
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error('[HLS Player] Fatal network error, attempting reload');
-                attemptRecovery('network');
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                /*
-                 * This used to call recoverMediaError() and then simply stop.
-                 * When the recovery failed there was no retry and no message --
-                 * the picture froze and nothing ever said why, which is the one
-                 * outcome worse than an error.
-                 */
-                console.error('[HLS Player] Fatal media error, attempting recovery');
-                attemptRecovery('media');
-                break;
-              default:
-                console.error('[HLS Player] Fatal error, scheduling retry');
-                hls.destroy();
-                hlsRef.current = null;
-                scheduleRetry();
-                break;
-            }
-          }
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS support (Safari)
-        console.log('[HLS Player] Using native HLS support (Safari)');
-        video.src = streamUrl;
-        video.addEventListener('loadedmetadata', () => {
-          if (isMounted) {
-            setIsLoading(false);
-            video.play().catch((err: unknown) => {
-              console.error('[HLS Player] Autoplay failed:', err);
-            });
-          }
-        });
-      } else {
-        setError('HLS is not supported in this browser');
+    /*
+     * Recovery is layered, and each layer is the package's or this modal's,
+     * never both for the same failure:
+     *
+     * - The engines retry on their own first. hls.js gets startLoad() /
+     *   recoverMediaError() up to three times; mpegts.js is rebuilt up to five
+     *   times with backoff and watched for silent stalls. While they do, the
+     *   engine reports a notice ("Reconnecting...") and this modal shows it.
+     * - When an HLS engine gives up, this modal rebuilds it on its own backoff
+     *   ladder (scheduleRetry), as it always has.
+     * - When the transport stream engine gives up, its ladder -- which is this
+     *   modal's old ladder, ported -- is already spent, and a codec failure
+     *   cannot be retried away, so the error is shown with Refresh beside it.
+     */
+    const onError = (message: string): void => {
+      if (!isMounted) return;
+      console.error('[HLS Player] Stream error:', message);
+      if (kind === 'hls') {
+        destroyAttached();
+        scheduleRetry();
+        return;
       }
-    } else {
-      // For MPEG-TS streams (.ts), use mpegts.js (dynamically imported)
-      console.log('[HLS Player] Non-HLS stream detected, using mpegts.js');
-      
-      // Dynamic import to avoid SSR issues
-      import('mpegts.js').then((mpegtsModule: MpegtsModule) => {
-        const mpegts = mpegtsModule.default;
-        
-        if (!isMounted) return;
-        
-        if (mpegts.isSupported()) {
-          console.log('[HLS Player] mpegts.js is supported, creating player');
-          
-          // mpegts.js runs in a Web Worker which requires absolute URLs
-          // Convert relative URLs to absolute URLs
-          const absoluteUrl = streamUrl.startsWith('/')
-            ? `${window.location.origin}${streamUrl}`
-            : streamUrl;
-          
-          console.log('[HLS Player] Using absolute URL for mpegts.js:', absoluteUrl);
-          
-          const player = mpegts.createPlayer({
-            type: 'mpegts',
-            isLive: true,
-            url: absoluteUrl,
-          }, {
-            // Worker for better performance
-            enableWorker: true,
-            // Enable stash buffer for smoother playback through proxy
-            enableStashBuffer: true,
-            // Larger initial buffer to prevent stuttering (384KB)
-            stashInitialSize: 384 * 1024,
-            // Disable aggressive latency chasing - causes buffering through proxy
-            liveBufferLatencyChasing: false,
-            // More tolerant latency settings for proxied streams
-            liveBufferLatencyMaxLatency: 5.0,
-            liveBufferLatencyMinRemain: 1.0,
-            // Auto cleanup for memory management
-            autoCleanupSourceBuffer: true,
-            autoCleanupMaxBackwardDuration: 30,
-            autoCleanupMinBackwardDuration: 10,
-            // Larger IO buffer for network stability
-            lazyLoad: false,
-            lazyLoadMaxDuration: 60,
-            lazyLoadRecoverDuration: 30,
-            // Seek optimization
-            seekType: 'range',
-          });
-          
-          mpegtsRef.current = player;
-          
-          player.attachMediaElement(video);
-          player.load();
-          
-          player.on(mpegts.Events.MEDIA_INFO, () => {
-            console.log('[HLS Player] MPEG-TS media info received');
-            if (isMounted) {
-              setIsLoading(false);
-              video.play().catch((err: unknown) => {
-                console.error('[HLS Player] Autoplay failed:', err);
-              });
-            }
-          });
-          
-          player.on(mpegts.Events.ERROR, (errorType: unknown, errorDetail: unknown) => {
-            console.error('[HLS Player] MPEG-TS Error:', errorType, errorDetail);
-            if (isMounted) {
-              // Destroy the current player and schedule retry
-              player.destroy();
-              mpegtsRef.current = null;
-              scheduleRetry();
-            }
-          });
-          
-          player.on(mpegts.Events.LOADING_COMPLETE, () => {
-            console.log('[HLS Player] MPEG-TS loading complete');
-          });
-        } else {
-          console.error('[HLS Player] mpegts.js is not supported in this browser');
-          if (isMounted) {
-            setError('MPEG-TS streams are not supported in this browser');
-          }
+      setEngineNotice(null);
+      setIsRecovering(false);
+      setIsLoading(false);
+      setError(message);
+    };
+
+    const onNotice = (message: string | null): void => {
+      if (!isMounted) return;
+      if (message) console.log('[HLS Player] Engine notice:', message);
+      setEngineNotice(message);
+    };
+
+    // Both engines and the native path fire this once there is something to show.
+    const handleLoadedMetadata = (): void => {
+      if (!isMounted) return;
+      setIsLoading(false);
+      video.play().catch((err: unknown) => {
+        console.error('[HLS Player] Autoplay failed:', err);
+      });
+    };
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+    void attachSource(video, {
+      src,
+      kind,
+      live: true,
+      isTv: isTvRef.current,
+      withCredentials: false,
+      onError,
+      onNotice,
+    })
+      .then((attached) => {
+        if (!isMounted) {
+          attached.destroy();
+          return;
         }
-      }).catch((err: unknown) => {
-        console.error('[HLS Player] Failed to load mpegts.js:', err);
+        attachedRef.current = attached;
+        console.log('[HLS Player] Attached engine:', attached.engine);
+        if (attached.unplayable) {
+          // onError already reported it; nothing will ever play here.
+          setIsLoading(false);
+          setError(
+            kind === 'hls'
+              ? 'HLS is not supported in this browser'
+              : 'MPEG-TS streams are not supported in this browser'
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('[HLS Player] Failed to load the player engine:', err);
         if (isMounted) {
-          setError('Failed to load MPEG-TS player');
+          setIsLoading(false);
+          setError(
+            kind === 'hls' ? 'Failed to load HLS player' : 'Failed to load MPEG-TS player'
+          );
         }
       });
-    }
 
-    // Set up stall detection for live streams
-    // This detects when playback stops progressing and attempts recovery
+    /*
+     * Stall detection, for HLS only. The transport stream engine watches its
+     * own media clock and rebuilds itself; doing it here as well would rebuild
+     * the same stream twice. hls.js has no such watch, so a live playlist that
+     * stops advancing without an error is caught here and rebuilt.
+     */
     const startStallDetection = (): void => {
+      if (kind !== 'hls') return;
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
       }
@@ -563,7 +390,7 @@ export function HlsPlayerModal({
       let stallCount = 0;
 
       stallCheckIntervalRef.current = setInterval(() => {
-        if (!isMounted || !video) return;
+        if (!isMounted) return;
 
         const currentTime = video.currentTime;
 
@@ -572,22 +399,13 @@ export function HlsPlayerModal({
           stallCount++;
           console.log(`[HLS Player] Stall detected (${stallCount}/3), currentTime: ${currentTime}`);
 
-          // After 3 consecutive stalls (15 seconds), attempt recovery
+          // After 3 consecutive stalls (15 seconds), rebuild
           if (stallCount >= 3) {
-            console.log('[HLS Player] Stream stalled, attempting recovery...');
+            console.log('[HLS Player] Stream stalled, rebuilding...');
             stallCount = 0;
-
-            // For HLS, try to reload
-            if (hlsRef.current) {
-              hlsRef.current.startLoad();
-            }
-            // For mpegts, schedule a retry
-            else if (mpegtsRef.current) {
-              scheduleRetry();
-            }
+            scheduleRetry();
           }
         } else {
-          // Reset stall count if playback is progressing
           stallCount = 0;
         }
 
@@ -597,9 +415,15 @@ export function HlsPlayerModal({
 
     // Start stall detection once video starts playing
     const handlePlaying = (): void => {
-      console.log('[HLS Player] Video playing, starting stall detection');
-      // Reset retry count on successful playback
+      console.log('[HLS Player] Video playing');
+      // A picture is proof of recovery: the retry budget comes back.
       retryCountRef.current = 0;
+      if (isMounted) {
+        setIsLoading(false);
+        setIsRecovering(false);
+        setEngineNotice(null);
+        setError(null);
+      }
       startStallDetection();
     };
 
@@ -608,6 +432,7 @@ export function HlsPlayerModal({
     return () => {
       isMounted = false;
       video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
 
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
@@ -619,24 +444,9 @@ export function HlsPlayerModal({
         retryTimeoutRef.current = null;
       }
 
-      // The recovery check outlives the player it was asking about unless it is
-      // cancelled here: closing the modal mid-check would otherwise fire a rebuild
-      // into a torn-down page and open a connection nobody is watching.
-      if (recoveryCheckRef.current) {
-        clearTimeout(recoveryCheckRef.current);
-        recoveryCheckRef.current = null;
-      }
-
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-      if (mpegtsRef.current) {
-        mpegtsRef.current.destroy();
-        mpegtsRef.current = null;
-      }
+      destroyAttached();
     };
-  }, [isOpen, streamUrl, isHlsStream, channel.url, refreshKey, scheduleRetry]);
+  }, [isOpen, streamUrl, isHlsStream, refreshKey, scheduleRetry, destroyAttached]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
@@ -835,14 +645,17 @@ export function HlsPlayerModal({
         {/* Video Container */}
         <div className="relative aspect-video bg-black">
           {/* Loading Indicator */}
-          {(isLoading || isRecovering) && !hasError ? <div
+          {(isLoading || isRecovering || engineNotice) && !hasError ? <div
               data-testid="loading-indicator"
               className="absolute inset-0 flex items-center justify-center bg-black/50"
             >
               <div className="flex flex-col items-center gap-3">
                 <div className="w-12 h-12 border-4 border-zinc-700 border-t-blue-500 rounded-full animate-spin" />
                 <span className="text-zinc-400 text-sm">
-                  {isRecovering ? `Reconnecting (${retryCountRef.current}/${MAX_RETRIES})...` : 'Loading stream...'}
+                  {engineNotice ??
+                    (isRecovering
+                      ? `Reconnecting (${retryCountRef.current}/${MAX_RETRIES})...`
+                      : 'Loading stream...')}
                 </span>
               </div>
             </div> : null}

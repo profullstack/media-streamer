@@ -10,9 +10,26 @@
  *   /api/player?type=tv&channel=<raw-stream>    convenience: proxies via iptv-proxy
  *
  * Optional: &title=…  &poster=…  &autoplay=0
+ *
+ * Playback is @profullstack/player's `attachSource`, loaded as an ES module.
+ * The page keeps its own UI (native <video controls>, the docked audio bar) and
+ * the package only decides how the bytes reach the element: hls.js, native HLS
+ * on iOS, or mpegts.js for raw transport streams. The connect token goes to HLS
+ * and transport streams as an `Authorization: Bearer` header; a native element
+ * cannot send headers, so progressive streams still carry it in the URL.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import playerPackage from '@profullstack/player/package.json';
+
+/**
+ * The player, pinned to exactly the version this app depends on, so the embed
+ * and the in-app players can never drift apart. jsDelivr's +esm build rewrites
+ * the package's lazy engine chunks and its hls.js / mpegts.js imports to CDN
+ * modules, which the page's script-src already allows; an MP4 page still only
+ * ever downloads the native engine.
+ */
+const PLAYER_MODULE = `https://cdn.jsdelivr.net/npm/@profullstack/player@${playerPackage.version}/+esm`;
 
 function esc(s: string): string {
   return String(s ?? '').replace(/[<>&"']/g, (c) =>
@@ -166,7 +183,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   // Audio/ebook elements can't set Authorization headers, so put the connect
-  // token in the gated stream URL. Video uses hls.js xhrSetup (header) instead.
+  // token in the gated stream URL. HLS and transport streams send it as a
+  // header through the player's `headers` option instead.
   const tokenRaw = q.get('token') || '';
   if (tokenRaw && ['audio', 'radio', 'podcast', 'music', 'ebook', 'book', 'tv'].includes(type) && /\/api\/(stream|iptv-proxy)/.test(src)) {
     src += (src.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(tokenRaw);
@@ -176,20 +194,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const tk = JSON.stringify(tokenRaw); // connect token for gated proxy streams (video → header)
   const ap = autoplay ? ' autoplay' : '';
 
-  // Radio = HLS audio (via the auth'd proxy) — docked live bar, hls.js + token header.
+  // Radio = HLS audio (via the auth'd proxy) — docked live bar, token as a header.
   if (type === 'radio') {
     return html(SHELL(title, dockBar(title, subtitle || 'Live radio', poster, true) + `
-      <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
-      <script>
+      <script type="module">
+        import { attachSource } from '${PLAYER_MODULE}';
         ${DOCK_JS}
         var src=${j}, token=${tk}, autoplay=${autoplay ? 'true' : 'false'};
-        if(window.Hls && Hls.isSupported()){
-          var h=new Hls({xhrSetup:function(x){ if(token) x.setRequestHeader('Authorization','Bearer '+token); }});
-          h.on(Hls.Events.MANIFEST_PARSED, function(){ if(autoplay) a.play().catch(function(){}); });
-          h.on(Hls.Events.ERROR, function(e,d){ if(d&&d.fatal) err('Radio stream error — station offline or SiriusXM session expired.'); });
-          h.loadSource(src); h.attachMedia(a);
-        } else if(a.canPlayType('application/vnd.apple.mpegurl')){ a.src=src; if(autoplay) a.play().catch(function(){}); }
-        else { err('This browser can\\'t play the radio stream.'); }
+        var attached=null;
+        function fail(t){ if(attached){ attached.destroy(); attached=null; } err(t); }
+        a.addEventListener('loadedmetadata', function(){ if(autoplay) a.play().catch(function(){}); }, { once:true });
+        attachSource(a, {
+          src: src, kind: 'hls', live: true,
+          headers: token ? { Authorization: 'Bearer '+token } : undefined,
+          onError: function(){ fail('Radio stream error — station offline or SiriusXM session expired.'); }
+        }).then(function(r){
+          attached=r;
+          if(r.unplayable) fail('This browser can\\'t play the radio stream.');
+        }).catch(function(){ fail('This browser can\\'t play the radio stream.'); });
       </script>`, theme));
   }
 
@@ -199,7 +221,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const episodeId = q.get('episodeId') || '';
     const start = Math.max(0, parseInt(q.get('start') || '0', 10) || 0);
     return html(SHELL(title, dockBar(title, subtitle, poster, false) + `
-      <script>
+      <script type="module">
+        import { attachSource } from '${PLAYER_MODULE}';
         ${DOCK_JS}
         var src=${j}, autoplay=${autoplay ? 'true' : 'false'};
         var episodeId=${JSON.stringify(episodeId)}, token=${tk}, startAt=${start};
@@ -218,7 +241,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         a.addEventListener('timeupdate', function(){ var t=Date.now(); if(t-lastSent>10000){ lastSent=t; report(false); } });
         a.addEventListener('pause', function(){ report(false); });
         a.addEventListener('ended', function(){ report(true); });
-        a.src=src; if(autoplay) a.play().catch(function(){});
+        // Detected from the URL: a progressive file plays natively (the token is
+        // already in its URL), an HLS episode gets hls.js and the token as a header.
+        attachSource(a, {
+          src: src,
+          headers: token ? { Authorization: 'Bearer '+token } : undefined,
+          onError: function(){ err('Could not play this audio.'); }
+        }).then(function(r){
+          if(r.unplayable) return;
+          if(autoplay) a.play().catch(function(){});
+        }).catch(function(){ err('Could not play this audio.'); });
       </script>`, theme));
   }
 
@@ -253,44 +285,53 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // default: video. Mirrors bittorrented's "transcode only when necessary":
   // play the direct stream natively first; if the browser can't decode it,
   // fall back to the HLS transcode (passed as &hls=). Live TV / .m3u8 go
-  // straight to hls.js (already HLS).
+  // straight to the HLS engine (already HLS).
   const hlsFallback = q.get('hls') || '';
   const hf = JSON.stringify(hlsFallback);
   return html(SHELL(title, `
     ${title ? `<div class="bar"><b>▶</b> ${esc(title)}</div>` : ''}
     <video id="v" controls${ap} playsinline ${poster ? `poster="${esc(poster)}"` : ''}></video>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js"></script>
-    <script>
+    <script type="module">
+      import { attachSource } from '${PLAYER_MODULE}';
       var v=document.getElementById('v'), src=${j}, hlsUrl=${hf}, token=${tk};
-      function err(t){ document.getElementById('wrap').innerHTML='<div class="msg">'+t+'</div>'; }
+      var headers = token ? { Authorization: 'Bearer '+token } : undefined;
+      var attached=null, generation=0;
+      function drop(){ generation++; if(attached){ attached.destroy(); attached=null; } }
+      function err(t){ drop(); document.getElementById('wrap').innerHTML='<div class="msg">'+t+'</div>'; }
+      function attach(opts, onFail){
+        drop();
+        var mine=generation;
+        attachSource(v, Object.assign({ headers: headers }, opts)).then(function(r){
+          if(mine!==generation){ r.destroy(); return; }
+          attached=r;
+          if(r.unplayable){ onFail(r.unplayable); return; }
+          v.play().catch(function(){});
+        }).catch(function(e){ if(mine===generation) onFail(String(e)); });
+      }
       function playHls(u){
-        if(window.Hls && Hls.isSupported()){
-          var h=new Hls({enableWorker:true, xhrSetup:function(x){ if(token) x.setRequestHeader('Authorization','Bearer '+token); }});
-          h.on(Hls.Events.MANIFEST_PARSED, function(){ v.play().catch(function(){}); });
-          h.on(Hls.Events.ERROR, function(e,d){ if(d&&d.fatal) err('Stream error.'); });
-          h.loadSource(u); h.attachMedia(v);
-        } else if(v.canPlayType('application/vnd.apple.mpegurl')){ v.src=u; v.play().catch(function(){}); }
-        else { err('This browser can\\'t play HLS.'); }
+        attach({ src: u, kind: 'hls',
+          onError: function(){ err('Stream error.'); } },
+          function(){ err('This browser can\\'t play HLS.'); });
       }
       var triedHls=false;
+      function tryHlsInstead(){
+        // Many IPTV channels have no .ts/.m3u8 extension and are actually HLS —
+        // try HLS once before giving up. A dead channel fails both -> offline.
+        if(!triedHls){ triedHls=true; playHls(src); } else err('Stream error — channel may be offline.');
+      }
       function playMpegts(u){
         // Raw MPEG-TS (IPTV .ts) — Chromium can't play it natively or via hls.js.
-        // mpegts.js runs in a worker and needs an absolute URL; token rides in the URL.
-        if(window.mpegts && mpegts.isSupported()){
-          var abs = u.charAt(0)==='/' ? location.origin+u : u;
-          var p = mpegts.createPlayer({ type:'mpegts', isLive:true, url:abs },
-            { enableWorker:true, enableStashBuffer:true, stashInitialSize:384*1024,
-              liveBufferLatencyChasing:false, autoCleanupSourceBuffer:true });
-          p.on(mpegts.Events.ERROR, function(){
-            try{ p.destroy(); }catch(e){}
-            // Many IPTV channels have no .ts/.m3u8 extension and are actually HLS —
-            // try hls.js once before giving up. A dead channel fails both -> offline.
-            if(!triedHls){ triedHls=true; playHls(u); } else err('Stream error — channel may be offline.');
-          });
-          p.attachMediaElement(v); p.load(); v.play().catch(function(){});
-        } else if(!triedHls){ triedHls=true; playHls(u); }
-        else { err('This browser can\\'t play this channel.'); }
+        var abs = u.charAt(0)==='/' ? location.origin+u : u;
+        var played=false;
+        v.addEventListener('playing', function(){ played=true; }, { once:true });
+        attach({ src: abs, kind: 'mpegts', live: true,
+          onError: function(){ if(played) err('Stream error — channel may be offline.'); else tryHlsInstead(); },
+          // The engine reconnects on its own once a channel has played. A channel
+          // that fails before its first frame is more likely HLS without an
+          // extension, so that first failure goes straight to the HLS attempt
+          // rather than through five reconnects.
+          onNotice: function(m){ if(m && !played) tryHlsInstead(); } },
+          function(){ tryHlsInstead(); });
       }
       var inner = src; try { inner = decodeURIComponent(src); } catch(e) {}
       var isProxy = /iptv-proxy/.test(src);
@@ -302,7 +343,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         // token goes in the URL. On a decode error (unsupported codec), transcode
         // via the HLS fallback (matches the native site's "transcode only if needed").
         v.src = src + (token ? (src.indexOf('?')>=0?'&':'?')+'token='+encodeURIComponent(token) : '');
-        v.addEventListener('error', function(){ if(hlsUrl) playHls(hlsUrl); else err('Could not play this file.'); });
+        v.addEventListener('error', function(){ if(hlsUrl) playHls(hlsUrl); else err('Could not play this file.'); }, { once:true });
         v.play().catch(function(){});
       }
     </script>`, theme));
