@@ -11,7 +11,6 @@ import {
   isSupportedVideoFormat,
   getVideoMimeType,
   createVideoSource,
-  getDefaultPlayerOptions,
   VideoFormat,
 } from './video';
 
@@ -252,54 +251,6 @@ describe('Video Player Utilities', () => {
     it('should handle transcode=auto with retry parameter', () => {
       const source = createVideoSource('/api/stream?infohash=abc&fileIndex=0&transcode=auto&_retry=1', 'video.mp4');
       expect(source.requiresTranscoding).toBe(true);
-    });
-  });
-
-  describe('getDefaultPlayerOptions', () => {
-    it('should return default player options', () => {
-      const options = getDefaultPlayerOptions();
-      
-      expect(options.controls).toBe(true);
-      expect(options.autoplay).toBe(false);
-      expect(options.preload).toBe('auto');
-      expect(options.fluid).toBe(true);
-      expect(options.responsive).toBe(true);
-    });
-
-    it('should include playback rates', () => {
-      const options = getDefaultPlayerOptions();
-      
-      expect(options.playbackRates).toEqual([0.5, 0.75, 1, 1.25, 1.5, 2]);
-    });
-
-    it('should include control bar configuration', () => {
-      const options = getDefaultPlayerOptions();
-      
-      expect(options.controlBar).toBeDefined();
-      expect(options.controlBar?.pictureInPictureToggle).toBe(true);
-      expect(options.controlBar?.fullscreenToggle).toBe(true);
-    });
-
-    it('should allow overriding options', () => {
-      const options = getDefaultPlayerOptions({
-        autoplay: true,
-        muted: true,
-      });
-      
-      expect(options.autoplay).toBe(true);
-      expect(options.muted).toBe(true);
-      expect(options.controls).toBe(true); // Default preserved
-    });
-
-    it('should allow overriding control bar options', () => {
-      const options = getDefaultPlayerOptions({
-        controlBar: {
-          pictureInPictureToggle: false,
-        },
-      });
-      
-      expect(options.controlBar?.pictureInPictureToggle).toBe(false);
-      expect(options.controlBar?.fullscreenToggle).toBe(true); // Default preserved
     });
   });
 

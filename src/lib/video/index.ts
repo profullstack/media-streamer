@@ -10,13 +10,9 @@ export {
   isSupportedVideoFormat,
   getVideoMimeType,
   createVideoSource,
-  getDefaultPlayerOptions,
 } from './video';
 
 export type {
   VideoFormat,
   VideoSource,
-  PlayerOptions,
-  ControlBarOptions,
-  Html5Options,
 } from './video';
