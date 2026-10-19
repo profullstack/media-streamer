@@ -5,6 +5,7 @@ import Script from 'next/script';
 import './globals.css';
 import { TvLayoutProvider } from '@/components/layout';
 import { Providers } from '@/components/providers';
+import { PitFooter } from '@/components/layout/pit-footer';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteFooterProvider } from '@/components/layout/site-footer-context';
 
@@ -139,6 +140,7 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
 
         {/* CrawlProof ad loader — slots are placed per-page via <AdBanner>/<AdRectangle> and shown only to logged-out visitors. */}
         <Script src="https://crawlproof.com/ad.js" strategy="afterInteractive" />
+        <PitFooter />
       </body>
     </html>
   );
