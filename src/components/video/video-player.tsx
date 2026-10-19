@@ -2,22 +2,18 @@
 
 /**
  * Video Player Component
- * 
- * A robust video player using Video.js with HLS.js support for streaming.
- * Supports MP4, WebM, OGG, HLS (M3U8), and displays transcoding notice for unsupported formats.
+ *
+ * Built on @profullstack/player, the house player (profullstack.com/stack).
+ * It picks the engine from the source: native for MP4/WebM, hls.js for HLS
+ * wherever Media Source exists, native HLS on iOS, mpegts.js for transport
+ * streams. Displays a transcoding notice for formats the server converts.
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
-import videojs from 'video.js';
-import type Player from 'video.js/dist/types/player';
-import 'video.js/dist/video-js.css';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPlayer, type PlayerHandle } from '@profullstack/player';
+import '@profullstack/player/player.css';
 
-import {
-  createVideoSource,
-  getDefaultPlayerOptions,
-  type VideoSource,
-  type PlayerOptions,
-} from '@/lib/video';
+import { createVideoSource, type VideoSource } from '@/lib/video';
 import { cn } from '@/lib/utils';
 
 /**
@@ -32,10 +28,8 @@ export interface VideoPlayerProps {
   poster?: string;
   /** Optional CSS class name */
   className?: string;
-  /** Optional player options override */
-  options?: Partial<PlayerOptions>;
-  /** Callback when player is ready */
-  onReady?: (player: Player | null) => void;
+  /** Callback when player is ready, with the media element being driven */
+  onReady?: (media: HTMLMediaElement | null) => void;
   /** Callback when playback starts */
   onPlay?: () => void;
   /** Callback when playback pauses */
@@ -60,7 +54,6 @@ export function VideoPlayer({
   filename,
   poster,
   className,
-  options,
   onReady,
   onPlay,
   onPause,
@@ -71,267 +64,73 @@ export function VideoPlayer({
   autoplay = false,
 }: VideoPlayerProps): React.ReactElement {
   const videoRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<Player | null>(null);
-  /** Track if we're using native <video> instead of Video.js (iOS/Safari HLS path) */
-  const isNativePlayerRef = useRef(false);
-  const [videoSource, setVideoSource] = useState<VideoSource | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Callbacks are read through a ref so a parent re-render with new function
+  // identities does not tear the player down and restart the stream.
+  const callbacks = useRef({ onReady, onPlay, onPause, onEnded, onTimeUpdate, onError });
+  useEffect(() => {
+    callbacks.current = { onReady, onPlay, onPause, onEnded, onTimeUpdate, onError };
+  });
+
   // Create video source configuration
+  const videoSource = useMemo<VideoSource>(() => createVideoSource(src, filename), [src, filename]);
+
+  // Build the player when the source changes
   useEffect(() => {
-    const source = createVideoSource(src, filename);
-    setVideoSource(source);
-  }, [src, filename]);
+    const root = videoRef.current;
+    if (!root) return;
 
-  // Initialize player
-  const initializePlayer = useCallback(() => {
-    if (!videoRef.current || !videoSource) return;
-
-    // Don't reinitialize if player already exists (Video.js path)
-    if (playerRef.current) {
-      // Just update the source - use playbackType for the actual MIME type
-      // (may be different from original type if transcoding is enabled)
-      playerRef.current.src({
-        src: videoSource.src,
-        type: videoSource.playbackType,
-      });
-      return;
-    }
-
-    // Detect iOS/Safari + HLS early so we can decide the native-video path
-    const isIOSOrSafari = typeof navigator !== 'undefined' && (
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
-      (/Safari/.test(navigator.userAgent) && !/Chrome|Chromium/.test(navigator.userAgent))
-    );
-    const isHLSOnSafari = videoSource.format === 'hls' && isIOSOrSafari;
-
-    // If we previously used native video, either update its src (still HLS on Safari)
-    // or tear it down so Video.js can initialize for non-HLS sources.
-    if (isNativePlayerRef.current && videoRef.current) {
-      if (isHLSOnSafari) {
-        const existingVideo = videoRef.current.querySelector('video');
-        if (existingVideo) {
-          existingVideo.src = videoSource.src;
-          return;
-        }
-      } else {
-        // Source is no longer HLS-on-Safari — tear down native element
-        const existingVideo = videoRef.current.querySelector('video');
-        if (existingVideo) {
-          existingVideo.pause();
-          existingVideo.removeAttribute('src');
-          existingVideo.load();
-          existingVideo.remove();
-        }
-        isNativePlayerRef.current = false;
-      }
-    }
-
-    // Create video element
-    const videoElement = document.createElement('video-js');
-    videoElement.classList.add('vjs-big-play-centered');
-    // iOS Safari requires playsinline for inline video playback (without it,
-    // video only plays fullscreen and can fail silently in a modal context)
-    videoElement.setAttribute('playsinline', '');
-    videoElement.setAttribute('webkit-playsinline', '');
-    videoRef.current.appendChild(videoElement);
-
-    // Merge options - autoplay prop takes precedence over options.autoplay
-    // For transcoded fMP4 streams, disable VHS override so native <video> handles
-    // progressive playback. VHS is designed for HLS/DASH, not raw fMP4 streams,
-    // and will buffer indefinitely trying to parse segment metadata.
-    //
-    // For HLS on iOS/Safari, also use native playback — Safari's native HLS player
-    // is far more reliable than Video.js VHS on iOS. VHS fights with Safari's
-    // native MSE/HLS handling and causes "corruption" abort errors.
-    const useNativePlayback = videoSource.requiresTranscoding || isHLSOnSafari;
-    const html5Override = useNativePlayback ? {
-      vhs: { overrideNative: false },
-      nativeVideoTracks: true,
-      nativeAudioTracks: true,
-      nativeTextTracks: true,
-    } : undefined;
-
-    const playerOptions = getDefaultPlayerOptions({
-      ...options,
-      ...(html5Override ? { html5: html5Override } : {}),
-      poster,
-      autoplay: autoplay || options?.autoplay,
+    // Stream URLs carry no extension (/api/stream?infohash=...), so the
+    // playback MIME type is what tells the player which engine to use.
+    const handle: PlayerHandle = createPlayer(root, {
+      src: videoSource.src,
+      mimeType: videoSource.playbackType,
+      ...(poster ? { poster } : {}),
+      autoplay,
     });
+    const media = handle.media;
 
-    // On iOS/Safari with HLS, use native <video> element directly instead of
-    // Video.js VHS tech. Safari has a highly optimized native HLS player that
-    // handles m3u8 playlists natively. Video.js VHS intercepts HLS sources
-    // even with overrideNative=false and can cause "corruption" abort errors,
-    // media decode failures, and segment loading issues on iOS.
-    if (isHLSOnSafari) {
-      console.log('[VideoPlayer] iOS/Safari HLS detected — using native <video> element');
-      // Create a native video element instead of using Video.js
-      // Safari natively supports application/vnd.apple.mpegurl (HLS)
-      const nativeVideo = document.createElement('video');
-      nativeVideo.setAttribute('playsinline', '');
-      nativeVideo.setAttribute('webkit-playsinline', '');
-      nativeVideo.controls = true;
-      nativeVideo.preload = 'auto';
-      nativeVideo.style.width = '100%';
-      nativeVideo.style.height = '100%';
-      // CORS attribute is required so Safari's media engine can fetch HLS segments
-      // from our API endpoints (which return Access-Control-Allow-Origin: *)
-      nativeVideo.crossOrigin = 'anonymous';
-      if (poster) nativeVideo.poster = poster;
-      
-      // Remove the video-js element we just created and use native instead
-      videoRef.current.removeChild(videoElement);
-      videoRef.current.appendChild(nativeVideo);
-
-      // Attach event listeners BEFORE setting src so we don't miss early events
-      nativeVideo.addEventListener('loadedmetadata', () => {
-        console.log('[VideoPlayer] iOS HLS: loadedmetadata fired');
-        setIsLoading(false);
-        // Call onReady — the Player type is expected but modal handlers
-        // don't actually use the player reference, they just track ready state
-        if (onReady) onReady(null);
-      });
-      nativeVideo.addEventListener('play', () => onPlay?.());
-      nativeVideo.addEventListener('pause', () => onPause?.());
-      nativeVideo.addEventListener('ended', () => onEnded?.());
-      nativeVideo.addEventListener('timeupdate', () => {
-        onTimeUpdate?.(nativeVideo.currentTime, nativeVideo.duration || 0);
-      });
-      nativeVideo.addEventListener('error', () => {
-        const mediaError = nativeVideo.error;
-        const errorMessage = mediaError?.message || `Media error code ${mediaError?.code || 'unknown'}`;
-        console.error('[VideoPlayer] iOS HLS error:', errorMessage, 'code:', mediaError?.code);
-        setError(errorMessage);
-        onError?.(new Error(errorMessage));
-      });
-      // Track stalled/waiting events for debugging iOS playback issues
-      nativeVideo.addEventListener('stalled', () => {
-        console.warn('[VideoPlayer] iOS HLS: stalled event');
-      });
-      nativeVideo.addEventListener('waiting', () => {
-        console.warn('[VideoPlayer] iOS HLS: waiting for data');
-      });
-
-      // Set source and explicitly load — this triggers Safari to fetch the m3u8
-      nativeVideo.src = videoSource.src;
-      nativeVideo.load();
-
-      // Only attempt autoplay AFTER loadedmetadata fires to avoid iOS race conditions.
-      // iOS Safari rejects play() if called before the media engine has parsed the playlist.
-      if (autoplay || options?.autoplay) {
-        const playOnReady = () => {
-          nativeVideo.removeEventListener('loadedmetadata', playOnReady);
-          nativeVideo.play().catch((playErr) => {
-            console.warn('[VideoPlayer] iOS autoplay blocked:', playErr.message);
-            // Don't treat autoplay block as error — user can tap play via native controls
-          });
-        };
-        // If loadedmetadata already fired (unlikely but defensive), play immediately
-        if (nativeVideo.readyState >= 1) {
-          nativeVideo.play().catch((playErr) => {
-            console.warn('[VideoPlayer] iOS autoplay blocked:', playErr.message);
-          });
-        } else {
-          nativeVideo.addEventListener('loadedmetadata', playOnReady);
-        }
-      }
-
-      // Store ref for cleanup (no Video.js player in this path)
-      playerRef.current = null;
-      isNativePlayerRef.current = true;
-      return;
-    }
-
-    // Initialize Video.js player
-    const player = videojs(videoElement, playerOptions, function onPlayerReady() {
+    const onLoaded = (): void => {
       setIsLoading(false);
-      
-      // Set source - use playbackType for the actual MIME type
-      // (may be different from original type if transcoding is enabled)
-      this.src({
-        src: videoSource.src,
-        type: videoSource.playbackType,
-      });
-
-      // Call onReady callback
-      if (onReady) {
-        onReady(this);
-      }
-    });
-
-    // Event handlers
-    player.on('play', () => {
-      if (onPlay) onPlay();
-    });
-
-    player.on('pause', () => {
-      if (onPause) onPause();
-    });
-
-    player.on('ended', () => {
-      if (onEnded) onEnded();
-    });
-
-    player.on('timeupdate', () => {
-      if (onTimeUpdate) {
-        const currentTime = player.currentTime() ?? 0;
-        const duration = player.duration() ?? 0;
-        onTimeUpdate(currentTime, duration);
-      }
-    });
-
-    player.on('error', () => {
-      const playerError = player.error();
-      const errorMessage = playerError?.message ?? 'Unknown playback error';
-      setError(errorMessage);
-      if (onError) {
-        onError(new Error(errorMessage));
-      }
-    });
-
-    // Note: Transcoded videos now wait for initial data on the server side
-    // before starting FFmpeg, so no client-side reload is needed
-
-    playerRef.current = player;
-  }, [videoSource, options, poster, autoplay, onReady, onPlay, onPause, onEnded, onTimeUpdate, onError]);
-
-  // Initialize player when source is ready
-  useEffect(() => {
-    if (videoSource) {
-      initializePlayer();
-    }
-  }, [videoSource, initializePlayer]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      const player = playerRef.current;
-      if (player && !player.isDisposed()) {
-        player.dispose();
-        playerRef.current = null;
-      }
-      // Also clean up native video elements (iOS/Safari HLS path)
-      if (videoRef.current) {
-        const nativeVideo = videoRef.current.querySelector('video');
-        if (nativeVideo) {
-          nativeVideo.pause();
-          nativeVideo.removeAttribute('src');
-          nativeVideo.load();
-          // Remove the native video element from the DOM to avoid duplicates on re-init
-          if (nativeVideo.parentElement) {
-            nativeVideo.parentElement.removeChild(nativeVideo);
-          }
-        }
-      }
-      // Reset native player state flag so subsequent inits start from a clean state
-      if (isNativePlayerRef && typeof isNativePlayerRef.current !== 'undefined') {
-        isNativePlayerRef.current = false;
-      }
+      callbacks.current.onReady?.(media);
     };
-  }, []);
+    const onPlayEvent = (): void => callbacks.current.onPlay?.();
+    const onPauseEvent = (): void => callbacks.current.onPause?.();
+    const onEndedEvent = (): void => callbacks.current.onEnded?.();
+    const onTime = (): void => {
+      callbacks.current.onTimeUpdate?.(media.currentTime, media.duration || 0);
+    };
+    const onErrorEvent = (): void => {
+      const mediaError = media.error;
+      const message = mediaError?.message || `Media error code ${mediaError?.code ?? 'unknown'}`;
+      setIsLoading(false);
+      setError(message);
+      callbacks.current.onError?.(new Error(message));
+    };
+
+    media.addEventListener('loadedmetadata', onLoaded, { once: true });
+    media.addEventListener('play', onPlayEvent);
+    media.addEventListener('pause', onPauseEvent);
+    media.addEventListener('ended', onEndedEvent);
+    media.addEventListener('timeupdate', onTime);
+    media.addEventListener('error', onErrorEvent);
+
+    return () => {
+      media.removeEventListener('loadedmetadata', onLoaded);
+      media.removeEventListener('play', onPlayEvent);
+      media.removeEventListener('pause', onPauseEvent);
+      media.removeEventListener('ended', onEndedEvent);
+      media.removeEventListener('timeupdate', onTime);
+      media.removeEventListener('error', onErrorEvent);
+      handle.destroy();
+      root.replaceChildren();
+      // The next source starts from the loading state.
+      setIsLoading(true);
+      setError(null);
+    };
+  }, [videoSource, poster, autoplay]);
 
   return (
     <div className={cn('video-player-container', className)}>
@@ -391,9 +190,8 @@ export function VideoPlayer({
       {/* Video Player Container */}
       <div
         ref={videoRef}
-        data-vjs-player
         className={cn(
-          'video-js-container overflow-hidden rounded-lg',
+          'overflow-hidden rounded-lg',
           isLoading && 'hidden'
         )}
       />
@@ -429,23 +227,6 @@ export function VideoPreview({
       poster={poster}
       className={className}
       showTranscodingNotice={false}
-      options={{
-        controls: true,
-        autoplay: false,
-        preload: 'metadata',
-        fluid: true,
-        controlBar: {
-          fullscreenToggle: true,
-          pictureInPictureToggle: true,
-          volumePanel: true,
-          playToggle: true,
-          progressControl: true,
-          currentTimeDisplay: false,
-          timeDivider: false,
-          durationDisplay: false,
-          remainingTimeDisplay: false,
-        },
-      }}
     />
   );
 }

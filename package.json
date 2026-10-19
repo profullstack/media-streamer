@@ -88,7 +88,6 @@
     "sax": "^1.6.1",
     "tailwind-merge": "^3.7.0",
     "undici": "^8.12.2",
-    "video.js": "^8.24.2",
     "webtorrent": "^3.0.21"
   },
   "devDependencies": {
