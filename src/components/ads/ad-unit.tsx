@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks';
+import { AD_NETWORK_CODE, AD_NETWORK_SLOT } from '@/lib/ad-network';
 
 const CRAWLPROOF_SLOT = 'aa961cc7-96e6-4f77-b065-e962cd7bce6f';
 
@@ -40,20 +41,7 @@ export function AdUnit({ format, className }: AdUnitProps): React.ReactElement |
 
   useEffect(() => {
     if (!shouldRender) return;
-    let tries = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const trigger = (): void => {
-      if (window.crawlproofAds?.scan) {
-        window.crawlproofAds.scan();
-        return;
-      }
-      // ad.js loads `afterInteractive`; poll briefly until it's available.
-      if (tries++ < 20) {
-        timer = setTimeout(trigger, 250);
-      }
-    };
-    trigger();
-    return () => clearTimeout(timer);
+    return requestScan();
   }, [shouldRender]);
 
   if (!shouldRender) return null;
@@ -61,6 +49,53 @@ export function AdUnit({ format, className }: AdUnitProps): React.ReactElement |
   return (
     <div className={className} aria-hidden="true">
       <div data-cp-ad="" data-slot={CRAWLPROOF_SLOT} data-format={format} />
+    </div>
+  );
+}
+
+/** Ask ad.js to scan again; it loads `afterInteractive`, so poll briefly until it is there. */
+function requestScan(): () => void {
+  let tries = 0;
+  let timer: ReturnType<typeof setTimeout>;
+  const trigger = (): void => {
+    if (window.crawlproofAds?.scan) {
+      window.crawlproofAds.scan();
+      return;
+    }
+    // ad.js loads `afterInteractive`; poll briefly until it's available.
+    if (tries++ < 20) {
+      timer = setTimeout(trigger, 250);
+    }
+  };
+  trigger();
+  return () => clearTimeout(timer);
+}
+
+/**
+ * The ad.network 300×250 for the logged-out homepage (/invite-only).
+ *
+ * Unlike AdUnit it does not wait for auth: it is server-rendered, so the unit is in
+ * the page's raw HTML where ad.network looks for it. The page drops it (`show`
+ * false) once it knows the visitor is a member. Zero height until ad.js fills it.
+ */
+export function AdNetworkRectangle({ show = true, className }: { show?: boolean; className?: string }): React.ReactElement | null {
+  useEffect(() => {
+    if (!show) return;
+    return requestScan();
+  }, [show]);
+
+  if (!show) return null;
+
+  return (
+    <div className={`flex justify-center ${className ?? ''}`.trim()}>
+      <aside
+        data-ad-network={AD_NETWORK_CODE}
+        data-cp-ad=""
+        data-slot={AD_NETWORK_SLOT}
+        data-format="banner_300x250"
+        aria-label="Advertisement"
+        className="h-0 overflow-hidden data-[cp-filled]:h-auto data-[cp-filled]:min-h-[266px]"
+      />
     </div>
   );
 }

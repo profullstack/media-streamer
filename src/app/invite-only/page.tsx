@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { InviteLanding } from '@/components/home/invite-landing';
 import { MainLayout } from '@/components/layout';
+import { AdNetworkRectangle } from '@/components/ads/ad-unit';
 
 interface InviteView {
   code: string;
@@ -178,6 +179,10 @@ export default function InviteOnlyPage(): React.ReactElement {
           </div>
 
           <h1 className="text-2xl font-bold text-center mb-3">BitTorrented is invite only</h1>
+
+          {/* In the server render (state starts at loading), so ad.network sees it in the
+              raw HTML of the homepage; dropped once we know this is a member. */}
+          <AdNetworkRectangle show={state.kind !== 'member'} className="my-6" />
 
           {state.kind === 'loading' ? <p className="text-center text-text-secondary">Loading…</p> : null}
 
