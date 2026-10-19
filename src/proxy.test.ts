@@ -116,10 +116,10 @@ describe('Bot Handling Middleware', () => {
     expect(new URL(res!.headers.get('location')!).pathname).toBe('/login');
   });
 
-  it('should block AhrefsBot from expensive API routes', async () => {
+  it('should refuse AhrefsBot on expensive API routes (402 since x402-gateway 0.8: SEO resellers are sold a pass)', async () => {
     const res = await callMiddleware('/api/search/torrents', 'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)');
     expect(res).toBeDefined();
-    expect(res!.status).toBe(403);
+    expect(res!.status).toBe(402);
   });
 
   it('should block social media preview bots from expensive API routes', async () => {
@@ -141,7 +141,7 @@ describe('Bot Handling Middleware', () => {
 
 describe('Crawl Gateway (x402)', () => {
   const CHROME_UA =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36';
   const META_UA = 'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)';
 
   function callProxy(pathname: string, userAgent: string | null, headers: Record<string, string> = {}) {
@@ -206,7 +206,7 @@ describe('Crawl Gateway (x402)', () => {
 });
 
 describe('Supabase session refresh and referral cookie', () => {
-  const CHROME_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0.0.0 Safari/537.36';
+  const CHROME_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150.0.0.0 Safari/537.36';
   const META_UA = 'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)';
   const SUPABASE_URL = 'https://sb.test';
 
