@@ -6,69 +6,48 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import type { Channel } from '@/lib/iptv';
 
-// Mock mpegts.js player instance
-const mockMpegtsPlayer = {
-  attachMediaElement: vi.fn(),
-  load: vi.fn(),
-  destroy: vi.fn(),
-  on: vi.fn(),
-  off: vi.fn(),
-};
-
-// Mock mpegts.js module
-const mockMpegts = {
-  isSupported: vi.fn(() => true),
-  createPlayer: vi.fn(() => mockMpegtsPlayer),
-  Events: {
-    MEDIA_INFO: 'media_info',
-    ERROR: 'error',
-    LOADING_COMPLETE: 'loading_complete',
-  },
-};
-
-// Mock HLS.js - must be defined inside the factory
-vi.mock('hls.js', () => {
-  const mockHlsInstance = {
-    loadSource: vi.fn(),
-    attachMedia: vi.fn(),
-    destroy: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
+/*
+ * The modal no longer builds hls.js or mpegts.js itself: it hands its <video>
+ * to @profullstack/player's attachSource with the kind it detected. So the
+ * double is the package, and the assertions are about what this component
+ * still owns -- which kind it asks for, that it tears the attachment down, and
+ * what its UI does with the engine's callbacks.
+ */
+interface AttachCall {
+  media: HTMLMediaElement;
+  options: {
+    src: string;
+    kind?: string;
+    onError?: (message: string) => void;
+    onNotice?: (message: string | null) => void;
   };
+}
 
-  const MockHls = Object.assign(
-    vi.fn(() => mockHlsInstance),
-    {
-      isSupported: vi.fn(() => true),
-      Events: {
-        MANIFEST_PARSED: 'hlsManifestParsed',
-        ERROR: 'hlsError',
-      },
-      ErrorTypes: {
-        NETWORK_ERROR: 'networkError',
-        MEDIA_ERROR: 'mediaError',
-      },
-    }
-  );
+const { attachCalls, destroyAttached } = vi.hoisted(() => ({
+  attachCalls: [] as AttachCall[],
+  destroyAttached: vi.fn(),
+}));
 
-  return {
-    default: MockHls,
-  };
-});
-
-// Mock mpegts.js for MPEG-TS stream support (dynamic import)
-vi.mock('mpegts.js', () => {
-  return {
-    default: mockMpegts,
-  };
-});
+vi.mock('@profullstack/player', () => ({
+  attachSource: vi.fn(async (media: HTMLMediaElement, options: AttachCall['options']) => {
+    attachCalls.push({ media, options });
+    return Promise.resolve({
+      destroy: destroyAttached,
+      engine: options.kind === 'mpegts' ? 'mpegts' : 'hls',
+      kind: options.kind ?? 'unknown',
+      levels: () => [],
+    });
+  }),
+}));
 
 // Import after mocks are set up
 import { HlsPlayerModal } from './hls-player-modal';
-import Hls from 'hls.js';
+
+const hlsAttaches = (): number => attachCalls.filter((c) => c.options.kind === 'hls').length;
+const mpegtsAttaches = (): number => attachCalls.filter((c) => c.options.kind === 'mpegts').length;
 
 describe('HlsPlayerModal', () => {
   const mockChannel: Channel = {
@@ -83,6 +62,7 @@ describe('HlsPlayerModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    attachCalls.length = 0;
     // Mock HTMLMediaElement.play
     HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
     HTMLMediaElement.prototype.pause = vi.fn();
@@ -240,7 +220,7 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
     });
 
@@ -254,16 +234,15 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
       
       unmount();
       
-      // The destroy method should have been called
-      const hlsInstance = vi.mocked(Hls).mock.results[0]?.value;
-      if (hlsInstance) {
-        expect(hlsInstance.destroy).toHaveBeenCalled();
-      }
+      // The attachment should have been torn down
+      await waitFor(() => {
+        expect(destroyAttached).toHaveBeenCalled();
+      });
     });
 
     it('destroys HLS instance when modal closes', async () => {
@@ -276,7 +255,7 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
       
       rerender(
@@ -287,11 +266,10 @@ describe('HlsPlayerModal', () => {
         />
       );
       
-      // The destroy method should have been called
-      const hlsInstance = vi.mocked(Hls).mock.results[0]?.value;
-      if (hlsInstance) {
-        expect(hlsInstance.destroy).toHaveBeenCalled();
-      }
+      // The attachment should have been torn down
+      await waitFor(() => {
+        expect(destroyAttached).toHaveBeenCalled();
+      });
     });
   });
 
@@ -428,11 +406,11 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+        expect(mpegtsAttaches()).toBeGreaterThan(0);
       });
       
       // HLS.js should NOT be used for .ts streams
-      expect(Hls).not.toHaveBeenCalled();
+      expect(hlsAttaches()).toBe(0);
     });
 
     it('uses mpegts.js for proxied .ts stream URLs', async () => {
@@ -445,7 +423,7 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+        expect(mpegtsAttaches()).toBeGreaterThan(0);
       });
     });
 
@@ -459,11 +437,11 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
       
       // mpegts.js should NOT be used for .m3u8 streams
-      expect(mockMpegts.createPlayer).not.toHaveBeenCalled();
+      expect(mpegtsAttaches()).toBe(0);
     });
 
     it('destroys mpegts.js player on unmount', async () => {
@@ -476,13 +454,15 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+        expect(mpegtsAttaches()).toBeGreaterThan(0);
       });
       
       unmount();
       
-      // The destroy method should have been called
-      expect(mockMpegtsPlayer.destroy).toHaveBeenCalled();
+      // The attachment should have been torn down
+      await waitFor(() => {
+        expect(destroyAttached).toHaveBeenCalled();
+      });
     });
 
     it('destroys mpegts.js player when modal closes', async () => {
@@ -495,7 +475,7 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+        expect(mpegtsAttaches()).toBeGreaterThan(0);
       });
       
       rerender(
@@ -506,8 +486,90 @@ describe('HlsPlayerModal', () => {
         />
       );
       
-      // The destroy method should have been called
-      expect(mockMpegtsPlayer.destroy).toHaveBeenCalled();
+      // The attachment should have been torn down
+      await waitFor(() => {
+        expect(destroyAttached).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Engine attachment', () => {
+    it('declares HLS for a proxied playlist, whose path says nothing', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={{
+            id: 'proxied-hls',
+            name: 'Proxied HLS',
+            url: '/api/iptv-proxy?url=https%3A%2F%2Fexample.com%2Flive.m3u8',
+          }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(hlsAttaches()).toBe(1);
+      });
+      expect(attachCalls[0]?.options.src).toBe(
+        '/api/iptv-proxy?url=https%3A%2F%2Fexample.com%2Flive.m3u8'
+      );
+    });
+
+    it('hands mpegts.js an absolute URL for a proxied transport stream', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={{
+            id: 'proxied-ts',
+            name: 'Proxied TS',
+            url: '/api/iptv-proxy?url=https%3A%2F%2Fexample.com%2Fstream.ts',
+          }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mpegtsAttaches()).toBe(1);
+      });
+      expect(attachCalls[0]?.options.src).toBe(
+        `${window.location.origin}/api/iptv-proxy?url=https%3A%2F%2Fexample.com%2Fstream.ts`
+      );
+    });
+
+    it('shows the engine notice while it reconnects on its own', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={{ id: 'ts', name: 'TS', url: 'https://example.com/stream.ts' }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mpegtsAttaches()).toBe(1);
+      });
+      act(() => {
+        attachCalls[0]?.options.onNotice?.('Reconnecting… (1/5)');
+      });
+      expect(screen.getByTestId('loading-indicator')).toHaveTextContent('Reconnecting… (1/5)');
+    });
+
+    it('shows a transport stream failure with no rebuild of its own', async () => {
+      render(
+        <HlsPlayerModal
+          isOpen={true}
+          onClose={mockOnClose}
+          channel={{ id: 'ts', name: 'TS', url: 'https://example.com/stream.ts' }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mpegtsAttaches()).toBe(1);
+      });
+      act(() => {
+        attachCalls[0]?.options.onError?.('This stream could not be played (NetworkError).');
+      });
+      expect(screen.getByText('This stream could not be played (NetworkError).')).toBeInTheDocument();
     });
   });
 
@@ -590,7 +652,7 @@ describe('HlsPlayerModal', () => {
       
       await waitFor(() => {
         expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[HLS Player] Could not enter fullscreen'),
+          expect.stringContaining('[HLS Player] requestFullscreen failed'),
           expect.any(Error)
         );
       });
@@ -674,18 +736,18 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
       
       // Clear the mock to track new calls
-      vi.mocked(Hls).mockClear();
+      attachCalls.length = 0;
       
       const refreshButton = screen.getByRole('button', { name: /refresh/i });
       fireEvent.click(refreshButton);
       
       // Should create a new HLS instance
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
     });
 
@@ -706,20 +768,20 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+        expect(mpegtsAttaches()).toBeGreaterThan(0);
       });
       
       // Clear the mock to track new calls
-      mockMpegts.createPlayer.mockClear();
-      mockMpegtsPlayer.destroy.mockClear();
+      attachCalls.length = 0;
+      destroyAttached.mockClear();
       
       const refreshButton = screen.getByRole('button', { name: /refresh/i });
       fireEvent.click(refreshButton);
       
       // Should destroy old player and create a new one
       await waitFor(() => {
-        expect(mockMpegtsPlayer.destroy).toHaveBeenCalled();
-        expect(mockMpegts.createPlayer).toHaveBeenCalled();
+        expect(destroyAttached).toHaveBeenCalled();
+        expect(mpegtsAttaches()).toBeGreaterThan(0);
       });
     });
 
@@ -734,19 +796,11 @@ describe('HlsPlayerModal', () => {
       
       // Wait for initial load to complete
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
       
-      // Simulate manifest parsed to clear loading state
-      const hlsInstance = vi.mocked(Hls).mock.results[0]?.value;
-      if (hlsInstance) {
-        const onCall = hlsInstance.on.mock.calls.find(
-          (call: unknown[]) => call[0] === 'hlsManifestParsed'
-        );
-        if (onCall) {
-          onCall[1]();
-        }
-      }
+      // Simulate metadata arriving to clear loading state
+      fireEvent(screen.getByTestId('hls-video'), new Event('loadedmetadata'));
       
       // Click refresh
       const refreshButton = screen.getByRole('button', { name: /refresh/i });
@@ -774,19 +828,11 @@ describe('HlsPlayerModal', () => {
       );
       
       await waitFor(() => {
-        expect(Hls).toHaveBeenCalled();
+        expect(hlsAttaches()).toBeGreaterThan(0);
       });
       
-      // Simulate an error
-      const hlsInstance = vi.mocked(Hls).mock.results[0]?.value;
-      if (hlsInstance) {
-        const onCall = hlsInstance.on.mock.calls.find(
-          (call: unknown[]) => call[0] === 'hlsError'
-        );
-        if (onCall) {
-          onCall[1]('hlsError', { fatal: true, type: 'otherError', details: 'test' });
-        }
-      }
+      // Simulate the engine giving up
+      attachCalls[0]?.options.onError?.('This stream could not be played.');
       
       // Click refresh - should clear error and show loading
       const refreshButton = screen.getByRole('button', { name: /refresh/i });

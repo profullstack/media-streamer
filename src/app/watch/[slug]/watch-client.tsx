@@ -12,11 +12,13 @@
  *
  * And the stream is addressed by an opaque session id. The channel list carries no
  * URLs at all; the owner's provider credentials stay server-side. That is also why
- * this uses hls.js directly instead of the shared player modal, which would re-wrap
- * the URL through the generic IPTV proxy and undo the protection.
+ * this attaches the stream itself (@profullstack/player's attachSource, under the
+ * page's own native controls) instead of opening the shared player modal, which
+ * would re-wrap the URL through the generic IPTV proxy and undo the protection.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { attachSource } from '@profullstack/player';
 
 interface PublicShare {
   slug: string;
@@ -161,30 +163,35 @@ export function WatchClient({ slug }: { slug: string }): React.ReactElement {
     setSession(null);
   }
 
-  // Attach hls.js to the opaque session URL, and keep the slot alive.
+  // Attach the opaque session URL (HLS), and keep the slot alive.
   useEffect(() => {
     if (!session || !videoRef.current) return;
     const video = videoRef.current;
-    let hls: { destroy: () => void } | null = null;
+    let attached: { destroy: () => void } | null = null;
     let cancelled = false;
 
-    (async () => {
-      if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = session.url;
-      } else {
-        const { default: Hls } = await import('hls.js');
-        if (cancelled) return;
-        if (Hls.isSupported()) {
-          const instance = new Hls({ enableWorker: true });
-          instance.loadSource(session.url);
-          instance.attachMedia(video);
-          hls = instance;
-        } else {
-          setError('This browser cannot play this stream.');
+    // The session URL is opaque, so its path says nothing about the format:
+    // it is always an HLS playlist, and is declared as one. hls.js runs
+    // wherever Media Source exists, native HLS (iOS) everywhere else.
+    void attachSource(video, {
+      src: session.url,
+      kind: 'hls',
+      live: true,
+      onError: () => {
+        if (!cancelled) setError('This browser cannot play this stream.');
+      },
+    })
+      .then((result) => {
+        if (cancelled) {
+          result.destroy();
+          return;
         }
-      }
-      video.play().catch(() => {});
-    })();
+        attached = result;
+        if (!result.unplayable) video.play().catch(() => {});
+      })
+      .catch(() => {
+        if (!cancelled) setError('This browser cannot play this stream.');
+      });
 
     const beat = setInterval(() => {
       fetch(`${base}/session`, {
@@ -197,7 +204,7 @@ export function WatchClient({ slug }: { slug: string }): React.ReactElement {
     return () => {
       cancelled = true;
       clearInterval(beat);
-      hls?.destroy();
+      attached?.destroy();
     };
   }, [session, base]);
 
@@ -221,7 +228,7 @@ export function WatchClient({ slug }: { slug: string }): React.ReactElement {
     : channels;
 
   // Radio is the same flow with a different noun and a much shorter player. The
-  // stream is still HLS, so the media element and hls.js path are unchanged.
+  // stream is still HLS, so the media element and attach path are unchanged.
   const radio = share.kind === 'radio';
   const noun = radio ? 'stations' : 'channels';
   const verb = radio ? 'Listen' : 'Watch';
