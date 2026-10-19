@@ -30,7 +30,7 @@ importers:
         version: 1.0.3
       '@profullstack/footer':
         specifier: latest
-        version: 0.2.4(react@19.3.0)
+        version: 0.2.5(react@19.3.0)
       '@profullstack/live-translate':
         specifier: ^0.2.1
         version: 0.2.1
@@ -47,11 +47,11 @@ importers:
         specifier: ^0.4.0
         version: 0.4.0(next@16.4.0(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@26.6.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       '@profullstack/throttle':
-        specifier: ^0.2.3
-        version: 0.2.3
+        specifier: ^0.3.0
+        version: 0.3.0
       '@profullstack/x402-gateway':
-        specifier: ^0.7.0
-        version: 0.7.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@radix-ui/react-dialog':
         specifier: ^1.2.0
         version: 1.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1289,8 +1289,8 @@ packages:
   '@profullstack/emailer@1.0.3':
     resolution: {integrity: sha512-VyAtCcfnSI6LOwJvWogCr3ZNmEsaZw+iuWrqnosLsdcKsbRyCrCmXigMNZJZEjlgYlR+lK//PwNPG+xtCFvWAw==}
 
-  '@profullstack/footer@0.2.4':
-    resolution: {integrity: sha512-2ErIzHJCDA2baP8aK6f7rCHohW4EX+wnp7D1mrVMQTUxRcyZwKzmho96hhEFJndXRBGgxT3H/78BHOeBfLxTzg==}
+  '@profullstack/footer@0.2.5':
+    resolution: {integrity: sha512-/CKwFP3m+qM0ZFTC9Rj11fgClutJzeYliX44Qp4qwrv2JgA/1k4tVOB3mhkPhaeckUhnfg5UyESDI1uoWr9c2w==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -1348,12 +1348,12 @@ packages:
       react:
         optional: true
 
-  '@profullstack/throttle@0.2.3':
-    resolution: {integrity: sha512-wvbhtJUP1HLajxgBQYxgJ11GbgKutcJ0jZ54S4HMOc4yoTkSP8vgncr2wPsXoxvNXet0is6JcQuhLJwlg7n9SA==}
+  '@profullstack/throttle@0.3.0':
+    resolution: {integrity: sha512-qoR3MdB/kf6TmkTe5pZdW/y10wH5uC5EfxrrUmS5hL0V4BN17ZzyfHZm99Fge80ZsBVz4jDlLvAP5dkYksDOvQ==}
     engines: {node: '>=20.11'}
 
-  '@profullstack/x402-gateway@0.7.0':
-    resolution: {integrity: sha512-xsZRWHdOD9Y9EuRS4PsRmykVS2geOu/luY0jBlliOF3SEgxiLhgmx7ks+2jOUtGlq+cIfSonnk5eEObRGCOJ9w==}
+  '@profullstack/x402-gateway@0.8.1':
+    resolution: {integrity: sha512-13T4WOg6a+ebmZEc0q55k4dpJIi+cd4MB5e9Vl+upo2O6zNQ6soi7I/T1LrBqpQBwAV22h+VGpaeUbRm66Cv0Q==}
     engines: {node: '>=20.11'}
 
   '@puppeteer/browsers@3.2.4':
@@ -6186,7 +6186,7 @@ snapshots:
 
   '@profullstack/emailer@1.0.3': {}
 
-  '@profullstack/footer@0.2.4(react@19.3.0)':
+  '@profullstack/footer@0.2.5(react@19.3.0)':
     optionalDependencies:
       react: 19.3.0
 
@@ -6218,11 +6218,11 @@ snapshots:
       next: 16.4.0(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@26.6.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react: 19.3.0
 
-  '@profullstack/throttle@0.2.3':
+  '@profullstack/throttle@0.3.0':
     dependencies:
-      '@profullstack/x402-gateway': 0.7.0
+      '@profullstack/x402-gateway': 0.8.1
 
-  '@profullstack/x402-gateway@0.7.0':
+  '@profullstack/x402-gateway@0.8.1':
     dependencies:
       '@profullstack/keys': 0.1.0
 
