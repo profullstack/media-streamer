@@ -4,7 +4,8 @@ import { Footer } from '@profullstack/footer/react';
  * The site footer: @profullstack/footer (links, copyright and the Profullstack
  * webring). An async server component: it renders on the server, where the ring's
  * verifier reads it, and fetches the package's @latest template so a footer release
- * reaches the site without a redeploy.
+ * reaches the site without a redeploy. The pit.world network footer (pit-footer.tsx)
+ * follows it as the last thing in <body>.
  *
  * MainLayout is a client component, so it cannot render this itself: the root
  * layout renders it once and hands it down through SiteFooterProvider.
