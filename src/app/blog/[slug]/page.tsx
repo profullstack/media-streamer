@@ -69,9 +69,6 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         <article className="blog-prose">{post.excerpt}</article>
       )}
 
-      {/* Ad (logged-out only) */}
-      <AdRectangle className="mt-8" />
-
       <style>{`
         .blog-prose {
           margin-top: 2rem;

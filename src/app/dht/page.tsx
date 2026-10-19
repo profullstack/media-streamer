@@ -485,9 +485,6 @@ function DhtPageInner(): React.ReactElement {
           </div>
         ) : null}
 
-        {/* Ad (logged-out only) */}
-        <AdBanner className="my-2" />
-
         {/* Status when all loaded */}
         {!hasMore && results.length > 0 && !isLoading ? (
           <div className="text-center text-xs text-text-secondary">
