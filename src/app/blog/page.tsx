@@ -61,9 +61,6 @@ export default async function BlogPage() {
           ))}
         </ul>
       )}
-
-      {/* Ad (logged-out only) */}
-      <AdBanner className="mt-10" />
     </main>
   );
 }

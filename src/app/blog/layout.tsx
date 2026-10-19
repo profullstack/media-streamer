@@ -1,18 +1,15 @@
 'use client';
 
-import { AdUnit } from '@/components/ads/ad-unit';
 import { MainLayout } from '@/components/layout';
 
 /**
- * Every blog page carries one CrawlProof unit under the post: the text strip,
- * which collapses to nothing when there is no advertiser and, like every
- * AdUnit here, renders nothing for signed-in members.
+ * No ad here: the blog pages place their own in-content units (top of the
+ * index, top of each post), never one at the bottom against the footer.
  */
 export default function BlogLayout({ children }: { children: React.ReactNode }) {
   return (
     <MainLayout>
       {children}
-      <AdUnit format="text_link" className="flex justify-center" />
     </MainLayout>
   );
 }

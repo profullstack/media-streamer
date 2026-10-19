@@ -353,9 +353,6 @@ export default function TorrentsPage(): React.ReactElement {
             Showing all {torrents.length.toLocaleString()} torrents
           </div>
         )}
-
-        {/* Ad (logged-out only) */}
-        <AdBanner className="my-2" />
       </div>
 
       {/* Add magnet modal */}
