@@ -442,6 +442,8 @@ export class StreamingService {
       },
       lsd: true,
       webSeeds: true,
+      // utp-native segfaults on Node 26 (see TorrentService)
+      utp: false,
       maxConns: 30,
       path: this.downloadPath,
       downloadLimit: 3 * 1024 * 1024,
