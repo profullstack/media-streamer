@@ -236,6 +236,9 @@ export class TorrentService {
       tracker: true,
       lsd: true, // Local Service Discovery
       webSeeds: true,
+      // utp-native's prebuilt binary segfaults on Node 26, killing the whole
+      // server mid-index with no log. TCP + WebRTC peers cover discovery.
+      utp: false,
       // Use configured download path instead of /tmp/webtorrent
       path: this.downloadPath,
     } as Options);

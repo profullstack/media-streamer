@@ -43,6 +43,12 @@ describe('TorrentService', () => {
       const customService = new TorrentService({ metadataTimeout: 60000 });
       expect(customService).toBeInstanceOf(TorrentService);
     });
+
+    it('should disable uTP (utp-native segfaults on Node 26)', async () => {
+      const { default: WebTorrent } = await import('webtorrent');
+      new TorrentService();
+      expect(WebTorrent).toHaveBeenCalledWith(expect.objectContaining({ utp: false }));
+    });
   });
 
   describe('fetchMetadata', () => {
