@@ -50,6 +50,9 @@ const ALLOWED = [
   '/terms',
   '/privacy',
   '/blog',
+  // the x402 crawl sales page and its checkout (src/lib/crawl-gateway.ts): sells a day of
+  // crawl access to what is served here, nothing behind the gates
+  '/crawl',
   '/admin',
   '/api/admin',
   '/email',

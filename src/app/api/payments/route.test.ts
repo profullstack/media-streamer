@@ -62,298 +62,121 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 // Mock CoinPayPortal client
-const mockCreatePayment = vi.fn();
+const mockCreateCheckoutSession = vi.fn();
 vi.mock('@/lib/coinpayportal', () => ({
   getCoinPayPortalClient: vi.fn(function() {
     return {
-      createPayment: mockCreatePayment,
+      createCheckoutSession: mockCreateCheckoutSession,
     };
   }),
 }));
 
+const SESSION_ID = 'cs_AbCdEfGhIjKlMnOpQrStUvWx';
+
+function post(body: Record<string, unknown>): Request {
+  return new Request('http://localhost:3000/api/payments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 describe('Payment API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Mock successful CoinPayPortal API response
-    mockCreatePayment.mockResolvedValue({
-      success: true,
-      payment: {
-        id: 'coinpay-payment-123',
-        business_id: 'test-business-id',
-        amount: 4.99,
-        currency: 'USD',
-        blockchain: 'BTC',
-        crypto_amount: '0.00012345',
-        payment_address: 'bc1qtest123',
-        status: 'pending',
-        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        created_at: new Date().toISOString(),
-      },
-      paymentUrl: 'https://coinpayportal.com/pay/coinpay-payment-123',
+    mockCreateCheckoutSession.mockResolvedValue({
+      id: SESSION_ID,
+      url: `https://coinpayportal.com/checkout/${SESSION_ID}`,
     });
   });
 
   describe('POST /api/payments', () => {
-    it('should create a payment request for premium plan', async () => {
+    it('opens a CoinPay hosted checkout session for the premium plan', async () => {
       const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-          cryptoType: 'BTC',
-        }),
-      });
-
-      const response = await POST(request);
+      const response = await POST(post({ plan: 'premium' }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.payment).toBeDefined();
       expect(data.payment.plan).toBe('premium');
+      expect(data.payment.checkoutSessionId).toBe(SESSION_ID);
+      expect(data.paymentUrl).toBe(`https://coinpayportal.com/checkout/${SESSION_ID}`);
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith({
+        amount: 4.99,
+        description: 'BitTorrented premium subscription',
+        customerEmail: 'test@example.com',
+        accountId: 'user-123',
+        metadata: { orderId: 'pay-test-123', userId: 'user-123', plan: 'premium', userEmail: 'test@example.com' },
+        successUrl: expect.stringMatching(/\/account\?payment=success$/),
+        cancelUrl: expect.stringMatching(/\/pricing$/),
+      });
     });
 
-    it('should register the webhook at a route that actually exists (src/app/api/webhooks/coinpayportal)', async () => {
+    it('stores the order keyed by the session id until the webhook re-keys it', async () => {
       const { POST } = await import('./route');
-
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-          cryptoType: 'BTC',
-        }),
+      await POST(post({ plan: 'family' }));
+      expect(mockPaymentHistoryRepository.createPayment).toHaveBeenCalledWith('user-123', {
+        coinpayportalPaymentId: SESSION_ID,
+        amountUsd: 9.99,
+        plan: 'family',
+        metadata: { orderId: 'pay-test-123', userEmail: 'test@example.com', checkoutSessionId: SESSION_ID },
       });
-
-      await POST(request);
-
-      expect(mockCreatePayment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          webhookUrl: expect.stringMatching(/\/api\/webhooks\/coinpayportal$/),
-        })
-      );
     });
 
-    it('should create a payment request for family plan', async () => {
+    it('needs no coin: an old tab that still sends one gets the same session', async () => {
       const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'family',
-          cryptoType: 'ETH',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
+      const response = await POST(post({ plan: 'premium', cryptoType: 'BTC' }));
       expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(data.payment).toBeDefined();
-      expect(data.payment.plan).toBe('family');
+      expect(mockCreateCheckoutSession).toHaveBeenCalledTimes(1);
     });
 
     it('should reject invalid plan', async () => {
       const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'invalid',
-          cryptoType: 'BTC',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
+      const response = await POST(post({ plan: 'invalid' }));
       expect(response.status).toBe(400);
-      expect(data.error).toBeDefined();
+      expect((await response.json()).error).toBeDefined();
     });
 
     it('should reject free plan (no longer supported)', async () => {
       const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'free',
-          cryptoType: 'BTC',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
+      const response = await POST(post({ plan: 'free' }));
       expect(response.status).toBe(400);
-      expect(data.error).toContain('Invalid plan');
+      expect((await response.json()).error).toContain('Invalid plan');
     });
 
-    it('should reject missing crypto type', async () => {
+    it('refuses an account with no email (CoinPay needs it for the receipt)', async () => {
+      const authModule = await import('@/lib/auth');
+      vi.mocked(authModule.getCurrentUser).mockResolvedValueOnce({ id: 'user-123', email: '' });
       const { POST } = await import('./route');
-
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
+      const response = await POST(post({ plan: 'premium' }));
       expect(response.status).toBe(400);
-      expect(data.error).toContain('Crypto type is required');
-    });
-
-    it('should accept any crypto type (validation done by CoinPayPortal API)', async () => {
-      const { POST } = await import('./route');
-      // These are the valid CryptoBlockchain types from CoinPayPortal
-      const validCryptos = ['BTC', 'ETH', 'POL', 'SOL', 'USDC_ETH', 'USDC_POL', 'USDC_SOL'];
-
-      for (const cryptoType of validCryptos) {
-        const request = new Request('http://localhost:3000/api/payments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            plan: 'premium',
-            cryptoType,
-          }),
-        });
-
-        const response = await POST(request);
-        expect(response.status).toBe(200);
-      }
+      expect(mockCreateCheckoutSession).not.toHaveBeenCalled();
     });
 
     it('should require authentication', async () => {
-      // Mock unauthenticated user
       const authModule = await import('@/lib/auth');
       vi.mocked(authModule.getCurrentUser).mockResolvedValueOnce(null);
-
       const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-          cryptoType: 'BTC',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
+      const response = await POST(post({ plan: 'premium' }));
       expect(response.status).toBe(401);
-      expect(data.error).toContain('Authentication required');
+      expect((await response.json()).error).toContain('Authentication required');
     });
 
     it('should handle missing request body', async () => {
       const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
+      const request = new Request('http://localhost:3000/api/payments', { method: 'POST' });
       const response = await POST(request);
-      const data = await response.json();
-
       expect(response.status).toBe(400);
-      expect(data.error).toBeDefined();
     });
 
-    it('should return payment URL for CoinPayPortal hosted page', async () => {
+    it('should return the actual CoinPay error with 502 status', async () => {
+      const errorMessage = 'CoinPayPortal API error: 400 - customer_email is required';
+      mockCreateCheckoutSession.mockRejectedValueOnce(new Error(errorMessage));
       const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-          cryptoType: 'BTC',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.paymentUrl).toBeDefined();
-      expect(data.paymentUrl).toContain('coinpayportal.com/pay');
-    });
-
-    it('should include CoinPayPortal payment ID in response', async () => {
-      const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-          cryptoType: 'BTC',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.payment.coinPayId).toBe('coinpay-payment-123');
-    });
-
-    it('should handle CoinPayPortal API errors with 502 status', async () => {
-      mockCreatePayment.mockRejectedValueOnce(new Error('CoinPayPortal API error: No BTC wallet configured'));
-
-      const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-          cryptoType: 'BTC',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      // 502 Bad Gateway is returned for upstream service errors
+      const response = await POST(post({ plan: 'premium' }));
       expect(response.status).toBe(502);
-      expect(data.error).toBeDefined();
-      expect(data.error).toContain('CoinPayPortal API error');
-    });
-
-    it('should return the actual error message from CoinPayPortal', async () => {
-      const errorMessage = 'CoinPayPortal API error: No ETH wallet configured for this business. Please add a wallet address in the business settings.';
-      mockCreatePayment.mockRejectedValueOnce(new Error(errorMessage));
-
-      const { POST } = await import('./route');
-      
-      const request = new Request('http://localhost:3000/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: 'premium',
-          cryptoType: 'ETH',
-        }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(502);
-      expect(data.error).toBe(errorMessage);
+      expect((await response.json()).error).toBe(errorMessage);
+      expect(mockPaymentHistoryRepository.createPayment).not.toHaveBeenCalled();
     });
   });
 

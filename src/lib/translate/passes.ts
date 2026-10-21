@@ -32,6 +32,7 @@ function make(returnTo?: string): TranslationPasses {
     site: site(),
     app: 'bittorrented',
     label: 'BitTorrented translated audio',
+    property: 'bittorrented.com',
     redirect: (order) => `${site()}${returnTo && RETURN_PATH.test(returnTo) ? returnTo : '/vod'}?translation_order=${order}`,
   });
 }

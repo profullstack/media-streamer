@@ -6,6 +6,8 @@
 
 import crypto from 'crypto';
 import type {
+  CheckoutSession,
+  CheckoutSessionParams,
   CoinPayPortalConfig,
   CryptoBlockchain,
   PaymentResponse,
@@ -16,6 +18,19 @@ import type {
 
 const DEFAULT_BASE_URL = 'https://coinpayportal.com/api';
 const DEFAULT_PORTAL_URL = 'https://coinpayportal.com';
+
+/** The hostname CoinPay files every bittorrented sale under. */
+export function paymentProperty(appUrl: string | undefined = process.env.NEXT_PUBLIC_APP_URL): string {
+  try {
+    const host = new URL(appUrl || '').hostname.replace(/^www\./, '').toLowerCase();
+    if (host && host !== 'localhost' && !/^[\d.]+$/.test(host)) return host;
+  } catch {
+    // fall through
+  }
+  return 'bittorrented.com';
+}
+
+const SESSION_ID = /^cs_[A-Za-z0-9]{16,64}$/;
 
 export class CoinPayPortalClient {
   private apiKey: string;
@@ -110,6 +125,31 @@ export class CoinPayPortalClient {
       ...response,
       paymentUrl: `${this.portalUrl}/pay/${response.payment.id}`,
     };
+  }
+
+  /**
+   * Open a CoinPay hosted checkout session (POST /api/checkout/sessions): one
+   * page where the buyer picks any coin the business takes, or PayPal. The sale
+   * is filed under this site's hostname with the buyer's account id and email,
+   * and every webhook for it carries checkout_session_id + metadata.
+   */
+  async createCheckoutSession(params: CheckoutSessionParams): Promise<CheckoutSession> {
+    const response = await this.request<{ id?: string; url?: string }>('/checkout/sessions', {
+      method: 'POST',
+      body: JSON.stringify(checkoutSessionBody(params)),
+    });
+    const id = String(response.id ?? '');
+    if (!SESSION_ID.test(id)) throw new Error('CoinPayPortal API error: checkout session has no id');
+    // Only ever send buyers to CoinPay's own origin.
+    const origin = new URL(this.portalUrl).origin;
+    const url = new URL(response.url || `/checkout/${id}`, origin);
+    if (url.origin !== origin) throw new Error('CoinPayPortal API error: checkout session url is not on CoinPay');
+    return { id, url: url.toString() };
+  }
+
+  /** GET /api/checkout/sessions/:id with the business key (status + payment ids). */
+  async getCheckoutSession(id: string): Promise<{ success: boolean; session: Record<string, unknown> }> {
+    return this.request(`/checkout/sessions/${encodeURIComponent(id)}`);
   }
 
   /**
@@ -212,6 +252,27 @@ export class CoinPayPortalClient {
     const endpoint = `/supported-coins${queryString ? `?${queryString}` : ''}`;
     return this.request<SupportedCoinsResponse>(endpoint);
   }
+}
+
+/** The POST /api/checkout/sessions body for a bittorrented checkout. */
+export function checkoutSessionBody(params: CheckoutSessionParams): Record<string, unknown> {
+  return {
+    amount: params.amount,
+    currency: 'USD',
+    description: params.description,
+    customer_email: params.customerEmail,
+    account_id: params.accountId,
+    property: paymentProperty(),
+    metadata: params.metadata,
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+    expires_in_minutes: 60,
+  };
+}
+
+/** True for a CoinPay hosted checkout session id (cs_...). */
+export function isCheckoutSessionId(value: unknown): value is string {
+  return typeof value === 'string' && SESSION_ID.test(value);
 }
 
 // Singleton instance

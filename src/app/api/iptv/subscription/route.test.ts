@@ -142,9 +142,10 @@ describe('IPTV Subscription API', () => {
       expect(data.error).toContain('Invalid package');
     });
 
-    it('should create payment for new subscription', async () => {
+    it('opens a CoinPay hosted checkout session for a new subscription', async () => {
       vi.mocked(getCurrentUser).mockResolvedValueOnce(mockUser);
       vi.mocked(isValidPackageKey).mockReturnValue(true);
+      process.env.IPTV_ARGON_TEMPLATE_ID = '7';
 
       const mockService = {
         getUserSubscription: vi.fn().mockResolvedValueOnce(null),
@@ -153,22 +154,14 @@ describe('IPTV Subscription API', () => {
       const mockRepository = {
         createPayment: vi.fn().mockResolvedValueOnce({
           id: 'pay-123',
-          coinpayportal_payment_id: 'cpp-789',
+          coinpayportal_payment_id: 'cs_AbCdEfGhIjKlMnOpQrStUvWx',
         }),
       };
 
       const mockCoinPayPortal = {
-        createPayment: vi.fn().mockResolvedValueOnce({
-          success: true,
-          payment: {
-            id: 'cpp-789',
-            blockchain: 'ETH',
-            payment_address: '0x123...',
-            crypto_amount: '0.005',
-            status: 'pending',
-            expires_at: '2026-01-02T11:00:00Z',
-          },
-          paymentUrl: 'https://coinpayportal.com/pay/cpp-789',
+        createCheckoutSession: vi.fn().mockResolvedValueOnce({
+          id: 'cs_AbCdEfGhIjKlMnOpQrStUvWx',
+          url: 'https://coinpayportal.com/checkout/cs_AbCdEfGhIjKlMnOpQrStUvWx',
         }),
       };
 
@@ -178,7 +171,7 @@ describe('IPTV Subscription API', () => {
 
       const request = new NextRequest('http://localhost/api/iptv/subscription', {
         method: 'POST',
-        body: JSON.stringify({ packageKey: '1_month', cryptoType: 'ETH' }),
+        body: JSON.stringify({ packageKey: '1_month' }),
       });
 
       const response = await POST(request);
@@ -186,7 +179,29 @@ describe('IPTV Subscription API', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.success).toBe(true);
-      expect(data.paymentUrl).toBeDefined();
+      expect(data.paymentUrl).toBe('https://coinpayportal.com/checkout/cs_AbCdEfGhIjKlMnOpQrStUvWx');
+      expect(mockCoinPayPortal.createCheckoutSession).toHaveBeenCalledWith({
+        amount: 14.99,
+        customerEmail: 'test@example.com',
+        accountId: 'user-123',
+        description: 'IPTV Subscription - 1 month',
+        metadata: {
+          type: 'iptv_subscription',
+          packageKey: '1_month',
+          userId: 'user-123',
+          userEmail: 'test@example.com',
+          templateId: '7',
+        },
+        successUrl: expect.stringMatching(/\/account\?iptv_payment=success$/),
+        cancelUrl: expect.stringMatching(/\/account$/),
+      });
+      expect(mockRepository.createPayment).toHaveBeenCalledWith('user-123', {
+        coinpayportalPaymentId: 'cs_AbCdEfGhIjKlMnOpQrStUvWx',
+        amountUsd: 14.99,
+        packageKey: '1_month',
+        paymentType: 'new_subscription',
+        metadata: { templateId: 7, userEmail: 'test@example.com', checkoutSessionId: 'cs_AbCdEfGhIjKlMnOpQrStUvWx' },
+      });
     });
 
     it('should return 400 if user already has active subscription', async () => {
