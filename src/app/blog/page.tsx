@@ -24,7 +24,7 @@ export default async function BlogPage() {
       </p>
 
       {/* Ad (logged-out only) */}
-      <AdBanner className="mt-8" />
+      <AdBanner className="mt-3" />
 
       {posts.length === 0 ? (
         <p className="mt-10 text-muted-foreground">No posts yet.</p>
