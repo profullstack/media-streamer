@@ -363,6 +363,7 @@ export async function getGrantByPaymentId(paymentId: string): Promise<VodGrant |
   return data ? toGrant(data as Row) : null;
 }
 
+/** Mark a grant paid; false when it was already paid (or refunded) and nothing changed. */
 export async function markGrantPaid(
   grantId: string,
   fields: {
@@ -373,8 +374,8 @@ export async function markGrantPaid(
     txHash?: string | null;
     webhookEventType?: string | null;
   }
-): Promise<void> {
-  const { error } = await db()
+): Promise<boolean> {
+  const { data, error } = await db()
     .from('vod_grants')
     .update({
       status: 'paid',
@@ -387,8 +388,14 @@ export async function markGrantPaid(
       webhook_event_type: fields.webhookEventType ?? null,
       webhook_received_at: new Date().toISOString(),
     })
-    .eq('id', grantId);
+    .eq('id', grantId)
+    // Once only: a redelivery, or confirmed then forwarded, finds it paid
+    // already, so the earnings are counted once per payment.
+    .in('status', ['pending', 'expired'])
+    .select('id')
+    .maybeSingle();
   if (error) throw new Error(`Failed to mark grant paid: ${error.message}`);
+  return Boolean(data);
 }
 
 export async function markGrantStatus(grantId: string, status: GrantStatus): Promise<void> {

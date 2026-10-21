@@ -16,6 +16,7 @@ import { getPasses, isTranslationPayment } from '@/lib/translate';
 import { adoptSessionPayment } from '@/lib/coinpayportal/session-payments';
 import { processIptvWebhook } from '@/lib/argontv/webhook';
 import { getServerClient } from '@/lib/supabase/client';
+import { dispatchGrantWebhook, grantKindOf } from '@/lib/coinpayportal/grant-webhooks';
 
 // ============================================================================
 // Logging Utilities
@@ -392,6 +393,46 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     log(requestId, 'DEBUG', 'Webhook metadata', {
       fieldCount: Object.keys(payload.data.metadata).length,
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Pass payments (VOD, seedbox rentals, IPTV resale passes): CoinPay sends
+  // every event to this one business webhook, so they are dispatched on the
+  // metadata.type their checkout set (src/lib/coinpayportal/grant-webhooks.ts).
+  // Each handler flips its grant once, so redeliveries are no-ops.
+  // -------------------------------------------------------------------------
+  const grantKind = payload.type === 'test.webhook' ? null : grantKindOf(payload.data.metadata);
+  if (grantKind) {
+    try {
+      const outcome = await dispatchGrantWebhook(grantKind, {
+        type: payload.type,
+        paymentId: payload.data.payment_id,
+        amountCrypto: payload.data.amount_crypto || null,
+        currency: payload.data.currency || null,
+        txHash: payload.data.tx_hash || payload.data.merchant_tx_hash || null,
+      });
+      log(requestId, outcome.handled ? 'INFO' : 'WARN', 'Pass payment webhook', {
+        kind: grantKind,
+        paymentId: payload.data.payment_id,
+        action: outcome.action,
+        grantId: outcome.grantId,
+      });
+      // An unknown grant is answered 200: delivering it again cannot make it known.
+      return NextResponse.json({
+        success: outcome.handled,
+        kind: grantKind,
+        action: outcome.handled ? outcome.action : `ignored:${outcome.action}`,
+        grantId: outcome.grantId,
+        requestId,
+      });
+    } catch (error) {
+      // A 5xx makes CoinPay deliver it again, which a database blip needs.
+      log(requestId, 'ERROR', 'Pass payment webhook could not settle', {
+        kind: grantKind,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return NextResponse.json({ error: 'could not settle; retry', requestId }, { status: 500 });
+    }
   }
 
   // -------------------------------------------------------------------------

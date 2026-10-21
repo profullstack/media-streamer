@@ -270,7 +270,7 @@ export async function createCheckout(
     blockchain,
     description: `Seedbox rental: ${share.title}`.slice(0, 140),
     metadata: { type: 'seedbox_share', shareId: share.id, grantId: grant.id },
-    webhookUrl: base ? `${base}/api/webhooks/coinpayportal/share` : undefined,
+    webhookUrl: base ? `${base}/api/webhooks/coinpayportal` : undefined,
     redirectUrl: base ? `${base}/rent/${share.slug}?grant=${grant.id}` : undefined,
     merchantWalletAddress: share.payoutWalletAddress ?? undefined,
   });
@@ -703,7 +703,7 @@ export async function handleShareWebhook(payload: {
       const share = await repo.getShareById(grant.shareId);
       const windowMinutes = share?.passWindowMinutes ?? 1440;
       const expiresAt = new Date(Date.now() + windowMinutes * 60_000).toISOString();
-      await repo.markGrantPaid(grant.id, {
+      const changed = await repo.markGrantPaid(grant.id, {
         expiresAt,
         amountCrypto: payload.amountCrypto ?? null,
         cryptoCurrency: payload.currency ?? null,
@@ -711,6 +711,7 @@ export async function handleShareWebhook(payload: {
         txHash: payload.txHash ?? null,
         webhookEventType: payload.type,
       });
+      if (!changed) return { handled: true, action: 'already_paid', grantId: grant.id };
       await repo.incrementShareEarnings(grant.shareId, grant.amountUsd);
       return { handled: true, action: 'paid', grantId: grant.id };
     }

@@ -294,7 +294,7 @@ export async function createCheckout(
     blockchain,
     description: `IPTV pass: ${share.title}`.slice(0, 140),
     metadata: { type: 'iptv_share', shareId: share.id, grantId: grant.id },
-    webhookUrl: base ? `${base}/api/webhooks/coinpayportal/iptv-share` : undefined,
+    webhookUrl: base ? `${base}/api/webhooks/coinpayportal` : undefined,
     redirectUrl: base ? `${base}/watch/${share.slug}?grant=${grant.id}` : undefined,
     merchantWalletAddress: share.payoutWalletAddress ?? undefined,
   });
