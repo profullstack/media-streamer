@@ -13,6 +13,9 @@ import { getWebhookHandler } from '@/lib/coinpayportal/webhook-handler';
 import { getCoinPayPortalClient } from '@/lib/coinpayportal/client';
 import type { WebhookPayload } from '@/lib/coinpayportal/types';
 import { getPasses, isTranslationPayment } from '@/lib/translate';
+import { adoptSessionPayment } from '@/lib/coinpayportal/session-payments';
+import { processIptvWebhook } from '@/lib/argontv/webhook';
+import { getServerClient } from '@/lib/supabase/client';
 
 // ============================================================================
 // Logging Utilities
@@ -140,7 +143,9 @@ interface CoinPayPortalWebhookBody {
     platform_tx_hash?: string;
     message?: string;
     metadata?: Record<string, string>;
+    checkout_session_id?: string;
   };
+  checkout_session_id?: string;
 }
 
 // ============================================================================
@@ -180,6 +185,9 @@ function validateWebhookPayload(
   const message = rawData.message || rawData.data?.message;
   const metadata = rawData.metadata || rawData.data?.metadata;
   const createdAt = rawData.timestamp || rawData.created_at;
+  // Hosted checkout sessions: the session the payment was made in.
+  const checkoutSessionId =
+    rawData.data?.checkout_session_id || rawData.checkout_session_id || metadata?.checkout_session_id;
 
   // Log the raw payload structure
   log(requestId, 'DEBUG', 'Raw payload received', {
@@ -246,6 +254,7 @@ function validateWebhookPayload(
         platform_tx_hash: platformTxHash,
         message,
         metadata,
+        checkout_session_id: checkoutSessionId,
       },
       created_at: createdAt ?? new Date().toISOString(),
       business_id: rawData.business_id ?? '',
@@ -390,7 +399,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // -------------------------------------------------------------------------
   if (isTranslationPayment(payload.data.metadata)) {
     try {
-      const result = await getPasses().settle(payload.data.payment_id);
+      const result = await getPasses().settle({
+        paymentId: payload.data.payment_id,
+        sessionId: payload.data.checkout_session_id ?? '',
+        metadata: payload.data.metadata ?? {},
+      });
       log(requestId, 'INFO', 'Translation pass webhook settled', { paymentId: payload.data.payment_id, ...result });
       return NextResponse.json({ success: true, ...result, requestId });
     } catch (error) {
@@ -400,6 +413,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
       return NextResponse.json({ error: 'could not settle; retry', requestId }, { status: 500 });
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Hosted checkout sessions + IPTV: CoinPay delivers every event for this
+  // business here, so a session's payment is matched to its row (keyed by the
+  // session id until the payment exists) and IPTV rows go to the IPTV handler.
+  // -------------------------------------------------------------------------
+  try {
+    const adopted = await adoptSessionPayment(getServerClient(), payload);
+    if (adopted.rekeyed) {
+      log(requestId, 'INFO', 'Checkout session payment matched', {
+        sessionId: payload.data.checkout_session_id,
+        paymentId: payload.data.payment_id,
+        table: adopted.table,
+      });
+    }
+    if (adopted.abandonedAttempt) {
+      log(requestId, 'INFO', 'Abandoned attempt inside an open checkout session; ignored', {
+        sessionId: payload.data.checkout_session_id,
+        paymentId: payload.data.payment_id,
+        type: payload.type,
+      });
+      return NextResponse.json({ success: true, action: 'session_attempt_ignored', requestId });
+    }
+    if (adopted.table === 'iptv_payment_history') {
+      const iptv = await processIptvWebhook(payload);
+      log(requestId, 'INFO', 'IPTV payment webhook processed', { status: iptv.status, ...iptv.body });
+      return NextResponse.json({ ...iptv.body, requestId }, { status: iptv.status });
+    }
+  } catch (error) {
+    log(requestId, 'ERROR', 'Checkout session / IPTV webhook could not be processed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ error: 'could not settle; retry', requestId }, { status: 500 });
   }
 
   // -------------------------------------------------------------------------

@@ -7,9 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useSupportedCoins } from '@/hooks/use-supported-coins';
 
 /**
  * IPTV Package pricing info
@@ -53,7 +51,7 @@ interface IPTVSubscriptionResponse {
  */
 interface PaymentResponse {
   success: boolean;
-  payment?: { coinPayId?: string };
+  payment?: { checkoutSessionId?: string };
   paymentUrl?: string;
   error?: string;
 }
@@ -68,24 +66,14 @@ const KNOWN_PACKAGES = new Set(['1_month', '3_months', '6_months', '12_months', 
 export function IPTVSubscriptionSection({
   initialPackage = null,
 }: IPTVSubscriptionSectionProps = {}): React.ReactElement {
-  const router = useRouter();
-  const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [subscriptionData, setSubscriptionData] = useState<IPTVSubscriptionResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<string>(
     initialPackage && KNOWN_PACKAGES.has(initialPackage) ? initialPackage : '1_month'
   );
-  const [selectedCrypto, setSelectedCrypto] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
-
-  // Set default selected crypto when coins are loaded
-  useEffect(() => {
-    if (coins.length > 0 && !selectedCrypto) {
-      setSelectedCrypto(coins[0].symbol);
-    }
-  }, [coins, selectedCrypto]);
 
   // Fetch IPTV subscription data
   const fetchSubscription = useCallback(async () => {
@@ -119,7 +107,6 @@ export function IPTVSubscriptionSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           packageKey: selectedPackage,
-          cryptoType: selectedCrypto,
         }),
       });
 
@@ -129,9 +116,8 @@ export function IPTVSubscriptionSection({
         throw new Error(data.error || 'Failed to create payment');
       }
 
-      if (data.payment?.coinPayId) {
-        router.push(`/pay/${data.payment.coinPayId}`);
-      } else if (data.paymentUrl) {
+      // CoinPay hosted checkout: the buyer picks any coin or PayPal there.
+      if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
       }
     } catch (err) {
@@ -151,7 +137,6 @@ export function IPTVSubscriptionSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           packageKey: selectedPackage,
-          cryptoType: selectedCrypto,
         }),
       });
 
@@ -161,9 +146,8 @@ export function IPTVSubscriptionSection({
         throw new Error(data.error || 'Failed to create extension payment');
       }
 
-      if (data.payment?.coinPayId) {
-        router.push(`/pay/${data.payment.coinPayId}`);
-      } else if (data.paymentUrl) {
+      // CoinPay hosted checkout: the buyer picks any coin or PayPal there.
+      if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
       }
     } catch (err) {
@@ -318,42 +302,15 @@ export function IPTVSubscriptionSection({
           </div>
         </div>
 
-        {/* Crypto Selection */}
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Payment Method
-          </label>
-          {isLoadingCoins ? (
-            <div className="flex items-center gap-2 py-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
-              <span className="text-sm text-text-muted">Loading payment methods...</span>
-            </div>
-          ) : coinsError ? (
-            <p className="text-sm text-status-error py-2">{coinsError}</p>
-          ) : coins.length === 0 ? (
-            <p className="text-sm text-text-muted py-2">No payment methods available</p>
-          ) : (
-            <select
-              value={selectedCrypto}
-              onChange={(e) => setSelectedCrypto(e.target.value)}
-              className={cn(
-                'w-full max-w-xs rounded-lg border border-border-default bg-bg-secondary px-4 py-2',
-                'text-text-primary focus:border-accent-primary focus:outline-hidden'
-              )}
-            >
-              {coins.map((coin) => (
-                <option key={coin.symbol} value={coin.symbol}>
-                  {coin.name} ({coin.symbol})
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        {/* Payment Method */}
+        <p className="text-sm text-text-muted">
+          You pay on CoinPay&apos;s secure checkout page: any supported coin (BTC, ETH, SOL, USDC, USDT and more) or PayPal.
+        </p>
 
         {/* Purchase/Extend Button */}
         <button
           onClick={hasSubscription ? handleExtend : handlePurchase}
-          disabled={isProcessing || !selectedCrypto || coins.length === 0}
+          disabled={isProcessing}
           className={cn(
             'rounded-lg bg-accent-primary px-6 py-3',
             'text-sm font-medium text-white',
@@ -363,11 +320,9 @@ export function IPTVSubscriptionSection({
         >
           {isProcessing
             ? 'Processing...'
-            : !selectedCrypto
-              ? 'Select payment method'
-              : hasSubscription
-                ? 'Extend Subscription'
-                : 'Purchase Subscription'
+            : hasSubscription
+              ? 'Extend Subscription'
+              : 'Purchase Subscription'
           }
         </button>
       </div>

@@ -16,11 +16,12 @@ import {
   IPTV_PACKAGE_PRICES,
   type ArgonTVPackageKey,
 } from '@/lib/argontv';
-import { getCoinPayPortalClient, type CryptoBlockchain } from '@/lib/coinpayportal';
+import { getCoinPayPortalClient } from '@/lib/coinpayportal';
 
 interface SubscriptionRequestBody {
   packageKey: string;
-  cryptoType: string;
+  /** Ignored since hosted checkout: the buyer picks the coin (or PayPal) on CoinPay. */
+  cryptoType?: string;
 }
 
 /**
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const { packageKey, cryptoType } = body;
+    const { packageKey } = body;
 
     // Validate package key
     if (!packageKey || !isValidPackageKey(packageKey)) {
@@ -99,10 +100,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Validate crypto type is provided (actual coin validation is done by the API)
-    if (!cryptoType) {
+    // CoinPay files the sale under the buyer's email.
+    if (!user.email) {
       return NextResponse.json(
-        { error: 'Crypto type is required' },
+        { error: 'Add an email address to your account before subscribing.' },
         { status: 400 }
       );
     }
@@ -134,9 +135,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Use crypto type directly as the blockchain code (validated by CoinPayPortal API)
-    const blockchain = cryptoType as CryptoBlockchain;
-
     // Get template ID from environment
     const templateId = parseInt(process.env.IPTV_ARGON_TEMPLATE_ID ?? '0', 10);
 
@@ -144,9 +142,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     let coinPayResponse;
     try {
-      coinPayResponse = await coinPayPortal.createPayment({
+      coinPayResponse = await coinPayPortal.createCheckoutSession({
         amount: priceUsd,
-        blockchain,
+        customerEmail: user.email,
+        accountId: user.id,
         description: `IPTV Subscription - ${packageKey.replace('_', ' ')}`,
         metadata: {
           type: 'iptv_subscription',
@@ -155,8 +154,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           userEmail: user.email,
           templateId: templateId.toString(),
         },
-        webhookUrl: `${baseUrl}/api/iptv/subscription/webhook`,
-        redirectUrl: `${baseUrl}/account?iptv_payment=success`,
+        successUrl: `${baseUrl}/account?iptv_payment=success`,
+        cancelUrl: `${baseUrl}/account`,
       });
     } catch (apiError) {
       const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown payment provider error';
@@ -167,25 +166,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (!coinPayResponse.success || !coinPayResponse.payment) {
-      console.error('CoinPayPortal API returned unsuccessful response:', coinPayResponse);
-      return NextResponse.json(
-        { error: 'Payment provider returned an invalid response' },
-        { status: 502 }
-      );
-    }
-
     // Persist payment to database for tracking
     await repository.createPayment(user.id, {
-      coinpayportalPaymentId: coinPayResponse.payment.id,
+      // Keyed by the session until the webhook re-keys it to the payment id.
+      coinpayportalPaymentId: coinPayResponse.id,
       amountUsd: priceUsd,
       packageKey: packageKey as ArgonTVPackageKey,
       paymentType: 'new_subscription',
-      blockchain: coinPayResponse.payment.blockchain,
-      paymentAddress: coinPayResponse.payment.payment_address,
       metadata: {
         templateId,
         userEmail: user.email,
+        checkoutSessionId: coinPayResponse.id,
       },
     });
 
@@ -193,17 +184,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       success: true,
       payment: {
-        coinPayId: coinPayResponse.payment.id,
+        checkoutSessionId: coinPayResponse.id,
         packageKey,
         amountUsd: priceUsd,
-        cryptoType,
-        cryptoAmount: coinPayResponse.payment.crypto_amount,
-        paymentAddress: coinPayResponse.payment.payment_address,
-        status: coinPayResponse.payment.status,
-        expiresAt: coinPayResponse.payment.expires_at,
+        status: 'pending',
       },
-      // Redirect to CoinPayPortal hosted payment page
-      paymentUrl: coinPayResponse.paymentUrl,
+      // Redirect to the CoinPay hosted checkout page (any coin or PayPal)
+      paymentUrl: coinPayResponse.url,
     });
   } catch (error) {
     console.error('IPTV subscription payment error:', error);

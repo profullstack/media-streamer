@@ -11,6 +11,8 @@ import crypto from 'crypto';
 import { POST, GET } from './route';
 import * as webhookHandlerModule from '@/lib/coinpayportal/webhook-handler';
 import * as clientModule from '@/lib/coinpayportal/client';
+import * as sessionModule from '@/lib/coinpayportal/session-payments';
+import * as iptvWebhookModule from '@/lib/argontv/webhook';
 import type { WebhookPayload } from '@/lib/coinpayportal/types';
 
 // Mock the webhook handler module
@@ -21,6 +23,17 @@ vi.mock('@/lib/coinpayportal/webhook-handler', () => ({
 // Mock the CoinPayPortal client module
 vi.mock('@/lib/coinpayportal/client', () => ({
   getCoinPayPortalClient: vi.fn(),
+}));
+
+// Hosted checkout sessions + IPTV routing (session-payments.ts, argontv/webhook.ts)
+vi.mock('@/lib/coinpayportal/session-payments', () => ({
+  adoptSessionPayment: vi.fn(),
+}));
+vi.mock('@/lib/argontv/webhook', () => ({
+  processIptvWebhook: vi.fn(),
+}));
+vi.mock('@/lib/supabase/client', () => ({
+  getServerClient: vi.fn(() => ({})),
 }));
 
 const TEST_WEBHOOK_SECRET = 'test-webhook-secret';
@@ -49,6 +62,8 @@ describe('POST /api/webhooks/coinpayportal', () => {
     });
     // Default: signature verification passes
     mockVerifyWebhookSignature.mockReturnValue(true);
+    // Default: a payment_history row (or none), no session involved
+    vi.mocked(sessionModule.adoptSessionPayment).mockResolvedValue({ table: null, rekeyed: false, abandonedAttempt: false });
     vi.mocked(clientModule.getCoinPayPortalClient).mockReturnValue({
       verifyWebhookSignature: mockVerifyWebhookSignature,
     } as unknown as ReturnType<typeof clientModule.getCoinPayPortalClient>);
@@ -114,6 +129,45 @@ describe('POST /api/webhooks/coinpayportal', () => {
       business_id: 'biz-789',
     };
   }
+
+  describe('hosted checkout sessions', () => {
+    it('passes checkout_session_id to the matcher and then settles the subscription by payment id', async () => {
+      vi.mocked(sessionModule.adoptSessionPayment).mockResolvedValueOnce({ table: 'payment_history', rekeyed: true, abandonedAttempt: false });
+      mockHandleWebhook.mockResolvedValue({ success: true, action: 'subscription_activated', paymentId: 'pay-456', userId: 'user-123' });
+      const payload = createValidPayload('payment.confirmed', { checkout_session_id: 'cs_AbCdEfGhIjKlMnOpQrStUvWx' });
+      const response = await POST(createWebhookRequest(payload));
+      expect(response.status).toBe(200);
+      expect(vi.mocked(sessionModule.adoptSessionPayment).mock.calls[0]![1].data).toMatchObject({
+        payment_id: 'pay-456',
+        checkout_session_id: 'cs_AbCdEfGhIjKlMnOpQrStUvWx',
+      });
+      expect(mockHandleWebhook).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ payment_id: 'pay-456' }) }));
+    });
+
+    it('acknowledges an abandoned attempt inside an open session without touching the order', async () => {
+      vi.mocked(sessionModule.adoptSessionPayment).mockResolvedValueOnce({ table: null, rekeyed: false, abandonedAttempt: true });
+      const payload = createValidPayload('payment.expired', { checkout_session_id: 'cs_AbCdEfGhIjKlMnOpQrStUvWx' });
+      const response = await POST(createWebhookRequest(payload));
+      expect(response.status).toBe(200);
+      expect((await response.json()).action).toBe('session_attempt_ignored');
+      expect(mockHandleWebhook).not.toHaveBeenCalled();
+    });
+
+    it('sends an IPTV payment to the IPTV handler (CoinPay posts every event here)', async () => {
+      vi.mocked(sessionModule.adoptSessionPayment).mockResolvedValueOnce({ table: 'iptv_payment_history', rekeyed: true, abandonedAttempt: false });
+      vi.mocked(iptvWebhookModule.processIptvWebhook).mockResolvedValueOnce({ status: 200, body: { success: true, action: 'subscription_created' } });
+      const response = await POST(createWebhookRequest(createValidPayload('payment.confirmed')));
+      expect(response.status).toBe(200);
+      expect((await response.json()).action).toBe('subscription_created');
+      expect(mockHandleWebhook).not.toHaveBeenCalled();
+    });
+
+    it('answers 500 so CoinPay retries when the database is unreachable', async () => {
+      vi.mocked(sessionModule.adoptSessionPayment).mockRejectedValueOnce(new Error('db down'));
+      const response = await POST(createWebhookRequest(createValidPayload('payment.confirmed')));
+      expect(response.status).toBe(500);
+    });
+  });
 
   describe('CoinPayPortal flat format webhooks', () => {
     it('should process flat format payment.confirmed webhook', async () => {

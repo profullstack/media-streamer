@@ -45,6 +45,21 @@ describe('bittorrented.com offline, invite only', () => {
     expect((await get('/blogger')).status).toBe(307);
   });
 
+  it('serves the x402 crawl sales page and its checkout pages to everyone', async () => {
+    for (const path of ['/crawl', '/crawl/checkout/return']) {
+      expect(openWhileInviteOnly(path)).toBe(true);
+      const res = await get(path);
+      expect(res.status).not.toBe(307);
+      expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(410);
+    }
+    // A browser gets the HTML sales page, not the invite screen.
+    const page = await proxy(new NextRequest('https://bittorrented.com/crawl', { headers: { accept: 'text/html' } }));
+    expect(page.headers.get('content-type')).toMatch(/text\/html/);
+    expect(openWhileInviteOnly('/crawler')).toBe(false);
+    expect((await get('/crawler')).status).toBe(307);
+  });
+
   it('answers the rest of the API with JSON 401s for signed-out callers', async () => {
     for (const path of ['/api/search', '/api/seedbox/add', '/api/iptv/subscription', '/api/public/datasets']) {
       const res = await get(path);

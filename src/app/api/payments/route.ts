@@ -1,7 +1,8 @@
 /**
  * Payment API Route
  *
- * Creates payment sessions via CoinPayPortal for premium subscriptions.
+ * Creates CoinPay hosted checkout sessions for premium subscriptions: the
+ * buyer picks any coin bittorrented's CoinPay business takes, or PayPal.
  * No free tier - users must pay after trial expires.
  * Persists payment records to database for tracking.
  */
@@ -9,7 +10,7 @@
 import { NextResponse } from 'next/server';
 import { createPaymentRequest, getSubscriptionPrice, getPaymentHistoryRepository } from '@/lib/payments';
 import { getCurrentUser as getAuthUser } from '@/lib/auth';
-import { getCoinPayPortalClient, type CryptoBlockchain } from '@/lib/coinpayportal';
+import { getCoinPayPortalClient } from '@/lib/coinpayportal';
 import type { PaymentPlan } from '@/lib/supabase/types';
 
 // Valid plans (no free tier)
@@ -18,7 +19,8 @@ type ValidPlan = typeof VALID_PLANS[number];
 
 interface PaymentRequestBody {
   plan: string;
-  cryptoType: string;
+  /** Ignored since hosted checkout: the buyer picks the coin (or PayPal) on CoinPay. */
+  cryptoType?: string;
 }
 
 /**
@@ -55,7 +57,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const { plan, cryptoType } = body;
+    const { plan } = body;
 
     // Validate plan
     if (!plan || !VALID_PLANS.includes(plan as ValidPlan)) {
@@ -65,10 +67,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Validate crypto type is provided (actual coin validation is done by the API)
-    if (!cryptoType) {
+    // CoinPay files the sale under the buyer's email; every account has one,
+    // but refuse rather than open a checkout nobody can be receipted for.
+    if (!user.email) {
       return NextResponse.json(
-        { error: 'Crypto type is required' },
+        { error: 'Add an email address to your account before subscribing.' },
         { status: 400 }
       );
     }
@@ -77,7 +80,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const payment = createPaymentRequest({
       userId: user.id,
       plan: plan as ValidPlan,
-      cryptoType,
+      cryptoType: 'ANY',
     });
 
     // Get price for the plan
@@ -95,25 +98,23 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    // Use crypto type directly as the blockchain code (validated by CoinPayPortal API)
-    const blockchain = cryptoType as CryptoBlockchain;
-
-    // Create payment via CoinPayPortal API
+    // Open a CoinPay hosted checkout session (any coin or PayPal)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    let coinPayResponse;
+    let session;
     try {
-      coinPayResponse = await coinPayPortal.createPayment({
+      session = await coinPayPortal.createCheckoutSession({
         amount: price.usd,
-        blockchain,
         description: `BitTorrented ${plan} subscription`,
+        customerEmail: user.email,
+        accountId: user.id,
         metadata: {
           orderId: payment.id,
           userId: user.id,
           plan,
           userEmail: user.email,
         },
-        webhookUrl: `${baseUrl}/api/webhooks/coinpayportal`,
-        redirectUrl: `${baseUrl}/account?payment=success`,
+        successUrl: `${baseUrl}/account?payment=success`,
+        cancelUrl: `${baseUrl}/pricing`,
       });
     } catch (apiError) {
       const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown payment provider error';
@@ -124,44 +125,31 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    if (!coinPayResponse.success || !coinPayResponse.payment) {
-      console.error('CoinPayPortal API returned unsuccessful response:', coinPayResponse);
-      return NextResponse.json(
-        { error: 'Payment provider returned an invalid response' },
-        { status: 502 }
-      );
-    }
-
-    // Persist payment to database for tracking
+    // Persist the order keyed by the session id; the webhook re-keys it to
+    // the payment id once the buyer pays (src/lib/coinpayportal/session-payments.ts).
     const paymentRepo = getPaymentHistoryRepository();
     await paymentRepo.createPayment(user.id, {
-      coinpayportalPaymentId: coinPayResponse.payment.id,
+      coinpayportalPaymentId: session.id,
       amountUsd: price.usd,
       plan: plan as PaymentPlan,
-      blockchain: coinPayResponse.payment.blockchain,
-      paymentAddress: coinPayResponse.payment.payment_address,
       metadata: {
         orderId: payment.id,
         userEmail: user.email,
+        checkoutSessionId: session.id,
       },
     });
 
-    // Return payment details with redirect URL to CoinPayPortal hosted payment page
     return NextResponse.json({
       success: true,
       payment: {
         id: payment.id,
-        coinPayId: coinPayResponse.payment.id,
+        checkoutSessionId: session.id,
         plan: payment.plan,
         amountUsd: payment.amountUsd,
-        cryptoType: payment.cryptoType,
-        cryptoAmount: coinPayResponse.payment.crypto_amount,
-        paymentAddress: coinPayResponse.payment.payment_address,
-        status: coinPayResponse.payment.status,
-        expiresAt: coinPayResponse.payment.expires_at,
+        status: 'pending',
       },
-      // Redirect to CoinPayPortal hosted payment page
-      paymentUrl: coinPayResponse.paymentUrl,
+      // Redirect to the CoinPay hosted checkout page
+      paymentUrl: session.url,
     });
   } catch (error) {
     console.error('Payment creation error:', error);

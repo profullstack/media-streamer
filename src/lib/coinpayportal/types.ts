@@ -77,9 +77,30 @@ export interface WebhookPayload {
     platform_tx_hash?: string;
     message?: string;
     metadata?: Record<string, string>;
+    /** Set when the payment was made inside a hosted checkout session (cs_...). */
+    checkout_session_id?: string;
+    customer_email?: string;
+    account_id?: string;
+    property?: string;
   };
   created_at: string;
   business_id: string;
+}
+
+/** POST /api/checkout/sessions input (CoinPay hosted checkout: any coin or PayPal). */
+export interface CheckoutSessionParams {
+  amount: number;
+  description: string;
+  customerEmail: string;
+  accountId: string;
+  metadata: Record<string, string>;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+export interface CheckoutSession {
+  id: string;
+  url: string;
 }
 
 export interface SupportedCoin {

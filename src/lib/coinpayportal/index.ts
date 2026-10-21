@@ -4,13 +4,22 @@
  * Client library for CoinPayPortal API integration
  */
 
-export { CoinPayPortalClient, getCoinPayPortalClient, resetCoinPayPortalClient } from './client';
+export {
+  CoinPayPortalClient,
+  getCoinPayPortalClient,
+  resetCoinPayPortalClient,
+  checkoutSessionBody,
+  isCheckoutSessionId,
+  paymentProperty,
+} from './client';
 export {
   extractBearerToken,
   getCoinPayOAuthUserInfo,
   type CoinPayOAuthUserInfo,
 } from './oauth';
 export type {
+  CheckoutSession,
+  CheckoutSessionParams,
   CoinPayPortalConfig,
   CryptoBlockchain,
   CreatePaymentRequest,

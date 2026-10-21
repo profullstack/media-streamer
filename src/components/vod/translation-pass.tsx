@@ -74,7 +74,6 @@ export function useTranslationPass(): TranslationPass {
 export function TranslationPassBuy({ pass }: { pass: TranslationPass }): React.ReactElement | null {
   const { access, refresh } = pass;
   const [plan, setPlan] = useState('day');
-  const [coin, setCoin] = useState('');
   const [order, setOrder] = useState<{ id: string; url: string } | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -122,12 +121,11 @@ export function TranslationPassBuy({ pass }: { pass: TranslationPass }): React.R
   }, [access, order, check]);
 
   if (!access) return null;
-  const chosenCoin = coin || access.coins[0] || '';
   const chosen = access.plans.find((p) => p.id === plan) ?? access.plans[0];
 
   const buy = async (): Promise<void> => {
-    if (!chosen || !chosenCoin) return;
-    const selected = `${chosen.id}|${chosenCoin}`;
+    if (!chosen) return;
+    const selected = chosen.id;
     if (requestKey.current?.for !== selected) requestKey.current = { key: crypto.randomUUID(), for: selected };
     setBusy(true);
     setNote('Preparing secure checkout…');
@@ -135,13 +133,13 @@ export function TranslationPassBuy({ pass }: { pass: TranslationPass }): React.R
       const res = await fetch('/api/translate/passes/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ plan: chosen.id, coin: chosenCoin, requestKey: requestKey.current.key, returnTo: window.location.pathname }),
+        body: JSON.stringify({ plan: chosen.id, requestKey: requestKey.current.key, returnTo: window.location.pathname }),
       });
       const body = (await res.json()) as { id?: string; url?: string; error?: string };
       if (!res.ok || !body.id || !body.url) throw new Error(body.error || 'Checkout could not be opened.');
       setOrder({ id: body.id, url: body.url });
       window.open(body.url, '_blank', 'noopener');
-      setNote('Pay in the CoinPay tab; your video keeps playing here. Credit appears after confirmation.');
+      setNote('Pay in the CoinPay tab with any coin or PayPal; your video keeps playing here. Credit appears after confirmation.');
     } catch (error) {
       setNote(error instanceof Error ? error.message : 'Checkout could not be opened.');
     } finally {
@@ -166,14 +164,6 @@ export function TranslationPassBuy({ pass }: { pass: TranslationPass }): React.R
             {access.plans.map((p) => (
               <option key={p.id} value={p.id}>{p.name} · {money(p.priceCents * 10_000)}</option>
             ))}
-          </select>
-          <select
-            aria-label="Pay with"
-            className="rounded-md border border-border bg-background px-2 py-1 text-text-primary"
-            value={chosenCoin}
-            onChange={(e) => setCoin(e.target.value)}
-          >
-            {access.coins.map((c) => <option key={c} value={c}>{c.replaceAll('_', ' · ')}</option>)}
           </select>
           <button
             className="rounded-md bg-accent-primary px-3 py-1 font-semibold text-white hover:opacity-90 disabled:opacity-50"

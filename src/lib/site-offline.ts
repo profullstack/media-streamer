@@ -41,8 +41,13 @@ export const INVITE_ONLY_PAGE = '/invite-only';
  * The blog is the crawlproof autoblog: it was already public under the members gate and
  * legal mode, and only this list was turning it away. Under the full gate a post a day
  * landed where nobody outside could read it.
+ *
+ * And the x402 crawl sales page (/crawl, its checkout and return pages under
+ * /crawl/): a training crawler or its operator buying a pass has no account
+ * here by definition, and a 307 to /invite-only made the page unreachable. The
+ * crawl gateway (src/lib/crawl-gateway.ts) answers these paths itself.
  */
-const INVITE_ONLY_OPEN = [INVITE_ONLY_PAGE, '/signup', '/api/invites', '/blog'];
+const INVITE_ONLY_OPEN = [INVITE_ONLY_PAGE, '/signup', '/api/invites', '/blog', '/crawl'];
 
 export function openWhileInviteOnly(pathname: string): boolean {
   return INVITE_ONLY_OPEN.some((p) => pathname === p || pathname.startsWith(`${p}/`));

@@ -7,7 +7,7 @@
  * No free tier - all users start with a 3-day trial.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
@@ -105,19 +105,12 @@ const plans: Plan[] = [
 
 export default function PricingPage(): React.ReactElement {
   const router = useRouter();
+  // Shown on the page; the buyer picks on CoinPay's checkout (any of these, or PayPal).
   const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
-  const [selectedCrypto, setSelectedCrypto] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Set default selected crypto when coins are loaded
-  useEffect(() => {
-    if (coins.length > 0 && !selectedCrypto) {
-      setSelectedCrypto(coins[0].symbol);
-    }
-  }, [coins, selectedCrypto]);
 
   const handlePlanSelect = (plan: Plan): void => {
     if (plan.isTrial) {
@@ -141,7 +134,6 @@ export default function PricingPage(): React.ReactElement {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plan: selectedPlan.id,
-          cryptoType: selectedCrypto,
         }),
       });
 
@@ -151,11 +143,8 @@ export default function PricingPage(): React.ReactElement {
         throw new Error(data.error || 'Payment failed');
       }
 
-      // Redirect to our custom payment page
-      if (data.payment?.coinPayId) {
-        router.push(`/pay/${data.payment.coinPayId}`);
-      } else if (data.paymentUrl) {
-        // Fallback to CoinPayPortal hosted page
+      // CoinPay hosted checkout: the buyer picks any coin or PayPal there.
+      if (data.paymentUrl) {
         window.location.href = data.paymentUrl;
       }
     } catch (err) {
@@ -268,7 +257,7 @@ export default function PricingPage(): React.ReactElement {
         {/* Payment Methods */}
         <div className="text-center">
           <h3 className="text-lg font-semibold text-text-primary mb-4">
-            Pay with Crypto
+            Pay with Crypto or PayPal
           </h3>
           {isLoadingCoins ? (
             <div className="flex items-center justify-center gap-2">
@@ -288,7 +277,7 @@ export default function PricingPage(): React.ReactElement {
             </div>
           )}
           <p className="text-sm text-text-muted mt-4">
-            Powered by CoinPayPortal • Secure • Private • No credit card required
+            Powered by CoinPay • Secure • Private • PayPal accepted • No credit card required
           </p>
         </div>
 
@@ -320,7 +309,7 @@ export default function PricingPage(): React.ReactElement {
                 What payment methods do you accept?
               </h4>
               <p className="text-sm text-text-secondary">
-                We accept {coins.length > 0 ? coins.map(c => c.name).join(', ') : 'various cryptocurrencies'} through our secure payment partner CoinPayPortal.
+                We accept {coins.length > 0 ? coins.map(c => c.name).join(', ') : 'various cryptocurrencies'} and PayPal through our secure payment partner CoinPay.
               </p>
             </div>
             <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4">
@@ -355,40 +344,9 @@ export default function PricingPage(): React.ReactElement {
                 {selectedPlan.price}/{selectedPlan.period}
               </p>
 
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                Select Payment Method
-              </label>
-              {isLoadingCoins ? (
-                <div className="flex items-center gap-2 py-4">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
-                  <span className="text-sm text-text-muted">Loading payment methods...</span>
-                </div>
-              ) : coinsError ? (
-                <p className="text-sm text-status-error py-4">{coinsError}</p>
-              ) : coins.length === 0 ? (
-                <p className="text-sm text-text-muted py-4">No payment methods available</p>
-              ) : (
-                <div className={cn(
-                  'grid gap-2',
-                  coins.length <= 3 ? 'grid-cols-3' : coins.length <= 5 ? 'grid-cols-5' : 'grid-cols-4'
-                )}>
-                  {coins.map((coin) => (
-                    <button
-                      key={coin.symbol}
-                      onClick={() => setSelectedCrypto(coin.symbol)}
-                      className={cn(
-                        'flex flex-col items-center p-3 rounded-lg border transition-colors',
-                        selectedCrypto === coin.symbol
-                          ? 'border-accent-primary bg-accent-primary/10'
-                          : 'border-border-subtle hover:border-border-default'
-                      )}
-                    >
-                      <span className="text-xl">{cryptoSymbols[coin.symbol] || '●'}</span>
-                      <span className="text-xs text-text-muted mt-1">{coin.symbol}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <p className="text-sm text-text-muted">
+                Pay with any supported coin (BTC, ETH, SOL, USDC, USDT and more) or PayPal on the next page.
+              </p>
             </div>
 
             {error ? <div className="mb-4 p-3 rounded-lg bg-status-error/10 border border-status-error text-status-error text-sm">
@@ -397,18 +355,18 @@ export default function PricingPage(): React.ReactElement {
 
             <button
               onClick={handlePayment}
-              disabled={isLoading || !selectedCrypto || coins.length === 0}
+              disabled={isLoading}
               className={cn(
                 'w-full rounded-lg py-3 font-medium transition-colors',
                 'bg-accent-primary text-white hover:bg-accent-primary/90',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
             >
-              {isLoading ? 'Processing...' : selectedCrypto ? `Pay with ${selectedCrypto}` : 'Select payment method'}
+              {isLoading ? 'Processing...' : 'Continue to checkout'}
             </button>
 
             <p className="text-xs text-text-muted text-center mt-4">
-              You will be redirected to CoinPayPortal to complete your payment securely.
+              You will be redirected to CoinPay to complete your payment securely.
             </p>
           </div>
         </div> : null}
