@@ -138,7 +138,7 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         />
               <Script data-site="dbe5c461-626d-4359-afc7-aea1c79e89bf" src="https://crawlproof.com/stats.js" strategy="afterInteractive" />
 
-        {/* CrawlProof ad loader — slots are placed per-page via <AdBanner>/<AdRectangle> and shown only to logged-out visitors. */}
+        {/* CrawlProof ad loader — one text_link slot per page via <AdBanner>/<AdRectangle> (never the homepage), shown only to logged-out visitors. */}
         <Script src="https://crawlproof.com/ad.js" strategy="afterInteractive" />
         <PitFooter />
       </body>

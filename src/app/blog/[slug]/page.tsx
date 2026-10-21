@@ -58,7 +58,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         /> : null}
 
       {/* Ad (logged-out only) */}
-      <AdRectangle className="mt-8" />
+      <AdRectangle className="mt-3" />
 
       {post.html ? (
         <article
