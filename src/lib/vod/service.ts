@@ -292,7 +292,7 @@ export async function createCheckout(
     blockchain,
     description: `${provider.title}: ${opts.kind === 'weekly' ? 'weekly pass' : 'title'}`.slice(0, 140),
     metadata: { type: 'vod', providerId: provider.id, grantId: grant.id },
-    webhookUrl: base ? `${base}/api/webhooks/coinpayportal/vod` : undefined,
+    webhookUrl: base ? `${base}/api/webhooks/coinpayportal` : undefined,
     redirectUrl: base ? `${base}/vod/${provider.slug}?grant=${grant.id}` : undefined,
     merchantWalletAddress: provider.payoutWalletAddress ?? undefined,
   });
@@ -486,7 +486,7 @@ export async function handleVodWebhook(payload: {
       const permanent = grant.grantKind === 'title' && grant.accessMode === 'download';
       const windowMin = provider?.passWindowMinutes ?? 10080;
       const expiresAt = permanent ? null : new Date(Date.now() + windowMin * 60_000).toISOString();
-      await repo.markGrantPaid(grant.id, {
+      const changed = await repo.markGrantPaid(grant.id, {
         expiresAt,
         amountCrypto: payload.amountCrypto ?? null,
         cryptoCurrency: payload.currency ?? null,
@@ -494,6 +494,7 @@ export async function handleVodWebhook(payload: {
         txHash: payload.txHash ?? null,
         webhookEventType: payload.type,
       });
+      if (!changed) return { handled: true, action: 'already_paid', grantId: grant.id };
       await repo.incrementProviderEarnings(grant.providerId, grant.amountUsd);
       return { handled: true, action: 'paid', grantId: grant.id };
     }
