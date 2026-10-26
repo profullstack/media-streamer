@@ -8,6 +8,11 @@ const order = vi.fn();
 
 vi.mock('@/lib/auth', () => ({ getAuthenticatedUser: () => user() }));
 vi.mock('@/lib/admin', () => ({ checkUserAdmin: () => admin() }));
+vi.mock('@/lib/rewards', () => ({
+  INVITE_BONUS_DAYS: 7,
+  INVITER_MONTHLY_CAP: 5,
+  affiliateLink: async (id: string, base: string) => `${base}/invite-only?ref=AFF${id}`,
+}));
 vi.mock('@/lib/supabase', () => ({
   getServerClient: () => ({
     rpc,
@@ -40,8 +45,15 @@ describe('/api/invites', () => {
   it('lists invites with shareable links and the balance', async () => {
     rpc.mockResolvedValue({ data: 4, error: null });
     const body = await (await GET(req())).json();
-    expect(body).toMatchObject({ remaining: 4, unlimited: false, monthly: 5 });
-    expect(body.invites[0]).toMatchObject({ code: 'ABCDE-FGHJK', link: 'https://bittorrented.com/signup?invite=ABCDE-FGHJK' });
+    expect(body).toMatchObject({
+      remaining: 4,
+      unlimited: false,
+      monthly: 5,
+      bonusDays: 7,
+      bonusMonthlyCap: 5,
+      referralLink: 'https://bittorrented.com/invite-only?ref=AFFu1',
+    });
+    expect(body.invites[0]).toMatchObject({ code: 'ABCDE-FGHJK', link: 'https://bittorrented.com/i/ABCDE-FGHJK' });
     expect(rpc).toHaveBeenCalledWith('invite_balance', { p_user: 'u1' });
   });
 

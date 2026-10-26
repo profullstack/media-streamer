@@ -1,6 +1,6 @@
 {
   "name": "media-streamer",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,6 +18,7 @@
     "supabase:update-emails": "tsx --env-file=.env scripts/supabase-update-emails.ts",
     "supabase:delete-torrent": "tsx --env-file=.env scripts/supabase-delete-infohash.ts",
     "youtube:bulk": "tsx --env-file=.env scripts/youtube-bulk-subscriptions.ts",
+    "credits": "tsx --env-file-if-exists=.env scripts/credit-codes.ts",
     "academic:catalog": "tsx scripts/academic-catalog.ts",
     "academic:mirror": "tsx scripts/academic-mirror.ts",
     "enrich-metadata": "tsx --env-file=.env scripts/enrich-torrent-metadata.ts",
@@ -38,6 +39,7 @@
     "@alpacahq/alpaca-trade-api": "^5.0.0",
     "@mozilla/readability": "^0.6.0",
     "@noriginmedia/norigin-spatial-navigation": "^3.4.0",
+    "@profullstack/affiliates": "^0.2.0",
     "@profullstack/autoblog": "https://codeload.github.com/profullstack/autoblog/tar.gz/75e54af",
     "@profullstack/emailer": "^1.0.3",
     "@profullstack/footer": "latest",
@@ -45,6 +47,7 @@
     "@profullstack/notifications": "^0.1.4",
     "@profullstack/player": "0.16.0",
     "@profullstack/profile": "0.1.6",
+    "@profullstack/redeem-credits": "^0.2.0",
     "@profullstack/referrals": "^0.1.0",
     "@profullstack/stack": "^0.5.0",
     "@profullstack/throttle": "^0.3.4",

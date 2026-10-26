@@ -15,6 +15,7 @@ import { createServerClient } from '@/lib/supabase';
 import { isOpenInvite, normalizeInviteCode } from '@/lib/invites';
 import { COLUMNS, validateProfile, saveSignupProfile } from '@profullstack/profile';
 import { contactProfileStore } from '@/lib/contact-profile';
+import { attributeSignup } from '@/lib/rewards';
 
 /**
  * Request body for signup
@@ -225,6 +226,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // The account exists; the fields can be filled in from /account.
       console.error('[Signup] Contact profile save failed:', profileErr);
     }
+  }
+
+  // First-touch affiliate attribution from ?ref= / the referral_code cookie (new accounts only).
+  if ((data.user.identities?.length ?? 0) > 0) {
+    await attributeSignup(request, data.user.id);
   }
 
   // Capture signup IP from X-Forwarded-For (nginx proxy) or direct connection

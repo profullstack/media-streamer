@@ -31,7 +31,7 @@ describe('invite codes', () => {
 
   it('formats and links a code', () => {
     expect(formatInviteCode('ABCDEFGHJK')).toBe('ABCDE-FGHJK');
-    expect(inviteLink('https://bittorrented.com', 'ABCDEFGHJK')).toBe('https://bittorrented.com/signup?invite=ABCDE-FGHJK');
+    expect(inviteLink('https://bittorrented.com', 'ABCDEFGHJK')).toBe('https://bittorrented.com/i/ABCDE-FGHJK');
   });
 
   it('does not ask the database about a malformed code', async () => {

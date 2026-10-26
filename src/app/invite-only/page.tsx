@@ -35,6 +35,11 @@ interface InvitesResponse {
   remaining: number | null;
   unlimited: boolean;
   monthly: number;
+  /** Premium days an accepted invite gives the new member and the inviter. */
+  bonusDays?: number;
+  bonusMonthlyCap?: number;
+  /** The member's open affiliate link (?ref=), or null if it could not be made. */
+  referralLink?: string | null;
   invites: InviteView[];
 }
 
@@ -154,6 +159,16 @@ export default function InviteOnlyPage(): React.ReactElement {
     }
   };
 
+  const copyText = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      setError(`Copy failed. The link is ${text}`);
+    }
+  };
+
   const copy = async (invite: InviteView) => {
     try {
       await navigator.clipboard.writeText(invite.link);
@@ -214,6 +229,13 @@ export default function InviteOnlyPage(): React.ReactElement {
                         ? 'Admin: no limit.'
                         : `${state.data.remaining ?? 0} available. You get ${state.data.monthly} a month, and unused ones carry over.`}
                     </p>
+                    {state.data.bonusDays ? (
+                      <p className="mt-1 text-sm text-text-secondary">
+                        When someone joins on your invite and confirms their email, you both get{' '}
+                        {state.data.bonusDays} days of Premium
+                        {state.data.bonusMonthlyCap ? ` (you, up to ${state.data.bonusMonthlyCap} times a month)` : ''}.
+                      </p>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -251,6 +273,28 @@ export default function InviteOnlyPage(): React.ReactElement {
                   </ul>
                 )}
               </section>
+
+              {state.data.referralLink ? (
+                <section className="rounded-lg border border-border-default bg-bg-secondary p-5">
+                  <h2 className="text-lg font-semibold">Your referral link</h2>
+                  <p className="text-sm text-text-secondary">
+                    Unlimited and always the same. People who sign up after following it are credited to you. They
+                    still need an invite to join.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <code className="min-w-0 flex-1 basis-60 break-all rounded-lg bg-bg-tertiary px-3 py-2 text-sm">
+                      {state.data.referralLink}
+                    </code>
+                    <button
+                      type="button"
+                      className={cn(secondary, 'py-2 text-sm')}
+                      onClick={() => void copyText(state.data.referralLink ?? '', 'referral')}
+                    >
+                      {copied === 'referral' ? 'Copied' : 'Copy link'}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
 
               <InviteDialog
                 ref={dialog}

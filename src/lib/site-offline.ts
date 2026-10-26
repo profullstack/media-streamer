@@ -47,7 +47,7 @@ export const INVITE_ONLY_PAGE = '/invite-only';
  * here by definition, and a 307 to /invite-only made the page unreachable. The
  * crawl gateway (src/lib/crawl-gateway.ts) answers these paths itself.
  */
-const INVITE_ONLY_OPEN = [INVITE_ONLY_PAGE, '/signup', '/api/invites', '/blog', '/crawl'];
+const INVITE_ONLY_OPEN = [INVITE_ONLY_PAGE, '/signup', '/api/invites', '/blog', '/crawl', '/i'];
 
 export function openWhileInviteOnly(pathname: string): boolean {
   return INVITE_ONLY_OPEN.some((p) => pathname === p || pathname.startsWith(`${p}/`));

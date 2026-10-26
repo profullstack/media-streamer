@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 import { EmailAccountsSection } from './email-accounts-section';
 import { ConnectionsSection } from './connections-section';
+import { RedeemCodeCard } from '@/components/account/redeem-code-card';
 
 type SettingsTab = 'account' | 'playback' | 'iptv' | 'email' | 'connections';
 
@@ -215,6 +216,8 @@ export function SettingsContent(): React.ReactElement {
                     </div>
                   </div>
                 </div>
+
+                <RedeemCodeCard className="max-w-md" onRedeemed={() => window.location.reload()} />
 
                 <div className="border-t border-border-subtle pt-6">
                   <h3 className="text-sm font-semibold text-text-primary mb-4">Danger Zone</h3>

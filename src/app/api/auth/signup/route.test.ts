@@ -13,6 +13,7 @@ const mockFrom = vi.fn();
 
 const mockIsOpenInvite = vi.fn();
 
+vi.mock('@/lib/rewards', () => ({ ensureInviteBonus: vi.fn(async () => null), attributeSignup: vi.fn(async () => undefined) }));
 vi.mock('@/lib/invites', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/invites')>()),
   isOpenInvite: (...args: unknown[]) => mockIsOpenInvite(...args),

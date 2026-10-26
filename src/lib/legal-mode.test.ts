@@ -22,6 +22,13 @@ describe('legal mode', () => {
     }
   });
 
+  it('serves credit codes, invites and short invite links', () => {
+    for (const p of ['/invites', '/i/ABCDE-FGHJK', '/api/account/redeem', '/api/admin/credit-codes']) {
+      expect(legallyServed(p), p).toBe(true);
+    }
+    expect(legallyServed('/iptv')).toBe(false);
+  });
+
   it('retires the index, the media browsers, seedboxes and the resale rails', () => {
     for (const p of ['/dht', '/search', '/find-torrents', '/torrents/abc', '/trending', '/movies', '/tvshows', '/music', '/xxx', '/radio', '/iptv', '/live-tv', '/spotify', '/youtube', '/watch/1', '/seedboxes', '/api/dht', '/api/search', '/api/torrent-search', '/api/magnets', '/api/stream', '/api/radio/proxy', '/api/iptv-proxy', '/api/spotify', '/api/seedbox/add', '/api/account/seedbox', '/api/account/seedboxes/1', '/api/cron/refresh-iptv', '/sitemap.xml']) {
       expect(legallyServed(p), p).toBe(false);
