@@ -1,7 +1,8 @@
 /**
  * Invites API
  *
- * GET  /api/invites  -> the caller's invites and how many they may still create
+ * GET  /api/invites  -> the caller's invites, how many they may still create, the Premium days an
+ *                       accepted invite gives both people, and their ?ref= affiliate link
  * POST /api/invites  -> create one invite. Body (optional): { maxUses: number | null, expiresAt: ISO | null };
  *                       null means no limit. Each allowed use costs one of the 5 a month (unused
  *                       ones carry over); admins are unlimited and only they may leave uses open.
@@ -27,6 +28,7 @@ import {
   parseInviteLimits,
   type Invite,
 } from '@/lib/invites';
+import { INVITE_BONUS_DAYS, INVITER_MONTHLY_CAP, affiliateLink } from '@/lib/rewards';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,8 +70,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       me.isAdmin ? Promise.resolve(null) : inviteBalance(client, me.id),
     ]);
     const base = origin(request);
+    // The affiliate link is extra: if it cannot be made, the invites still load.
+    const referralLink = await affiliateLink(me.id, base).catch((error: unknown) => {
+      console.error('[Invites] affiliate link failed:', error instanceof Error ? error.message : error);
+      return null;
+    });
     return NextResponse.json(
-      { remaining, unlimited: me.isAdmin, monthly: MONTHLY_INVITES, invites: invites.map((i) => present(i, base)) },
+      {
+        remaining,
+        unlimited: me.isAdmin,
+        monthly: MONTHLY_INVITES,
+        bonusDays: INVITE_BONUS_DAYS,
+        bonusMonthlyCap: INVITER_MONTHLY_CAP,
+        referralLink,
+        invites: invites.map((i) => present(i, base)),
+      },
       { headers: NO_STORE }
     );
   } catch (error) {

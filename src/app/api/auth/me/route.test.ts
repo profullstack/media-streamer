@@ -15,6 +15,7 @@ const mockSetSession = vi.fn();
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
 
+vi.mock('@/lib/rewards', () => ({ ensureInviteBonus: vi.fn(async () => null), attributeSignup: vi.fn(async () => undefined) }));
 vi.mock('@/lib/admin', () => ({
   checkUserAdmin: vi.fn(),
 }));

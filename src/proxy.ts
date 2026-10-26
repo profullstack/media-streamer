@@ -396,6 +396,8 @@ const PROFILE_EXEMPT_PATHS = [
   // The invite-only screen is where the offline gate sends members; sending them on to
   // /select-profile from there would bounce straight back (site-offline.ts).
   '/invite-only',
+  '/invites',
+  '/i/',
   '/api/invites',
   '/auth',
   '/pricing',
@@ -441,6 +443,8 @@ const PUBLIC_PATHS = [
   '/login',
   '/signup',
   '/invite-only',
+  // Short invite links: /i/<code> sends a stranger on to /signup?invite=<code>.
+  '/i',
   '/forgot-password',
   '/reset-password',
   '/pricing',

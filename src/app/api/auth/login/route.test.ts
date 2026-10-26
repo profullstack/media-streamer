@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server';
 const mockSignInWithPassword = vi.fn();
 const mockFrom = vi.fn();
 
+vi.mock('@/lib/rewards', () => ({ ensureInviteBonus: vi.fn(async () => null), attributeSignup: vi.fn(async () => undefined) }));
 vi.mock('@/lib/supabase', () => ({
   createServerClient: () => ({
     auth: {

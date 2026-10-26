@@ -14,7 +14,7 @@ import { MainLayout } from '@/components/layout';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { UserIcon, CreditCardIcon, KeyIcon, SettingsIcon, TvIcon, UsersIcon } from '@/components/ui/icons';
-import { IPTVSubscriptionSection } from '@/components/account';
+import { IPTVSubscriptionSection, RedeemCodeCard } from '@/components/account';
 import { ProfileManagementSection } from '@/components/profiles/ProfileManagementSection';
 import { ContactDetailsSection } from '@/components/account/contact-details-section';
 
@@ -763,6 +763,8 @@ function AccountPageContent(): React.ReactElement {
                     )}
                   </div>
                 </div>
+
+                <RedeemCodeCard onRedeemed={() => void fetchSubscriptionStatus()} />
               </div>
             )}
 

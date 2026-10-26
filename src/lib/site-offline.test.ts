@@ -32,6 +32,16 @@ describe('bittorrented.com offline, invite only', () => {
     expect(openWhileInviteOnly('/api/invitesx')).toBe(false);
   });
 
+  it('serves short invite links to everyone, and only those', async () => {
+    expect(openWhileInviteOnly('/i/ABCDE-FGHJK')).toBe(true);
+    expect(openWhileInviteOnly('/iptv')).toBe(false);
+    expect(openWhileInviteOnly('/invites')).toBe(false);
+    const res = await get('/i/ABCDE-FGHJK');
+    expect(res.status).not.toBe(401);
+    expect(res.headers.get('location') ?? '').not.toContain('/invite-only');
+    expect(res.headers.get('location') ?? '').not.toContain('/login');
+  });
+
   it('serves the blog, its posts and its feed to everyone', async () => {
     for (const path of ['/blog', '/blog/cord-cutting-guide-for-beginners', '/blog/rss.xml']) {
       expect(openWhileInviteOnly(path)).toBe(true);

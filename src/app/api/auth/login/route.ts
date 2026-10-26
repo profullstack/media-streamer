@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { ensureInviteBonus } from '@/lib/rewards';
 
 /**
  * Request body for login
@@ -134,6 +135,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 401 }
     );
   }
+
+  // Joined on an invite: the first confirmed sign-in gives both people Premium days
+  // (src/lib/rewards.ts). Before the subscription read, so the response shows it.
+  await ensureInviteBonus(data.user.id);
 
   // Get user subscription info
   const { data: subscription } = await supabase

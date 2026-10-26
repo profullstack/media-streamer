@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { checkUserAdmin } from '@/lib/admin';
+import { ensureInviteBonus } from '@/lib/rewards';
 
 /**
  * Cookie name for auth token
@@ -130,6 +131,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     );
   }
+
+  // Members who signed in some other way (magic link, Sign in with nixamp) get their invite
+  // bonus here; asked once per process per member, so it costs a page load nothing after.
+  await ensureInviteBonus(user.id);
 
   // Get user subscription info and the admin flag (drives the Admin link in the header)
   const [{ data: subscription }, adminCheck] = await Promise.all([

@@ -124,7 +124,7 @@ export function generateInviteCode(pick: (max: number) => number = randomInt): s
 }
 
 export function inviteLink(origin: string, code: string): string {
-  return `${origin}/signup?invite=${formatInviteCode(code)}`;
+  return `${origin}/i/${formatInviteCode(code)}`;
 }
 
 /** Whether a code exists, has not expired and has uses left. The signup trigger is what enforces it. */

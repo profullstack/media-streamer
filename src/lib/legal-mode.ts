@@ -23,6 +23,8 @@ const ALLOWED = [
   '/login',
   '/signup',
   '/invite-only',
+  '/invites',
+  '/i',
   '/api/invites',
   '/forgot-password',
   '/reset-password',
