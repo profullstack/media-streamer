@@ -12,6 +12,7 @@ import Image from 'next/image';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/icons';
+import { sameOriginPath } from '@/lib/safe-redirect';
 
 /** What went wrong on the way back from nixamp, in words. */
 const NIXAMP_REFUSALS: Record<string, string> = {
@@ -38,7 +39,7 @@ export default function LoginPage(): React.ReactElement {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setReason(params.get('reason'));
-    setRedirect(params.get('redirect') || '/');
+    setRedirect(sameOriginPath(params.get('redirect')));
     const refused = params.get('nixamp_error');
     if (refused) setError(NIXAMP_REFUSALS[refused] ?? `nixamp sign-in did not finish (${refused}).`);
   }, []);
@@ -64,7 +65,7 @@ export default function LoginPage(): React.ReactElement {
 
       // Redirect to the originally requested page, or home
       const params = new URLSearchParams(window.location.search);
-      const redirectTo = params.get('redirect') || '/';
+      const redirectTo = sameOriginPath(params.get('redirect'));
       window.location.href = redirectTo;
     } catch {
       setError('Invalid email or password');
