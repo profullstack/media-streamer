@@ -40,6 +40,9 @@ importers:
       '@profullstack/player':
         specifier: 0.15.0
         version: 0.15.0(react@19.3.1)
+      '@profullstack/profile':
+        specifier: 0.1.6
+        version: 0.1.6(react@19.3.1)
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.3.1)
@@ -1308,6 +1311,22 @@ packages:
     peerDependencies:
       react: '>=18'
     peerDependenciesMeta:
+      react:
+        optional: true
+
+  '@profullstack/profile@0.1.6':
+    resolution: {integrity: sha512-xkn0P3ANz151QJdlBwcBXkHk813qW9qAmuTZKcuvpEZYkyHDC9J9KfvpVSRepfjECzz4ONGHWO5Zwc4BHpfK8g==}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      '@libsql/client': '>=0.6.0'
+      postgres: ^3.4.0
+      react: '>=18'
+    peerDependenciesMeta:
+      '@libsql/client':
+        optional: true
+      postgres:
+        optional: true
       react:
         optional: true
 
@@ -6114,6 +6133,10 @@ snapshots:
     dependencies:
       hls.js: 1.7.3
       mpegts.js: 1.8.2
+    optionalDependencies:
+      react: 19.3.1
+
+  '@profullstack/profile@0.1.6(react@19.3.1)':
     optionalDependencies:
       react: 19.3.1
 

@@ -128,7 +128,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'test@example.com',
-          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK', first_name: 'Test', last_name: 'User'
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -169,7 +169,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'test@example.com',
-          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK', first_name: 'Test', last_name: 'User'
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -230,7 +230,7 @@ describe('Signup API - POST /api/auth/signup', () => {
     function signupRequest(ip: string) {
       return new NextRequest('http://localhost/api/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK' }),
+        body: JSON.stringify({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK', first_name: 'Test', last_name: 'User' }),
         headers: {
           'Content-Type': 'application/json',
           'X-Forwarded-For': `${ip}, 10.0.0.1`,
@@ -311,7 +311,7 @@ describe('Signup API - POST /api/auth/signup', () => {
 
     it('refuses an unknown or used invite code', async () => {
       mockIsOpenInvite.mockResolvedValue(false);
-      const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ZZZZZ-ZZZZZ' });
+      const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ZZZZZ-ZZZZZ', first_name: 'Test', last_name: 'User' });
       expect(res.status).toBe(400);
       expect((await res.json()).error).toMatch(/invalid, expired or used up/i);
       expect(mockIsOpenInvite).toHaveBeenCalledWith(expect.anything(), 'ZZZZZZZZZZ');
@@ -320,7 +320,7 @@ describe('Signup API - POST /api/auth/signup', () => {
 
     it('reports the trigger refusing a code that was used in the meantime', async () => {
       mockSignUp.mockResolvedValue({ data: { user: null }, error: { message: 'Database error saving new user' } });
-      const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK' });
+      const res = await post({ email: 'test@example.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK', first_name: 'Test', last_name: 'User' });
       expect(res.status).toBe(400);
       expect((await res.json()).error).toMatch(/invalid, expired or used up/i);
     });
@@ -341,7 +341,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'existing@example.com',
-          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK', first_name: 'Test', last_name: 'User'
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -366,7 +366,7 @@ describe('Signup API - POST /api/auth/signup', () => {
         method: 'POST',
         body: JSON.stringify({
           email: 'test@example.com',
-          password: 'Password123!', inviteCode: 'ABCDE-FGHJK'
+          password: 'Password123!', inviteCode: 'ABCDE-FGHJK', first_name: 'Test', last_name: 'User'
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -385,6 +385,72 @@ describe('Signup API - POST /api/auth/signup', () => {
 
       const response = await POST(request);
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe('Contact profile (@profullstack/profile)', () => {
+    const post = async (body: Record<string, unknown>) => {
+      const { POST } = await import('./route');
+      return POST(
+        new NextRequest('http://localhost/api/auth/signup', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+    };
+
+    it('requires first and last name before creating the account', async () => {
+      const res = await post({ email: 'ada@acme.com', password: 'Password123!', inviteCode: 'ABCDE-FGHJK' });
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(Object.keys(data.errors)).toEqual(expect.arrayContaining(['first_name', 'last_name']));
+      expect(mockSignUp).not.toHaveBeenCalled();
+    });
+
+    it('stores the six fields in contact_profiles for a new account', async () => {
+      mockSignUp.mockResolvedValueOnce({
+        data: { user: { id: 'u-1', email: 'ada@acme.com', identities: [{}], email_confirmed_at: null }, session: null },
+        error: null,
+      });
+      const profileUpsert = vi.fn((row: Record<string, unknown>) => ({
+        select: () => ({ single: async () => ({ data: row, error: null }) }),
+      }));
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'contact_profiles') return { upsert: profileUpsert };
+        if (table === 'user_subscriptions') {
+          return {
+            select: () => ({ eq: () => ({ neq: async () => ({ data: [], error: null }) }) }),
+            upsert: async () => ({ error: null }),
+          };
+        }
+        throw new Error(`unexpected table ${table}`);
+      });
+
+      const res = await post({
+        email: 'Ada@Acme.com',
+        password: 'Password123!',
+        inviteCode: 'ABCDE-FGHJK',
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+        company_domain: 'https://www.acme.com/about',
+        job_title: ' VP Engineering ',
+        linkedin_url: 'in/ada-lovelace',
+      });
+
+      expect(res.status).toBe(201);
+      expect(profileUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: 'u-1',
+          email: 'ada@acme.com',
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+          company_domain: 'acme.com',
+          job_title: 'VP Engineering',
+          linkedin_url: 'https://www.linkedin.com/in/ada-lovelace',
+        }),
+        { onConflict: 'user_id' }
+      );
     });
   });
 });

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { UserIcon, CreditCardIcon, KeyIcon, SettingsIcon, TvIcon, UsersIcon } from '@/components/ui/icons';
 import { IPTVSubscriptionSection } from '@/components/account';
 import { ProfileManagementSection } from '@/components/profiles/ProfileManagementSection';
+import { ContactDetailsSection } from '@/components/account/contact-details-section';
 
 type AccountTab = 'account' | 'subscription' | 'iptv' | 'profiles' | 'security';
 
@@ -426,6 +427,8 @@ function AccountPageContent(): React.ReactElement {
                       </div> : null}
                   </div>
                 </div>
+
+                <ContactDetailsSection />
 
                 <div className="border-t border-border-subtle pt-6">
                   <h3 className="text-sm font-semibold text-text-primary mb-4">Danger Zone</h3>
