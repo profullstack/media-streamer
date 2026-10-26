@@ -13,6 +13,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { isOpenInvite, normalizeInviteCode } from '@/lib/invites';
+import { COLUMNS, validateProfile, saveSignupProfile } from '@profullstack/profile';
+import { contactProfileStore } from '@/lib/contact-profile';
 
 /**
  * Request body for signup
@@ -22,6 +24,11 @@ interface SignupRequest {
   password: string;
   name?: string;
   inviteCode?: string;
+  first_name?: string;
+  last_name?: string;
+  company_domain?: string;
+  job_title?: string;
+  linkedin_url?: string;
 }
 
 /**
@@ -128,6 +135,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // The shared @profullstack/profile fields: first and last name required,
+  // company domain, job title and LinkedIn optional.
+  const profileInput: Record<string, unknown> = Object.fromEntries(
+    COLUMNS.map((c) => [c, (body as unknown as Record<string, unknown>)[c]])
+  );
+  profileInput.email = email;
+  const profileCheck = validateProfile(profileInput);
+  if (!profileCheck.ok) {
+    return NextResponse.json(
+      { error: Object.values(profileCheck.errors)[0] ?? 'Some fields need fixing', errors: profileCheck.errors },
+      { status: 400 }
+    );
+  }
+
   const supabase = createServerClient();
   const baseUrl = getBaseUrl(request);
 
@@ -147,6 +168,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: {
         display_name: name ?? undefined,
         invite_code: inviteCode,
+        first_name: profileCheck.profile.first_name ?? undefined,
+        last_name: profileCheck.profile.last_name ?? undefined,
+        company_domain: profileCheck.profile.company_domain ?? undefined,
+        job_title: profileCheck.profile.job_title ?? undefined,
+        linkedin_url: profileCheck.profile.linkedin_url ?? undefined,
       },
     },
   });
@@ -186,6 +212,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { error: 'Failed to create account' },
       { status: 500 }
     );
+  }
+
+  // A stand-in user with no identities means the address was already
+  // registered: never write over that account's contact profile.
+  if ((data.user.identities?.length ?? 0) > 0) {
+    try {
+      await saveSignupProfile(contactProfileStore(), data.user.id, profileInput, {
+        email: data.user.email ?? email.trim().toLowerCase(),
+      });
+    } catch (profileErr) {
+      // The account exists; the fields can be filled in from /account.
+      console.error('[Signup] Contact profile save failed:', profileErr);
+    }
   }
 
   // Capture signup IP from X-Forwarded-For (nginx proxy) or direct connection

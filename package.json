@@ -44,6 +44,7 @@
     "@profullstack/live-translate": "^0.3.0",
     "@profullstack/notifications": "^0.1.4",
     "@profullstack/player": "0.15.0",
+    "@profullstack/profile": "0.1.3",
     "@profullstack/referrals": "^0.1.0",
     "@profullstack/stack": "^0.4.0",
     "@profullstack/throttle": "^0.3.3",

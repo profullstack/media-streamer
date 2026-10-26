@@ -15,6 +15,12 @@ import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/ui/icons';
 import { InviteLanding } from '@/components/home/invite-landing';
+import { ProfileFields } from '@profullstack/profile/react';
+import type { ProfileField } from '@profullstack/profile';
+
+// Email has its own input; the shared package renders the other five.
+const PROFILE_FIELDS: ProfileField[] = ['first_name', 'last_name', 'company_domain', 'job_title', 'linkedin_url'];
+type ProfileValues = Partial<Record<ProfileField, string | null>>;
 
 export default function SignupPage(): React.ReactElement {
   const [inviteCode, setInviteCode] = useState('');
@@ -23,6 +29,8 @@ export default function SignupPage(): React.ReactElement {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ProfileValues>({});
+  const [profileErrors, setProfileErrors] = useState<Partial<Record<ProfileField, string>>>({});
 
   const [success, setSuccess] = useState(false);
 
@@ -35,6 +43,7 @@ export default function SignupPage(): React.ReactElement {
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     setError(null);
+    setProfileErrors({});
 
     if (!inviteCode.trim()) {
       setError('An invite code is required to sign up');
@@ -57,12 +66,22 @@ export default function SignupPage(): React.ReactElement {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, inviteCode }),
+        body: JSON.stringify({
+          email,
+          password,
+          inviteCode,
+          ...Object.fromEntries(PROFILE_FIELDS.map((k) => [k, profile[k] ?? ''])),
+        }),
       });
 
-      const data = await response.json() as { error?: string; message?: string };
+      const data = await response.json() as {
+        error?: string;
+        message?: string;
+        errors?: Partial<Record<ProfileField, string>>;
+      };
 
       if (!response.ok) {
+        setProfileErrors(data.errors ?? {});
         setError(data.error ?? 'Failed to create account');
         return;
       }
@@ -175,6 +194,15 @@ export default function SignupPage(): React.ReactElement {
                 placeholder="you@example.com"
               />
             </div>
+
+            <ProfileFields
+              fields={PROFILE_FIELDS}
+              idPrefix="signup-"
+              values={profile}
+              onChange={setProfile}
+              errors={profileErrors}
+              disabled={isLoading}
+            />
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-text-primary mb-1">
