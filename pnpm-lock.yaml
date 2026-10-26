@@ -41,8 +41,8 @@ importers:
         specifier: 0.15.0
         version: 0.15.0(react@19.3.1)
       '@profullstack/profile':
-        specifier: 0.1.3
-        version: 0.1.3(react@19.3.1)
+        specifier: 0.1.6
+        version: 0.1.6(react@19.3.1)
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.3.1)
@@ -1314,8 +1314,8 @@ packages:
       react:
         optional: true
 
-  '@profullstack/profile@0.1.3':
-    resolution: {integrity: sha512-P+VdOqCnNGWa5W8EGLU/ls3hwovRcY8bOBOhWZp3h23sW2LDMFyeWF/pUfO+iiYH3E2Tie2/9xyUnpO4ctwSHw==}
+  '@profullstack/profile@0.1.6':
+    resolution: {integrity: sha512-xkn0P3ANz151QJdlBwcBXkHk813qW9qAmuTZKcuvpEZYkyHDC9J9KfvpVSRepfjECzz4ONGHWO5Zwc4BHpfK8g==}
     engines: {node: '>=20'}
     hasBin: true
     peerDependencies:
@@ -6136,7 +6136,7 @@ snapshots:
     optionalDependencies:
       react: 19.3.1
 
-  '@profullstack/profile@0.1.3(react@19.3.1)':
+  '@profullstack/profile@0.1.6(react@19.3.1)':
     optionalDependencies:
       react: 19.3.1
 
