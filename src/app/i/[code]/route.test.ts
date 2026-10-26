@@ -22,6 +22,14 @@ describe('/i/<code>', () => {
     );
   });
 
+  it('answers with the public host, not the container address behind nginx', async () => {
+    const res = await GET(
+      new NextRequest('http://localhost:3000/i/ABCDEFGHJK', { headers: { host: 'bittorrented.com' } }),
+      { params: Promise.resolve({ code: 'ABCDEFGHJK' }) }
+    );
+    expect(res.headers.get('location')).toBe('https://bittorrented.com/signup?invite=ABCDE-FGHJK');
+  });
+
   it('sends a malformed code to the invite-only screen', async () => {
     expect((await go('/i/nope')).location).toBe('https://bittorrented.com/invite-only');
   });

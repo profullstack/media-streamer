@@ -12,10 +12,17 @@ import { formatInviteCode, isInviteCodeShape, normalizeInviteCode } from '@/lib/
 
 export const dynamic = 'force-dynamic';
 
+/** The public origin: behind nginx, request.url is the container's localhost:3000. */
+function origin(request: NextRequest): string {
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? request.nextUrl.host;
+  const proto = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
+  return `${proto}://${host}`;
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ code: string }> }): Promise<NextResponse> {
   const { code: raw } = await params;
   const code = normalizeInviteCode(decodeURIComponent(raw ?? ''));
-  const target = new URL(isInviteCodeShape(code) ? '/signup' : '/invite-only', request.url);
+  const target = new URL(isInviteCodeShape(code) ? '/signup' : '/invite-only', origin(request));
   if (isInviteCodeShape(code)) target.searchParams.set('invite', formatInviteCode(code));
   const ref = request.nextUrl.searchParams.get('ref');
   if (ref && /^[a-zA-Z0-9_-]{1,64}$/.test(ref)) target.searchParams.set('ref', ref);
