@@ -903,5 +903,5 @@ select optgroup {
     @apply w-full rounded-lg border border-border-default bg-bg-secondary px-4 py-3 text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-hidden focus:ring-1 focus:ring-accent-primary;
   }
   .pfs-profile__optional { @apply font-normal text-text-muted; }
-  .pfs-profile__error { @apply mt-1 text-xs text-status-error; }
+  .pfs-profile__error { @apply mt-1 text-xs text-red-500; }
 }
