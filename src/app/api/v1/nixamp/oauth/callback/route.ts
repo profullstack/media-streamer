@@ -2,8 +2,8 @@
  * GET /api/v1/nixamp/oauth/callback
  *
  * Where nixamp sends the browser back, to connect an account or to sign in
- * as one ("Sign in with nixamp": no session here yet, the identity is the
- * one nixamp vouches for, and the account with that email is theirs).
+ * as one ("Sign in with nixamp": no session here yet, and the account is the
+ * one that connected this nixamp `sub` -- never one found by email).
  *
  * This is the exact path registered with
  * nixamp, which matches it byte for byte, so it is not something to rename
@@ -98,11 +98,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     let userId = user?.id ?? '';
     let session: { accessToken: string; refreshToken: string } | null = null;
     if (signin) {
-      const minted = await sessionForNixampIdentity({
-        email: who.email ?? '',
-        sub: who.sub,
-        ...(who.handle ? { handle: who.handle } : {}),
-      });
+      const minted = await sessionForNixampIdentity({ sub: who.sub, site: config.site });
       userId = minted.userId;
       session = minted;
     }
