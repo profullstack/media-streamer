@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
-import { extractBearerToken, getCoinPayOAuthUserInfo } from '@/lib/coinpayportal';
 import { getEmailAccount } from '@/lib/email-accounts';
 import { getActiveProfileId, getProfilesService } from '@/lib/profiles';
 import {
@@ -100,37 +99,23 @@ async function getProfileOwner(profileId: string): Promise<ProfileOwner | null> 
   };
 }
 
+/**
+ * Only the profile's owner, by session. A CoinPay OAuth bearer used to be
+ * accepted when its email matched the owner's, but CoinPay never verifies the
+ * address it reports (email_verified is always false), so anybody could have
+ * registered CoinPay under the owner's address and read their private mail
+ * feed. No CoinPay account is bound to an account here by `sub`, so there is
+ * nothing a CoinPay token can safely prove.
+ */
 async function authenticateFeedOwner(request: NextRequest, owner: ProfileOwner): Promise<{
   userId: string;
   email: string;
-  did: string | null;
-  method: 'session' | 'coinpay_oauth';
 } | null> {
   const sessionUser = await getAuthenticatedUser(request);
-  if (sessionUser?.id === owner.userId) {
-    return {
-      userId: sessionUser.id,
-      email: sessionUser.email.trim().toLowerCase(),
-      did: null,
-      method: 'session',
-    };
-  }
-
-  const token = extractBearerToken(request.headers.get('authorization'));
-  if (!token) return null;
-
-  const coinpayUser = await getCoinPayOAuthUserInfo(token);
-  if (!coinpayUser?.email || coinpayUser.emailVerified === false) return null;
-
-  if (coinpayUser.email.trim().toLowerCase() !== owner.email) {
-    return null;
-  }
-
+  if (sessionUser?.id !== owner.userId) return null;
   return {
-    userId: owner.userId,
-    email: owner.email,
-    did: coinpayUser.did,
-    method: 'coinpay_oauth',
+    userId: sessionUser.id,
+    email: sessionUser.email.trim().toLowerCase(),
   };
 }
 

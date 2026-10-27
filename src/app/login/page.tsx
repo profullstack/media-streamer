@@ -17,7 +17,7 @@ import { sameOriginPath } from '@/lib/safe-redirect';
 /** What went wrong on the way back from nixamp, in words. */
 const NIXAMP_REFUSALS: Record<string, string> = {
   access_denied: 'You did not allow it on nixamp, so nothing was signed in.',
-  no_email: 'nixamp did not share an email address, and one is needed to know which account here is yours.',
+  not_connected: 'No account here is connected to that nixamp account yet. Sign in with your email and password, then connect nixamp from Settings > Connections. Sign-up here is by invite.',
   state_mismatch: 'That nixamp sign-in took too long or was reused. Try it again.',
   exchange_failed: 'nixamp did not finish the sign-in. Try it again.',
 };
