@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 import { requireActiveSubscription } from '@/lib/subscription/guard';
 import {
   getAccountById,
@@ -101,6 +102,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     const result = await listSubscribedChannels(resolved, pageToken);
     return NextResponse.json(result);
   } catch (err) {
+    const locked = vaultErrorBody(err);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     if (isInsufficientScopeError(err)) {
       return reconnectResponse();
     }
@@ -140,6 +143,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     const result = await subscribeToChannel(resolved, channelId);
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
+    const locked = vaultErrorBody(err);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     if (isInsufficientScopeError(err)) {
       return reconnectManageResponse();
     }
@@ -190,6 +195,8 @@ export async function DELETE(request: NextRequest): Promise<Response> {
     const result = await unsubscribeFromChannel(resolved, { subscriptionId, channelId });
     return NextResponse.json(result);
   } catch (err) {
+    const locked = vaultErrorBody(err);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     if (isInsufficientScopeError(err)) {
       return reconnectManageResponse();
     }

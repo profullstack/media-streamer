@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getCredentials } from '@/lib/radio/siriusxm-credentials';
+import { getCredentialsMeta } from '@/lib/radio/siriusxm-credentials';
 
 export async function GET(): Promise<Response> {
   const user = await getCurrentUser();
@@ -15,7 +15,7 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const creds = await getCredentials(user.id);
+    const creds = await getCredentialsMeta(user.id);
     if (!creds) {
       return NextResponse.json({ connected: false });
     }

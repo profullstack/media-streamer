@@ -10,10 +10,17 @@
  * retired token and nixamp withdraws every token in the family -- which looks,
  * from here, like the connection spontaneously dying. The write therefore
  * happens before the new access token is handed to anybody.
+ *
+ * The tokens are sealed (`ss2:`) under the owner's key vault (2026-10-28):
+ * NixampAccount carries the sealed values, they open just before use, and a
+ * locked vault throws VaultLockedError (423 "unlock to resume"). A sign-in
+ * while locked keeps the identity row but stores no tokens; Connect again
+ * after unlocking to use the party features.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase';
+import { FIELDS, isVaultLockedError, openOptional, sealOptional } from '@/lib/vault';
 import { getNixampOAuthConfig, type NixampOAuthConfig } from './config';
 import { computeExpiresAt, discover, refreshTokens, revokeToken, type NixampMetadata } from './oauth';
 
@@ -73,10 +80,28 @@ export interface UpsertInput {
   refreshToken?: string;
   expiresIn: number;
   scopes: string[];
+  /**
+   * Sign-in: when the vault is locked (or missing), keep the identity row and
+   * store no tokens instead of refusing. Connect (the default) refuses with
+   * VaultLockedError so nothing is written in plaintext.
+   */
+  identityOnlyWhenLocked?: boolean;
+}
+
+async function sealTokens(input: UpsertInput): Promise<{ access: string; refresh: string | null }> {
+  try {
+    const access = (await sealOptional(input.userId, FIELDS.nixampAccessToken, input.accessToken)) ?? '';
+    const refresh = await sealOptional(input.userId, FIELDS.nixampRefreshToken, input.refreshToken);
+    return { access, refresh };
+  } catch (err) {
+    if (input.identityOnlyWhenLocked && isVaultLockedError(err)) return { access: '', refresh: null };
+    throw err;
+  }
 }
 
 /** Write the grant. Re-connecting the same nixamp account replaces its tokens. */
 export async function upsertNixampAccount(input: UpsertInput): Promise<NixampAccount> {
+  const sealed = await sealTokens(input);
   const { data, error } = await sb()
     .from('bt_nixamp_accounts')
     .upsert(
@@ -86,8 +111,8 @@ export async function upsertNixampAccount(input: UpsertInput): Promise<NixampAcc
         nixamp_site: input.nixampSite,
         handle: input.handle ?? null,
         email: input.email ?? null,
-        access_token: input.accessToken,
-        refresh_token: input.refreshToken ?? null,
+        access_token: sealed.access,
+        refresh_token: sealed.refresh,
         token_expires_at: computeExpiresAt(input.expiresIn).toISOString(),
         scopes: input.scopes,
       },
@@ -121,9 +146,12 @@ export async function disconnectNixampAccount(userId: string, fetcher: typeof fe
     const metadata = await discover(config, fetcher);
     // The refresh token first: revoking it takes the whole family with it,
     // which is the point. The access token is belt and braces for a grant
-    // that never had a refresh token to revoke.
-    if (account.refreshToken) await revokeToken(config, metadata, account.refreshToken, fetcher);
-    else await revokeToken(config, metadata, account.accessToken, fetcher);
+    // that never had a refresh token to revoke. A locked vault cannot open
+    // them; the row is still deleted below.
+    const refresh = await openOptional(account.userId, FIELDS.nixampRefreshToken, account.refreshToken);
+    const access = refresh ? null : await openOptional(account.userId, FIELDS.nixampAccessToken, account.accessToken);
+    if (refresh) await revokeToken(config, metadata, refresh, fetcher);
+    else if (access) await revokeToken(config, metadata, access, fetcher);
   } catch {
     // nixamp being unreachable must not leave a row here that the person
     // asked to be rid of. The token expires on its own within the hour.
@@ -151,14 +179,18 @@ export async function usableAccessToken(
 ): Promise<{ accessToken: string; config: NixampOAuthConfig; metadata: NixampMetadata }> {
   const config = { ...getNixampOAuthConfig(), site: account.nixampSite };
   const metadata = await discover(config, fetcher);
+  if (!account.accessToken) throw new NixampConnectionLost('connect nixamp again (no tokens are stored for this connection)');
   if (account.tokenExpiresAt.getTime() > Date.now()) {
-    return { accessToken: account.accessToken, config, metadata };
+    const accessToken = await openOptional(account.userId, FIELDS.nixampAccessToken, account.accessToken);
+    if (!accessToken) throw new NixampConnectionLost();
+    return { accessToken, config, metadata };
   }
-  if (!account.refreshToken) throw new NixampConnectionLost('that nixamp connection cannot be renewed');
+  const refreshToken = await openOptional(account.userId, FIELDS.nixampRefreshToken, account.refreshToken);
+  if (!refreshToken) throw new NixampConnectionLost('that nixamp connection cannot be renewed');
 
   let next;
   try {
-    next = await refreshTokens(config, metadata, account.refreshToken, fetcher);
+    next = await refreshTokens(config, metadata, refreshToken, fetcher);
   } catch {
     // A refusal here is final rather than transient: nixamp rotates, so the
     // token we hold has either been used already or been withdrawn, and
@@ -167,21 +199,25 @@ export async function usableAccessToken(
     throw new NixampConnectionLost();
   }
 
-  // Written before it is used. If this process died between the exchange and
-  // the write, the row would hold a retired refresh token and the next
-  // refresh would withdraw everything.
+  // Written (sealed) before it is used. If this process died between the
+  // exchange and the write, the row would hold a retired refresh token and
+  // the next refresh would withdraw everything.
+  const sealedAccess = (await sealOptional(account.userId, FIELDS.nixampAccessToken, next.access_token)) ?? '';
+  const sealedRefresh = next.refresh_token
+    ? await sealOptional(account.userId, FIELDS.nixampRefreshToken, next.refresh_token)
+    : account.refreshToken;
   await sb()
     .from('bt_nixamp_accounts')
     .update({
-      access_token: next.access_token,
-      refresh_token: next.refresh_token ?? account.refreshToken,
+      access_token: sealedAccess,
+      refresh_token: sealedRefresh,
       token_expires_at: computeExpiresAt(next.expires_in).toISOString(),
       ...(next.scope ? { scopes: next.scope.split(' ').filter(Boolean) } : {}),
     })
     .eq('id', account.id);
 
-  account.accessToken = next.access_token;
-  if (next.refresh_token) account.refreshToken = next.refresh_token;
+  account.accessToken = sealedAccess;
+  if (sealedRefresh) account.refreshToken = sealedRefresh;
   account.tokenExpiresAt = computeExpiresAt(next.expires_in);
   return { accessToken: next.access_token, config, metadata };
 }

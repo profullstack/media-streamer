@@ -11,6 +11,7 @@
  */
 
 import { createServerClient } from '@/lib/supabase';
+import { FIELDS, openValue, sealValue } from '@/lib/vault';
 import { getGoogleOAuthConfig } from './config';
 import { refreshAccessToken, computeExpiresAt } from './oauth';
 import type { YouTubeAccount } from './types';
@@ -27,26 +28,38 @@ function isExpired(account: YouTubeAccount, now: Date = new Date()): boolean {
 }
 
 /**
- * Ensure the account has a fresh access token, refreshing if needed.
- * Returns the (possibly updated) account.
+ * Ensure the account has a fresh access token, refreshing if needed, and
+ * return the bearer to present.
+ *
+ * The stored tokens are sealed under the owner's key vault (2026-10-28): they
+ * open only while the owner is unlocked, just before use, and a locked vault
+ * throws VaultLockedError (a 423 "unlock to resume", never a crash). A
+ * refreshed token is sealed again before it is written.
  */
-export async function ensureFreshAccessToken(account: YouTubeAccount): Promise<YouTubeAccount> {
-  if (!isExpired(account)) return account;
+export async function ensureFreshAccessToken(
+  account: YouTubeAccount
+): Promise<{ account: YouTubeAccount; bearer: string }> {
+  if (!isExpired(account)) {
+    return { account, bearer: await openValue(account.userId, FIELDS.youtubeAccessToken, account.accessToken) };
+  }
 
   const config = getGoogleOAuthConfig();
-  const tokens = await refreshAccessToken(config, account.refreshToken);
+  const refreshToken = await openValue(account.userId, FIELDS.youtubeRefreshToken, account.refreshToken);
+  const tokens = await refreshAccessToken(config, refreshToken);
 
   const newExpiresAt = computeExpiresAt(tokens.expires_in);
-  const newAccessToken = tokens.access_token;
+  const sealedAccess = await sealValue(account.userId, FIELDS.youtubeAccessToken, tokens.access_token);
   // Google typically does NOT return a new refresh_token on refresh; keep the old one.
-  const newRefreshToken = tokens.refresh_token ?? account.refreshToken;
+  const sealedRefresh = tokens.refresh_token
+    ? await sealValue(account.userId, FIELDS.youtubeRefreshToken, tokens.refresh_token)
+    : account.refreshToken;
 
   const supabase = createServerClient();
   const { error } = await supabase
     .from(TABLE)
     .update({
-      access_token: newAccessToken,
-      refresh_token: newRefreshToken,
+      access_token: sealedAccess,
+      refresh_token: sealedRefresh,
       token_expires_at: newExpiresAt,
     })
     .eq('id', account.id);
@@ -56,10 +69,8 @@ export async function ensureFreshAccessToken(account: YouTubeAccount): Promise<Y
   }
 
   return {
-    ...account,
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
-    tokenExpiresAt: newExpiresAt,
+    account: { ...account, accessToken: sealedAccess, refreshToken: sealedRefresh, tokenExpiresAt: newExpiresAt },
+    bearer: tokens.access_token,
   };
 }
 
@@ -80,7 +91,7 @@ export async function ytFetch<T>(
   account: YouTubeAccount,
   options: YtFetchOptions
 ): Promise<T> {
-  const fresh = await ensureFreshAccessToken(account);
+  const { bearer } = await ensureFreshAccessToken(account);
 
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(options.params ?? {})) {
@@ -89,7 +100,7 @@ export async function ytFetch<T>(
   }
 
   const url = `${YT_API_BASE}${options.path}?${search.toString()}`;
-  const headers: Record<string, string> = { Authorization: `Bearer ${fresh.accessToken}` };
+  const headers: Record<string, string> = { Authorization: `Bearer ${bearer}` };
   const init: RequestInit = {
     method: options.method ?? 'GET',
     headers,

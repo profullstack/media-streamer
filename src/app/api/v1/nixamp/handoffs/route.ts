@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 import { getCurrentUser } from '@/lib/auth';
 import { getNixampAccount } from '@/lib/nixamp';
 import { HandoffError, handoffStatus, startHandoff } from '@/lib/nixamp/handoff';
@@ -47,6 +48,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
     return NextResponse.json(answer.body, { status: answer.status });
   } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     return failure(error);
   }
 }
@@ -60,6 +63,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const answer = await handoffStatus(who.linked, host, id);
     return NextResponse.json(answer.body, { status: answer.status });
   } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     return failure(error);
   }
 }

@@ -17,6 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 import { requireActiveSubscription } from '@/lib/subscription/guard';
 import { hasYouTubeSubscriptionManageScope } from '@/lib/youtube';
 import {
@@ -187,6 +188,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       quotaExceeded: run.quotaExceeded,
     });
   } catch (err) {
+    const locked = vaultErrorBody(err);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     if (isInsufficientScopeError(err)) {
       return reconnectManageResponse();
     }
