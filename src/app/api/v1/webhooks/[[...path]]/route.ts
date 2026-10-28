@@ -32,6 +32,14 @@ async function handle(request: Request): Promise<Response> {
   try {
     return (await api(request)) ?? NextResponse.json({ error: 'not found' }, { status: 404 });
   } catch (err) {
+    // webhooksApi answers its own WebhookErrors, but Next bundles the package
+    // into this route and into lib/webhooks/hub separately, so a WebhookError
+    // thrown by the hub fails the router's instanceof check and lands here.
+    // Answer it by its status (400 "url: must be https" and the like).
+    const status = (err as { status?: unknown })?.status;
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+      return NextResponse.json({ error: (err as Error).message }, { status });
+    }
     console.error('[webhooks api]', err);
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
