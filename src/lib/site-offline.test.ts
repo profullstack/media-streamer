@@ -82,6 +82,10 @@ describe('bittorrented.com offline, invite only', () => {
     expect(stillServed('/api/health')).toBe(true);
     expect(stillServed('/api/webhooks/coinpayportal')).toBe(true);
     expect(stillServed('/api/healthz-not-really')).toBe(false);
+    // The webhooks API takes btr_ API tokens and does its own auth.
+    expect(stillServed('/api/v1/webhooks')).toBe(true);
+    expect(stillServed('/api/v1/webhooks/wh_1/test')).toBe(true);
+    expect(stillServed('/api/v1/me')).toBe(false);
   });
 
   it('serves the Profullstack ring descriptor', async () => {

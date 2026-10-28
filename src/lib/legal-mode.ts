@@ -38,6 +38,8 @@ const ALLOWED = [
   '/api/family',
   '/api/connect',
   '/api/v1/me',
+  // Customer webhooks: endpoint management only, no content (lib/webhooks).
+  '/api/v1/webhooks',
   '/api/v1/nixamp',
   // memberships and payments
   '/pricing',
