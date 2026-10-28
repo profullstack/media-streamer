@@ -17,9 +17,10 @@ import Link from 'next/link';
 import { EmailAccountsSection } from './email-accounts-section';
 import { ConnectionsSection } from './connections-section';
 import { WebhooksSection } from './webhooks-section';
+import { KeyVaultSection } from './key-vault-section';
 import { RedeemCodeCard } from '@/components/account/redeem-code-card';
 
-type SettingsTab = 'account' | 'playback' | 'iptv' | 'email' | 'connections' | 'webhooks';
+type SettingsTab = 'account' | 'playback' | 'iptv' | 'email' | 'connections' | 'vault' | 'webhooks';
 
 /**
  * IPTV Playlist data from API
@@ -60,6 +61,7 @@ export function SettingsContent(): React.ReactElement {
     { id: 'iptv' as const, label: 'IPTV', icon: TvIcon },
     { id: 'email' as const, label: 'Email', icon: MailIcon },
     { id: 'connections' as const, label: 'Connections', icon: LinkIcon },
+    { id: 'vault' as const, label: 'Key vault', icon: SettingsIcon },
     { id: 'webhooks' as const, label: 'Webhooks', icon: LinkIcon },
   ];
 
@@ -69,6 +71,7 @@ export function SettingsContent(): React.ReactElement {
     tabParam === 'playback' ||
     tabParam === 'iptv' ||
     tabParam === 'connections' ||
+    tabParam === 'vault' ||
     tabParam === 'webhooks'
       ? tabParam
       : 'account';
@@ -401,6 +404,7 @@ export function SettingsContent(): React.ReactElement {
             {activeTab === 'email' && <EmailAccountsSection />}
 
             {activeTab === 'connections' && <ConnectionsSection />}
+            {activeTab === 'vault' && <KeyVaultSection />}
 
             {activeTab === 'webhooks' && <WebhooksSection />}
           </div>

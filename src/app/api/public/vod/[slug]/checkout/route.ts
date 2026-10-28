@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { VodError, createCheckout, vodViewerCookieName } from '@/lib/vod';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 const COOKIE_MAX_AGE = 60 * 24 * 60 * 60; // 60 days (the grant's expiry is the real gate)
@@ -10,7 +11,7 @@ const COOKIE_MAX_AGE = 60 * 24 * 60 * 60; // 60 days (the grant's expiry is the 
  * Reuses the viewer's existing anonymous cookie so weekly + per-title purchases
  * accumulate under one identity; sets it if absent.
  */
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
@@ -51,3 +52,5 @@ export async function POST(
     return NextResponse.json({ error: detail }, { status: 500 });
   }
 }
+
+export const POST = withVaultErrors(handlePOST);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
 import { mintOwnerPass } from '@/lib/seedbox/shares';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
 // the same httpOnly pass cookie) instead of showing the paywall.
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
 
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
@@ -34,3 +35,5 @@ export async function POST(
   });
   return response;
 }
+
+export const POST = withVaultErrors(handlePOST);

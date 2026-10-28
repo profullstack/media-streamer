@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { loadAccountSeedboxConfig } from '@/lib/seedbox';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // Report torlink download progress for a torrent the account sent to its
 // seedbox. Proxies torlink's authenticated `GET <serve>/status` (keeps the token
@@ -25,7 +26,7 @@ interface TorlinkStatus {
   seeds?: TorlinkDownload[];
 }
 
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
@@ -91,3 +92,5 @@ export async function GET(
     clearTimeout(timer);
   }
 }
+
+export const GET = withVaultErrors(handleGET);

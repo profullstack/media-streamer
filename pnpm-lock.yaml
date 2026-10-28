@@ -53,6 +53,9 @@ importers:
       '@profullstack/referrals':
         specifier: ^0.1.0
         version: 0.1.0(react@19.3.1)
+      '@profullstack/sealed-secrets':
+        specifier: 0.1.0
+        version: 0.1.0
       '@profullstack/stack':
         specifier: ^0.5.0
         version: 0.5.0(next@16.4.3(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
@@ -1137,6 +1140,10 @@ packages:
     peerDependenciesMeta:
       react:
         optional: true
+
+  '@profullstack/sealed-secrets@0.1.0':
+    resolution: {integrity: sha512-6LRa+yUT7PQ5tZNoYEnf3VVxsyw/dqHqAtYpk/aS/bntxf3mQH+2MwNjQoBd7fCqdN97TvZup8qhrpfUcZlfng==}
+    engines: {node: '>=20'}
 
   '@profullstack/stack@0.5.0':
     resolution: {integrity: sha512-LbXovIhyzLEq+a+y3q8KWC+jN1tJjvSoUiFEhpiEBisQn5U+iutIGHDgg16Lul74kQaFZeFlbp7CMPAVJ8KL6g==}
@@ -5739,6 +5746,8 @@ snapshots:
   '@profullstack/referrals@0.1.0(react@19.3.1)':
     optionalDependencies:
       react: 19.3.1
+
+  '@profullstack/sealed-secrets@0.1.0': {}
 
   '@profullstack/stack@0.5.0(next@16.4.3(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
     dependencies:

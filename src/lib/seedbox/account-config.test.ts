@@ -124,9 +124,10 @@ function makeClient() {
 }
 
 vi.mock('@/lib/supabase', () => ({ createServerClient: () => makeClient() }));
-vi.mock('./crypto', () => ({
-  encryptOptional: (v: string | null) => v,
-  decryptOptional: (v: string | null) => v,
+vi.mock('@/lib/vault', () => ({
+  FIELDS: {},
+  sealOptional: async (_o: string, _f: string, v: string | null) => v,
+  openOptional: async (_o: string, _f: string, v: string | null) => v,
 }));
 
 import {

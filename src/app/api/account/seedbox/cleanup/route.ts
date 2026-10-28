@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { loadSeedboxForRequest } from '@/lib/seedbox';
 import { cleanupStaleTorrents } from '@/lib/seedbox/cleanup';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // Drop torlink records whose data is gone from the seedbox.
 //
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -40,3 +41,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     { status: 200, headers: NO_STORE }
   );
 }
+
+export const POST = withVaultErrors(handlePOST);

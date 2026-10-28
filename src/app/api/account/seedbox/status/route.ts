@@ -6,6 +6,7 @@ import { listOnDiskNames } from '@/lib/seedbox/files';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
 import { describeFetchError } from '@/lib/seedbox/fetch-error';
 import { isLiveTorrent } from '@/lib/seedbox/torlink-reconcile';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // Live torlink status for the account's seedbox: what's downloading, queued,
 // paused or seeding, with per-torrent progress/speed/peers and upload totals.
@@ -45,7 +46,7 @@ interface TorlinkStatus {
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function handleGET(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -130,3 +131,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     clearTimeout(timer);
   }
 }
+
+export const GET = withVaultErrors(handleGET);

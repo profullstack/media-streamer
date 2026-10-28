@@ -7,6 +7,7 @@ import {
   passCookieName,
   resolvePass,
 } from '@/lib/seedbox/shares';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ function passCookie(request: NextRequest, slug: string): string | undefined {
 }
 
 /** GET — list the pass's downloads with live progress. */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
@@ -32,7 +33,7 @@ export async function GET(
 }
 
 /** POST — add a magnet to the owner's seedbox under this pass. */
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
@@ -53,3 +54,6 @@ export async function POST(
     return NextResponse.json({ error: detail }, { status: 500 });
   }
 }
+
+export const GET = withVaultErrors(handleGET);
+export const POST = withVaultErrors(handlePOST);

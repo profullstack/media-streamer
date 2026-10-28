@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { passCookieName, resolvePass, streamForPass } from '@/lib/seedbox/shares';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // Payer-scoped playback proxy for a rental. A valid, paid, unexpired session
 // pass may stream only files belonging to torrents it added. The proxy/transcode
@@ -30,7 +31,7 @@ async function proxy(
   });
 }
 
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<Response> {
@@ -45,3 +46,5 @@ export async function HEAD(
   const { slug } = await params;
   return proxy(request, slug, 'HEAD');
 }
+
+export const GET = withVaultErrors(handleGET);

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { loadSeedboxForRequest } from '@/lib/seedbox';
 import { buildAuthHeaders } from '@/lib/seedbox/http-transport';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // Manage a torrent on the account's torlink seedbox: pause/resume a download,
 // start/stop seeding, or remove/delete it. Proxies torlink's authenticated
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
 const ACTIONS = new Set(['pause', 'resume', 'start-seed', 'stop-seed', 'remove', 'delete']);
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
-export async function POST(request: Request): Promise<NextResponse> {
+async function handlePOST(request: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -80,3 +81,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     clearTimeout(timer);
   }
 }
+
+export const POST = withVaultErrors(handlePOST);

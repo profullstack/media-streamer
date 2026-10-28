@@ -13,10 +13,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
 import { createSeedbox, listSeedboxes, parseSeedboxInput } from '@/lib/seedbox';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<NextResponse> {
+async function handleGET(): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   try {
@@ -29,7 +30,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
@@ -44,3 +45,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+export const GET = withVaultErrors(handleGET);
+export const POST = withVaultErrors(handlePOST);

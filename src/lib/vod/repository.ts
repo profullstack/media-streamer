@@ -163,7 +163,7 @@ export async function getProviderBySlug(slug: string): Promise<VodProvider | nul
 export async function getProviderSourceRow(id: string): Promise<ProviderSourceRow | null> {
   const { data, error } = await db()
     .from('vod_providers')
-    .select('source_kind, source_url, source_username, source_password_encrypted, source_auth, source_token_encrypted, source_header_name')
+    .select('owner_account_id, source_kind, source_url, source_username, source_password_encrypted, source_auth, source_token_encrypted, source_header_name')
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(`Failed to load provider source: ${error.message}`);

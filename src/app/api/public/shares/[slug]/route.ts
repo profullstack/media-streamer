@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
 import { getPublicShare, isShareOwnedBy } from '@/lib/seedbox/shares';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
 /** GET — public, secret-free metadata for a rental (for the /rent/[slug] page).
  * Also reports whether the caller is the owner, so the page can offer them a
  * free pass instead of a paywall (owners never pay for their own seedbox). */
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
@@ -24,3 +25,5 @@ export async function GET(
     { status: 200, headers: { 'Cache-Control': 'no-store' } }
   );
 }
+
+export const GET = withVaultErrors(handleGET);

@@ -409,6 +409,8 @@ const PROFILE_EXEMPT_PATHS = [
   '/api/v1/nixamp',
   // Customer webhooks are account-level, and an API token carries no profile.
   '/api/v1/webhooks',
+  // The key vault is account-level too.
+  '/api/vault',
   '/_next',
   '/favicon',
   '/manifest',

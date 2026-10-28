@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { castClaimsFrom } from '@/lib/cast/token';
 import { loadAccountSeedboxConfig } from '@/lib/seedbox';
 import { streamSeedboxFile } from '@/lib/seedbox/stream';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // Stream a completed file from the account's own seedbox file server back to the
 // browser. The proxy/transcode/probe logic lives in the shared
@@ -39,10 +40,12 @@ async function proxy(request: NextRequest, method: 'GET' | 'HEAD'): Promise<Resp
   });
 }
 
-export async function GET(request: NextRequest): Promise<Response> {
+async function handleGET(request: NextRequest): Promise<Response> {
   return proxy(request, 'GET');
 }
 
 export async function HEAD(request: NextRequest): Promise<Response> {
   return proxy(request, 'HEAD');
 }
+
+export const GET = withVaultErrors(handleGET);

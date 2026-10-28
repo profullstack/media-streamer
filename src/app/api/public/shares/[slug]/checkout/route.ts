@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { RentalError, createCheckout } from '@/lib/seedbox/shares';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ function fingerprint(request: NextRequest): string | null {
  * CoinPay hosted payment, and sets the (httpOnly) pass cookie. The cookie is
  * inert until the webhook confirms payment.
  */
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
@@ -60,3 +61,5 @@ export async function POST(
     return NextResponse.json({ error: detail }, { status: 500 });
   }
 }
+
+export const POST = withVaultErrors(handlePOST);

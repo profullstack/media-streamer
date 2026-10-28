@@ -10,6 +10,7 @@ import {
 import { subscribeToRssFeed } from '@/lib/rss-reader';
 import { createServerClient } from '@/lib/supabase';
 import { isPaidSubscriptionActive } from '@/lib/subscription/check';
+import { withVaultErrors } from '@/lib/vault/route';
 
 interface CreateSenderFeedRequest {
   accountId: string;
@@ -119,7 +120,7 @@ async function authenticateFeedOwner(request: NextRequest, owner: ProfileOwner):
   };
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
+async function handlePOST(request: NextRequest): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 }
 
-export async function GET(request: NextRequest): Promise<Response> {
+async function handleGET(request: NextRequest): Promise<Response> {
   const profileId = request.nextUrl.searchParams.get('profileId');
   const accountId = request.nextUrl.searchParams.get('accountId');
   const sender = request.nextUrl.searchParams.get('sender');
@@ -228,3 +229,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     }, { status: 500 });
   }
 }
+
+export const POST = withVaultErrors(handlePOST);
+export const GET = withVaultErrors(handleGET);

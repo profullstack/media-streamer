@@ -6,12 +6,7 @@ import type {
   PublicEmailAccount,
   UpdateEmailAccountInput,
 } from './types';
-import {
-  decryptCredential,
-  decryptNullableCredential,
-  encryptCredential,
-  encryptNullableCredential,
-} from './credentials';
+import { FIELDS, openOptional, openValue, sealValue } from '@/lib/vault';
 import { normalizeEmailAccountSmtp, normalizeSmtpSecurity, normalizeSmtpUsername } from './provider-settings';
 
 const TABLE = 'email_accounts';
@@ -68,7 +63,11 @@ function db() {
   return createServerClient();
 }
 
-function rowToAccount(row: EmailAccountRow): EmailAccount {
+/**
+ * Open a stored row for SMTP/IMAP use. Passwords are sealed under the user's key
+ * vault: while they are locked this throws VaultLockedError ("unlock to resume").
+ */
+async function rowToAccount(row: EmailAccountRow): Promise<EmailAccount> {
   return normalizeEmailAccountSmtp({
     id: row.id,
     userId: row.user_id,
@@ -80,13 +79,13 @@ function rowToAccount(row: EmailAccountRow): EmailAccount {
     smtpHost: row.smtp_host,
     smtpPort: row.smtp_port,
     smtpSecurity: row.smtp_security,
-    smtpUsername: decryptNullableCredential(row.smtp_username),
-    smtpPassword: decryptCredential(row.smtp_password),
+    smtpUsername: decryptPublicUsername(row.smtp_username),
+    smtpPassword: await openValue(row.user_id, FIELDS.smtpPassword, row.smtp_password),
     imapHost: row.imap_host,
     imapPort: row.imap_port,
     imapSecurity: row.imap_security,
     imapUsername: decryptPublicUsername(row.imap_username),
-    imapPassword: row.imap_password ? decryptCredential(row.imap_password) : null,
+    imapPassword: await openOptional(row.user_id, FIELDS.imapPassword, row.imap_password),
     isDefault: row.is_default,
     lastCheckedAt: row.last_checked_at,
     lastCheckStatus: row.last_check_status,
@@ -96,12 +95,14 @@ function rowToAccount(row: EmailAccountRow): EmailAccount {
   });
 }
 
+/**
+ * Usernames are not secrets and are stored in plaintext. Values still under the
+ * old server key (enc:v1:...) read as unknown until the owner's next vault
+ * unlock migrates them.
+ */
 function decryptPublicUsername(value: string | null): string | null {
-  try {
-    return decryptNullableCredential(value);
-  } catch {
-    return null;
-  }
+  if (!value || /^enc:v1:/.test(value)) return null;
+  return value;
 }
 
 function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_password' | 'imap_password'>): PublicEmailAccount {
@@ -142,7 +143,7 @@ function rowToPublicEmailAccount(row: Omit<EmailAccountRow, 'user_id' | 'smtp_pa
   };
 }
 
-export function toPublicEmailAccount(account: EmailAccount): PublicEmailAccount {
+export function toPublicEmailAccount(account: EmailAccount | PublicEmailAccount): PublicEmailAccount {
   return {
     id: account.id,
     label: account.label,
@@ -186,7 +187,12 @@ export async function listEmailAccounts(userId: string): Promise<EmailAccount[]>
     .order('created_at', { ascending: true });
 
   if (error) throw new Error(`Failed to list email accounts: ${error.message}`);
-  return ((data ?? []) as EmailAccountRow[]).map(rowToAccount);
+  return Promise.all(((data ?? []) as EmailAccountRow[]).map(rowToAccount));
+}
+
+/** Secret-free view of one account; works while the vault is locked. */
+export async function getPublicEmailAccount(userId: string, accountId: string): Promise<PublicEmailAccount | null> {
+  return (await listPublicEmailAccounts(userId)).find((a) => a.id === accountId) ?? null;
 }
 
 export async function getEmailAccount(userId: string, accountId: string): Promise<EmailAccount | null> {
@@ -216,7 +222,7 @@ async function shouldMakeDefault(userId: string, requestedDefault: boolean | und
 export async function createEmailAccount(
   userId: string,
   input: CreateEmailAccountInput
-): Promise<EmailAccount> {
+): Promise<PublicEmailAccount> {
   const isDefault = await shouldMakeDefault(userId, input.isDefault);
   const { data, error } = await db()
     .from(TABLE)
@@ -230,13 +236,13 @@ export async function createEmailAccount(
       smtp_host: input.smtpHost,
       smtp_port: input.smtpPort,
       smtp_security: input.smtpSecurity,
-      smtp_username: encryptNullableCredential(input.smtpUsername),
-      smtp_password: encryptCredential(input.smtpPassword),
+      smtp_username: input.smtpUsername ?? null,
+      smtp_password: await sealValue(userId, FIELDS.smtpPassword, input.smtpPassword),
       imap_host: input.imapHost ?? null,
       imap_port: input.imapPort ?? null,
       imap_security: input.imapSecurity ?? null,
-      imap_username: encryptNullableCredential(input.imapUsername),
-      imap_password: input.imapPassword ? encryptCredential(input.imapPassword) : null,
+      imap_username: input.imapUsername ?? null,
+      imap_password: input.imapPassword ? await sealValue(userId, FIELDS.imapPassword, input.imapPassword) : null,
       is_default: isDefault,
     })
     .select('*')
@@ -246,14 +252,14 @@ export async function createEmailAccount(
     throw new Error(`Failed to create email account: ${error?.message ?? 'no data'}`);
   }
 
-  return rowToAccount(data as EmailAccountRow);
+  return rowToPublicEmailAccount(data as EmailAccountRow);
 }
 
 export async function updateEmailAccount(
   userId: string,
   accountId: string,
   input: UpdateEmailAccountInput
-): Promise<EmailAccount> {
+): Promise<PublicEmailAccount> {
   const update: UpdateTables<'email_accounts'> = {};
   if (input.label !== undefined) update.label = input.label;
   if (input.provider !== undefined) update.provider = input.provider;
@@ -263,13 +269,15 @@ export async function updateEmailAccount(
   if (input.smtpHost !== undefined) update.smtp_host = input.smtpHost;
   if (input.smtpPort !== undefined) update.smtp_port = input.smtpPort;
   if (input.smtpSecurity !== undefined) update.smtp_security = input.smtpSecurity;
-  if (input.smtpUsername !== undefined) update.smtp_username = encryptNullableCredential(input.smtpUsername);
-  if (input.smtpPassword !== undefined) update.smtp_password = encryptCredential(input.smtpPassword);
+  if (input.smtpUsername !== undefined) update.smtp_username = input.smtpUsername ?? null;
+  if (input.smtpPassword !== undefined) update.smtp_password = await sealValue(userId, FIELDS.smtpPassword, input.smtpPassword);
   if (input.imapHost !== undefined) update.imap_host = input.imapHost ?? null;
   if (input.imapPort !== undefined) update.imap_port = input.imapPort ?? null;
   if (input.imapSecurity !== undefined) update.imap_security = input.imapSecurity ?? null;
-  if (input.imapUsername !== undefined) update.imap_username = encryptNullableCredential(input.imapUsername);
-  if (input.imapPassword !== undefined) update.imap_password = input.imapPassword ? encryptCredential(input.imapPassword) : null;
+  if (input.imapUsername !== undefined) update.imap_username = input.imapUsername ?? null;
+  if (input.imapPassword !== undefined) {
+    update.imap_password = input.imapPassword ? await sealValue(userId, FIELDS.imapPassword, input.imapPassword) : null;
+  }
   if (input.isDefault !== undefined) update.is_default = input.isDefault;
 
   const { data, error } = await db()
@@ -284,7 +292,7 @@ export async function updateEmailAccount(
     throw new Error(`Failed to update email account: ${error?.message ?? 'no data'}`);
   }
 
-  return rowToAccount(data as EmailAccountRow);
+  return rowToPublicEmailAccount(data as EmailAccountRow);
 }
 
 export async function deleteEmailAccount(userId: string, accountId: string): Promise<void> {
@@ -318,7 +326,7 @@ export async function updateEmailAccountCheckStatus(
   accountId: string,
   success: boolean,
   errorMessage?: string
-): Promise<EmailAccount> {
+): Promise<PublicEmailAccount> {
   const { data, error } = await db()
     .from(TABLE)
     .update({
@@ -335,5 +343,5 @@ export async function updateEmailAccountCheckStatus(
     throw new Error(`Failed to update email account check status: ${error?.message ?? 'no data'}`);
   }
 
-  return rowToAccount(data as EmailAccountRow);
+  return rowToPublicEmailAccount(data as EmailAccountRow);
 }

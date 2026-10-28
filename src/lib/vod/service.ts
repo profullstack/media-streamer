@@ -10,7 +10,7 @@
 import type { CryptoBlockchain } from '@/lib/coinpayportal/types';
 import { getCoinPayPortalClient } from '@/lib/coinpayportal/client';
 import { emitWebhook } from '@/lib/webhooks/hub';
-import { encryptOptional } from '@/lib/seedbox/crypto';
+import { FIELDS, sealOptional } from '@/lib/vault';
 import { streamRemoteMedia, type StreamOptions } from '@/lib/seedbox/stream';
 import { validateStreamUrl } from '@/lib/iptv-proxy/iptv-proxy';
 import * as adapters from './adapters';
@@ -93,9 +93,9 @@ export async function createProvider(ownerId: string, input: ProviderInput): Pro
     source_kind: input.sourceKind,
     source_url: input.sourceUrl.trim(),
     source_username: input.sourceUsername?.trim() || null,
-    source_password_encrypted: encryptOptional(input.sourcePassword),
+    source_password_encrypted: await sealOptional(ownerId, FIELDS.vodPassword, input.sourcePassword),
     source_auth: input.sourceAuth ?? 'none',
-    source_token_encrypted: encryptOptional(input.sourceToken),
+    source_token_encrypted: await sealOptional(ownerId, FIELDS.vodToken, input.sourceToken),
     source_header_name: input.sourceHeaderName?.trim() || null,
     weekly_price_usd: clampPriceOrNull(input.weeklyPriceUsd, 1),
     per_title_price_usd: clampPriceOrNull(input.perTitlePriceUsd, 1),
@@ -127,8 +127,8 @@ export async function updateProvider(
   if (input.sourceAuth !== undefined) patch.source_auth = input.sourceAuth;
   if (input.sourceHeaderName !== undefined) patch.source_header_name = input.sourceHeaderName?.trim() || null;
   // Secrets: only overwrite when a non-empty value is provided.
-  if (input.sourcePassword) patch.source_password_encrypted = encryptOptional(input.sourcePassword);
-  if (input.sourceToken) patch.source_token_encrypted = encryptOptional(input.sourceToken);
+  if (input.sourcePassword) patch.source_password_encrypted = await sealOptional(ownerId, FIELDS.vodPassword, input.sourcePassword);
+  if (input.sourceToken) patch.source_token_encrypted = await sealOptional(ownerId, FIELDS.vodToken, input.sourceToken);
   if (input.weeklyPriceUsd !== undefined) patch.weekly_price_usd = clampPriceOrNull(input.weeklyPriceUsd, 1);
   if (input.perTitlePriceUsd !== undefined) patch.per_title_price_usd = clampPriceOrNull(input.perTitlePriceUsd, 1);
   if (input.passWindowMinutes !== undefined) {
@@ -366,7 +366,7 @@ async function resolveTitleStream(
   title: VodTitle
 ): Promise<adapters.ResolvedStream> {
   const row = await repo.getProviderSourceRow(provider.id);
-  const source = row ? resolveSource(row) : null;
+  const source = row ? await resolveSource(row) : null;
   if (!source) throw new VodError('This library’s source is not configured', 502);
   const resolved = await adapters.resolveStream(source, {
     streamRef: title.streamRef,
