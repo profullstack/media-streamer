@@ -1,6 +1,6 @@
 {
   "name": "media-streamer",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -49,6 +49,7 @@
     "@profullstack/profile": "0.1.6",
     "@profullstack/redeem-credits": "^0.2.0",
     "@profullstack/referrals": "^0.1.0",
+    "@profullstack/sealed-secrets": "0.1.0",
     "@profullstack/stack": "^0.5.0",
     "@profullstack/throttle": "^0.4.0",
     "@profullstack/webhooks": "0.2.1",

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { listDownloadFiles, passCookieName } from '@/lib/seedbox/shares';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
 /** GET — playable media files under one of the pass's completed downloads. */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string; downloadId: string }> }
 ): Promise<NextResponse> {
@@ -20,3 +21,5 @@ export async function GET(
     { status: 200, headers: { 'Cache-Control': 'no-store' } }
   );
 }
+
+export const GET = withVaultErrors(handleGET);

@@ -1,25 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { vaultErrorBody } from '@/lib/vault';
 import {
   deleteEmailAccount,
-  getEmailAccount,
+  getPublicEmailAccount,
   toPublicEmailAccount,
   updateEmailAccount,
   validateUpdateEmailAccountInput,
 } from '@/lib/email-accounts';
+import { withVaultErrors } from '@/lib/vault/route';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(request: NextRequest, context: RouteContext): Promise<Response> {
+async function handleGET(request: NextRequest, context: RouteContext): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   const { id } = await context.params;
-  const account = await getEmailAccount(user.id, id);
+  const account = await getPublicEmailAccount(user.id, id);
   if (!account) {
     return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
   }
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
   return NextResponse.json({ account: toPublicEmailAccount(account) });
 }
 
-export async function PATCH(request: NextRequest, context: RouteContext): Promise<Response> {
+async function handlePATCH(request: NextRequest, context: RouteContext): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -50,12 +52,14 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
     const account = await updateEmailAccount(user.id, id, input);
     return NextResponse.json({ account: toPublicEmailAccount(account) });
   } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     console.error('[EmailAccounts] Failed to update account:', error);
     return NextResponse.json({ error: 'Failed to update email account' }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest, context: RouteContext): Promise<Response> {
+async function handleDELETE(request: NextRequest, context: RouteContext): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -70,3 +74,7 @@ export async function DELETE(request: NextRequest, context: RouteContext): Promi
     return NextResponse.json({ error: 'Failed to delete email account' }, { status: 500 });
   }
 }
+
+export const GET = withVaultErrors(handleGET);
+export const PATCH = withVaultErrors(handlePATCH);
+export const DELETE = withVaultErrors(handleDELETE);

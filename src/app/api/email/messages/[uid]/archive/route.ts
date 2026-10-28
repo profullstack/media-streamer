@@ -3,12 +3,13 @@ import { getAuthenticatedUser } from '@/lib/auth';
 import { getEmailAccount } from '@/lib/email-accounts';
 import { archiveMessage, toMailboxAccount } from '@/lib/email-reader';
 import { buildInboxLoadError } from '@/lib/email-reader/errors';
+import { withVaultErrors } from '@/lib/vault/route';
 
 interface RouteParams {
   params: Promise<{ uid: string }>;
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams): Promise<Response> {
+async function handlePOST(request: NextRequest, { params }: RouteParams): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -48,3 +49,5 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     return NextResponse.json(buildInboxLoadError(error, null), { status: 502 });
   }
 }
+
+export const POST = withVaultErrors(handlePOST);

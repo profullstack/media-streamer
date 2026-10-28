@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 
 import { getCurrentUser } from '@/lib/auth';
 import {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ summary }, { status: 200 });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: detail }, { status: 500 });
+    return NextResponse.json(vaultErrorBody(error)?.body ?? { error: detail }, { status: vaultErrorBody(error)?.status ?? 500 });
   }
 }
 
@@ -50,7 +51,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ summary }, { status: 200 });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: detail }, { status: 500 });
+    return NextResponse.json(vaultErrorBody(error)?.body ?? { error: detail }, { status: vaultErrorBody(error)?.status ?? 500 });
   }
 }
 
@@ -75,6 +76,6 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: detail }, { status: 500 });
+    return NextResponse.json(vaultErrorBody(error)?.body ?? { error: detail }, { status: vaultErrorBody(error)?.status ?? 500 });
   }
 }

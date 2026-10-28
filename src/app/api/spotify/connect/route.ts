@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getSpotifyPlayerManager, saveSpotifyCredentials } from '@/lib/spotify';
+import { dataKeyFor, getVaultSeal, VaultLockedError, vaultErrorBody } from '@/lib/vault';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,15 @@ export async function POST(): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  // The credentials librespot writes are sealed under the user's vault, so it
+  // must be unlocked before pairing starts.
+  if (!dataKeyFor(user.id)) {
+    const locked = vaultErrorBody(
+      new VaultLockedError((await getVaultSeal(user.id)) ? 'vault_locked' : 'vault_missing')
+    )!;
+    return NextResponse.json(locked.body, { status: locked.status });
   }
 
   try {

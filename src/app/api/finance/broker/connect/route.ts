@@ -2,7 +2,7 @@
  * Read-only brokerage connection (PRD §3.4, §5).
  *
  * GET    /api/finance/broker/connect          — list connections (no secrets)
- * POST   /api/finance/broker/connect          — verify + store encrypted creds + initial sync
+ * POST   /api/finance/broker/connect          — verify + store vault-sealed creds + initial sync (423 while locked)
  * DELETE /api/finance/broker/connect?id=       — disconnect + purge holdings
  *
  * Paid-gated. Credentials are read-only scope; secrets are never returned.
@@ -13,6 +13,7 @@ import { requireActiveSubscription } from '@/lib/subscription/guard';
 import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { SUPPORTED_BROKERS } from '@/lib/finance/brokers';
 import { connectBroker, disconnectBroker, listConnections } from '@/lib/finance/brokers/service';
+import { vaultErrorBody } from '@/lib/vault';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,12 +53,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'apiKey and apiSecret are required' }, { status: 400 });
   }
 
-  const result = await connectBroker(
-    profileId,
-    provider,
-    { apiKey, apiSecret, paper: body?.paper === true },
-    body?.label?.trim() || null,
-  );
+  let result;
+  try {
+    result = await connectBroker(
+      profileId,
+      provider,
+      { apiKey, apiSecret, paper: body?.paper === true },
+      body?.label?.trim() || null,
+    );
+  } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
+    throw error;
+  }
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });

@@ -2,13 +2,13 @@
  * Per-user Spotify credentials repository.
  *
  * Stores the `credentials.json` librespot writes after device pairing. It is
- * a reusable login for the user's whole account, so unlike the SiriusXM table
- * it is encrypted at rest with the platform AES-256-GCM helper. Uses the
- * service-role client and scopes by userId; RLS still protects browser access.
+ * a reusable login for the user's whole account, so it is sealed under the
+ * user's key vault (only their passphrase opens it; while they are locked the
+ * player cannot start). Uses the service-role client and scopes by userId.
  */
 
 import { createServerClient } from '@/lib/supabase';
-import { decryptSecret, encryptSecret } from '@/lib/seedbox/crypto';
+import { FIELDS, openValue, sealValue } from '@/lib/vault';
 
 const TABLE = 'bt_spotify_sessions';
 
@@ -33,11 +33,11 @@ interface DbRow {
 
 const COLUMNS = 'user_id, username, credentials_enc, updated_at';
 
-function rowToCredentials(row: DbRow): SpotifyCredentials {
+async function rowToCredentials(row: DbRow): Promise<SpotifyCredentials> {
   return {
     userId: row.user_id,
     username: row.username,
-    credentialsJson: decryptSecret(row.credentials_enc),
+    credentialsJson: await openValue(row.user_id, FIELDS.spotifyCredentials, row.credentials_enc),
     updatedAt: row.updated_at,
   };
 }
@@ -72,7 +72,7 @@ export async function saveSpotifyCredentials(
   const payload = {
     user_id: input.userId,
     username: usernameFromCredentials(input.credentialsJson),
-    credentials_enc: encryptSecret(input.credentialsJson),
+    credentials_enc: await sealValue(input.userId, FIELDS.spotifyCredentials, input.credentialsJson),
   };
 
   const { data, error } = await supabase

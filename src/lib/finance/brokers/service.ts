@@ -1,16 +1,36 @@
 /**
  * Finance — broker connection + holdings service (server-side, service-role).
  *
- * Stores encrypted credentials, syncs read-only holdings, and never returns
- * secrets to callers (PRD §3.4, §8). Disconnect purges holdings (FK cascade).
+ * Stores credentials sealed under the owner's key vault (only their passphrase
+ * opens them), syncs read-only holdings while they are unlocked, and never
+ * returns secrets to callers (PRD §3.4, §8). Disconnect purges holdings (FK cascade).
  */
 
 import { getServerClient } from '@/lib/supabase';
 import { getBrokerProvider, type BrokerCredentials, type BrokerSnapshot } from './index';
-import { encryptJson, decryptJson } from './crypto';
+import { FIELDS, isVaultLockedError, openValue, sealValue } from '@/lib/vault';
 
 const CONNECTIONS_TABLE = 'finance_broker_connections';
 const HOLDINGS_TABLE = 'finance_holdings';
+
+/** The account (vault owner) a finance profile belongs to. */
+async function ownerOfProfile(profileId: string): Promise<string> {
+  const { data, error } = await getServerClient()
+    .from('profiles')
+    .select('account_id')
+    .eq('id', profileId)
+    .single();
+  if (error || !data) throw new Error('profile not found');
+  return (data as { account_id: string }).account_id;
+}
+
+async function sealCreds(profileId: string, creds: BrokerCredentials): Promise<string> {
+  return sealValue(await ownerOfProfile(profileId), FIELDS.brokerCredentials, JSON.stringify(creds));
+}
+
+async function openCreds(profileId: string, stored: string): Promise<BrokerCredentials> {
+  return JSON.parse(await openValue(await ownerOfProfile(profileId), FIELDS.brokerCredentials, stored)) as BrokerCredentials;
+}
 
 /** Client-safe connection view (NO credentials). */
 export interface ConnectionView {
@@ -50,7 +70,8 @@ export async function getActiveBrokerCreds(
 
   if (!data || data.status !== 'active') return null;
   try {
-    return decryptJson<BrokerCredentials>(data.encrypted_credentials);
+    // Locked vault -> null: market data falls back to the shared source.
+    return await openCreds(profileId, data.encrypted_credentials);
   } catch {
     return null;
   }
@@ -95,6 +116,9 @@ export async function connectBroker(
   const valid = await provider.verify(creds);
   if (!valid) return { ok: false, error: 'Could not verify those credentials (read-only access).' };
 
+  // Throws VaultLockedError while the owner's vault is locked or missing.
+  const sealed = await sealCreds(profileId, creds);
+
   const supabase = getServerClient();
   const { data, error } = await supabase
     .from(CONNECTIONS_TABLE)
@@ -102,7 +126,7 @@ export async function connectBroker(
       {
         profile_id: profileId,
         provider: providerId,
-        encrypted_credentials: encryptJson(creds),
+        encrypted_credentials: sealed,
         scope: 'read-only',
         status: 'active',
         label,
@@ -157,7 +181,7 @@ export async function syncHoldings(profileId: string, connectionId: string): Pro
   if (!provider) return null;
 
   try {
-    const creds = decryptJson<BrokerCredentials>(conn.encrypted_credentials);
+    const creds = await openCreds(profileId, conn.encrypted_credentials);
     const snapshot = await provider.fetchSnapshot(creds);
     const asOf = new Date().toISOString();
 
@@ -191,6 +215,8 @@ export async function syncHoldings(profileId: string, connectionId: string): Pro
 
     return snapshot;
   } catch (error) {
+    // A locked vault pauses syncing; it is not a broken connection.
+    if (isVaultLockedError(error)) throw error;
     await supabase
       .from(CONNECTIONS_TABLE)
       .update({ status: 'error', last_sync_error: error instanceof Error ? error.message : 'sync failed' })

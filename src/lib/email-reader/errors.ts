@@ -1,3 +1,4 @@
+import { isVaultLockedError } from '@/lib/vault/errors';
 import type { EmailAccount } from '@/lib/email-accounts';
 
 export interface EmailErrorPayload {
@@ -54,15 +55,6 @@ function isForwardEmailAccount(account: Pick<EmailAccount, 'provider' | 'smtpHos
   );
 }
 
-function isCredentialDecryptError(message: string): boolean {
-  return message.includes('Failed to decrypt SMTP credential') ||
-    message.includes('Invalid encrypted SMTP credential format');
-}
-
-function isMissingEncryptionKey(message: string): boolean {
-  return message.includes('ENCRYPTION_KEY is required');
-}
-
 function isAuthLikeError(message: string): boolean {
   return /auth|login|credential|password|command failed/i.test(message);
 }
@@ -79,19 +71,11 @@ export function buildEmailAccountLoadError(error: unknown): EmailErrorPayload {
   const message = errorMessage(error);
   const details = sanitizeDetail(message);
 
-  if (isMissingEncryptionKey(message)) {
+  if (isVaultLockedError(error)) {
     return {
-      error: 'Email account credentials cannot be decrypted because ENCRYPTION_KEY is not configured.',
+      error: 'Your key vault is locked, so your email passwords cannot be used right now.',
       details,
-      solution: 'Set ENCRYPTION_KEY to the same value used when these accounts were saved, then restart the app. If the key was lost, edit each account in Settings and save a new password after setting the key.',
-    };
-  }
-
-  if (isCredentialDecryptError(message)) {
-    return {
-      error: 'Stored email account credentials could not be decrypted.',
-      details,
-      solution: 'Restore the exact ENCRYPTION_KEY used when the account was saved, or edit the account in Settings and enter a new SMTP password.',
+      solution: 'Unlock your key vault in Settings > Key vault, then try again. Your passwords are sealed with your own passphrase and nobody else can open them.',
     };
   }
 
@@ -109,7 +93,7 @@ export function buildInboxLoadError(
   const message = errorMessage(error);
   const details = sanitizeDetail(message);
 
-  if (isMissingEncryptionKey(message) || isCredentialDecryptError(message)) {
+  if (isVaultLockedError(error)) {
     return buildEmailAccountLoadError(error);
   }
 
@@ -153,7 +137,7 @@ export function buildSmtpCheckError(
   const message = errorMessage(error);
   const details = sanitizeDetail(message);
 
-  if (isMissingEncryptionKey(message) || isCredentialDecryptError(message)) {
+  if (isVaultLockedError(error)) {
     return buildEmailAccountLoadError(error);
   }
 

@@ -1,26 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { encryptJson, decryptJson } from './crypto';
+import { describe, it, expect } from 'vitest';
 import { AlpacaBrokerProvider } from './alpaca';
 import { getBrokerProvider, SUPPORTED_BROKERS } from './index';
 import type { BrokerCredentials } from './types';
-
-beforeAll(() => {
-  process.env.ENCRYPTION_KEY = 'test-encryption-key-for-finance-brokers';
-});
-
-describe('broker credential crypto', () => {
-  it('round-trips a JSON credential blob', () => {
-    const creds = { apiKey: 'AK123', apiSecret: 'secret456', paper: true };
-    const enc = encryptJson(creds);
-    expect(enc.startsWith('fenc:v1:')).toBe(true);
-    expect(enc).not.toContain('secret456'); // never plaintext
-    expect(decryptJson<typeof creds>(enc)).toEqual(creds);
-  });
-
-  it('rejects a malformed blob', () => {
-    expect(() => decryptJson('not-encrypted')).toThrow(/Invalid encrypted/);
-  });
-});
 
 describe('getBrokerProvider', () => {
   it('returns the Alpaca provider and lists it as supported', () => {

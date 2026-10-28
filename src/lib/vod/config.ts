@@ -1,11 +1,11 @@
 /**
  * VOD source-connection config: resolve a provider's stored (encrypted) source
  * connection into something the adapters can use, and build auth headers for
- * HTTP-based sources. Secrets reuse the platform AES-256-GCM scheme
- * ({@link module:seedbox/crypto}).
+ * HTTP-based sources. Secrets are sealed under the provider owner's key vault:
+ * while the owner is locked, resolving throws VaultLockedError (streams pause).
  */
 
-import { decryptOptional } from '@/lib/seedbox/crypto';
+import { FIELDS, openOptional } from '@/lib/vault';
 import type { SourceAuthKind, SourceKind } from './types';
 
 export type HttpAuth =
@@ -44,6 +44,7 @@ export function authHeaders(auth: HttpAuth): Record<string, string> {
 
 /** The stored provider columns needed to resolve a source (secrets encrypted). */
 export interface ProviderSourceRow {
+  owner_account_id: string;
   source_kind: SourceKind;
   source_url: string | null;
   source_username: string | null;
@@ -53,9 +54,9 @@ export interface ProviderSourceRow {
   source_header_name: string | null;
 }
 
-function buildHttpAuth(row: ProviderSourceRow): HttpAuth {
-  const token = decryptOptional(row.source_token_encrypted);
-  const pass = decryptOptional(row.source_password_encrypted);
+async function buildHttpAuth(row: ProviderSourceRow): Promise<HttpAuth> {
+  const token = await openOptional(row.owner_account_id, FIELDS.vodToken, row.source_token_encrypted);
+  const pass = await openOptional(row.owner_account_id, FIELDS.vodPassword, row.source_password_encrypted);
   switch (row.source_auth) {
     case 'bearer':
       return token ? { kind: 'bearer', token } : { kind: 'none' };
@@ -74,14 +75,14 @@ function buildHttpAuth(row: ProviderSourceRow): HttpAuth {
 }
 
 /** Resolve a provider row into a usable source config (secrets decrypted). */
-export function resolveSource(row: ProviderSourceRow): ResolvedSource | null {
+export async function resolveSource(row: ProviderSourceRow): Promise<ResolvedSource | null> {
   const url = row.source_url?.replace(/\/+$/, '') ?? '';
   if (!url) return null;
 
   if (row.source_kind === 'xtream') {
-    const password = decryptOptional(row.source_password_encrypted);
+    const password = await openOptional(row.owner_account_id, FIELDS.vodPassword, row.source_password_encrypted);
     if (!row.source_username || !password) return null;
     return { kind: 'xtream', serverUrl: url, username: row.source_username, password };
   }
-  return { kind: row.source_kind, url, auth: buildHttpAuth(row) };
+  return { kind: row.source_kind, url, auth: await buildHttpAuth(row) };
 }

@@ -10,10 +10,11 @@ import { requireActiveSubscription } from '@/lib/subscription/guard';
 import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import { getHoldings } from '@/lib/finance/brokers/service';
 import { normalizeSymbol } from '@/lib/finance/market-data/stooq';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function handleGET(request: NextRequest): Promise<NextResponse> {
   const gate = await requireActiveSubscription(request);
   if (gate) return gate;
 
@@ -25,3 +26,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({ holdings: await getHoldings(profileId, symbol) });
 }
+
+export const GET = withVaultErrors(handleGET);

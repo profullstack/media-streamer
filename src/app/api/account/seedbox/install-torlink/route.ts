@@ -8,6 +8,7 @@ import {
   provisionTorlink,
   saveAccountSeedboxConfig,
 } from '@/lib/seedbox';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // One-click: install torlnk on the account's SSH-connected seedbox, start its
 // add-API (serve) + file server (files) with a generated bearer token, open the
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic';
 // Global npm install + daemon startup can take a couple of minutes.
 export const maxDuration = 300;
 
-export async function POST(request: Request): Promise<NextResponse> {
+async function handlePOST(request: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -101,3 +102,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: `Provisioned, but failed to save config: ${detail}`, steps: result.steps }, { status: 500 });
   }
 }
+
+export const POST = withVaultErrors(handlePOST);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth';
 import { streamTitle, vodViewerCookieName } from '@/lib/vod';
+import { withVaultErrors } from '@/lib/vault/route';
 
 // Pass-gated VOD playback proxy. A viewer with a weekly pass or a per-title
 // grant (or the provider owner) streams the title; the upstream source URL is
@@ -28,7 +29,7 @@ async function proxy(request: NextRequest, slug: string, method: 'GET' | 'HEAD')
   );
 }
 
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<Response> {
@@ -43,3 +44,5 @@ export async function HEAD(
   const { slug } = await params;
   return proxy(request, slug, 'HEAD');
 }
+
+export const GET = withVaultErrors(handleGET);

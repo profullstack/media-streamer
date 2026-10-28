@@ -1,8 +1,10 @@
+import { isVaultLockedError } from '@/lib/vault/errors';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getEmailAccount, listPublicEmailAccounts, type PublicEmailAccount } from '@/lib/email-accounts';
 import { hasSupportedImapProvider, listInboxMessages, toMailboxAccount } from '@/lib/email-reader';
 import { buildEmailAccountLoadError, buildInboxLoadError } from '@/lib/email-reader/errors';
+import { withVaultErrors } from '@/lib/vault/route';
 
 function parseLimit(value: string | null): number {
   const limit = Number(value);
@@ -20,7 +22,7 @@ function toAccountOption(account: PublicEmailAccount) {
   };
 }
 
-export async function GET(request: NextRequest): Promise<Response> {
+async function handleGET(request: NextRequest): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     accounts = await listPublicEmailAccounts(user.id);
   } catch (error) {
     console.error('[EmailMessages] Failed to load email accounts:', error);
-    return NextResponse.json(buildEmailAccountLoadError(error), { status: 500 });
+    return NextResponse.json(buildEmailAccountLoadError(error), { status: isVaultLockedError(error) ? 423 : 500 });
   }
 
   const accountOptions = accounts.map(toAccountOption);
@@ -121,3 +123,5 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json(buildInboxLoadError(error, null), { status: 500 });
   }
 }
+
+export const GET = withVaultErrors(handleGET);

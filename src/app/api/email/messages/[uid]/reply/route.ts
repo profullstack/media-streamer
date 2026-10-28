@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from '@/lib/auth';
 import { getEmailAccount, sendEmail } from '@/lib/email-accounts';
 import { getInboxMessage, toMailboxAccount } from '@/lib/email-reader';
 import { isPaidSubscriptionActive } from '@/lib/subscription/check';
+import { withVaultErrors } from '@/lib/vault/route';
 
 interface RouteParams {
   params: Promise<{ uid: string }>;
@@ -23,7 +24,7 @@ function replySubject(subject: string): string {
   return /^re:/i.test(subject.trim()) ? subject.trim() : `Re: ${subject.trim() || '(no subject)'}`;
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams): Promise<Response> {
+async function handlePOST(request: NextRequest, { params }: RouteParams): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -89,3 +90,5 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     }, { status: 500 });
   }
 }
+
+export const POST = withVaultErrors(handlePOST);

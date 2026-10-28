@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { browseCatalog } from '@/lib/vod';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
 /** GET — browse a provider's catalog (public). `?q=` search, `?page=` paginate. */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
@@ -16,3 +17,5 @@ export async function GET(
   if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json(result, { status: 200, headers: { 'Cache-Control': 'no-store' } });
 }
+
+export const GET = withVaultErrors(handleGET);

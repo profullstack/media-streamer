@@ -4,7 +4,7 @@
  * The master account connects its own seedbox in Settings; the resolved config
  * is shared to every profile under that account. Secrets (HTTP/files tokens, the
  * SSH private key, basic-auth password) are AES-256-GCM encrypted at rest via
- * {@link module:seedbox/crypto} and never leave the server.
+ * the owner's key vault (src/lib/vault) and never leave the server.
  *
  * `load*` turns a stored row (secrets decrypted) into a validated `SeedboxConfig`
  * for the transports/routes; `getSummary` returns a secret-free view for the UI.
@@ -18,7 +18,7 @@ import {
   emptySeedboxConfig,
   type SeedboxConfig,
 } from './config';
-import { decryptOptional, encryptOptional } from './crypto';
+import { FIELDS, openOptional, sealOptional } from '@/lib/vault';
 
 const TABLE = 'account_seedbox_configs';
 
@@ -166,14 +166,19 @@ export async function loadAccountSeedboxConfig(accountId: string): Promise<Seedb
   return buildConfig(await fetchRow(accountId));
 }
 
-/** Decrypt one stored row into the config the transports consume. */
-function buildConfig(row: SeedboxRow | null): SeedboxConfig | null {
+/**
+ * Open one stored row into the config the transports consume. Secrets are
+ * sealed under the owner's key vault: while the owner is locked this throws
+ * VaultLockedError (423, "unlock to resume"); boxes with no secrets still work.
+ */
+async function buildConfig(row: SeedboxRow | null): Promise<SeedboxConfig | null> {
   if (!row) return null;
+  const owner = row.account_id;
 
   const config: SeedboxConfig = {
     http: buildHttpConfig({
       baseUrl: row.http_base_url,
-      token: decryptOptional(row.http_token_encrypted),
+      token: await openOptional(owner, FIELDS.seedboxHttpToken, row.http_token_encrypted),
       addPath: row.http_add_path,
       auth: row.http_auth,
       magnetField: row.http_magnet_field,
@@ -182,16 +187,16 @@ function buildConfig(row: SeedboxRow | null): SeedboxConfig | null {
       host: row.ssh_host,
       port: row.ssh_port,
       user: row.ssh_user,
-      privateKey: decryptOptional(row.ssh_private_key_encrypted),
+      privateKey: await openOptional(owner, FIELDS.seedboxSshKey, row.ssh_private_key_encrypted),
       watchDir: row.ssh_watch_dir,
       addCommand: row.ssh_add_command,
     }),
     files: buildFilesConfig({
       baseUrl: row.files_base_url,
       auth: row.files_auth,
-      token: decryptOptional(row.files_token_encrypted),
+      token: await openOptional(owner, FIELDS.seedboxFilesToken, row.files_token_encrypted),
       basicUser: row.files_basic_user,
-      basicPass: decryptOptional(row.files_basic_pass_encrypted),
+      basicPass: await openOptional(owner, FIELDS.seedboxFilesPass, row.files_basic_pass_encrypted),
     }),
   };
   return config;
@@ -282,13 +287,19 @@ function summarise(row: SeedboxRow | null): SeedboxConfigSummary {
   };
 }
 
-/** Choose the new encrypted secret: re-encrypt a provided plaintext, or keep the
- * existing stored value when the field was left blank/undefined. */
-function nextSecret(incoming: string | null | undefined, existing: string | null): string | null {
+/** Choose the new stored secret: seal a provided plaintext under the owner's
+ * vault (must be unlocked), or keep the existing stored value when the field was
+ * left blank/undefined. */
+async function nextSecret(
+  accountId: string,
+  field: string,
+  incoming: string | null | undefined,
+  existing: string | null
+): Promise<string | null> {
   if (incoming === undefined) return existing; // field not sent → unchanged
   const trimmed = (incoming ?? '').trim();
   if (trimmed.length === 0) return existing; // blank → keep existing secret
-  return encryptOptional(trimmed);
+  return sealOptional(accountId, field, trimmed);
 }
 
 /**
@@ -314,7 +325,7 @@ export async function saveAccountSeedboxConfig(
   const http = input.http
     ? {
         http_base_url: input.http.baseUrl?.trim() || null,
-        http_token_encrypted: nextSecret(input.http.token, existing?.http_token_encrypted ?? null),
+        http_token_encrypted: await nextSecret(accountId, FIELDS.seedboxHttpToken, input.http.token, existing?.http_token_encrypted ?? null),
         http_add_path: input.http.addPath?.trim() || null,
         http_auth: input.http.auth?.trim() || null,
         http_magnet_field: input.http.magnetField?.trim() || null,
@@ -332,7 +343,7 @@ export async function saveAccountSeedboxConfig(
         ssh_host: input.ssh.host?.trim() || null,
         ssh_port: input.ssh.port ?? null,
         ssh_user: input.ssh.user?.trim() || null,
-        ssh_private_key_encrypted: nextSecret(input.ssh.privateKey, existing?.ssh_private_key_encrypted ?? null),
+        ssh_private_key_encrypted: await nextSecret(accountId, FIELDS.seedboxSshKey, input.ssh.privateKey, existing?.ssh_private_key_encrypted ?? null),
         ssh_watch_dir: input.ssh.watchDir?.trim() || null,
         ssh_add_command: input.ssh.addCommand?.trim() || null,
       }
@@ -349,9 +360,9 @@ export async function saveAccountSeedboxConfig(
     ? {
         files_base_url: input.files.baseUrl?.trim() || null,
         files_auth: input.files.auth?.trim() || null,
-        files_token_encrypted: nextSecret(input.files.token, existing?.files_token_encrypted ?? null),
+        files_token_encrypted: await nextSecret(accountId, FIELDS.seedboxFilesToken, input.files.token, existing?.files_token_encrypted ?? null),
         files_basic_user: input.files.basicUser?.trim() || null,
-        files_basic_pass_encrypted: nextSecret(input.files.basicPass, existing?.files_basic_pass_encrypted ?? null),
+        files_basic_pass_encrypted: await nextSecret(accountId, FIELDS.seedboxFilesPass, input.files.basicPass, existing?.files_basic_pass_encrypted ?? null),
       }
     : {
         files_base_url: existing?.files_base_url ?? null,

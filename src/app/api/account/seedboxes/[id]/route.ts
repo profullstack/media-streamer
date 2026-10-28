@@ -20,6 +20,7 @@ import {
   renameSeedbox,
   saveAccountSeedboxConfig,
 } from '@/lib/seedbox';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,7 @@ const failed = (error: unknown, status = 500): NextResponse =>
     { status }
   );
 
-export async function GET(_request: NextRequest, { params }: Ctx): Promise<NextResponse> {
+async function handleGET(_request: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   const { id } = await params;
@@ -44,7 +45,7 @@ export async function GET(_request: NextRequest, { params }: Ctx): Promise<NextR
   }
 }
 
-export async function PUT(request: NextRequest, { params }: Ctx): Promise<NextResponse> {
+async function handlePUT(request: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   const { id } = await params;
@@ -57,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: Ctx): Promise<NextRe
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: Ctx): Promise<NextResponse> {
+async function handlePATCH(request: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   const { id } = await params;
@@ -71,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: Ctx): Promise<Next
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: Ctx): Promise<NextResponse> {
+async function handleDELETE(_request: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   const { id } = await params;
@@ -82,3 +83,8 @@ export async function DELETE(_request: NextRequest, { params }: Ctx): Promise<Ne
     return failed(error);
   }
 }
+
+export const GET = withVaultErrors(handleGET);
+export const PUT = withVaultErrors(handlePUT);
+export const PATCH = withVaultErrors(handlePATCH);
+export const DELETE = withVaultErrors(handleDELETE);

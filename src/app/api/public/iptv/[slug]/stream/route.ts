@@ -25,7 +25,7 @@
 
 import { NextRequest } from 'next/server';
 
-import { decryptSecret, encryptSecret } from '@/lib/seedbox/crypto';
+import { openSegmentUrl, sealSegmentUrl } from '@/lib/iptv/shares/segment-seal';
 import { isHlsPlaylist, rewriteManifest } from '@/lib/iptv/shares/manifest';
 import { fetchUpstream } from '@/lib/iptv/shares/upstream';
 import { IptvResaleError, iptvPassCookieName, resolveUpstreamForSession } from '@/lib/iptv/shares';
@@ -59,7 +59,7 @@ export async function GET(
     isRadio = resolved.share.kind === 'radio';
 
     if (seg) {
-      const decrypted = decryptSecret(seg);
+      const decrypted = openSegmentUrl(seg);
       if (!/^https?:/i.test(decrypted)) return new Response('bad segment', { status: 400 });
       upstream = decrypted;
     }
@@ -109,7 +109,7 @@ export async function GET(
 
     if (isHlsPlaylist(radio.contentType) || upstream.includes('.m3u8')) {
       const text = new TextDecoder().decode(radio.body);
-      return new Response(rewriteManifest(text, upstream, selfBaseFor(sessionId), encryptSecret), {
+      return new Response(rewriteManifest(text, upstream, selfBaseFor(sessionId), sealSegmentUrl), {
         status: 200,
         headers: {
           'content-type': radio.contentType ?? 'application/vnd.apple.mpegurl',
@@ -142,7 +142,7 @@ export async function GET(
 
   if (isHlsPlaylist(contentType) || upstream.includes('.m3u8')) {
     const text = await upstreamResponse.text();
-    return new Response(rewriteManifest(text, upstream, selfBase, encryptSecret), {
+    return new Response(rewriteManifest(text, upstream, selfBase, sealSegmentUrl), {
       status: upstreamResponse.status,
       headers: {
         'content-type': contentType ?? 'application/vnd.apple.mpegurl',

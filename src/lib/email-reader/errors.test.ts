@@ -1,3 +1,4 @@
+import { VaultLockedError } from '@/lib/vault/errors';
 import { describe, expect, it } from 'vitest';
 import { buildEmailAccountLoadError, buildInboxLoadError, buildSmtpCheckError } from './errors';
 import type { EmailAccount } from '@/lib/email-accounts';
@@ -36,9 +37,9 @@ describe('email reader error messages', () => {
     });
   });
 
-  it('explains missing encryption keys when saved accounts cannot be read', () => {
-    expect(buildEmailAccountLoadError(new Error('ENCRYPTION_KEY is required to store SMTP credentials'))).toMatchObject({
-      error: 'Email account credentials cannot be decrypted because ENCRYPTION_KEY is not configured.',
+  it('tells the user to unlock their key vault when the passwords are sealed', () => {
+    expect(buildEmailAccountLoadError(new VaultLockedError('vault_locked'))).toMatchObject({
+      error: 'Your key vault is locked, so your email passwords cannot be used right now.',
     });
   });
 });

@@ -23,6 +23,7 @@ import {
   type SeedboxTransport,
 } from '@/lib/seedbox';
 import { MAX_TORRENT_BYTES, magnetFor, readTorrent } from '@/lib/seedbox/torrent-file';
+import { withVaultErrors } from '@/lib/vault/route';
 
 interface AddBody {
   magnet?: unknown;
@@ -55,7 +56,7 @@ function decodeTorrent(value: unknown): Buffer | null {
   return bytes.length > 0 ? bytes : null;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -110,3 +111,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     { status: 200 }
   );
 }
+
+export const POST = withVaultErrors(handlePOST);

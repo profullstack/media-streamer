@@ -10,12 +10,13 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getSpotifyCredentials, getSpotifyPlayerManager } from '@/lib/spotify';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
 export const STREAM_URL = '/api/spotify/stream/index.m3u8';
 
-export async function GET(): Promise<Response> {
+async function handleGET(): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -49,3 +50,5 @@ export async function GET(): Promise<Response> {
     return NextResponse.json({ error: 'Failed to load Spotify status' }, { status: 500 });
   }
 }
+
+export const GET = withVaultErrors(handleGET);

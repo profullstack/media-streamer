@@ -34,6 +34,8 @@ const ALLOWED = [
   '/connect',
   '/api/auth',
   '/api/account',
+  // the user's own key vault (sealed secrets; holds no content)
+  '/api/vault',
   '/api/profiles',
   '/api/family',
   '/api/connect',

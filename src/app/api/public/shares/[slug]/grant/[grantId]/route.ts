@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getGrantStatus } from '@/lib/seedbox/shares';
+import { withVaultErrors } from '@/lib/vault/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * returning from CoinPay; the pass cookie was already set at checkout, so once
  * this reports `paid` the player unlocks.
  */
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ slug: string; grantId: string }> }
 ): Promise<NextResponse> {
@@ -23,3 +24,5 @@ export async function GET(
     { status: 200, headers: { 'Cache-Control': 'no-store' } }
   );
 }
+
+export const GET = withVaultErrors(handleGET);

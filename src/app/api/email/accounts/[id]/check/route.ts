@@ -1,3 +1,4 @@
+import { isVaultLockedError } from '@/lib/vault/errors';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
 import {
@@ -8,12 +9,13 @@ import {
 } from '@/lib/email-accounts';
 import { checkImapAccount, hasSupportedImapProvider } from '@/lib/email-reader';
 import { buildEmailAccountLoadError, buildInboxLoadError, buildSmtpCheckError } from '@/lib/email-reader/errors';
+import { withVaultErrors } from '@/lib/vault/route';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-export async function POST(request: NextRequest, context: RouteContext): Promise<Response> {
+async function handlePOST(request: NextRequest, context: RouteContext): Promise<Response> {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     }
   } catch (error) {
     console.error('[EmailAccounts] Failed to load account for check:', error);
-    return NextResponse.json(buildEmailAccountLoadError(error), { status: 500 });
+    return NextResponse.json(buildEmailAccountLoadError(error), { status: isVaultLockedError(error) ? 423 : 500 });
   }
 
   const smtpResult = await checkSmtpAccount(account);
@@ -57,3 +59,5 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     account: toPublicEmailAccount(updated),
   }, { status: success ? 200 : 400 });
 }
+
+export const POST = withVaultErrors(handlePOST);

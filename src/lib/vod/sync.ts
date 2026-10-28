@@ -40,7 +40,7 @@ export async function syncProviderCatalog(
 ): Promise<SyncResult> {
   const row = await repo.getProviderSourceRow(providerId);
   if (!row) throw new VodError('Provider not found', 404);
-  const source = resolveSource(row);
+  const source = await resolveSource(row);
   if (!source) throw new VodError('Provider source is not fully configured', 400);
 
   const items = await adapters.listCatalog(source, { limit: MAX_SYNC_TITLES });

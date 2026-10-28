@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 
 import { getCurrentUser } from '@/lib/auth';
 import { VodError, syncProvider } from '@/lib/vod';
@@ -25,6 +26,6 @@ export async function POST(
   } catch (error) {
     if (error instanceof VodError) return NextResponse.json({ error: error.message }, { status: error.status });
     const detail = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: detail }, { status: 500 });
+    return NextResponse.json(vaultErrorBody(error)?.body ?? { error: detail }, { status: vaultErrorBody(error)?.status ?? 500 });
   }
 }
