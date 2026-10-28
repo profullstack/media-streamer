@@ -9,6 +9,7 @@
 
 import type { CryptoBlockchain } from '@/lib/coinpayportal/types';
 import { getCoinPayPortalClient } from '@/lib/coinpayportal/client';
+import { emitWebhook } from '@/lib/webhooks/hub';
 import { encryptOptional } from '@/lib/seedbox/crypto';
 import { streamRemoteMedia, type StreamOptions } from '@/lib/seedbox/stream';
 import { validateStreamUrl } from '@/lib/iptv-proxy/iptv-proxy';
@@ -496,6 +497,26 @@ export async function handleVodWebhook(payload: {
       });
       if (!changed) return { handled: true, action: 'already_paid', grantId: grant.id };
       await repo.incrementProviderEarnings(grant.providerId, grant.amountUsd);
+      if (provider) {
+        await emitWebhook(
+          provider.ownerAccountId,
+          'vod.purchased',
+          {
+            grant_id: grant.id,
+            library_id: provider.id,
+            library_slug: provider.slug,
+            library_title: provider.title,
+            kind: grant.grantKind,
+            title_id: grant.titleId,
+            access_mode: grant.accessMode,
+            amount_usd: grant.amountUsd,
+            currency: payload.currency ?? null,
+            tx_hash: payload.txHash ?? null,
+            expires_at: expiresAt,
+          },
+          { subject: `vod_grant:${grant.id}`, id: `evt_vod_purchased_${grant.id}` }
+        );
+      }
       return { handled: true, action: 'paid', grantId: grant.id };
     }
     case 'payment.failed':

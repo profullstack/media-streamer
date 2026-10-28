@@ -41,6 +41,7 @@ import type {
   PublicIptvShare,
 } from './types';
 import { isRadioRef, listRadioChannels, resolveRadioUpstream } from './radio-source';
+import { emitWebhook } from '@/lib/webhooks/hub';
 
 /** On-chain fees can rival a $1 payment, so checkout is restricted to low-fee chains. */
 const LOW_FEE_BLOCKCHAINS: CryptoBlockchain[] = ['SOL', 'USDC_SOL', 'POL', 'USDC_POL'];
@@ -506,6 +507,24 @@ export async function handleIptvShareWebhook(payload: {
       });
       if (!paid) return { handled: true, action: 'already_paid', grantId: grant.id };
       await repo.bumpShareCounters(grant.shareId, { earningsUsd: grant.amountUsd });
+      if (share) {
+        await emitWebhook(
+          share.ownerAccountId,
+          'share.purchased',
+          {
+            grant_id: grant.id,
+            share_kind: share.kind,
+            share_id: share.id,
+            share_slug: share.slug,
+            share_title: share.title,
+            amount_usd: grant.amountUsd,
+            currency: payload.currency ?? null,
+            tx_hash: payload.txHash ?? null,
+            expires_at: paid.expiresAt,
+          },
+          { subject: `iptv_share_grant:${grant.id}`, id: `evt_share_purchased_${grant.id}` }
+        );
+      }
       return { handled: true, action: 'paid', grantId: grant.id };
     }
     case 'payment.failed':

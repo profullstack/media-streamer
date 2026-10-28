@@ -19,6 +19,7 @@ import {
 } from '@/lib/watch-party';
 import { getParty, setParty, cleanupOldParties } from './_store';
 import { isHostOf } from './_view';
+import { emitWebhook } from '@/lib/webhooks/hub';
 
 interface CreatePartyBody {
   hostId?: string;
@@ -71,6 +72,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Cleanup old parties
     cleanupOldParties();
+
+    // Only a signed-in host is an account that can have webhooks. The party
+    // code is what the host shares anyway; the media URL is left out.
+    if (user) {
+      await emitWebhook(
+        user.id,
+        'watch_party.started',
+        {
+          party_id: party.id,
+          code: party.code,
+          host_name: party.hostName,
+          media_title: party.mediaTitle,
+          created_at: party.createdAt.toISOString(),
+        },
+        { subject: `watch_party:${party.id}`, id: `evt_watch_party_started_${party.id}` }
+      );
+    }
 
     console.log('[WatchParty] Created party:', {
       code: party.code,
