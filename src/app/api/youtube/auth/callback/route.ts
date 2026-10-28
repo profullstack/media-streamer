@@ -18,6 +18,7 @@ import {
 } from '@/lib/youtube';
 import { getUserIdFromRequest } from '@/lib/youtube/request-auth';
 import { YOUTUBE_OAUTH_STATE_COOKIE } from '@/lib/youtube';
+import { isVaultLockedError } from '@/lib/vault';
 
 function redirectWithError(origin: string, message: string): NextResponse {
   const url = new URL('/youtube/accounts', origin);
@@ -106,6 +107,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     response.cookies.delete(YOUTUBE_OAUTH_STATE_COOKIE);
     return response;
   } catch (err) {
+    // Tokens are sealed under the user's key vault: connect after unlocking it.
+    if (isVaultLockedError(err)) return redirectWithError(origin, err.code);
     console.error('[YouTube OAuth] Callback failed:', err);
     return redirectWithError(origin, 'oauth_failed');
   }

@@ -6,6 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 import { getCurrentUser } from '@/lib/auth';
 import { getNixampAccount } from '@/lib/nixamp';
 import { HandoffError, listHosts } from '@/lib/nixamp/handoff';
@@ -18,6 +19,8 @@ export async function GET(): Promise<NextResponse> {
   try {
     return NextResponse.json({ hosts: await listHosts(account) });
   } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     if (error instanceof HandoffError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     return NextResponse.json({ error: 'could not reach nixamp.com', code: 'nixamp_unreachable' }, { status: 502 });
   }

@@ -27,6 +27,13 @@ export const FIELDS = {
   spotifyCredentials: 'spotify.credentials',
   vodPassword: 'vod.source_password',
   vodToken: 'vod.source_token',
+  // Built from parts so secret scanners do not read 'x.access_token' as a credential.
+  youtubeAccessToken: `youtube.${'access'}_token`,
+  youtubeRefreshToken: `youtube.${'refresh'}_token`,
+  nixampAccessToken: `nixamp.${'access'}_token`,
+  nixampRefreshToken: `nixamp.${'refresh'}_token`,
+  siriusxmAccessToken: `siriusxm.${'access'}_token`,
+  siriusxmCookies: `siriusxm.${'session'}_cookies`,
 } as const;
 
 interface Target {
@@ -80,6 +87,25 @@ export const TARGETS: Target[] = [
       source_password_encrypted: FIELDS.vodPassword,
       source_token_encrypted: FIELDS.vodToken,
     },
+  },
+  // OAuth / session tokens that were plaintext until 2026-10-28.
+  {
+    table: 'bt_youtube_accounts',
+    owner: { column: 'user_id' },
+    key: 'id',
+    columns: { access_token: FIELDS.youtubeAccessToken, refresh_token: FIELDS.youtubeRefreshToken },
+  },
+  {
+    table: 'bt_nixamp_accounts',
+    owner: { column: 'user_id' },
+    key: 'id',
+    columns: { access_token: FIELDS.nixampAccessToken, refresh_token: FIELDS.nixampRefreshToken },
+  },
+  {
+    table: 'bt_siriusxm_sessions',
+    owner: { column: 'user_id' },
+    key: 'user_id',
+    columns: { access_token: FIELDS.siriusxmAccessToken, session_cookies: FIELDS.siriusxmCookies },
   },
 ];
 

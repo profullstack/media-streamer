@@ -30,4 +30,19 @@ UNION ALL
 SELECT 'vod_providers',
        count(*) FILTER (WHERE source_password_encrypted NOT LIKE 'ss2:%' OR source_token_encrypted NOT LIKE 'ss2:%'),
        count(DISTINCT owner_account_id) FILTER (WHERE source_password_encrypted NOT LIKE 'ss2:%' OR source_token_encrypted NOT LIKE 'ss2:%')
-  FROM public.vod_providers;
+  FROM public.vod_providers
+UNION ALL
+SELECT 'bt_youtube_accounts',
+       count(*) FILTER (WHERE access_token NOT LIKE 'ss2:%' OR refresh_token NOT LIKE 'ss2:%'),
+       count(DISTINCT user_id) FILTER (WHERE access_token NOT LIKE 'ss2:%' OR refresh_token NOT LIKE 'ss2:%')
+  FROM public.bt_youtube_accounts
+UNION ALL
+SELECT 'bt_nixamp_accounts',
+       count(*) FILTER (WHERE (access_token <> '' AND access_token NOT LIKE 'ss2:%') OR refresh_token NOT LIKE 'ss2:%'),
+       count(DISTINCT user_id) FILTER (WHERE (access_token <> '' AND access_token NOT LIKE 'ss2:%') OR refresh_token NOT LIKE 'ss2:%')
+  FROM public.bt_nixamp_accounts
+UNION ALL
+SELECT 'bt_siriusxm_sessions',
+       count(*) FILTER (WHERE access_token NOT LIKE 'ss2:%' OR (session_cookies <> '' AND session_cookies NOT LIKE 'ss2:%')),
+       count(DISTINCT user_id) FILTER (WHERE access_token NOT LIKE 'ss2:%' OR (session_cookies <> '' AND session_cookies NOT LIKE 'ss2:%'))
+  FROM public.bt_siriusxm_sessions;

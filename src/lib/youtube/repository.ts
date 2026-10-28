@@ -2,10 +2,13 @@
  * Repository for bt_youtube_accounts.
  *
  * Uses the service-role Supabase client and bypasses RLS.
+ * access_token / refresh_token are stored sealed (`ss2:`) under the owner's
+ * key vault; YouTubeAccount carries the sealed values, opened in client.ts.
  * All functions take an explicit userId and scope queries by it.
  */
 
 import { createServerClient } from '@/lib/supabase';
+import { FIELDS, sealValue } from '@/lib/vault';
 import { hasYouTubeSearchScope, hasYouTubeSubscriptionManageScope } from './config';
 import type { PublicYouTubeAccount, YouTubeAccount } from './types';
 
@@ -78,6 +81,11 @@ export interface UpsertAccountInput {
 export async function upsertAccount(input: UpsertAccountInput): Promise<YouTubeAccount> {
   const supabase = createServerClient();
 
+  // Sealed under the user's key vault before anything is written: a locked
+  // vault throws VaultLockedError here and nothing is stored in plaintext.
+  const accessToken = await sealValue(input.userId, FIELDS.youtubeAccessToken, input.accessToken);
+  const refreshToken = await sealValue(input.userId, FIELDS.youtubeRefreshToken, input.refreshToken);
+
   // Check whether the user already has any account.
   const { count, error: countError } = await supabase
     .from(TABLE)
@@ -99,8 +107,8 @@ export async function upsertAccount(input: UpsertAccountInput): Promise<YouTubeA
         email: input.email,
         display_name: input.displayName,
         avatar_url: input.avatarUrl,
-        access_token: input.accessToken,
-        refresh_token: input.refreshToken,
+        access_token: accessToken,
+        refresh_token: refreshToken,
         token_expires_at: input.tokenExpiresAt,
         scopes: input.scopes,
         is_default: isFirst ? true : undefined,

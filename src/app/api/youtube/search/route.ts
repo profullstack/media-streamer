@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 import { requireActiveSubscription } from '@/lib/subscription/guard';
 import { getAccountById, hasYouTubeSearchScope, listAccountsForUser, searchVideos } from '@/lib/youtube';
 import { getUserIdFromRequest } from '@/lib/youtube/request-auth';
@@ -68,6 +69,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     const result = await searchVideos(account, query.trim(), pageToken);
     return NextResponse.json(result);
   } catch (err) {
+    const locked = vaultErrorBody(err);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     const message = err instanceof Error ? err.message.toLowerCase() : '';
     if (
       message.includes('access_token_scope_insufficient') ||

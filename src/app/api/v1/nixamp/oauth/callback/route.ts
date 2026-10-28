@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isVaultLockedError } from '@/lib/vault';
 import { getCurrentUser } from '@/lib/auth';
 import {
   AUTH_COOKIE_MAX_AGE,
@@ -116,6 +117,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
       expiresIn: tokens.expires_in,
       scopes: tokens.scope ? tokens.scope.split(' ').filter(Boolean) : [],
+      // Tokens are sealed under the user's key vault. Signing in must still
+      // work while it is locked: keep the identity, store no tokens.
+      identityOnlyWhenLocked: signin,
     });
 
     // Home is wherever they were going: the party they were sent to, or the
@@ -134,6 +138,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   } catch (err) {
     console.error('[nixamp OAuth] callback failed:', err);
     if (err instanceof NixampSignInError) return fail(err.reason);
+    if (isVaultLockedError(err)) return fail(err.code);
     return fail('exchange_failed');
   }
 }

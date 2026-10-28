@@ -23,6 +23,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { vaultErrorBody } from '@/lib/vault';
 import { getCurrentUser } from '@/lib/auth';
 import { validatePartyCode } from '@/lib/watch-party';
 import {
@@ -69,6 +70,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const messages = await readRoomChat(room, params.get('after') ?? undefined);
       return NextResponse.json({ success: true, bridged: true, messages });
     } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
       console.error('[WatchParty] nixamp chat read failed:', error);
       return NextResponse.json({ error: 'Could not read the room' }, { status: 502 });
     }
@@ -160,6 +163,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ error: 'action must be bridge, sync or end' }, { status: 400 });
   } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     // Back to this party once nixamp is connected, not to the settings page.
     const connect = `/api/v1/nixamp/oauth/start?redirect=${encodeURIComponent(`/watch-party?code=${code}`)}`;
     if (error instanceof NixampNotConnected) {

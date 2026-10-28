@@ -24,6 +24,8 @@ import {
   type SiriusXmCredentials,
 } from './siriusxm-credentials';
 
+import { isVaultLockedError, unlockStore } from '@/lib/vault';
+
 import { proxyFetch } from './proxy-fetch';
 import { withProxyScope } from './proxy-budget';
 
@@ -1038,7 +1040,14 @@ class AuthManager {
   }
 
   private async loadAndRefresh(userId: string): Promise<string> {
-    const stored = await getCredentials(userId);
+    let stored: SiriusXmCredentials | null;
+    try {
+      stored = await getCredentials(userId);
+    } catch (err) {
+      // Sealed under the user's key vault: locked pauses playback, never crashes.
+      if (isVaultLockedError(err)) throw new SiriusXmAuthError(err.message, 423, { code: err.code, locked: true });
+      throw err;
+    }
     if (!stored) {
       throw new SiriusXmAuthError(
         'SiriusXM is not connected for this user. Connect at /radio.',
@@ -1094,7 +1103,14 @@ class AuthManager {
 
 let manager: AuthManager | null = null;
 function getManager(): AuthManager {
-  if (!manager) manager = new AuthManager();
+  if (!manager) {
+    const created = new AuthManager();
+    manager = created;
+    // The cached bearer is plaintext: drop it when its owner locks or expires.
+    unlockStore().onChange((userId, unlocked) => {
+      if (!unlocked) created.reset(userId);
+    });
+  }
   return manager;
 }
 

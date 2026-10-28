@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { completeOtpLogin, SiriusXmAuthError, withSiriusXmUser } from '@/lib/radio/siriusxm-auth';
 import { saveCredentials } from '@/lib/radio/siriusxm-credentials';
+import { dataKeyFor, VaultLockedError, vaultErrorBody } from '@/lib/vault';
 import { takePendingLogin } from '../start/pending-store';
 
 interface Body {
@@ -33,6 +34,13 @@ export async function POST(request: NextRequest): Promise<Response> {
   const otp = body.otp?.replace(/\s+/g, '');
   if (!otp) {
     return NextResponse.json({ error: 'OTP required' }, { status: 400 });
+  }
+
+  // The session is sealed under the user's key vault: refuse before the
+  // one-time code is spent if it cannot be stored.
+  if (!dataKeyFor(user.id)) {
+    const locked = vaultErrorBody(new VaultLockedError('vault_locked'))!;
+    return NextResponse.json(locked.body, { status: locked.status });
   }
 
   const pending = takePendingLogin(user.id);
@@ -72,6 +80,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       accessTokenExpiresAt: session.accessTokenExpiresAt ?? null,
     });
   } catch (error) {
+    const locked = vaultErrorBody(error);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     if (error instanceof SiriusXmAuthError) {
       return NextResponse.json(
         { error: error.message },
