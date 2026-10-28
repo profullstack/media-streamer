@@ -57,8 +57,8 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0(next@16.4.3(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@profullstack/throttle':
-        specifier: ^0.3.5
-        version: 0.3.5
+        specifier: ^0.4.0
+        version: 0.4.0
       '@profullstack/x402-gateway':
         specifier: ^0.15.1
         version: 0.15.1
@@ -1150,8 +1150,8 @@ packages:
       react:
         optional: true
 
-  '@profullstack/throttle@0.3.5':
-    resolution: {integrity: sha512-tZ04du+CyjN6ECiRekw46XVDbmD4pxxg7tUPrhgHGP6Bt4YVn+1yIgUVbzr+AcKVBIwGqCiNkH8FKcLGV9ByUw==}
+  '@profullstack/throttle@0.4.0':
+    resolution: {integrity: sha512-Lj+XHt51OxyaJ2FqosZDyr9Z5RFB8z+ARixpoUfrDu3YlvFlct5GbbZM/C0qLZkUgzeuFSDvtYt9f0NNfBkFqA==}
     engines: {node: '>=20.11'}
 
   '@profullstack/x402-gateway@0.15.1':
@@ -5742,7 +5742,7 @@ snapshots:
       next: 16.4.3(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@26.6.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
 
-  '@profullstack/throttle@0.3.5':
+  '@profullstack/throttle@0.4.0':
     dependencies:
       '@profullstack/x402-gateway': 0.15.1
 
