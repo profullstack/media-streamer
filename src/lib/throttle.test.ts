@@ -30,9 +30,10 @@ describe('the site-wide allowance, signed out', () => {
     expect(refused?.status).toBeGreaterThanOrEqual(402);
   });
 
-  it('still meters everything else at a hundred a minute', async () => {
+  // Configured at a hundred; @profullstack/throttle 0.4 multiplies non-guard limits by 5.
+  it('still meters everything else at five hundred a minute', async () => {
     const ip = '198.51.100.10';
-    for (let i = 0; i < 100; i++) expect(await meter(from(ip, '/pricing'))).toBeNull();
+    for (let i = 0; i < 500; i++) expect(await meter(from(ip, '/pricing'))).toBeNull();
     expect((await meter(from(ip, '/pricing')))?.status).toBeGreaterThanOrEqual(402);
   });
 });

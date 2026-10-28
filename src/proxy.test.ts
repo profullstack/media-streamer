@@ -671,12 +671,13 @@ describe('The site-wide allowance', () => {
 
   // The gap this closes. A route nobody thought to list used to be unmetered
   // however hard it was hit; on coinpayportal that was 19,000 URLs a day.
+  // @profullstack/throttle 0.4 gives every non-guard limit 5x headroom.
   it('meters a route nobody listed', async () => {
-    expect(await countUntilLimited('/torrent/abc123', '10.9.0.1', 140)).toBe(100);
+    expect(await countUntilLimited('/torrent/abc123', '10.9.0.1', 540)).toBe(500);
   });
 
-  it('keeps the expensive routes at the number they were tuned to', async () => {
-    expect(await countUntilLimited('/api/torrent-search', '10.9.0.2', 60)).toBe(30);
+  it('keeps the expensive routes at the number they were tuned to (with 5x headroom)', async () => {
+    expect(await countUntilLimited('/api/torrent-search', '10.9.0.2', 180)).toBe(150);
   });
 
   it('gives each caller its own allowance', async () => {
