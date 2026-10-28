@@ -29,6 +29,11 @@ describe('legal mode', () => {
     expect(legallyServed('/iptv')).toBe(false);
   });
 
+  it('serves the customer webhooks API', () => {
+    expect(legallyServed('/api/v1/webhooks')).toBe(true);
+    expect(legallyServed('/api/v1/webhooks/wh_1/deliveries')).toBe(true);
+  });
+
   it('retires the index, the media browsers, seedboxes and the resale rails', () => {
     for (const p of ['/dht', '/search', '/find-torrents', '/torrents/abc', '/trending', '/movies', '/tvshows', '/music', '/xxx', '/radio', '/iptv', '/live-tv', '/spotify', '/youtube', '/watch/1', '/seedboxes', '/api/dht', '/api/search', '/api/torrent-search', '/api/magnets', '/api/stream', '/api/radio/proxy', '/api/iptv-proxy', '/api/spotify', '/api/seedbox/add', '/api/account/seedbox', '/api/account/seedboxes/1', '/api/cron/refresh-iptv', '/sitemap.xml']) {
       expect(legallyServed(p), p).toBe(false);

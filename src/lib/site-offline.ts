@@ -27,7 +27,17 @@ export const SITE_OFFLINE = true;
 // The ring descriptor too, so the Profullstack ring can read this site's membership.
 // And a member's own Nixamp server fetching a file they handed over: a one-file
 // grant, minted only for a signed-in member, is the permission (lib/nixamp/handoff.ts).
-const STILL_SERVED = ['/api/health', '/api/webhooks', '/manifest.json', '/.well-known/openwebring.json', '/api/v1/nixamp/files'];
+// And the customer webhooks API: a member's integration calls it with a btr_ API token,
+// which the member gate cannot read, and the route answers 401 to anything but a valid
+// token or session itself (lib/webhooks/auth.ts).
+const STILL_SERVED = [
+  '/api/health',
+  '/api/webhooks',
+  '/manifest.json',
+  '/.well-known/openwebring.json',
+  '/api/v1/nixamp/files',
+  '/api/v1/webhooks',
+];
 
 export function stillServed(pathname: string): boolean {
   return STILL_SERVED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
