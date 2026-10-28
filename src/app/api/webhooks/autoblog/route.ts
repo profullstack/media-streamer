@@ -2,10 +2,12 @@
 // Accepts CloudEvents 1.0 + Standard Webhooks signed payloads from
 // crawlproof or outrank. Bearer token in Authorization header doubles
 // as the HMAC secret (per @profullstack/autoblog contract).
+//
+// The signature check lives in src/lib/blog/autoblog-verify.ts.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
-import { verifyAndParse } from '@profullstack/autoblog';
+import { verifyAutoblogDelivery } from '@/lib/blog/autoblog-verify';
 import { gatePost } from '@profullstack/autoblog/quality';
 import { getServerClient } from '@/lib/supabase';
 
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
   const headers: Record<string, string> = {};
   req.headers.forEach((v, k) => { headers[k] = v; });
 
-  const parsed = verifyAndParse({ headers, body, opts: { secret: integration.access_token } });
+  const parsed = verifyAutoblogDelivery(headers, body, integration.access_token);
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.reason }, { status: parsed.status });
   }

@@ -9,6 +9,7 @@ import type { WebhookPayload } from './types';
 import type { PaymentHistoryRepository } from '../payments/repository';
 import type { SubscriptionRepository } from '../subscription/repository';
 import type { PaymentPlan } from '../supabase/types';
+import { emitWebhook } from '@/lib/webhooks/hub';
 
 // ============================================================================
 // Logging
@@ -353,6 +354,21 @@ async function handlePaymentConfirmed(
     });
     throw error;
   }
+
+  await emitWebhook(
+    payment.user_id,
+    'subscription.activated',
+    {
+      plan: payment.plan,
+      duration_months: payment.duration_months,
+      amount_usd: payment.amount_usd ?? null,
+      currency: currency ?? null,
+      tx_hash: tx_hash ?? null,
+      period_start: periodStart.toISOString(),
+      period_end: periodEnd.toISOString(),
+    },
+    { subject: `payment:${payment.id}`, id: `evt_subscription_activated_${payment.id}` }
+  );
 
   return {
     success: true,

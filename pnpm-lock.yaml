@@ -59,6 +59,9 @@ importers:
       '@profullstack/throttle':
         specifier: ^0.4.0
         version: 0.4.0
+      '@profullstack/webhooks':
+        specifier: 0.2.1
+        version: 0.2.1
       '@profullstack/x402-gateway':
         specifier: ^0.15.2
         version: 0.15.2
@@ -1153,6 +1156,10 @@ packages:
   '@profullstack/throttle@0.4.0':
     resolution: {integrity: sha512-Lj+XHt51OxyaJ2FqosZDyr9Z5RFB8z+ARixpoUfrDu3YlvFlct5GbbZM/C0qLZkUgzeuFSDvtYt9f0NNfBkFqA==}
     engines: {node: '>=20.11'}
+
+  '@profullstack/webhooks@0.2.1':
+    resolution: {integrity: sha512-QHeSkpu4O44oJ620qhQqxqFlD3u/OhupmXRnBHw4MGKuDTa0R+Y/727nnF7psSHxxSfnbWfNuVl15z3IXuaZiw==}
+    engines: {node: '>=20'}
 
   '@profullstack/x402-gateway@0.15.2':
     resolution: {integrity: sha512-f0el7rPd13StA04OxA0PGrrG0kxg/vvGPtvI0XYn8wlTGPut3G+2UKcMRzSxQdaF4LkYAOLnkg9S+LhmIKvDBA==}
@@ -5745,6 +5752,8 @@ snapshots:
   '@profullstack/throttle@0.4.0':
     dependencies:
       '@profullstack/x402-gateway': 0.15.2
+
+  '@profullstack/webhooks@0.2.1': {}
 
   '@profullstack/x402-gateway@0.15.2':
     dependencies:

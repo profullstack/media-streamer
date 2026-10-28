@@ -407,6 +407,8 @@ const PROFILE_EXEMPT_PATHS = [
   // middle of a consent flow loses the code, the state and the verifier, and
   // lands them back here with nothing connected and no way to tell why.
   '/api/v1/nixamp',
+  // Customer webhooks are account-level, and an API token carries no profile.
+  '/api/v1/webhooks',
   '/_next',
   '/favicon',
   '/manifest',

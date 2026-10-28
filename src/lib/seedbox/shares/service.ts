@@ -11,6 +11,7 @@
 
 import type { CryptoBlockchain } from '@/lib/coinpayportal/types';
 import { getCoinPayPortalClient } from '@/lib/coinpayportal/client';
+import { emitWebhook } from '@/lib/webhooks/hub';
 import {
   isValidMagnet,
   loadSeedboxForRequest,
@@ -713,6 +714,24 @@ export async function handleShareWebhook(payload: {
       });
       if (!changed) return { handled: true, action: 'already_paid', grantId: grant.id };
       await repo.incrementShareEarnings(grant.shareId, grant.amountUsd);
+      if (share) {
+        await emitWebhook(
+          share.ownerAccountId,
+          'share.purchased',
+          {
+            grant_id: grant.id,
+            share_kind: 'seedbox',
+            share_id: share.id,
+            share_slug: share.slug,
+            share_title: share.title,
+            amount_usd: grant.amountUsd,
+            currency: payload.currency ?? null,
+            tx_hash: payload.txHash ?? null,
+            expires_at: expiresAt,
+          },
+          { subject: `seedbox_share_grant:${grant.id}`, id: `evt_share_purchased_${grant.id}` }
+        );
+      }
       return { handled: true, action: 'paid', grantId: grant.id };
     }
     case 'payment.failed':
