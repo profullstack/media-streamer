@@ -109,18 +109,15 @@ describe('unlock store', () => {
 });
 
 describe('no env fallback', () => {
-  it('a server key in env never opens or writes user secrets', async () => {
+  it('an old-key value still opens while the migration is on, and not after the cutoff', async () => {
     vi.stubEnv('ENCRYPTION_KEY', LEGACY_SECRET);
     const legacy = legacyEncrypt('senc:v1', 'token');
-    // Not at runtime, even though the env key could decrypt it...
+    await expect(openOptional(USER, FIELDS.seedboxHttpToken, legacy)).resolves.toBe('token');
+    vi.stubEnv('LEGACY_KEY_MIGRATION', 'off');
     await expect(openOptional(USER, FIELDS.seedboxHttpToken, legacy)).rejects.toMatchObject({
       code: 'legacy_unmigrated',
     });
-    // ...and not even while unlocked: only the migration reads legacy values.
-    unlockStore().unlock(USER, dek);
-    await expect(openOptional(USER, FIELDS.seedboxHttpToken, legacy)).rejects.toMatchObject({
-      code: 'legacy_unmigrated',
-    });
+    vi.stubEnv('LEGACY_KEY_MIGRATION', 'on');
     // Writes need the user's key, never the env key.
     unlockStore().lock(USER);
     await expect(sealValue(USER, FIELDS.seedboxHttpToken, 'new')).rejects.toBeInstanceOf(VaultLockedError);

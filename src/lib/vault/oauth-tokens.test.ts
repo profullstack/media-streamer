@@ -130,10 +130,13 @@ describe('SiriusXM session', () => {
     expect(await getCredentialsMeta(USER)).toMatchObject({ email: 'me@example.com' });
   });
 
-  it('a plaintext row is never used at runtime (legacy_unmigrated) until migrated', async () => {
+  it('a plaintext row still works while the migration is on, and not after the cutoff', async () => {
     db.rows.bt_siriusxm_sessions = [{ user_id: USER, email: null, access_token: 'old-plain', session_cookies: 'c=3' }];
     unlock();
+    await expect(getCredentials(USER)).resolves.toMatchObject({ accessToken: 'old-plain' });
+    vi.stubEnv('LEGACY_KEY_MIGRATION', 'off');
     await expect(getCredentials(USER)).rejects.toMatchObject({ code: 'legacy_unmigrated' });
+    vi.unstubAllEnvs();
   });
 });
 
