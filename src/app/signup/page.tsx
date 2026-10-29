@@ -286,7 +286,21 @@ export default function SignupPage(): React.ReactElement {
           </form>
 
           {/* No "Continue with nixamp" here: it would make an account without an invite,
-              and the database refuses that anyway. Linked accounts still sign in on /login. */}
+              and the database refuses that anyway. Linked accounts still sign in on /login.
+              The same holds for CoinPay: it signs in an account that has connected it. */}
+          <a
+            href="/api/v1/coinpay/oauth/start"
+            className={cn(
+              'mt-6 w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3',
+              'border border-border-default bg-bg-tertiary text-text-primary font-medium',
+              'hover:border-accent-primary transition-colors'
+            )}
+          >
+            <span>Sign in with CoinPay</span>
+          </a>
+          <p className="mt-2 text-center text-xs text-text-muted">
+            Already a member with CoinPay connected? Sign in with it. New here? Create the account with your invite, then connect CoinPay in Settings.
+          </p>
 
           {/* Sign in link */}
           <p className="mt-6 text-center text-sm text-text-secondary">

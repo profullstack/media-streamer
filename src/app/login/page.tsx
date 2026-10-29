@@ -22,6 +22,20 @@ const NIXAMP_REFUSALS: Record<string, string> = {
   exchange_failed: 'nixamp did not finish the sign-in. Try it again.',
 };
 
+/** What went wrong on the way back from CoinPay, in words. */
+const COINPAY_REFUSALS: Record<string, string> = {
+  access_denied: 'You did not allow it on CoinPay, so nothing was signed in.',
+  not_connected: 'No account here is connected to that CoinPay account yet. Sign in with your email and password, then connect CoinPay from Settings > Connections. Sign-up here is by invite.',
+  state_mismatch: 'That CoinPay sign-in took too long or was reused. Try it again.',
+  exchange_failed: 'CoinPay did not finish the sign-in. Try it again.',
+  server_misconfigured: 'Sign in with CoinPay is not set up on this server yet.',
+};
+
+/** Sign in with CoinPay, landing wherever the visit was going. */
+function coinpaySignInHref(redirect: string): string {
+  return `/api/v1/coinpay/oauth/start?redirect=${encodeURIComponent(redirect)}`;
+}
+
 /** Sign in with nixamp, landing wherever the visit was going. */
 function nixampSignInHref(redirect: string): string {
   return `/api/v1/nixamp/oauth/start?redirect=${encodeURIComponent(redirect)}`;
@@ -42,6 +56,8 @@ export default function LoginPage(): React.ReactElement {
     setRedirect(sameOriginPath(params.get('redirect')));
     const refused = params.get('nixamp_error');
     if (refused) setError(NIXAMP_REFUSALS[refused] ?? `nixamp sign-in did not finish (${refused}).`);
+    const cpRefused = params.get('coinpay_error');
+    if (cpRefused) setError(COINPAY_REFUSALS[cpRefused] ?? `CoinPay sign-in did not finish (${cpRefused}).`);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -105,6 +121,22 @@ export default function LoginPage(): React.ReactElement {
             </Link>
             <h1 className="text-2xl font-bold text-text-primary">Welcome back</h1>
             <p className="text-text-secondary mt-1">Sign in to your account</p>
+          </div>
+
+          {/* Sign in with CoinPay first: the fleet's master account */}
+          <a
+            href={coinpaySignInHref(redirect)}
+            className={cn(
+              'w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3',
+              'bg-accent-primary text-white font-medium',
+              'hover:bg-accent-primary/90 transition-colors'
+            )}
+          >
+            <span>Sign in with CoinPay</span>
+          </a>
+          <div className="relative my-6 text-center text-xs text-text-muted">
+            <span className="bg-bg-secondary px-2 relative z-10">or with your email</span>
+            <span className="absolute inset-x-0 top-1/2 border-t border-border-subtle" aria-hidden="true" />
           </div>
 
           {/* Form */}
