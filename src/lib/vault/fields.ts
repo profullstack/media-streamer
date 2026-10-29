@@ -13,6 +13,7 @@
 import { isCipherBlob, type CipherBlob } from '@profullstack/sealed-secrets';
 
 import { VaultLockedError } from './errors';
+import { legacyMigrationEnabled, openLegacyValue } from './legacy';
 import { sealer } from './sealer';
 import { dataKeyFor } from './unlock';
 
@@ -66,8 +67,10 @@ export async function sealOptional(
 
 /**
  * Open a stored secret just before use. null/empty -> null. A legacy
- * (server-key or plaintext) value is never used at runtime: it throws
- * `legacy_unmigrated` until the owner unlocks and the migration re-seals it.
+ * (server-key or plaintext) value is read with the old key while
+ * LEGACY_KEY_MIGRATION is on, as before 0.8.0: refusing it stopped every saved
+ * seedbox, mailbox and account until the owner made a vault. The owner's next
+ * unlock still re-seals it; after the cutoff it throws `legacy_unmigrated`.
  */
 export async function openOptional(
   ownerId: string,
@@ -75,7 +78,14 @@ export async function openOptional(
   value: string | null | undefined
 ): Promise<string | null> {
   if (value == null || value.length === 0) return null;
-  if (!isSealedValue(value)) throw new VaultLockedError('legacy_unmigrated');
+  if (!isSealedValue(value)) {
+    if (!legacyMigrationEnabled()) throw new VaultLockedError('legacy_unmigrated');
+    try {
+      return openLegacyValue(value);
+    } catch {
+      throw new VaultLockedError('legacy_unmigrated');
+    }
+  }
   return openWithKey(requireKey(ownerId), ownerId, field, value);
 }
 
