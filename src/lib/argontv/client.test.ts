@@ -16,6 +16,12 @@ import { ARGONTV_PACKAGES } from './types';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+
 describe('ArgonTVClient', () => {
   const testConfig = {
     apiKey: 'test-api-key-12345',
@@ -57,10 +63,7 @@ describe('ArgonTVClient', () => {
         m3u_download_link: 'https://line.ottc.xyz/get.php?username=125950677866&password=204437619472&output=ts&type=m3u_plus',
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.createLine({
@@ -74,8 +77,9 @@ describe('ArgonTVClient', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer test-api-key-12345',
+            'content-type': 'application/json',
+            // X-ApiKey: the live reseller API refuses a bearer.
+            'x-apikey': 'test-api-key-12345',
           }),
           body: JSON.stringify({
             package: ARGONTV_PACKAGES['1_month'],
@@ -97,10 +101,7 @@ describe('ArgonTVClient', () => {
         m3u_download_link: 'https://line.ottc.xyz/get.php?username=customuser&password=custompass123&output=ts&type=m3u_plus',
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.createLine({
@@ -136,10 +137,7 @@ describe('ArgonTVClient', () => {
         m3u_download_link: 'https://line.ottc.xyz/get.php?username=125950677867&password=204437619473&output=ts&type=m3u_plus',
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.createLine({
@@ -160,31 +158,23 @@ describe('ArgonTVClient', () => {
     });
 
     it('should throw error on API failure', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        json: () => Promise.resolve({ error: true, message: 'Invalid API key' }),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse({ error: true, message: 'Invalid API key' }, 401));
 
       const client = new ArgonTVClient(testConfig);
       
       await expect(client.createLine({
         package: ARGONTV_PACKAGES['1_month'],
-      })).rejects.toThrow('ArgonTV API error: 401 - Invalid API key');
+      })).rejects.toThrow('ArgonTV create-line: Invalid API key');
     });
 
     it('should throw error on API error response', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ error: true, message: 'Insufficient credits' }),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse({ error: true, message: 'Insufficient credits' }));
 
       const client = new ArgonTVClient(testConfig);
       
       await expect(client.createLine({
         package: ARGONTV_PACKAGES['1_month'],
-      })).rejects.toThrow('ArgonTV API error: Insufficient credits');
+      })).rejects.toThrow('ArgonTV create-line: Insufficient credits');
     });
 
     it('should throw error on network failure', async () => {
@@ -206,10 +196,7 @@ describe('ArgonTVClient', () => {
         successful: 1,
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.extendLine({
@@ -237,10 +224,7 @@ describe('ArgonTVClient', () => {
         successful: 3,
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.extendLine({
@@ -259,10 +243,7 @@ describe('ArgonTVClient', () => {
         successful: 2,
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.extendLine({
@@ -275,19 +256,14 @@ describe('ArgonTVClient', () => {
     });
 
     it('should throw error on API failure', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        statusText: 'Bad Request',
-        json: () => Promise.resolve({ error: true, message: 'Invalid line ID' }),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse({ error: true, message: 'Invalid line ID' }, 400));
 
       const client = new ArgonTVClient(testConfig);
       
       await expect(client.extendLine({
         lines: [9999],
         package: ARGONTV_PACKAGES['1_month'],
-      })).rejects.toThrow('ArgonTV API error: 400 - Invalid line ID');
+      })).rejects.toThrow('ArgonTV extend: Invalid line ID');
     });
   });
 
@@ -305,17 +281,14 @@ describe('ArgonTVClient', () => {
         m3u_download_link: 'https://line.ottc.xyz/get.php?username=125950677866&password=204437619472&output=ts&type=m3u_plus',
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.getLine(3559);
 
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.argontv.nl/api/v1/line/3559',
+        'https://api.argontv.nl/api/v1/lines/3559',
         expect.objectContaining({
           method: 'GET',
         })
@@ -323,16 +296,11 @@ describe('ArgonTVClient', () => {
     });
 
     it('should throw error for non-existent line', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-        json: () => Promise.resolve({ error: true, message: 'Line not found' }),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse({ error: true, message: 'Line not found' }, 404));
 
       const client = new ArgonTVClient(testConfig);
       
-      await expect(client.getLine(99999)).rejects.toThrow('ArgonTV API error: 404 - Line not found');
+      await expect(client.getLine(99999)).rejects.toThrow('ArgonTV lines/99999: Line not found');
     });
   });
 
@@ -347,10 +315,7 @@ describe('ArgonTVClient', () => {
         ],
       };
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockFetch.mockResolvedValueOnce(jsonResponse(mockResponse));
 
       const client = new ArgonTVClient(testConfig);
       const result = await client.getTemplates();

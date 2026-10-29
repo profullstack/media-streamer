@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
     'node-datachannel',
     'webrtc-polyfill',
     '@thaunknown/simple-peer',
+    // SiriusXM/ArgonTV protocol: loaded from node_modules, so its optional
+    // dynamic import of a browser is never bundled.
+    '@profullstack/stream-providers',
   ],
 
   // Headers for security and PWA
