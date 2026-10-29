@@ -43,6 +43,8 @@ const ALLOWED = [
   // Customer webhooks: endpoint management only, no content (lib/webhooks).
   '/api/v1/webhooks',
   '/api/v1/nixamp',
+  // Sign in with / Connect CoinPay: account identity only, no content.
+  '/api/v1/coinpay',
   // memberships and payments
   '/pricing',
   '/pay',
