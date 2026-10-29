@@ -34,8 +34,13 @@ function remember(key: string, access: Access, until = Date.now() + CACHE_MS): A
   return access;
 }
 
-/** Sign-in pages stay reachable so an admin can log in. Signup is open only with an invite (site-offline.ts). */
-const SIGN_IN = ['/login', '/forgot-password', '/reset-password', '/api/auth'];
+/**
+ * Sign-in pages stay reachable so a member can log in. Signup is open only with an invite (site-offline.ts).
+ * The OAuth round trips of Sign in with CoinPay and Sign in with nixamp too: they start and
+ * end without a session, because getting one is what they are for. Both sign in only an
+ * account that already bound that identity (never by email), so they open nothing new.
+ */
+const SIGN_IN = ['/login', '/forgot-password', '/reset-password', '/api/auth', '/api/v1/coinpay/oauth', '/api/v1/nixamp/oauth'];
 
 export function isSignInPath(pathname: string): boolean {
   return SIGN_IN.some((p) => pathname === p || pathname.startsWith(`${p}/`));

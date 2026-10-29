@@ -39,6 +39,12 @@ describe('admin gate', () => {
     expect(isSignInPath('/api/auth/callback')).toBe(true);
     expect(isSignInPath('/signup')).toBe(false);
     expect(isSignInPath('/loginx')).toBe(false);
+    // Sign in with CoinPay / nixamp: the OAuth round trip, and nothing else under /api/v1.
+    expect(isSignInPath('/api/v1/coinpay/oauth/start')).toBe(true);
+    expect(isSignInPath('/api/v1/coinpay/oauth/callback')).toBe(true);
+    expect(isSignInPath('/api/v1/nixamp/oauth/callback')).toBe(true);
+    expect(isSignInPath('/api/v1/coinpay/connection')).toBe(false);
+    expect(isSignInPath('/api/v1/nixamp/connection')).toBe(false);
   });
 
   it('reads the token from the session cookie or a bearer header', () => {
