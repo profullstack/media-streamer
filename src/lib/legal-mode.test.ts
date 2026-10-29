@@ -29,6 +29,12 @@ describe('legal mode', () => {
     expect(legallyServed('/iptv')).toBe(false);
   });
 
+  it('serves Sign in with / Connect CoinPay', () => {
+    for (const p of ['/api/v1/coinpay/oauth/start', '/api/v1/coinpay/oauth/callback', '/api/v1/coinpay/connection']) {
+      expect(legallyServed(p), p).toBe(true);
+    }
+  });
+
   it('serves the customer webhooks API', () => {
     expect(legallyServed('/api/v1/webhooks')).toBe(true);
     expect(legallyServed('/api/v1/webhooks/wh_1/deliveries')).toBe(true);
