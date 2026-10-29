@@ -1,9 +1,17 @@
 /**
  * ArgonTV API Client
- * 
- * Client library for ArgonTV IPTV reseller API integration
+ *
+ * The IPTV reseller API, spoken by @profullstack/stream-providers' ArgonTV
+ * adapter (shared with tipoffwatch, genrewatch, watchnews and ch4nnels). This
+ * class keeps the raw response shapes the rest of the app reads.
+ *
+ * Checked against the live API 2026-10-29: it authenticates with `X-ApiKey` (a
+ * bearer is refused), the line route is `/api/v1/lines/:id`, and the host is
+ * distributors.argontv.nl (api.argontv.nl has no DNS record).
  */
 
+import { createReseller, RESELLER_BASE_URL } from '@profullstack/stream-providers/argontv';
+import type { Reseller } from '@profullstack/stream-providers/argontv';
 import type {
   ArgonTVConfig,
   CreateLineRequest,
@@ -14,55 +22,19 @@ import type {
   GetTemplatesResponse,
 } from './types';
 
-const DEFAULT_BASE_URL = 'https://api.argontv.nl';
-
 export class ArgonTVClient {
-  private apiKey: string;
-  private baseUrl: string;
+  private reseller: Reseller;
 
   constructor(config: ArgonTVConfig) {
-    this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl || DEFAULT_BASE_URL;
-  }
-
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
-      ...options.headers,
-    };
-
-    const response = await fetch(url, {
-      ...options,
-      headers,
+    this.reseller = createReseller({
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl || RESELLER_BASE_URL,
     });
-
-    // Parse response body
-    const data = await response.json().catch(() => ({})) as { error?: boolean; message?: string };
-
-    // Handle HTTP errors
-    if (!response.ok) {
-      const errorMessage = data.message || response.statusText;
-      throw new Error(
-        `ArgonTV API error: ${response.status} - ${errorMessage}`
-      );
-    }
-
-    // Handle API-level errors (error: true with 200 status)
-    if (data.error === true && data.message) {
-      throw new Error(`ArgonTV API error: ${data.message}`);
-    }
-
-    return data as T;
   }
 
   /**
    * Create a new IPTV line
-   * 
+   *
    * @param params - Line creation parameters
    * @returns Created line details including credentials and M3U link
    */
@@ -93,49 +65,39 @@ export class ArgonTVClient {
       payload.additional_cons = params.additional_cons;
     }
 
-    return this.request<CreateLineResponse>('/api/v1/create-line', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    return this.reseller.call('create-line', { method: 'POST', body: payload });
   }
 
   /**
    * Extend existing IPTV lines
-   * 
+   *
    * @param params - Extension parameters including line IDs and package
    * @returns Extension result with success/failure counts
    */
   async extendLine(params: ExtendLineRequest): Promise<ExtendLineResponse> {
-    return this.request<ExtendLineResponse>('/api/v1/extend', {
+    return this.reseller.call('extend', {
       method: 'POST',
-      body: JSON.stringify({
-        lines: params.lines,
-        package: params.package,
-      }),
+      body: { lines: params.lines, package: params.package },
     });
   }
 
   /**
    * Get line details by ID
-   * 
+   *
    * @param lineId - The line ID to retrieve
    * @returns Line details including status and credentials
    */
   async getLine(lineId: number): Promise<GetLineResponse> {
-    return this.request<GetLineResponse>(`/api/v1/line/${lineId}`, {
-      method: 'GET',
-    });
+    return this.reseller.call(`lines/${Number(lineId)}`);
   }
 
   /**
    * Get available templates
-   * 
+   *
    * @returns List of available templates
    */
   async getTemplates(): Promise<GetTemplatesResponse> {
-    return this.request<GetTemplatesResponse>('/api/v1/templates', {
-      method: 'GET',
-    });
+    return this.reseller.call('templates');
   }
 }
 

@@ -1,16 +1,18 @@
 /**
  * SiriusXM Service
  *
- * Server-side SiriusXM integration mirroring bin/play-siriusxm.ts.
- * Bearer comes from siriusxm-auth (device grant -> anonymous session -> accessToken),
- * with SIRIUSXM_TOKEN as a manual override.
+ * Server-side SiriusXM integration. The browse, search and tune calls, the HLS
+ * rewrite and the AES key decode are @profullstack/stream-providers' SiriusXM
+ * adapter (shared with tipoffwatch and watchnews); siriusxm-auth.ts configures
+ * it to go out through proxyFetch and the user's pinned proxy. The bearer comes
+ * from siriusxm-auth, which refreshes it per user.
  */
 
 import {
   ensureSiriusXmBearer,
   getSiriusXmProxyAgent,
+  getSiriusXmProxyUrl,
   invalidateSiriusXmSession,
-  isRetryableNetworkError,
   SiriusXmAuthError,
 } from './siriusxm-auth';
 import type {
@@ -22,19 +24,11 @@ import type {
   SiriusXmQuality,
 } from './types';
 
-import { proxyFetch } from './proxy-fetch';
+import * as sxm from '@profullstack/stream-providers/siriusxm';
 
 export { SiriusXmAuthError } from './siriusxm-auth';
 
 export const SIRIUSXM_STATION_ID_PREFIX = 'sxm:';
-
-const PAGE_ID = '403ab6a5-d3c9-4c2a-a722-a94a6a5fd056';
-const CONTAINER_ID = '3JoBfOCIwo6FmTpzM1S2H7';
-const SET_ID = '5mqCLZ21qAwnufKT8puUiM';
-
-const BROWSE_URL = `https://api.edge-gateway.siriusxm.com/browse/v1/pages/curated-grouping/${PAGE_ID}`;
-const SEARCH_URL = 'https://api.edge-gateway.siriusxm.com/search/v1/search';
-const TUNE_SOURCE_URL = 'https://api.edge-gateway.siriusxm.com/playback/play/v1/tuneSource';
 
 const SIRIUSXM_HEADERS_BASE: Record<string, string> = {
   'User-Agent':
@@ -92,272 +86,41 @@ export function parseSiriusXmId(
   return { id, type };
 }
 
-function b64urlJson(obj: unknown): string {
-  return Buffer.from(JSON.stringify(obj), 'utf8')
-    .toString('base64')
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replaceAll('=', '');
-}
-
-function categoryQuery(cat: SiriusXmCategory): string {
-  const filter =
-    cat === 'news'
-      ? { and: [{ filterId: 'talk' }, { filterId: 'talk--news-and-politics' }] }
-      : { one: { filterId: 'sports' } };
-
-  const q = {
-    containerConfiguration: {
-      [CONTAINER_ID]: {
-        filter,
-        sets: {
-          [SET_ID]: { sort: { sortId: 'CHANNEL_NUMBER_ASC' } },
-        },
-      },
-    },
-    pagination: {
-      offset: { containerLimit: 6, containerOffset: 0, setItemsLimit: 100 },
-    },
-    deviceCapabilities: { supportsDownloads: false },
-    constraints: {
-      supportedEntityTypes: [
-        'artist-station',
-        'brand',
-        'channel-linear',
-        'channel-xtra',
-        'container',
-        'curated-grouping',
-        'episode-audio',
-        'episode-linear',
-        'episode-podcast',
-        'episode-video',
-        'event',
-        'experience',
-        'genre',
-        'league',
-        'show',
-        'show-podcast',
-        'station',
-        'tag-topic',
-        'talent',
-        'team',
-        'user-signal',
-      ],
-    },
-  };
-
-  return `1.${b64urlJson(q)}`;
-}
-
-async function sxmFetchOnce(url: string, init: RequestInit): Promise<Response> {
-  const headers = await siriusXmHeaders();
-  const proxyAgent = getSiriusXmProxyAgent();
-  const fetchInit = {
-    ...init,
-    headers: {
-      ...headers,
-      ...(init.headers as Record<string, string> | undefined),
-    },
-    ...(proxyAgent ? { dispatcher: proxyAgent } : {}),
-  } as RequestInit;
-
-  // Webshare residential rotates IPs per request; some land on peers SXM
-  // RST's at TLS time. Retry transient network failures up to 6x with
-  // increasing backoff so we have decent odds of hitting a clean IP.
-  const MAX_ATTEMPTS = 6;
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    try {
-      return await proxyFetch(url, fetchInit);
-    } catch (err) {
-      lastErr = err;
-      if (!isRetryableNetworkError(err)) throw err;
-      const code =
-        (err as { cause?: { code?: string } }).cause?.code ??
-        (err instanceof Error ? err.name : 'unknown');
-      console.warn(
-        `[SiriusXM] retry ${attempt + 1}/${MAX_ATTEMPTS} after ${code} on ${url.toString().slice(0, 80)}`
-      );
-      await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-    }
-  }
-  throw lastErr;
-}
-
-async function sxmFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
-  let response = await sxmFetchOnce(url, init);
-
-  // If the bearer was rejected, drop the cache (forces a refresh) and retry once.
-  if (response.status === 401 || response.status === 403) {
-    invalidateSiriusXmSession();
-    response = await sxmFetchOnce(url, init);
-  }
-
-  const text = await response.text();
-
-  if (response.status === 401 || response.status === 403) {
-    throw new SiriusXmAuthError(
-      `SiriusXM rejected the bearer (HTTP ${response.status}). Re-run bin/sxm-login.ts to refresh SIRIUSXM_TOKEN/SIRIUSXM_SESSION_COOKIES.`,
-      response.status
-    );
-  }
-
-  if (!response.ok) {
-    throw new Error(`SiriusXM HTTP ${response.status}: ${text.slice(0, 500)}`);
-  }
-
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`SiriusXM expected JSON: ${text.slice(0, 200)}`);
-  }
-}
-
-interface RawEntity {
-  id?: string;
-  type?: string;
-  texts?: {
-    title?: { default?: string; short?: string; medium?: string; long?: string };
-    description?: { default?: string; short?: string; medium?: string; long?: string };
-  };
-  images?: Record<string, unknown>;
-}
-
-interface RawItem {
-  entity?: RawEntity;
-  decorations?: { channelNumberCanonical?: number; channelNumber?: number };
-}
-
-function pickText(t?: { default?: string; short?: string; medium?: string; long?: string }): string {
-  return t?.default || t?.short || t?.medium || t?.long || '';
-}
-
 /**
- * SXM image CDN. Each rendered URL is base64(JSON{key, edits}) appended to
- * the base — the CDN reads the relative `key` and applies the `edits`
- * (format + resize). Without this transformation, the relative paths
- * returned by the API have no public origin we can hit.
+ * What every package call takes: the user's refreshing bearer, their proxy, and
+ * what to do when SiriusXM refuses the bearer (drop the cache; the one retry
+ * then mints a fresh one).
  */
-const SXM_IMAGE_CDN = 'https://imgsrv-sxm-prod-device.streaming.siriusxm.com/';
-const SXM_IMAGE_SIZE = 300;
-
-function imageFormatFromKey(key: string): 'jpeg' | 'png' {
-  return /\.png(\?|$)/i.test(key) ? 'png' : 'jpeg';
-}
-
-function absolutizeImage(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  // Already-absolute URLs (rare in this API but possible) pass through.
-  if (/^https?:\/\//.test(raw)) return raw;
-  if (raw.startsWith('//')) return `https:${raw}`;
-
-  const key = raw.replace(/^\/+/, '');
-  const payload = JSON.stringify({
-    key,
-    edits: [
-      { format: { type: imageFormatFromKey(key) } },
-      { resize: { width: SXM_IMAGE_SIZE, height: SXM_IMAGE_SIZE } },
-    ],
-  });
-  const encoded = Buffer.from(payload, 'utf8').toString('base64');
-  return `${SXM_IMAGE_CDN}${encoded}`;
-}
-
-function findUrl(node: unknown): string | undefined {
-  if (!node) return undefined;
-  if (typeof node === 'string') {
-    return absolutizeImage(node);
-  }
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      const found = findUrl(item);
-      if (found) return found;
-    }
-    return undefined;
-  }
-  if (typeof node === 'object') {
-    const obj = node as Record<string, unknown>;
-    // Prefer explicit url-ish keys before recursing.
-    for (const key of ['url', 'src', 'href']) {
-      const v = obj[key];
-      if (typeof v === 'string') {
-        const abs = absolutizeImage(v);
-        if (abs) return abs;
-      }
-    }
-    for (const value of Object.values(obj)) {
-      const found = findUrl(value);
-      if (found) return found;
-    }
-  }
-  return undefined;
-}
-
-/**
- * SXM nests channel images under multiple top-level keys (`tile`, `logo`,
- * `tile_background`, `hero_tile`, `background`) and aspect-ratio branches
- * (`aspect_1x1`, `aspect_16x9`, etc.). Each leaf has `default.url` and
- * `preferred.url`. Always prefer aspect_1x1 from `tile` for square thumbs.
- */
-function pickImage(entity?: RawEntity): string | undefined {
-  const images = entity?.images as Record<string, unknown> | undefined;
-  if (!images) return undefined;
-
-  // Prefer square thumbs from typical channel-card branches before
-  // falling back to background/hero (which are widescreen).
-  const branchOrder = ['tile', 'tile_background', 'logo', 'hero_tile', 'background'];
-  const aspectOrder = ['aspect_1x1', 'aspect_5x4', 'aspect_16x9', 'aspect_4x3', 'aspect_15x7'];
-
-  for (const branchKey of branchOrder) {
-    const branch = images[branchKey];
-    if (!branch || typeof branch !== 'object') continue;
-    const branchObj = branch as Record<string, unknown>;
-    for (const aspectKey of aspectOrder) {
-      const url = findUrl(branchObj[aspectKey]);
-      if (url) return url;
-    }
-  }
-  return findUrl(images);
-}
-
-function itemToChannel(item: RawItem): SiriusXmChannel | null {
-  const entity = item?.entity;
-  if (!entity?.id) return null;
-
-  const type = entity.type || 'channel-linear';
-  if (type !== 'channel-linear' && type !== 'channel-xtra') return null;
-
-  const title = pickText(entity.texts?.title);
-  if (!title) return null;
-
-  const description = pickText(entity.texts?.description);
-  const number = item?.decorations?.channelNumberCanonical ?? item?.decorations?.channelNumber;
-
+function callCtx() {
+  const agent = getSiriusXmProxyAgent();
   return {
-    id: entity.id,
-    type: type as SiriusXmChannel['type'],
-    number: typeof number === 'number' ? number : undefined,
-    title,
-    description: description || undefined,
-    imageUrl: pickImage(entity),
+    bearer: ensureSiriusXmBearer,
+    proxy: agent ? getSiriusXmProxyUrl() : null,
+    unauthorized: () => invalidateSiriusXmSession(),
   };
 }
 
-function dedupe(channels: SiriusXmChannel[]): SiriusXmChannel[] {
-  const seen = new Set<string>();
-  const out: SiriusXmChannel[] = [];
-  for (const ch of channels) {
-    const key = `${ch.type}:${ch.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(ch);
+/** The package's errors as this app's, so callers keep one instanceof check. */
+async function asAuthError<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof sxm.SiriusXmError) {
+      throw new SiriusXmAuthError(err.message, err.status, err.data);
+    }
+    throw err;
   }
-  return out.sort((a, b) => {
-    const an = a.number ?? 999_999;
-    const bn = b.number ?? 999_999;
-    if (an !== bn) return an - bn;
-    return a.title.localeCompare(b.title);
-  });
+}
+
+function fromPackage(ch: sxm.SiriusXmChannel): SiriusXmChannel {
+  return {
+    id: ch.id,
+    type: ch.type,
+    number: ch.number ?? undefined,
+    title: ch.title,
+    description: ch.description ?? undefined,
+    imageUrl: ch.image ?? undefined,
+  };
 }
 
 function toRadioStation(ch: SiriusXmChannel): RadioStation {
@@ -371,87 +134,24 @@ function toRadioStation(ch: SiriusXmChannel): RadioStation {
   };
 }
 
-interface BrowseResponse {
-  page?: { containers?: Array<{ sets?: Array<{ items?: RawItem[] }> }> };
-}
-
-interface SearchResponse {
-  container?: { sets?: Array<{ items?: RawItem[] }> };
-}
-
-interface TuneSourceResponse {
-  streams?: Array<{
-    urls?: Array<{ url?: string; isPrimary?: boolean; validUntil?: string }>;
-  }>;
-}
-
 async function fetchCategoryChannels(cat: SiriusXmCategory): Promise<SiriusXmChannel[]> {
-  const url = `${BROWSE_URL}?q=${encodeURIComponent(categoryQuery(cat))}`;
-  const json = await sxmFetch<BrowseResponse>(url);
-
-  const channels: SiriusXmChannel[] = [];
-  for (const container of json?.page?.containers ?? []) {
-    for (const set of container?.sets ?? []) {
-      for (const item of set?.items ?? []) {
-        const ch = itemToChannel(item);
-        if (ch) channels.push(ch);
-      }
-    }
-  }
-  return dedupe(channels);
+  const list = await asAuthError(() => sxm.browseChannels(cat, callCtx()));
+  return list.map(fromPackage);
 }
 
 async function searchChannels(query: string): Promise<SiriusXmChannel[]> {
-  const json = await sxmFetch<SearchResponse>(SEARCH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({
-      searchString: query,
-      filterTypes: ['channel-xtra', 'channel-linear'],
-      preferredImageVariant: 'default',
-    }),
-  });
-
-  const channels: SiriusXmChannel[] = [];
-  for (const set of json?.container?.sets ?? []) {
-    for (const item of set?.items ?? []) {
-      const ch = itemToChannel(item);
-      if (ch) channels.push(ch);
-    }
-  }
-  return dedupe(channels);
+  const list = await asAuthError(() => sxm.searchChannels(query, callCtx()));
+  return list.map(fromPackage);
 }
 
 export async function getSiriusXmTuneUrl(
   channelId: string,
   type: SiriusXmChannel['type']
 ): Promise<{ url: string; validUntil?: string }> {
-  const json = await sxmFetch<TuneSourceResponse>(TUNE_SOURCE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({
-      id: channelId,
-      type,
-      manifestVariant: 'WEB',
-      trackResumeSupported: false,
-      hlsVersion: 'V3',
-      mtcVersion: 'V2',
-    }),
-  });
-
-  const stream = json?.streams?.[0];
-  const urls = stream?.urls ?? [];
-  const primary = urls.find((u) => u?.isPrimary) ?? urls[0];
-
-  if (!primary?.url) {
-    // Surface SXM's actual response so we can see WHY no stream came back —
-    // typical reasons are entitlement (channel not in plan), geo, or a
-    // session/IP mismatch error.
-    const dump = JSON.stringify(json ?? {}).slice(0, 500);
-    throw new Error(`No SiriusXM playback URL in tuneSource response: ${dump}`);
-  }
-
-  return { url: primary.url, validUntil: primary.validUntil };
+  const { url, validUntil } = await asAuthError(() =>
+    sxm.tuneChannel({ id: channelId, type }, callCtx())
+  );
+  return { url, validUntil: validUntil ?? undefined };
 }
 
 export interface SiriusXmService {
@@ -565,129 +265,23 @@ export function looksLikePlaylist(url: string, contentType: string): boolean {
   );
 }
 
-function absolutize(uri: string, playlistUrl: string): string {
-  return new URL(uri, playlistUrl).toString();
-}
-
 function proxify(url: string, baseUrl: string, quality: SiriusXmQuality): string {
   return `${baseUrl}/api/radio/proxy?u=${encodeURIComponent(url)}&quality=${encodeURIComponent(
     quality
   )}`;
 }
 
-function chooseSingleVariantPlaylist(
-  text: string,
-  playlistUrl: string,
-  quality: SiriusXmQuality
-): string | null {
-  const lines = text.split(/\r?\n/);
-
-  interface Variant {
-    info: string;
-    absoluteUri: string;
-    bandwidth: number;
-    qualityScore: number;
-  }
-
-  const variants: Variant[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.startsWith('#EXT-X-STREAM-INF')) continue;
-
-    const uri = lines[i + 1];
-    if (!uri || uri.startsWith('#')) continue;
-
-    const bwMatch = line.match(/BANDWIDTH=(\d+)/i);
-    const bandwidth = bwMatch ? Number(bwMatch[1]) : 0;
-    const absoluteUri = absolutize(uri, playlistUrl);
-
-    let qualityScore = 0;
-    if (absoluteUri.includes(`_${quality}k_`) || absoluteUri.includes(`${quality}k`)) {
-      qualityScore = 10_000_000;
-    }
-
-    variants.push({ info: line, absoluteUri, bandwidth, qualityScore });
-  }
-
-  if (!variants.length) return null;
-
-  variants.sort((a, b) => b.qualityScore + b.bandwidth - (a.qualityScore + a.bandwidth));
-  const picked = variants[0];
-
-  return ['#EXTM3U', '#EXT-X-VERSION:3', picked.info, picked.absoluteUri, ''].join('\n');
-}
-
+/** One variant at the asked-for bitrate, every segment and key pointed at our proxy. */
 export function rewriteSiriusXmPlaylist(
   text: string,
   playlistUrl: string,
   baseUrl: string,
   quality: SiriusXmQuality
 ): string {
-  const singleVariant = chooseSingleVariantPlaylist(text, playlistUrl, quality);
-  const source = singleVariant ?? text;
-
-  const lines = source.split(/\r?\n/);
-  const out: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      out.push(line);
-      continue;
-    }
-
-    if (trimmed.startsWith('#EXT-X-KEY')) {
-      const rewritten = line.replace(/URI="([^"]+)"/, (_m, uri) => {
-        const absolute = absolutize(uri, playlistUrl);
-        return `URI="${proxify(absolute, baseUrl, quality)}"`;
-      });
-      out.push(rewritten);
-      continue;
-    }
-
-    if (trimmed.startsWith('#')) {
-      out.push(line);
-      continue;
-    }
-
-    const absolute = absolutize(trimmed, playlistUrl);
-    out.push(proxify(absolute, baseUrl, quality));
-  }
-
-  return out.join('\n');
+  return sxm.rewritePlaylist(text, playlistUrl, quality, (url) => proxify(url, baseUrl, quality));
 }
 
+/** The AES-128 key JSON as the 16 raw bytes an HLS player wants. */
 export function decodeSiriusXmKeyJson(json: unknown): Buffer {
-  const obj = json as Record<string, unknown>;
-  const result = obj?.result as Record<string, unknown> | undefined;
-
-  const candidates = [
-    obj?.key,
-    obj?.value,
-    obj?.keyValue,
-    obj?.encryptionKey,
-    obj?.encryptionKeyValue,
-    obj?.data,
-    obj?.payload,
-    result?.key,
-    result?.value,
-  ];
-
-  const raw = candidates.find((v) => typeof v === 'string') as string | undefined;
-
-  if (!raw) {
-    throw new Error(`Could not find SiriusXM key in JSON: ${JSON.stringify(json).slice(0, 200)}`);
-  }
-
-  if (/^[A-Za-z0-9+/=_-]+$/.test(raw)) {
-    return Buffer.from(raw.replaceAll('-', '+').replaceAll('_', '/'), 'base64');
-  }
-
-  if (/^[a-fA-F0-9]+$/.test(raw) && raw.length % 2 === 0) {
-    return Buffer.from(raw, 'hex');
-  }
-
-  return Buffer.from(raw, 'utf8');
+  return sxm.decodeKeyJson(json);
 }
