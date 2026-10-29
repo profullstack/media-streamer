@@ -64,6 +64,15 @@ WORKDIR /app
 # Install FFmpeg for video/audio transcoding, and build tools for reliq/torge
 RUN apk add --no-cache ffmpeg git curl make gcc musl-dev bash jq
 
+# Chromium for the SiriusXM device-grant mint. SiriusXM's gateway wants a
+# DEVICE_GRANT that only its web player's JavaScript mints, so the sign-in loads
+# the player headless (@profullstack/stream-providers). puppeteer's own download
+# lives in the deps stage's cache and never reaches this image, so without a
+# system browser every sign-in failed with "Could not find Chrome" (2026-10-29).
+RUN apk add --no-cache chromium nss freetype harfbuzz ttf-freefont
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    PUPPETEER_SKIP_DOWNLOAD=true
+
 # librespot: Spotify Connect receiver spawned per user by src/lib/spotify
 COPY --from=librespot /out/bin/librespot /usr/local/bin/librespot
 
