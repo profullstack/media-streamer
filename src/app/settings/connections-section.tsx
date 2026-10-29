@@ -161,6 +161,131 @@ export function ConnectionsSection(): React.ReactElement {
       </div>
 
       {error ? <p className="text-sm text-status-error">{error}</p> : null}
+
+      <CoinpayConnection />
+    </div>
+  );
+}
+
+interface CoinpayResponse {
+  configured?: boolean;
+  connected?: boolean;
+  connection?: { name: string | null; email: string | null };
+}
+
+const COINPAY_REASONS: Record<string, string> = {
+  access_denied: 'You said not now on CoinPay. Nothing was connected.',
+  state_mismatch: 'That CoinPay request had expired. Try connecting again.',
+  not_authenticated: 'You were signed out partway through. Sign in and try again.',
+  server_misconfigured: 'This server has no CoinPay sign-in settings yet.',
+  exchange_failed: 'CoinPay would not finish the connection. Try again.',
+  sub_taken: 'That CoinPay account is already connected to a different account here.',
+  already_linked: 'A different CoinPay account is already connected. Disconnect it first.',
+};
+
+/**
+ * CoinPay, the fleet's master account. Connected, "Sign in with CoinPay" on
+ * /login opens this account. Every account here keeps its email and password,
+ * so disconnecting never locks anybody out.
+ */
+function CoinpayConnection(): React.ReactElement | null {
+  const searchParams = useSearchParams();
+  const [state, setState] = useState<CoinpayResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (): Promise<CoinpayResponse> => {
+    try {
+      const res = await fetch('/api/v1/coinpay/connection');
+      return res.ok ? ((await res.json()) as CoinpayResponse) : { connected: false, configured: false };
+    } catch {
+      return { connected: false, configured: false };
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const answer = await load();
+      if (alive) setState(answer);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+
+  const disconnect = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/v1/coinpay/connection', { method: 'DELETE' });
+      if (!res.ok) setError('Could not disconnect CoinPay. Try again.');
+      setState(await load());
+    } finally {
+      setBusy(false);
+    }
+  }, [load]);
+
+  if (state === null) return null;
+  const justConnected = searchParams.get('coinpay') === 'connected';
+  const refusal = searchParams.get('coinpay_error');
+  const who = state.connection?.name || state.connection?.email;
+
+  return (
+    <div className="space-y-2">
+      {justConnected ? (
+        <p className="flex items-center gap-2 text-sm text-green-500">
+          <CheckIcon size={16} /> CoinPay is connected.
+        </p>
+      ) : null}
+      {refusal ? (
+        <p className="text-sm text-status-error">{COINPAY_REASONS[refusal] ?? `CoinPay said: ${refusal}`}</p>
+      ) : null}
+      <div className="rounded-xl bg-bg-secondary border border-border-subtle p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-text-primary flex items-center gap-2">
+              <LinkIcon size={16} /> CoinPay
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              {state.connected
+                ? 'Sign in with CoinPay opens this account.'
+                : 'Connect your CoinPay account to sign in here with it.'}
+            </p>
+            {state.connected && who ? (
+              <p className="text-sm text-text-muted mt-2">
+                Connected as <span className="text-accent-primary">{who}</span>
+              </p>
+            ) : null}
+          </div>
+          {state.connected ? (
+            <button
+              onClick={() => void disconnect()}
+              disabled={busy}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
+                'text-text-muted hover:text-status-error hover:bg-status-error/10',
+                busy && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <TrashIcon size={16} /> Disconnect
+            </button>
+          ) : (
+            <a
+              href="/api/v1/coinpay/oauth/start?mode=link"
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm whitespace-nowrap transition-colors',
+                state.configured
+                  ? 'bg-accent-primary text-white hover:bg-accent-primary/90'
+                  : 'bg-bg-tertiary text-text-muted pointer-events-none'
+              )}
+            >
+              {state.configured ? 'Connect CoinPay' : 'Not configured'}
+            </a>
+          )}
+        </div>
+      </div>
+      {error ? <p className="text-sm text-status-error">{error}</p> : null}
     </div>
   );
 }
