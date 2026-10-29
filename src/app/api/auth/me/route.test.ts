@@ -320,5 +320,24 @@ describe('GET /api/auth/me', () => {
         'no-store, must-revalidate'
       );
     });
+
+    it('should not cache the null user from a stale cookie', async () => {
+      // A refresh token Supabase no longer knows: this answer used to be cached for
+      // up to 5 minutes, so signing in again still showed the login screen.
+      mockSetSession.mockResolvedValueOnce({
+        data: { session: null },
+        error: { message: 'Invalid Refresh Token: Refresh Token Not Found' },
+      });
+      const { GET } = await import('./route');
+      const cookieValue = JSON.stringify({ access_token: 'old', refresh_token: 'gone' });
+      const request = new NextRequest('http://localhost:3000/api/auth/me', {
+        headers: { cookie: `sb-auth-token=${encodeURIComponent(cookieValue)}` },
+      });
+      const response = await GET(request);
+
+      expect((await response.json()).user).toBeNull();
+      expect(response.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
+      expect(response.headers.get('Set-Cookie')).toContain('Max-Age=0');
+    });
   });
 });

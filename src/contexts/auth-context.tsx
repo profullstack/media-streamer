@@ -94,7 +94,8 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
 
     const doFetch = async (): Promise<void> => {
       try {
-        const response = await fetch('/api/auth/me');
+        // Always ask the server: a cached answer from before a sign-in reads as signed out.
+        const response = await fetch('/api/auth/me', { cache: 'no-store' });
 
         if (!response.ok) {
           // Don't cache failed responses — let the next navigation retry

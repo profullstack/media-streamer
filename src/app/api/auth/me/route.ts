@@ -96,9 +96,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { user: null },
       {
         status: 200,
-        headers: {
-          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
-        },
+        // Never cache "logged out": a stale cookie answered here was cached for up to 5
+        // minutes, so signing in again kept showing the login screen.
+        headers: { 'Cache-Control': 'no-store, must-revalidate' },
       }
     );
     // Clear invalid cookie
@@ -177,9 +177,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     { user: responseUser },
     {
       status: 200,
-      headers: {
-        'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
-      },
+      // Not cached either: after a sign-out or account switch a cached user would linger.
+      headers: { 'Cache-Control': 'no-store, must-revalidate' },
     }
   );
 
