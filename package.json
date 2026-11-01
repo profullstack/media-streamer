@@ -47,7 +47,7 @@
     "@profullstack/live-translate": "^0.3.0",
     "@profullstack/notifications": "^0.1.4",
     "@profullstack/player": "0.16.0",
-    "@profullstack/profile": "0.1.6",
+    "@profullstack/profile": "0.1.7",
     "@profullstack/redeem-credits": "^0.2.0",
     "@profullstack/referrals": "^0.1.0",
     "@profullstack/sealed-secrets": "0.1.0",

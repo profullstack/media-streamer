@@ -81,6 +81,7 @@ export function ContactDetailsSection(): React.ReactElement {
           onChange={setValues}
           errors={errors}
           disabled={loading || busy}
+                  importOpenProfile
         />
         {message ? (
           <p className={cn('text-sm', message.ok ? 'text-text-muted' : 'text-status-error')}>{message.text}</p>
