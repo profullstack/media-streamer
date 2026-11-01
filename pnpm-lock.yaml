@@ -37,7 +37,7 @@ importers:
         version: 1.0.3
       '@profullstack/footer':
         specifier: latest
-        version: 0.5.0(react@19.3.1)
+        version: 0.6.15(react@19.3.1)
       '@profullstack/live-translate':
         specifier: ^0.3.0
         version: 0.3.0
@@ -48,8 +48,8 @@ importers:
         specifier: 0.16.0
         version: 0.16.0(react@19.3.1)
       '@profullstack/profile':
-        specifier: 0.1.7
-        version: 0.1.7(react@19.3.1)
+        specifier: 0.1.8
+        version: 0.1.8(react@19.3.1)
       '@profullstack/redeem-credits':
         specifier: ^0.2.0
         version: 0.2.0
@@ -1103,8 +1103,8 @@ packages:
   '@profullstack/emailer@1.0.3':
     resolution: {integrity: sha512-VyAtCcfnSI6LOwJvWogCr3ZNmEsaZw+iuWrqnosLsdcKsbRyCrCmXigMNZJZEjlgYlR+lK//PwNPG+xtCFvWAw==}
 
-  '@profullstack/footer@0.5.0':
-    resolution: {integrity: sha512-TrllS87nK7J0c/UgYckaFIWVhLOtr6m73XXFSHIuSfOg7NfuWUdwjtsfMXGaZiiUnmMYj3zhGcfzW0DicDwl8w==}
+  '@profullstack/footer@0.6.15':
+    resolution: {integrity: sha512-kkkSG8Xw0VnyzYk76ko0aiIgVT/MXmKkKUiJ5u1DZkeLZcDh0d2GjFShwTcCd8AsQr5fBet39wbzSwPeUYwuWg==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -1142,8 +1142,8 @@ packages:
       react:
         optional: true
 
-  '@profullstack/profile@0.1.7':
-    resolution: {integrity: sha512-N7UkypkkY2JkSBKzmdmyy6+DCoxI048qUZQksEjSRwSIyy4mjU9H1qW4yhZD+LJBhTEupgJv//Uxwhiy2FuGmA==}
+  '@profullstack/profile@0.1.8':
+    resolution: {integrity: sha512-MQ/AGGM++NZEbjMglRlEvjCrmsL46CXDz2GKb510eMBEKUik1cwix9ag20gakYrrVCaB5mNcNCMYon53vwDTfw==}
     engines: {node: '>=20'}
     hasBin: true
     peerDependencies:
@@ -5998,7 +5998,7 @@ snapshots:
 
   '@profullstack/emailer@1.0.3': {}
 
-  '@profullstack/footer@0.5.0(react@19.3.1)':
+  '@profullstack/footer@0.6.15(react@19.3.1)':
     optionalDependencies:
       react: 19.3.1
 
@@ -6019,7 +6019,7 @@ snapshots:
     optionalDependencies:
       react: 19.3.1
 
-  '@profullstack/profile@0.1.7(react@19.3.1)':
+  '@profullstack/profile@0.1.8(react@19.3.1)':
     dependencies:
       '@profullstack/openprofile': 0.2.0
     optionalDependencies:
