@@ -220,6 +220,7 @@ export interface CoinpayCallbackResult {
   userId: string;
   session: { accessToken: string; refreshToken: string } | null;
   redirect: string;
+  openprofile_url?: string;
 }
 
 /**
@@ -246,9 +247,9 @@ export async function finishCoinpaySignin(input: {
     throw new CoinpaySigninError('linking needs the same signed-in account', 'not_authenticated');
   }
 
-  let who: { sub: string; email: string | null; name: string | null };
+  let who: { sub: string; email: string | null; name: string | null; openprofile_url?: string };
   try {
-    who = await finishSignIn({
+    const result = await finishSignIn({
       code: input.code,
       verifier: pending.verifier,
       nonce: pending.nonce,
@@ -259,6 +260,7 @@ export async function finishCoinpaySignin(input: {
       ...(input.fetch ? { fetch: input.fetch } : {}),
       ...(input.now ? { now: input.now } : {}),
     });
+    who = { sub: result.sub, email: result.email, name: result.name, ...(typeof result.userinfo.openprofile_url === 'string' ? { openprofile_url: result.userinfo.openprofile_url } : {}) };
   } catch (err) {
     throw new CoinpaySigninError(`CoinPay did not finish: ${(err as Error)?.message ?? err}`, 'exchange_failed');
   }
@@ -273,7 +275,7 @@ export async function finishCoinpaySignin(input: {
     if (mine && mine.sub !== who.sub) throw new CoinpaySigninError('another CoinPay is linked', 'already_linked');
     if (bound) await store.touch(who.sub, who.email, who.name);
     else await store.link({ sub: who.sub, user_id: userId, email: who.email, name: who.name });
-    return { mode: 'link', userId, session: null, redirect: pending.redirect };
+    return { mode: 'link', userId, session: null, redirect: pending.redirect, ...(who.openprofile_url ? { openprofile_url: who.openprofile_url } : {}) };
   }
 
   // Sign in: by sub, and only by sub.

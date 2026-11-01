@@ -118,5 +118,6 @@ export const gateway = createGateway({
   payTo: process.env.CRAWL_PAY_TO,
   denyCidrs: OVH_VPS_FLEET_CIDRS,
   chargeSpoofedBrowsers: true,
+  suspectAllowance: false,
   exempt: (request) => hasSessionCookie(request) || hasApiBearer(request) || hasCastTokenShape(request),
 });

@@ -11,6 +11,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { saveOpenProfileContact } from '@profullstack/profile';
+import { contactProfileStore } from '@/lib/contact-profile';
 import { getCurrentUser } from '@/lib/auth';
 import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME, sessionCookieValue } from '@/lib/nixamp';
 import {
@@ -59,7 +61,13 @@ export async function GET(request: NextRequest): Promise<Response> {
       code: params.get('code'),
       sessionUserId: user?.id ?? null,
     });
-    if (out.mode === 'link') return go(out.redirect, { coinpay: 'connected' });
+    if (out.mode === 'link') {
+      if (out.openprofile_url) {
+        try { await saveOpenProfileContact(contactProfileStore(), out.userId, out.openprofile_url); }
+        catch { console.warn('[coinpay] OpenProfile import skipped'); }
+      }
+      return go(out.redirect, { coinpay: 'connected' });
+    }
     const res = go(out.redirect);
     if (out.session) {
       res.cookies.set(AUTH_COOKIE_NAME, sessionCookieValue(out.session), {
