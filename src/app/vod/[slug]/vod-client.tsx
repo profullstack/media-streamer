@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { LiveTranslatePanel } from '@/components/vod/live-translate-panel';
+import { useHousePlayer } from '@/components/video/use-house-player';
 
 interface Provider {
   slug: string;
@@ -53,6 +54,7 @@ export function VodStorefront({ slug }: { slug: string }): React.ReactElement {
   const [selected, setSelected] = useState<Title | null>(null);
   const [busy, setBusy] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playerRootRef = useRef<HTMLDivElement | null>(null);
 
   const loadAccess = useCallback(async (): Promise<void> => {
     const res = await fetch(`${base}/access`, { cache: 'no-store' });
@@ -148,6 +150,13 @@ export function VodStorefront({ slug }: { slug: string }): React.ReactElement {
   const canPlay = (id: string): boolean => isOwner || weeklyActive || Boolean(titleModes[id]);
   const canDownload = (id: string): boolean => isOwner || titleModes[id] === 'download';
 
+  // The house player drives the page's own <video>; LiveTranslatePanel keeps
+  // reading videoRef. Nothing mounts until the reader may watch the title.
+  useHousePlayer(playerRootRef, videoRef, {
+    src: selected && canPlay(selected.id) ? `${base}/stream?titleId=${encodeURIComponent(selected.id)}` : null,
+    autoplay: true,
+  });
+
   if (loading) {
     return <main className="mx-auto max-w-6xl px-4 py-16 text-center text-text-secondary">Loading…</main>;
   }
@@ -220,15 +229,9 @@ export function VodStorefront({ slug }: { slug: string }): React.ReactElement {
           </div>
           {canPlay(selected.id) ? (
             <>
-              <video
-                key={selected.id}
-                ref={videoRef}
-                className="aspect-video w-full"
-                controls
-                autoPlay
-                playsInline
-                src={`${base}/stream?titleId=${encodeURIComponent(selected.id)}`}
-              />
+              <div key={selected.id} ref={playerRootRef} className="aspect-video w-full">
+                <video ref={videoRef} className="h-full w-full" playsInline />
+              </div>
               <LiveTranslatePanel key={selected.id} video={videoRef} />
               {canDownload(selected.id) && (
                 <a
