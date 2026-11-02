@@ -20,6 +20,8 @@ import { MainLayout } from '@/components/layout';
 import { MediaSelectionModal, NixampPanel, PartyChat } from '@/components/watch-party';
 import { Focusable } from '@/components/ui/focusable';
 import { cn } from '@/lib/utils';
+import { createVideoSource } from '@/lib/video';
+import { useHousePlayer } from '@/components/video/use-house-player';
 import { PartyIcon, PlusIcon, UsersIcon } from '@/components/ui/icons';
 
 interface PartyMember {
@@ -98,6 +100,7 @@ export default function WatchPartyPage(): React.ReactElement {
   const [needsTap, setNeedsTap] = useState(false);
   // Only the host's own player is a clock; everybody else's follows it.
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playerRootRef = useRef<HTMLDivElement | null>(null);
   // A seek we asked for must not be reported back as one the host made.
   const followingRef = useRef(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -232,6 +235,14 @@ export default function WatchPartyPage(): React.ReactElement {
   }, []);
 
   const isHost = party !== null && userId !== null && userId === party.hostId;
+
+  // The house player drives the page's own <video>, so the sync code below
+  // keeps reading and seeking videoRef exactly as before.
+  const mediaUrl = party?.mediaUrl || null;
+  useHousePlayer(playerRootRef, videoRef, {
+    src: mediaUrl,
+    ...(mediaUrl ? { mimeType: createVideoSource(mediaUrl, party?.mediaTitle ?? '').playbackType } : {}),
+  });
 
   // The host's player says where the film is.
   const report = useCallback(async (extra: { isPlaying?: boolean } = {}) => {
@@ -383,10 +394,9 @@ export default function WatchPartyPage(): React.ReactElement {
             <div className="lg:col-span-2">
               <div className={cn('relative aspect-video rounded-xl bg-bg-tertiary', 'flex items-center justify-center', 'border border-border-subtle')}>
                 {party.mediaUrl ? (
+                  <div ref={playerRootRef} className="w-full h-full rounded-xl overflow-hidden">
                   <video
                     ref={videoRef}
-                    src={party.mediaUrl}
-                    controls
                     playsInline
                     className="w-full h-full rounded-xl"
                     onPlay={isHost ? () => onHostEvent(true) : undefined}
@@ -399,6 +409,7 @@ export default function WatchPartyPage(): React.ReactElement {
                           }
                     }
                   />
+                  </div>
                 ) : (
                   <div className="text-center p-8">
                     <div className="text-4xl mb-4">🎬</div>
