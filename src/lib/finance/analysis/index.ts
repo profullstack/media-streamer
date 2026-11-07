@@ -10,6 +10,7 @@ export {
   getReportModel,
   getFreshnessHours,
   createOpenAIReportLLM,
+  createReportLLM,
   ReportGenerationError,
   type ReportLLM,
   type LLMCompletion,

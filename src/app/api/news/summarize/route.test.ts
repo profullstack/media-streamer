@@ -118,7 +118,7 @@ const originalEnv = process.env;
 
 describe('News Summarize API Route', () => {
   beforeEach(() => {
-    process.env = { ...originalEnv, OPENAI_API_KEY: 'test-openai-key' };
+    process.env = { ...originalEnv, OPENAI_API_KEY: 'test-openai-key', C0MPUTE_DISABLED: '1' };
     mockOpenAICreate.mockReset();
     mockGetCurrentUser.mockReset();
     mockGetSubscriptionStatus.mockReset();

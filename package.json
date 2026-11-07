@@ -40,6 +40,7 @@
     "@mozilla/readability": "^0.6.0",
     "@noriginmedia/norigin-spatial-navigation": "^3.4.0",
     "@profullstack/affiliates": "^0.3.0",
+    "@profullstack/ai-providers": "0.1.2",
     "@profullstack/autoblog": "^0.5.0",
     "@profullstack/coinpay-onboard": "0.3.1",
     "@profullstack/emailer": "^1.0.3",

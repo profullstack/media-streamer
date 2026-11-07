@@ -62,7 +62,7 @@ export async function generateOpportunities({
       promptTokens: completion.promptTokens,
       completionTokens: completion.completionTokens,
       totalTokens: completion.totalTokens,
-      costUsd: estimateCostUsd(completion.promptTokens, completion.completionTokens),
+      costUsd: completion.costUsd ?? estimateCostUsd(completion.promptTokens, completion.completionTokens),
     },
     generatedAt: now.toISOString(),
   };

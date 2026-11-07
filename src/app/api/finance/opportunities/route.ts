@@ -8,11 +8,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { c0mputeEnabled } from '@/lib/ai/c0mpute';
 import { requireActiveSubscription } from '@/lib/subscription/guard';
 import { getActiveProfileId } from '@/lib/profiles/profile-utils';
 import {
   countRunsSince,
-  createOpenAIReportLLM,
+  createReportLLM,
   evaluateRateLimit,
   getRateLimitConfig,
   getReportModel,
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     || DEFAULT_OPPORTUNITIES_PROMPT;
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  if (!apiKey && !c0mputeEnabled()) {
     return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
   }
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const llm = createOpenAIReportLLM(apiKey);
+    const llm = createReportLLM(apiKey);
     const result = await generateOpportunities({ prompt, llm, model });
 
     await logRun({
