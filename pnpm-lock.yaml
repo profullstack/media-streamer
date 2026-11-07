@@ -26,6 +26,9 @@ importers:
       '@profullstack/affiliates':
         specifier: ^0.3.0
         version: 0.3.0(react@19.3.1)
+      '@profullstack/ai-providers':
+        specifier: 0.1.2
+        version: 0.1.2
       '@profullstack/autoblog':
         specifier: ^0.5.0
         version: 0.5.0
@@ -1092,6 +1095,11 @@ packages:
 
   '@profullstack/ai-providers@0.1.0':
     resolution: {integrity: sha512-vc7aFjozyiwIhREWLhB3xWpUPeGggM348ng5W6j4IA+gxYF3S7TNLoGWrF/ax2NttsK40C801CRkD9JSVA4aOg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@profullstack/ai-providers@0.1.2':
+    resolution: {integrity: sha512-nOcKaOhfcDM+RNruA4+znva5xXxI4HF77iqUCgieuou2w8yY8LIF2p5ajSVD4kzFtfIUjC7GhGV8eyOrliHg1w==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -6011,6 +6019,8 @@ snapshots:
       - react
 
   '@profullstack/ai-providers@0.1.0': {}
+
+  '@profullstack/ai-providers@0.1.2': {}
 
   '@profullstack/autoblog@0.5.0':
     dependencies:

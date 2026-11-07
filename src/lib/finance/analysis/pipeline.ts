@@ -7,6 +7,8 @@
  */
 
 import OpenAI from 'openai';
+import type { AiRouter } from '@profullstack/ai-providers';
+import { c0mputeJson } from '@/lib/ai/c0mpute';
 import { estimateCostUsd } from './cost';
 import { isReportUsable, parseReportJson, sectionsToMarkdown } from './parser';
 import { MAX_COMPLETION_TOKENS, PROMPT_VERSION, SYSTEM_PROMPT, buildUserPrompt } from './prompt';
@@ -19,6 +21,8 @@ export interface LLMCompletion {
   totalTokens: number;
   /** OpenAI finish_reason — 'length' means the budget was exhausted (truncated). */
   finishReason?: string;
+  /** Set when the token price does not apply: c0mpute is not billed per OpenAI token. */
+  costUsd?: number;
 }
 
 export interface ReportLLM {
@@ -61,6 +65,30 @@ export function createOpenAIReportLLM(apiKey: string): ReportLLM {
         totalTokens: completion.usage?.total_tokens ?? 0,
         finishReason: completion.choices[0]?.finish_reason,
       };
+    },
+  };
+}
+
+/** c0mpute first, then OpenAI when a key is set. The route gates on either. */
+export function createReportLLM(apiKey?: string, ai?: AiRouter): ReportLLM {
+  const paid = apiKey ? createOpenAIReportLLM(apiKey) : null;
+  return {
+    async complete(opts) {
+      const answer = await c0mputeJson(
+        { system: opts.system, user: opts.user, maxTokens: opts.maxTokens, feature: 'finance.report' },
+        ai,
+      );
+      if (answer) {
+        return {
+          content: answer.text,
+          promptTokens: answer.inputTokens,
+          completionTokens: answer.outputTokens,
+          totalTokens: answer.inputTokens + answer.outputTokens,
+          costUsd: 0,
+        };
+      }
+      if (!paid) throw new Error('AI service unavailable');
+      return paid.complete(opts);
     },
   };
 }
@@ -121,7 +149,7 @@ export async function generateReport({
       promptTokens: completion.promptTokens,
       completionTokens: completion.completionTokens,
       totalTokens: completion.totalTokens,
-      costUsd: estimateCostUsd(completion.promptTokens, completion.completionTokens),
+      costUsd: completion.costUsd ?? estimateCostUsd(completion.promptTokens, completion.completionTokens),
     },
     generatedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),

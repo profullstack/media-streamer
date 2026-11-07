@@ -28,7 +28,7 @@ const m = vi.hoisted(() => ({
   generateReport: vi.fn(),
   saveReport: vi.fn(),
   logRun: vi.fn(),
-  createOpenAIReportLLM: vi.fn(() => ({ complete: vi.fn() })),
+  createReportLLM: vi.fn(() => ({ complete: vi.fn() })),
   buildReportInputs: vi.fn(() => ({ symbol: 'NVDA' })),
   getRateLimitConfig: vi.fn(() => ({ perUserPerDay: 10, globalPerDay: 200 })),
   rollingWindowStart: vi.fn(() => '2026-06-15T00:00:00Z'),

@@ -1,7 +1,8 @@
 /**
  * News Article Summarization API Route
  *
- * Server-side endpoint that uses OpenAI to summarize news articles.
+ * Server-side endpoint that summarizes news articles, c0mpute first with
+ * OpenAI as the fallback.
  * Uses the shared article extractor which falls back to Puppeteer
  * for sites that block regular fetch requests.
  * Only available to users with premium/trial/family subscription tiers.
@@ -9,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { c0mputeEnabled, c0mputeJson } from '@/lib/ai/c0mpute';
 import { getCurrentUser } from '@/lib/auth';
 import { getSubscriptionRepository } from '@/lib/subscription';
 import { getNewsSummaryCache, type ArticleSummary } from '@/lib/news/summary-cache';
@@ -57,9 +59,9 @@ export async function POST(
       );
     }
 
-    // Validate OpenAI API key
+    // c0mpute needs no key of ours to be configured; OpenAI is the fallback
     const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
+    if (!openaiApiKey && !c0mputeEnabled()) {
       console.error('OPENAI_API_KEY not configured');
       return NextResponse.json(
         { success: false, error: 'AI service not configured' },
@@ -150,11 +152,6 @@ export async function POST(
       ? articleText.substring(0, maxContentLength) + '...'
       : articleText;
 
-    // Initialize OpenAI client
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
-
     // Create the summarization prompt
     const systemPrompt = `You are an expert article summarizer. Given a news article's text content, analyze and summarize it.
 
@@ -183,28 +180,45 @@ Author: ${articleByline || 'Unknown'}
 Content:
 ${truncatedContent}`;
 
-    // Call OpenAI API with timeout
-    console.log('[Summarize] Calling OpenAI API...');
-    const completion = await openai.chat.completions.create(
-      {
-        model: 'gpt-5.5',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        max_completion_tokens: 1500,
-        reasoning_effort: 'high',
-        // gpt-5.x reasoning models only support the default temperature (1);
-        // passing a custom value returns a 400.
-      },
-      {
-        timeout: 60000, // 60 second timeout
+    // c0mpute first. Its failure leaves the OpenAI path exactly as it was.
+    const answer = await c0mputeJson({
+      system: systemPrompt,
+      user: userPrompt,
+      maxTokens: 1500,
+      feature: 'news.summarize',
+    });
+    let content = answer?.text;
+    if (!content) {
+      if (!openaiApiKey) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to generate summary' },
+          { status: 500 }
+        );
       }
-    );
-    console.log('[Summarize] OpenAI response received');
+      const openai = new OpenAI({ apiKey: openaiApiKey });
+      // Call OpenAI API with timeout
+      console.log('[Summarize] Calling OpenAI API...');
+      const completion = await openai.chat.completions.create(
+        {
+          model: 'gpt-5.5',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          max_completion_tokens: 1500,
+          reasoning_effort: 'high',
+          // gpt-5.x reasoning models only support the default temperature (1);
+          // passing a custom value returns a 400.
+        },
+        {
+          timeout: 60000, // 60 second timeout
+        }
+      );
+      console.log('[Summarize] OpenAI response received');
 
-    const content = completion.choices[0]?.message?.content;
+      content = completion.choices[0]?.message?.content ?? undefined;
+    }
     if (!content) {
       return NextResponse.json(
         { success: false, error: 'Failed to generate summary' },
