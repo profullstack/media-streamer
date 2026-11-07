@@ -33,8 +33,8 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0
       '@profullstack/coinpay-onboard':
-        specifier: 0.3.1
-        version: 0.3.1
+        specifier: ^0.5.0
+        version: 0.5.0
       '@profullstack/emailer':
         specifier: ^1.0.3
         version: 1.0.3
@@ -1107,8 +1107,8 @@ packages:
     resolution: {integrity: sha512-KewpX0rM55o+7TMYeU35gqZceQFNF6zmo8zDoZRP5zoPU+XqTRcBlv6bZvl9oQHUXKXAsePJVNZKtDNhTrNEfw==}
     engines: {node: '>=18'}
 
-  '@profullstack/coinpay-onboard@0.3.1':
-    resolution: {integrity: sha512-+K7D6uaX10y+0V5sg7To1jKwNG8iCNbN9SSW6q5ACzoiDNswMox3G7gzY/Swxd128klq7ecN2Ni4JVNr50nRIQ==}
+  '@profullstack/coinpay-onboard@0.5.0':
+    resolution: {integrity: sha512-yqSx3pgJLP521Km+XNNn9fyjbbHppgozuGTtzTln9yy+2I0h0bjqXSpsFPwoSgVb5QcyBx+Wzv5170Qb7va1iQ==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -6026,7 +6026,7 @@ snapshots:
     dependencies:
       '@profullstack/ai-providers': 0.1.0
 
-  '@profullstack/coinpay-onboard@0.3.1':
+  '@profullstack/coinpay-onboard@0.5.0':
     dependencies:
       '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.7)
       zod: 4.6.7

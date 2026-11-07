@@ -29,6 +29,7 @@ import {
   sameState,
   SIGN_IN_SCOPES,
 } from '@profullstack/coinpay-onboard/oauth';
+import type { CoinpayPass } from '@profullstack/coinpay-onboard/pass';
 import { createServerClient } from '@/lib/supabase';
 import { getAppOrigin } from '@/lib/nixamp/config';
 
@@ -221,6 +222,8 @@ export interface CoinpayCallbackResult {
   session: { accessToken: string; refreshToken: string } | null;
   redirect: string;
   openprofile_url?: string;
+  /** Profullstack Pass, present only while active (lib/subscription/coinpay-pass.ts). */
+  pass?: CoinpayPass;
 }
 
 /**
@@ -247,7 +250,7 @@ export async function finishCoinpaySignin(input: {
     throw new CoinpaySigninError('linking needs the same signed-in account', 'not_authenticated');
   }
 
-  let who: { sub: string; email: string | null; name: string | null; openprofile_url?: string };
+  let who: { sub: string; email: string | null; name: string | null; openprofile_url?: string; pass?: CoinpayPass };
   try {
     const result = await finishSignIn({
       code: input.code,
@@ -260,7 +263,7 @@ export async function finishCoinpaySignin(input: {
       ...(input.fetch ? { fetch: input.fetch } : {}),
       ...(input.now ? { now: input.now } : {}),
     });
-    who = { sub: result.sub, email: result.email, name: result.name, ...(typeof result.userinfo.openprofile_url === 'string' ? { openprofile_url: result.userinfo.openprofile_url } : {}) };
+    who = { sub: result.sub, email: result.email, name: result.name, ...(result.pass?.active ? { pass: result.pass } : {}), ...(typeof result.userinfo.openprofile_url === 'string' ? { openprofile_url: result.userinfo.openprofile_url } : {}) };
   } catch (err) {
     throw new CoinpaySigninError(`CoinPay did not finish: ${(err as Error)?.message ?? err}`, 'exchange_failed');
   }
@@ -275,12 +278,12 @@ export async function finishCoinpaySignin(input: {
     if (mine && mine.sub !== who.sub) throw new CoinpaySigninError('another CoinPay is linked', 'already_linked');
     if (bound) await store.touch(who.sub, who.email, who.name);
     else await store.link({ sub: who.sub, user_id: userId, email: who.email, name: who.name });
-    return { mode: 'link', userId, session: null, redirect: pending.redirect, ...(who.openprofile_url ? { openprofile_url: who.openprofile_url } : {}) };
+    return { mode: 'link', userId, session: null, redirect: pending.redirect, ...(who.openprofile_url ? { openprofile_url: who.openprofile_url } : {}), ...(who.pass ? { pass: who.pass } : {}) };
   }
 
   // Sign in: by sub, and only by sub.
   if (!bound) throw new CoinpaySigninError('no account here has connected that CoinPay account', 'not_connected');
   await store.touch(who.sub, who.email, who.name);
   const session = await store.mintSession(bound.user_id);
-  return { mode: 'signin', userId: bound.user_id, session, redirect: pending.redirect };
+  return { mode: 'signin', userId: bound.user_id, session, redirect: pending.redirect, ...(who.pass ? { pass: who.pass } : {}) };
 }

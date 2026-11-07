@@ -14,6 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { saveOpenProfileContact } from '@profullstack/profile';
 import { contactProfileStore } from '@/lib/contact-profile';
 import { getCurrentUser } from '@/lib/auth';
+import { getServerClient } from '@/lib/supabase/client';
+import { applyCoinpayPass } from '@/lib/subscription/coinpay-pass';
 import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME, sessionCookieValue } from '@/lib/nixamp';
 import {
   COINPAY_PENDING_COOKIE,
@@ -61,6 +63,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       code: params.get('code'),
       sessionUserId: user?.id ?? null,
     });
+    // Profullstack Pass: Premium until it ends, on the account bound to this sub.
+    if (out.pass) {
+      try { await applyCoinpayPass(getServerClient() as never, out.userId, out.pass); }
+      catch (passErr) { console.error('[coinpay] pass failed:', (passErr as Error)?.message); }
+    }
     if (out.mode === 'link') {
       if (out.openprofile_url) {
         try { await saveOpenProfileContact(contactProfileStore(), out.userId, out.openprofile_url); }

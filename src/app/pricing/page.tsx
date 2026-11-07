@@ -171,6 +171,10 @@ export default function PricingPage(): React.ReactElement {
             Start with a free 3-day trial. Pay with crypto for complete privacy.
             All paid plans include a 30-day money-back guarantee.
           </p>
+          <p className="text-text-secondary text-sm max-w-lg mx-auto mt-2">
+            Deposit $99 in your CoinPay wallet and get a free month:{' '}
+            <a href="https://coinpayportal.com/pass" className="underline">CoinPay Pass</a>
+          </p>
         </div>
 
         {/* Plans */}
