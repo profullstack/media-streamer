@@ -111,6 +111,26 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         {/* Preconnect to analytics */}
         <link rel="preconnect" href="https://datafa.st" />
         <link rel="preconnect" href="https://analytics.ahrefs.com" />
+        {/* WebMCP (@profullstack/webmcp): site_info, open_page and search_site
+            for an AI agent in a member's browser. /api/search answers members
+            only while the site is invite only, so signed-out agents get 401. */}
+        <script
+          type="module"
+          data-webmcp=""
+          src="https://cdn.jsdelivr.net/npm/@profullstack/webmcp@0/src/embed.js"
+          data-search-api="/api/search?q={query}&limit={limit}"
+          data-search-description="Search BitTorrented's catalog of music, movies, TV, books and podcasts (members)."
+          data-pages={JSON.stringify({
+            search: '/search',
+            movies: '/movies',
+            tvshows: '/tvshows',
+            music: '/music',
+            podcasts: '/podcasts',
+            live_tv: '/live-tv',
+            library: '/library',
+            pricing: '/pricing',
+          })}
+        />
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
         <Providers>
