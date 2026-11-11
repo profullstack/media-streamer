@@ -472,6 +472,8 @@ const PUBLIC_PATHS = [
   '/api/v1/nixamp/oauth',
   // Sign in with CoinPay, for the same reason.
   '/api/v1/coinpay/oauth',
+  // "Get from logicsrc": the route itself sends a signed-out visitor to /login and back.
+  '/api/v1/logicsrc/grant',
   // A member's own Nixamp server copying a file they handed over. No session:
   // the signed, expiring, one-file grant in the path is the permission.
   '/api/v1/nixamp/files',
@@ -556,7 +558,20 @@ function make429Response(retryAfterSec: number, isJson: boolean): NextResponse {
   });
 }
 
+/**
+ * logicsrc's machine endpoints (src/lib/logicsrc): the grant manifest logicsrc
+ * fetches over TLS and the webhook it posts sealed keys to. Neither carries a
+ * session; the nonce and the per-request Standard Webhooks signature are the
+ * authentication, so no gate, crawl charge, meter or bot rule applies, and the
+ * webhook's raw body reaches the route untouched.
+ */
+export function isLogicsrcMachinePath(pathname: string): boolean {
+  return pathname === '/api/v1/logicsrc/webhook' || pathname.startsWith('/.well-known/logicsrc-grant/');
+}
+
 export async function proxy(request: NextRequest): Promise<Response> {
+  if (isLogicsrcMachinePath(request.nextUrl.pathname)) return NextResponse.next();
+
   // --- 0. Supabase session refresh ---
   // First, and exactly once per request: the admin gate below must see a live access
   // token (an hour-old login would otherwise be refused), and Supabase rotates refresh

@@ -699,3 +699,23 @@ describe('the advert route is public', () => {
     expect(isPublicPath('/api/adsomething')).toBe(false);
   });
 });
+
+describe('logicsrc machine endpoints skip every gate', () => {
+  it('passes the grant manifest and the signed webhook straight through, even for a crawler UA', async () => {
+    for (const [path, method] of [
+      ['/.well-known/logicsrc-grant/unknownnonce123456789', 'GET'],
+      ['/api/v1/logicsrc/webhook', 'POST'],
+    ] as const) {
+      const req = new NextRequest(new URL(`http://localhost${path}`), {
+        method,
+        headers: { 'user-agent': 'GPTBot/1.0', 'x-forwarded-for': '9.9.9.9' },
+      });
+      expectPassThrough(await middleware(req));
+    }
+  });
+
+  it('keeps the start route public so it can send a signed-out visitor to /login itself', () => {
+    expect(isPublicPath('/api/v1/logicsrc/grant/start')).toBe(true);
+    expect(isPublicPath('/api/v1/logicsrc/other')).toBe(false);
+  });
+});

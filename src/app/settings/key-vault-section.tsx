@@ -8,6 +8,10 @@
  * Everything cryptographic happens in this browser. The passphrase and the
  * recovery key never leave it; the server gets the sealed record, and on unlock
  * only the derived data key, which it keeps in memory for the time you pick.
+ *
+ * "Get from logicsrc" asks logicsrc for broker keys instead of pasting them
+ * (src/lib/logicsrc). They arrive sealed to this vault's inbox and are put in
+ * place on the next unlock (or at once while unlocked).
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -23,7 +27,26 @@ interface VaultState {
   seal: SealRecord | null;
   unlocked: boolean;
   expiresAt: string | null;
+  logicsrcPending?: { keyName: string; createdAt: string; error: string | null }[];
 }
+
+const LOGICSRC_START = `/api/v1/logicsrc/grant/start?keys=ALPACA_API_KEY,ALPACA_API_SECRET&next=${encodeURIComponent(
+  '/settings?tab=vault'
+)}`;
+
+/** ?logicsrc=<code> on return from logicsrc, or from a refused start. */
+const LOGICSRC_MESSAGES: Record<string, { ok: boolean; text: string }> = {
+  granted: {
+    ok: true,
+    text: 'Approved on logicsrc. Your keys arrive sealed to this vault and are put in place while it is unlocked (unlock below if it is locked).',
+  },
+  needs_vault: { ok: false, text: 'Create your key vault first: keys from logicsrc are sealed to it.' },
+  needs_profile: { ok: false, text: 'Pick a profile first: broker keys belong to the profile you use for finance.' },
+  signed_out: { ok: false, text: 'Sign in first, then use Get from logicsrc again.' },
+  no_keys: { ok: false, text: 'The logicsrc request named no keys.' },
+  bad_key: { ok: false, text: 'The logicsrc request named a key BitTorrented does not use.' },
+  too_many: { ok: false, text: 'The logicsrc request named too many keys.' },
+};
 
 const TTLS = [
   { value: '1h', label: '1 hour' },
@@ -59,6 +82,22 @@ export function KeyVaultSection(): React.ReactElement {
     void load();
   }, [load]);
 
+  // Back from logicsrc: say what happened, drop the param, and look again shortly
+  // in case the signed delivery lands just after the redirect.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('logicsrc');
+    if (!code) return;
+    const msg = LOGICSRC_MESSAGES[code] ?? { ok: false, text: `logicsrc did not complete (${code}).` };
+    if (msg.ok) setNotice(msg.text);
+    else setError(msg.text);
+    url.searchParams.delete('logicsrc');
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    if (code !== 'granted') return;
+    const t = setTimeout(() => void load(), 3000);
+    return () => clearTimeout(t);
+  }, [load]);
+
   const sendUnlock = useCallback(
     async (dek: Uint8Array): Promise<void> => {
       try {
@@ -67,13 +106,24 @@ export function KeyVaultSection(): React.ReactElement {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dek: bytesToBase64(dek), ttl }),
         });
-        const body = (await res.json()) as { error?: string; migration?: { migrated: number; failed: number } };
+        const body = (await res.json()) as {
+          error?: string;
+          migration?: { migrated: number; failed: number };
+          logicsrc?: { applied: number };
+        };
         if (!res.ok) throw new Error(body.error ?? 'Unlock failed');
         const m = body.migration;
+        const applied = body.logicsrc?.applied ?? 0;
         setNotice(
-          m && m.migrated > 0
-            ? `Unlocked. ${m.migrated} older secret${m.migrated === 1 ? ' was' : 's were'} re-sealed under your passphrase.`
-            : 'Unlocked.'
+          [
+            'Unlocked.',
+            m && m.migrated > 0
+              ? `${m.migrated} older secret${m.migrated === 1 ? ' was' : 's were'} re-sealed under your passphrase.`
+              : '',
+            applied > 0 ? `${applied} key${applied === 1 ? '' : 's'} from logicsrc put in place.` : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
         );
       } finally {
         wipe(dek);
@@ -255,6 +305,30 @@ export function KeyVaultSection(): React.ReactElement {
           </>
         )}
       </div>
+
+      {state.exists ? (
+        <div className="rounded-xl bg-bg-secondary border border-border-subtle p-4 space-y-3">
+          <p className="text-sm text-text-primary font-medium">Keys from logicsrc</p>
+          <p className="text-sm text-text-secondary">
+            Keep your Alpaca API key and secret in logicsrc instead of pasting them here. You approve on logicsrc, the
+            keys arrive sealed to this vault for the profile you are using, and a rotation or revoke there follows here
+            on its own.
+          </p>
+          {state.logicsrcPending?.length ? (
+            <ul className="text-sm text-text-secondary space-y-1">
+              {state.logicsrcPending.map((p) => (
+                <li key={`${p.keyName}-${p.createdAt}`}>
+                  <span className="font-mono text-text-primary">{p.keyName}</span>{' '}
+                  {p.error ?? (state.unlocked ? 'waiting for its other half' : 'waiting for you to unlock')}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <a className={cn(buttonClass, 'inline-block')} href={LOGICSRC_START}>
+            Get from logicsrc
+          </a>
+        </div>
+      ) : null}
 
       {state.exists ? (
         <details className="rounded-xl bg-bg-secondary border border-border-subtle p-4">

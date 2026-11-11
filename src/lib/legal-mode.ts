@@ -45,6 +45,8 @@ const ALLOWED = [
   '/api/v1/nixamp',
   // Sign in with / Connect CoinPay: account identity only, no content.
   '/api/v1/coinpay',
+  // Keys from logicsrc into the member's own key vault (sealed; holds no content).
+  '/api/v1/logicsrc',
   // memberships and payments
   '/pricing',
   '/pay',

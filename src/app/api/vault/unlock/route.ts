@@ -5,13 +5,16 @@
  * sends the KEY, never the passphrase. We check it against the stored key-check
  * value and keep it in process memory for `ttl` (default 8h, max 7d). A restart
  * drops it. While unlocked, any secrets still under the old server key are
- * re-sealed under the vault (one-shot migration).
+ * re-sealed under the vault (one-shot migration), and keys that arrived from
+ * logicsrc while the vault was locked are opened and put in place
+ * (src/lib/logicsrc).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { base64ToBytes, wipe } from '@profullstack/sealed-secrets';
 
 import { getCurrentUser } from '@/lib/auth';
+import { applyPendingKeys } from '@/lib/logicsrc/grants';
 import { getVaultSeal, migrateLegacySecrets, sealer, ttlSeconds, unlockStore } from '@/lib/vault';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +43,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     const status = unlockStore().unlock(user.id, dek, ttl);
     const migration = await migrateLegacySecrets(user.id, dek);
-    return NextResponse.json({ ...status, migration }, { headers: { 'Cache-Control': 'no-store' } });
+    const logicsrc = await applyPendingKeys(user.id, dek);
+    return NextResponse.json({ ...status, migration, logicsrc }, { headers: { 'Cache-Control': 'no-store' } });
   } finally {
     wipe(dek); // the store keeps its own copy
   }
