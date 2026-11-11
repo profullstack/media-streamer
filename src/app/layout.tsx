@@ -113,7 +113,9 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         <link rel="preconnect" href="https://analytics.ahrefs.com" />
         {/* WebMCP (@profullstack/webmcp): site_info, open_page and search_site
             for an AI agent in a member's browser. /api/search answers members
-            only while the site is invite only, so signed-out agents get 401. */}
+            only while the site is invite only, so signed-out agents get 401.
+            type="module" scripts are deferred, so no-sync-scripts does not apply. */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script
           type="module"
           data-webmcp=""
