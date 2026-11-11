@@ -109,6 +109,8 @@ export async function connectBroker(
   providerId: string,
   creds: BrokerCredentials,
   label: string | null,
+  /** logicsrc grants these credentials came from (src/lib/logicsrc); null/omitted = typed in. */
+  logicsrcGrantIds: string[] | null = null,
 ): Promise<ConnectResult> {
   const provider = getBrokerProvider(providerId);
   if (!provider) return { ok: false, error: 'unsupported provider' };
@@ -131,6 +133,7 @@ export async function connectBroker(
         status: 'active',
         label,
         last_sync_error: null,
+        logicsrc_grant_ids: logicsrcGrantIds?.length ? logicsrcGrantIds : null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'profile_id,provider' },

@@ -963,6 +963,7 @@ export type Database = {
           label: string | null;
           last_sync_at: string | null;
           last_sync_error: string | null;
+          logicsrc_grant_ids: string[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -976,6 +977,7 @@ export type Database = {
           label?: string | null;
           last_sync_at?: string | null;
           last_sync_error?: string | null;
+          logicsrc_grant_ids?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -989,6 +991,7 @@ export type Database = {
           label?: string | null;
           last_sync_at?: string | null;
           last_sync_error?: string | null;
+          logicsrc_grant_ids?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };

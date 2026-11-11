@@ -45,6 +45,7 @@
     "@profullstack/coinpay-onboard": "^0.5.0",
     "@profullstack/emailer": "^1.0.3",
     "@profullstack/footer": "latest",
+    "@profullstack/key-grants": "0.1.1",
     "@profullstack/live-translate": "^0.3.0",
     "@profullstack/notifications": "^0.1.4",
     "@profullstack/player": "0.17.0",

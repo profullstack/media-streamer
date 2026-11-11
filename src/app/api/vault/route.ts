@@ -1,8 +1,9 @@
 /**
  * Key vault: the user's own seal for every secret they store with us.
  *
- * GET  -> { exists, seal, unlocked, expiresAt }  (seal is ciphertext only; the
- *         browser needs it to unlock with the passphrase)
+ * GET  -> { exists, seal, unlocked, expiresAt, logicsrcPending }  (seal is
+ *         ciphertext only; the browser needs it to unlock with the passphrase;
+ *         logicsrcPending lists key names from logicsrc waiting for an unlock)
  * POST { seal }        -> create the vault (made in the browser; the passphrase
  *                         and recovery key never reach us)
  * PUT  { seal, dek }   -> change passphrase: same data key, new wrapping
@@ -12,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { base64ToBytes, isSealRecord, wipe } from '@profullstack/sealed-secrets';
 
 import { getCurrentUser } from '@/lib/auth';
+import { listPendingKeys } from '@/lib/logicsrc/grants';
 import { createVaultSeal, getVaultSeal, replaceVaultSeal, sealer, unlockStore } from '@/lib/vault';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +25,12 @@ export async function GET(): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   const seal = await getVaultSeal(user.id);
   const status = unlockStore().status(user.id);
-  return NextResponse.json({ userId: user.id, exists: Boolean(seal), seal, ...status }, { headers: NO_STORE });
+  // Keys from logicsrc waiting for an unlock: names and reasons only, never a value.
+  const logicsrcPending = await listPendingKeys(user.id).catch(() => []);
+  return NextResponse.json(
+    { userId: user.id, exists: Boolean(seal), seal, ...status, logicsrcPending },
+    { headers: NO_STORE }
+  );
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

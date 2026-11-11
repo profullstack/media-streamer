@@ -37,6 +37,9 @@ const STILL_SERVED = [
   '/.well-known/openwebring.json',
   '/api/v1/nixamp/files',
   '/api/v1/webhooks',
+  // "Get from logicsrc" (src/lib/logicsrc): the route sends a signed-out visitor to
+  // /login and back rather than to a 401. The manifest and webhook skip the proxy.
+  '/api/v1/logicsrc/grant',
 ];
 
 export function stillServed(pathname: string): boolean {

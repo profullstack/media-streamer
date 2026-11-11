@@ -41,6 +41,9 @@ importers:
       '@profullstack/footer':
         specifier: latest
         version: 0.6.19(react@19.3.1)
+      '@profullstack/key-grants':
+        specifier: 0.1.1
+        version: 0.1.1
       '@profullstack/live-translate':
         specifier: ^0.3.0
         version: 0.3.0
@@ -1125,6 +1128,10 @@ packages:
 
   '@profullstack/form-guard@0.3.0':
     resolution: {integrity: sha512-/rn5xd4mMG6eXGe85BmPfhz7zz3mmsmNV7U6a1bNhATIpVtKKEUEGF4QPrFx8sg6YDtpFkzmvjNEaFJm3DbFxg==}
+    engines: {node: '>=20'}
+
+  '@profullstack/key-grants@0.1.1':
+    resolution: {integrity: sha512-t/V8+WiS5zM8Hhr/u75pooftz1G3m80CfqL2su/Ya5aLWtvU0DQffvMFRSxUGPk+63vKZ+x2ju766Da7A5+rvg==}
     engines: {node: '>=20'}
 
   '@profullstack/keys@0.1.0':
@@ -5974,6 +5981,8 @@ snapshots:
   '@profullstack/form-guard@0.1.1': {}
 
   '@profullstack/form-guard@0.3.0': {}
+
+  '@profullstack/key-grants@0.1.1': {}
 
   '@profullstack/keys@0.1.0': {}
 
