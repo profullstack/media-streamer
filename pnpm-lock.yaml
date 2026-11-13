@@ -27,11 +27,11 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(react@19.3.1)
       '@profullstack/ai-providers':
-        specifier: 0.1.2
-        version: 0.1.2
+        specifier: ^0.3.1
+        version: 0.3.1
       '@profullstack/autoblog':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@profullstack/coinpay-onboard':
         specifier: ^0.5.0
         version: 0.5.0
@@ -1081,18 +1081,13 @@ packages:
     engines: {node: '>=22.13'}
     hasBin: true
 
-  '@profullstack/ai-providers@0.1.0':
-    resolution: {integrity: sha512-vc7aFjozyiwIhREWLhB3xWpUPeGggM348ng5W6j4IA+gxYF3S7TNLoGWrF/ax2NttsK40C801CRkD9JSVA4aOg==}
+  '@profullstack/ai-providers@0.3.1':
+    resolution: {integrity: sha512-mihwPJnGfBW52GRloG74bhmSokAdXBrMj/wDqOSxCcoj55n6nhe1c2/498BRuq/D0CyXXdVPe1VmHviWd4jMoA==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@profullstack/ai-providers@0.1.2':
-    resolution: {integrity: sha512-nOcKaOhfcDM+RNruA4+znva5xXxI4HF77iqUCgieuou2w8yY8LIF2p5ajSVD4kzFtfIUjC7GhGV8eyOrliHg1w==}
-    engines: {node: '>=20'}
-    hasBin: true
-
-  '@profullstack/autoblog@0.5.0':
-    resolution: {integrity: sha512-KewpX0rM55o+7TMYeU35gqZceQFNF6zmo8zDoZRP5zoPU+XqTRcBlv6bZvl9oQHUXKXAsePJVNZKtDNhTrNEfw==}
+  '@profullstack/autoblog@0.5.1':
+    resolution: {integrity: sha512-d29ENKNPf5KyWpCek5LPn3RBTuuuAjN1XwxzEC96Hb0dL/7q0EoP0efDOIGtgZMHW/DieTqu06itaMmLai2j/g==}
     engines: {node: '>=18'}
 
   '@profullstack/coinpay-onboard@0.5.0':
@@ -4872,6 +4867,7 @@ packages:
 
   tldts-core@7.4.20:
     resolution: {integrity: sha512-C630TWXZCZmLq0F2bW4QqwnaaxCQ/svpAqvJwnC4JvgEM5ohhBnGsEzTLSOXcN+xjz+kEaHS5uoWIw2klnqd0A==}
+    deprecated: Partial release, see https://github.com/remusao/tldts/issues/2735. Use >=7.4.22.
 
   tldts@7.4.19:
     resolution: {integrity: sha512-48dH6aSpQnpbzDUc4vIQZ1VjB8tkK+e8c1yx05/SZK+rkssgjEOlxDd/yU8/a4vGYQ9vRgJr9dwMq9TJ0b3X2Q==}
@@ -5949,13 +5945,11 @@ snapshots:
     transitivePeerDependencies:
       - react
 
-  '@profullstack/ai-providers@0.1.0': {}
+  '@profullstack/ai-providers@0.3.1': {}
 
-  '@profullstack/ai-providers@0.1.2': {}
-
-  '@profullstack/autoblog@0.5.0':
+  '@profullstack/autoblog@0.5.1':
     dependencies:
-      '@profullstack/ai-providers': 0.1.0
+      '@profullstack/ai-providers': 0.3.1
 
   '@profullstack/coinpay-onboard@0.5.0':
     dependencies:
