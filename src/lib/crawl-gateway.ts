@@ -119,5 +119,9 @@ export const gateway = createGateway({
   denyCidrs: OVH_VPS_FLEET_CIDRS,
   chargeSpoofedBrowsers: true,
   suspectAllowance: false,
-  exempt: (request) => hasSessionCookie(request) || hasApiBearer(request) || hasCastTokenShape(request),
+  // These are SHAPES (a cookie, a bearer, a token's form), which any client can
+  // send, so they are a hint, never a pass (x402-gateway 0.18.3 `sessionCookie`):
+  // they spare an odd browser string, but GPTBot wearing one is still charged.
+  // They used to be `exempt`, which let a forged one read free.
+  sessionCookie: (request) => hasSessionCookie(request) || hasApiBearer(request) || hasCastTokenShape(request),
 });
