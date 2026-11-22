@@ -55,6 +55,17 @@ describe('bittorrented.com offline, invite only', () => {
     expect((await get('/blogger')).status).toBe(307);
   });
 
+  it('serves robots.txt, the sitemap and the legal pages to everyone', async () => {
+    for (const path of ['/robots.txt', '/sitemap.xml', '/sitemaps/static.xml', '/terms', '/privacy']) {
+      expect(openWhileInviteOnly(path), path).toBe(true);
+      const res = await get(path);
+      expect(res.status, path).not.toBe(307);
+      expect(res.status, path).not.toBe(401);
+      expect(res.status, path).not.toBe(410);
+    }
+    expect(openWhileInviteOnly('/sitemap.xml.bak')).toBe(false);
+  });
+
   it('serves the x402 crawl sales page and its checkout pages to everyone', async () => {
     for (const path of ['/crawl', '/crawl/checkout/return']) {
       expect(openWhileInviteOnly(path)).toBe(true);
