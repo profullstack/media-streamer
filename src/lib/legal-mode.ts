@@ -80,6 +80,9 @@ const ALLOWED = [
   // site furniture
   '/.well-known',
   '/robots.txt',
+  // lists only the public pages (src/lib/public-sitemap.ts), never the index
+  '/sitemap.xml',
+  '/sitemaps',
   '/sw.js',
   // exact file names: under() matches a whole segment, so '/manifest' never matched these
   '/manifest.json',
