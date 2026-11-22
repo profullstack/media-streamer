@@ -329,14 +329,22 @@ describe('Supabase session refresh and referral cookie', () => {
     expect(res!.headers.get('set-cookie')).toBeNull();
   });
 
-  it('a signed-in session is never charged, whatever user agent carries it', async () => {
-    // The gateway's `exempt` runs before the agent lists: this site is mostly
-    // people, and a request that presents a real session is treated as one of
-    // them. It then goes through the ordinary session refresh like any browser.
-    const res = await call('/browse', { ua: META_UA, cookies: { 'sb-auth-token': authCookie(30), 'x-profile-id': 'p1' } });
+  it('a signed-in session is not judged by an odd browser string', async () => {
+    // The session cookie is a hint (x402-gateway 0.18.3 `sessionCookie`): a
+    // stale browser string carrying it reads, and goes through the ordinary
+    // session refresh like any browser.
+    const stale = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    const res = await call('/browse', { ua: stale, cookies: { 'sb-auth-token': authCookie(30), 'x-profile-id': 'p1' } });
     expectPassThrough(res);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(decodeURIComponent(res.cookies.get('sb-auth-token')!.value)).refresh_token).toBe('new-refresh');
+  });
+
+  it('a declared crawler carrying a session-shaped cookie is still charged', async () => {
+    // The cookie is only checked for its shape here (verifying it needs
+    // Supabase), so it must never be a pass: meta-externalagent with one pays.
+    const res = await call('/browse', { ua: META_UA, cookies: { 'sb-auth-token': authCookie(30) } });
+    expect(res.status).toBe(402);
   });
 
   describe('members only', () => {
