@@ -33,14 +33,14 @@ importers:
         specifier: ^0.5.1
         version: 0.5.1
       '@profullstack/coinpay-onboard':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@profullstack/emailer':
         specifier: ^1.0.3
         version: 1.0.3
       '@profullstack/footer':
         specifier: latest
-        version: 0.6.19(react@19.3.1)
+        version: 0.6.20(react@19.3.1)
       '@profullstack/key-grants':
         specifier: 0.1.1
         version: 0.1.1
@@ -78,8 +78,8 @@ importers:
         specifier: 0.2.1
         version: 0.2.1
       '@profullstack/x402-gateway':
-        specifier: ^0.18.1
-        version: 0.18.1
+        specifier: ^0.18.2
+        version: 0.18.2
       '@radix-ui/react-dialog':
         specifier: ^1.3.1
         version: 1.3.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1071,8 +1071,8 @@ packages:
     resolution: {integrity: sha512-d29ENKNPf5KyWpCek5LPn3RBTuuuAjN1XwxzEC96Hb0dL/7q0EoP0efDOIGtgZMHW/DieTqu06itaMmLai2j/g==}
     engines: {node: '>=18'}
 
-  '@profullstack/coinpay-onboard@0.5.0':
-    resolution: {integrity: sha512-yqSx3pgJLP521Km+XNNn9fyjbbHppgozuGTtzTln9yy+2I0h0bjqXSpsFPwoSgVb5QcyBx+Wzv5170Qb7va1iQ==}
+  '@profullstack/coinpay-onboard@0.5.1':
+    resolution: {integrity: sha512-vuM/1vYvkXP2E/tBcTBZ8JY4K49qtSPPY1N9XRQvIlcy0Sezr+spOf6vYBkRPhasKcFqda44MRLgxPseG9Kvdg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -1088,8 +1088,8 @@ packages:
   '@profullstack/emailer@1.0.3':
     resolution: {integrity: sha512-VyAtCcfnSI6LOwJvWogCr3ZNmEsaZw+iuWrqnosLsdcKsbRyCrCmXigMNZJZEjlgYlR+lK//PwNPG+xtCFvWAw==}
 
-  '@profullstack/footer@0.6.19':
-    resolution: {integrity: sha512-DAS2jHDJFnH1w6lDtYbEnvuV2n4NY2vrRwnUKeQPC+Nwfg1f2Me9ClZ6KlXs6Dv0pgJSg2ATLSX0hV+Mq7co3w==}
+  '@profullstack/footer@0.6.20':
+    resolution: {integrity: sha512-JEB1hZCKSKRro6EI95JMUM4lBX39DUKk6i5ukcKpgeCo+jxwBYcUGiHBrDTdd0/n46M1ECOG4IrDHjgFNGmvGQ==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -1201,8 +1201,8 @@ packages:
     resolution: {integrity: sha512-QHeSkpu4O44oJ620qhQqxqFlD3u/OhupmXRnBHw4MGKuDTa0R+Y/727nnF7psSHxxSfnbWfNuVl15z3IXuaZiw==}
     engines: {node: '>=20'}
 
-  '@profullstack/x402-gateway@0.18.1':
-    resolution: {integrity: sha512-zc2JGLXMX8eCk7Mp4X91E175enOTNcWPZncKf3LXzoGE+XEhHDJHM1LRZkkY3x2pjLYX3AB11Vx/TP3cobSQ/g==}
+  '@profullstack/x402-gateway@0.18.2':
+    resolution: {integrity: sha512-PM0S2ADXPKPvPLLlWVbEqMq+EhKxiNxg1wp0jeGf9S5tz2ZGaNIFqun69cO5lJGZgfh03ST4UkJZGr8CmvCWyg==}
     engines: {node: '>=20.11'}
 
   '@puppeteer/browsers@3.2.7':
@@ -5923,7 +5923,7 @@ snapshots:
     dependencies:
       '@profullstack/ai-providers': 0.3.1
 
-  '@profullstack/coinpay-onboard@0.5.0':
+  '@profullstack/coinpay-onboard@0.5.1':
     dependencies:
       '@modelcontextprotocol/sdk': 1.32.2(zod@4.6.7)
       zod: 4.6.7
@@ -5940,7 +5940,7 @@ snapshots:
 
   '@profullstack/emailer@1.0.3': {}
 
-  '@profullstack/footer@0.6.19(react@19.3.1)':
+  '@profullstack/footer@0.6.20(react@19.3.1)':
     optionalDependencies:
       react: 19.3.1
 
@@ -5995,11 +5995,11 @@ snapshots:
 
   '@profullstack/throttle@0.5.0':
     dependencies:
-      '@profullstack/x402-gateway': 0.18.1
+      '@profullstack/x402-gateway': 0.18.2
 
   '@profullstack/webhooks@0.2.1': {}
 
-  '@profullstack/x402-gateway@0.18.1':
+  '@profullstack/x402-gateway@0.18.2':
     dependencies:
       '@profullstack/keys': 0.1.0
 

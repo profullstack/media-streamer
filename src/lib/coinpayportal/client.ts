@@ -15,6 +15,7 @@ import type {
   SupportedCoinsResponse,
   WebhookPayload,
 } from './types';
+import { COINPAY_UA } from './user-agent';
 
 const DEFAULT_BASE_URL = 'https://coinpayportal.com/api';
 const DEFAULT_PORTAL_URL = 'https://coinpayportal.com';
@@ -55,6 +56,7 @@ export class CoinPayPortalClient {
     const headers = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.apiKey}`,
+      'user-agent': COINPAY_UA,
       ...options.headers,
     };
 

@@ -1,3 +1,5 @@
+import { COINPAY_UA } from './user-agent';
+
 const DEFAULT_OAUTH_BASE_URL = 'https://coinpayportal.com';
 
 export interface CoinPayOAuthUserInfo {
@@ -39,6 +41,7 @@ export async function getCoinPayOAuthUserInfo(accessToken: string): Promise<Coin
   const response = await fetch(`${oauthBaseUrl()}/api/oauth/userinfo`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      'user-agent': COINPAY_UA,
       Accept: 'application/json',
     },
     signal: AbortSignal.timeout(10_000),
