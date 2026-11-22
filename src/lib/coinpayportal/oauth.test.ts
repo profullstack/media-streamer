@@ -40,6 +40,7 @@ describe('coinpayportal oauth', () => {
     expect(mockFetch).toHaveBeenCalledWith('https://coinpay.test/api/oauth/userinfo', {
       headers: {
         Authorization: 'Bearer access-token',
+        'user-agent': expect.stringMatching(/^bittorrented\.com(\/\S+)? \(\+https:\/\/bittorrented\.com\)$/) as string,
         Accept: 'application/json',
       },
       signal: expect.any(AbortSignal) as AbortSignal,
