@@ -128,7 +128,7 @@ jobs:
       # .env* is not in the context, and app.env is mounted on dev2 at run time.
       - name: Build and push
         if: steps.have.outputs.built != 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
