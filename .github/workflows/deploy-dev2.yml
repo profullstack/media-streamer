@@ -1,7 +1,20 @@
-# Ship every merge to dev2, where bittorrented.com runs since it left DigitalOcean
-# droplet 540255286 (2026-10-05). The box pulls the merged commit, rebuilds the image
-# and restarts the compose stack under /home/anthony/www/bittorrented.com. Hand-built
-# (the dev2-site kit skips this site) in the same shape as the kit's scaffold.
+# Ship every merge to dev2, where bittorrented.com runs (hand-built site, kit-shaped).
+#
+# dev2 never compiles anything. The `image` job builds the image here on GitHub's runner
+# and pushes it to GHCR tagged with the full commit sha. The `deploy` job runs the site's
+# deploy-app.sh <sha> over ssh: with IMAGE_REPO in its deploy.env the box only `docker pull`s
+# that tag and runs `compose up -d --no-build` (health check and rollback unchanged). A
+# missing tag stops the deploy with an error; it never falls back to a local build.
+#
+# Pull auth: this job's short-lived GITHUB_TOKEN (packages: read) goes to the box on ssh
+# stdin, is used once with a throwaway DOCKER_CONFIG and is never stored.
+#
+# The image holds no secrets: the only build args are public NEXT_PUBLIC_* values (repository
+# variables), .env* is in .dockerignore, and app.env is mounted on dev2 at run time.
+# Same pattern as profullstack/c0mpute #489.
+#
+# The Rust librespot stage (cargo install) is cached in the Actions cache, so it only
+# recompiles when LIBRESPOT_REV changes; dev2 never runs cargo (STANDING).
 name: Deploy to dev2
 
 on:
@@ -10,29 +23,164 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Git ref to deploy (defaults to the pushed commit)
+        description: Git ref to deploy (commit id or vX.Y.Z; defaults to the branch head)
         required: false
         type: string
+      deploy:
+        description: Deploy to dev2 after the image is pushed (false = build and push only)
+        required: false
+        type: boolean
+        default: true
 
-# ssh and curl only; the job never needs the GITHUB_TOKEN.
-permissions: {}
-
+# One deploying run at a time; a newer push replaces a pending one, so an older
+# build can never deploy over a newer one. A build-only dispatch (deploy=false)
+# stays out of that queue.
 concurrency:
-  group: deploy-dev2
+  group: ${{ (github.event_name == 'push' || inputs.deploy) && 'deploy-dev2' || format('bittorrented-web-image-{0}', github.run_id) }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/profullstack/bittorrented-web
+
 jobs:
-  deploy:
+  image:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.rev.outputs.sha }}
     steps:
       # ${{ }} values go through env, never straight into a run: body.
-      - name: Resolve target revision
-        id: rev
+      - name: Check the requested ref
         env:
           REF: ${{ inputs.ref || github.sha }}
-        run: echo "sha=$REF" >> "$GITHUB_OUTPUT"
+        # The sha ends up on the box's command line, so anything but a commit id
+        # or a release tag is refused here.
+        shell: bash
+        run: |
+          if ! [[ "$REF" =~ ^([0-9a-f]{7,40}|v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::ref must be a commit id (7-40 hex) or a release tag (vX.Y.Z)" >&2
+            exit 1
+          fi
 
+      # Public build-time values (Next inlines NEXT_PUBLIC_* into the client bundle):
+      # repository variables, not secrets, because every browser receives them anyway.
+      # Change one with `gh variable set NAME -R profullstack/media-streamer` and redeploy.
+      - name: Check the public build variables
+        env:
+          NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID: ${{ vars.NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_TURN_SERVER_URL: ${{ vars.NEXT_PUBLIC_TURN_SERVER_URL }}
+        run: |
+          missing=""
+          for v in NEXT_PUBLIC_APP_NAME NEXT_PUBLIC_APP_URL NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_TURN_SERVER_URL; do [ -n "${!v}" ] || missing="$missing $v"; done
+          [ -z "$missing" ] || { echo "::error::repository variables not set:$missing" >&2; exit 1; }
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Resolve the full commit id
+        id: rev
+        run: |
+          sha=$(git rev-parse HEAD)
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::cannot resolve a commit id" >&2; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "building $IMAGE:$sha"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A redeploy or rollback of a sha that was already built pushes nothing new.
+      - name: Already built?
+        id: have
+        env:
+          SHA: ${{ steps.rev.outputs.sha }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:$SHA" >/dev/null 2>&1; then
+            echo "built=true" >> "$GITHUB_OUTPUT"; echo "$IMAGE:$SHA already in the registry"
+          else
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Free runner disk
+        if: steps.have.outputs.built != 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.have.outputs.built != 'true'
+
+      # No secrets go into this build: the only build args are public values,
+      # .env* is not in the context, and app.env is mounted on dev2 at run time.
+      - name: Build and push
+        if: steps.have.outputs.built != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ env.IMAGE }}:${{ steps.rev.outputs.sha }}
+          build-args: |
+            NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME }}
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID=${{ vars.NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_TURN_SERVER_URL=${{ vars.NEXT_PUBLIC_TURN_SERVER_URL }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.rev.outputs.sha }}
+            org.opencontainers.image.url=https://bittorrented.com
+            org.opencontainers.image.title=bittorrented.com
+          # Layer cache in the Actions cache (not artifacts, not GHCR storage).
+          cache-from: type=gha,scope=bittorrented-web
+          cache-to: type=gha,scope=bittorrented-web,mode=max
+
+      - name: Smoke test the image
+        if: steps.have.outputs.built != 'true'
+        env:
+          SHA: ${{ steps.rev.outputs.sha }}
+        run: |
+          docker pull -q "$IMAGE:$SHA"
+          test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE:$SHA")" = "$SHA"
+          # librespot (cargo install, stage 0) is the slow part; it must be in the runtime image.
+          docker run --rm --entrypoint sh "$IMAGE:$SHA" -c 'test -x /usr/local/bin/librespot'
+
+      # Keep the registry small: the newest 15 builds are plenty for rollbacks.
+      - name: Prune old images
+        if: steps.have.outputs.built != 'true'
+        continue-on-error: true
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: bittorrented-web
+          package-type: container
+          min-versions-to-keep: 15
+
+  deploy:
+    needs: image
+    if: github.event_name == 'push' || inputs.deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    steps:
       - name: Set up ssh
         env:
           SSH_KEY: ${{ secrets.DEV2_SSH_KEY }}
@@ -44,13 +192,16 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Deploy
+      # The token rides stdin (never argv, never a file on the box); deploy-app.sh
+      # reads one line before it queues for a deploy slot.
+      - name: Deploy (pull the prebuilt image)
         env:
           DEV2_USER: ${{ secrets.DEV2_USER }}
           DEV2_HOST: ${{ secrets.DEV2_HOST }}
-          SHA: ${{ steps.rev.outputs.sha }}
+          SHA: ${{ needs.image.outputs.sha }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ssh -o BatchMode=yes "$DEV2_USER@$DEV2_HOST" \
+          printf '%s\n' "$GHCR_TOKEN" | ssh -o BatchMode=yes "$DEV2_USER@$DEV2_HOST" \
             /home/anthony/www/bittorrented.com/deploy-app.sh "$SHA"
 
       - name: Verify the site answers
