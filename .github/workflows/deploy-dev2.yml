@@ -84,7 +84,7 @@ jobs:
           for v in NEXT_PUBLIC_APP_NAME NEXT_PUBLIC_APP_URL NEXT_PUBLIC_COINPAYPORTAL_MERCHANT_ID NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_TURN_SERVER_URL; do [ -n "${!v}" ] || missing="$missing $v"; done
           [ -z "$missing" ] || { echo "::error::repository variables not set:$missing" >&2; exit 1; }
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
