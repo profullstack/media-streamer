@@ -238,7 +238,123 @@ export function QuickStart({ onReady }: { onReady?: () => void }): React.ReactEl
         ) : null}
       </div>
 
-      {error ? <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-500">{error}</p> : null}
+      {error ? <ErrorLine message={error} /> : null}
+
+      <ConnectWithCode onReady={onReady} />
+    </div>
+  );
+}
+
+/** A locked or missing vault is the one error with a place to go and fix it. */
+function ErrorLine({ message }: { message: string }): React.ReactElement {
+  const vault = /key vault/i.test(message);
+  return (
+    <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-500">
+      {message}
+      {vault ? (
+        <>
+          {' '}
+          <a href="/settings" className="underline">
+            Open Settings
+          </a>
+        </>
+      ) : null}
+    </p>
+  );
+}
+
+const INSTALL_LINE = 'curl -fsSL https://bittorrented.com/torlink/install.sh | bash';
+
+/**
+ * For a box that runs torlink already, or that you would rather set up yourself: a
+ * c0mpute node (`c0mpute plugin install torlink`), or any Linux machine. The installer
+ * prints a code; pasting it here adds the box, with no SSH.
+ */
+function ConnectWithCode({ onReady }: { onReady?: () => void }): React.ReactElement {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  const connect = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      const res = await fetch('/api/account/seedbox/connect-code', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { id?: string; error?: string; message?: string };
+      if (!res.ok || !body.id) throw new Error(body.error ?? body.message ?? 'Could not add that box.');
+      // Ask the box: an unreachable port is the usual first problem, so say it now.
+      const probe = await fetch(`/api/account/seedbox/test?id=${encodeURIComponent(body.id)}`, { cache: 'no-store' });
+      const seen = (await probe.json().catch(() => ({}))) as {
+        http?: { reachable?: boolean; authorized?: boolean; error?: string };
+      };
+      if (seen.http?.reachable && seen.http.authorized) {
+        setDone('Connected. The box answered and accepted its token.');
+        setCode('');
+      } else if (seen.http?.reachable) {
+        setDone('Added, but the box refused the token. Run the installer again and paste the new code.');
+      } else {
+        setDone(
+          `Added, but the box did not answer${seen.http?.error ? ` (${seen.http.error})` : ''}. Open TCP 9161 and 9160 in your provider's firewall, then press Test on the Setup tab.`
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [code]);
+
+  return (
+    <div className={card}>
+      <h3 className="mb-1 font-semibold text-text-primary">Already run a c0mpute node or your own server? Connect with a code</h3>
+      <p className="mb-3 text-sm text-text-secondary">
+        Install torlink on the machine yourself, then paste the code it prints. No SSH from us at all.
+      </p>
+      <div className="flex flex-col gap-3">
+        <CopyLine label="On a c0mpute node" value="c0mpute plugin install torlink" />
+        <CopyLine label="On any Linux machine" value={INSTALL_LINE} />
+        <form
+          className="flex flex-col gap-2 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void connect();
+          }}
+        >
+          <input
+            className={cn(input, 'font-mono')}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="btsb1_…"
+            aria-label="Connect code"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button type="submit" disabled={busy || !code.trim()} className={cn(primary, 'shrink-0')}>
+            {busy ? 'Connecting…' : 'Connect'}
+          </button>
+        </form>
+        {done ? (
+          <p className="text-sm text-text-primary">
+            {done}{' '}
+            {done.startsWith('Connected') ? (
+              <button type="button" onClick={onReady} className="font-medium text-accent-primary hover:underline">
+                Add your first torrent
+              </button>
+            ) : null}
+          </p>
+        ) : null}
+        {error ? <ErrorLine message={error} /> : null}
+        <p className="text-xs text-text-muted">
+          The same folder can be shared on nixamp as a station (the installer prints the command). Only share what you have
+          the right to.
+        </p>
+      </div>
     </div>
   );
 }

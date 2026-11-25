@@ -459,6 +459,8 @@ const PUBLIC_PATHS = [
   // The plan's sales pages: what it opens, and the coins the pricing page lists.
   '/features',
   '/api/supported-coins',
+  // The torlink installer a machine downloads with curl; it holds no secret.
+  '/torlink',
   '/terms',
   '/privacy',
   '/blog',

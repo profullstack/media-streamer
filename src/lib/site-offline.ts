@@ -86,6 +86,9 @@ const INVITE_ONLY_OPEN = [
   '/api/supported-coins',
   // Published server prices from r4ck.dev, shown on /features (src/lib/r4ck/offers.ts).
   '/api/public/server-offers',
+  // The torlink installer people run on their own machines (and `c0mpute plugin
+  // install torlink` downloads). Holds no secret (src/lib/seedbox/local-install.ts).
+  '/torlink',
 ];
 
 export function openWhileInviteOnly(pathname: string): boolean {

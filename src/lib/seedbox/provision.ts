@@ -93,13 +93,35 @@ if [ "\${NODE_MAJOR:-0}" -lt 22 ]; then
     fi
   fi
   MISE=$(command -v mise 2>/dev/null || echo "$HOME/.local/bin/mise")
-  if "$MISE" use -g node@lts >/tmp/mise-node.log 2>&1; then
+  # Node 26 (today's node@lts) links libatomic.so.1, which minimal Debian/Ubuntu
+  # images do not ship: the install "succeeds" and then node exits 127 on start.
+  # Add the library when we can (root, or passwordless sudo); when we cannot, use
+  # Node 24, which does not need it (torlnk only needs 22+).
+  NODE_SPEC=lts
+  LDC=$(command -v ldconfig 2>/dev/null || echo /sbin/ldconfig)
+  if ! ("$LDC" -p 2>/dev/null | grep -q 'libatomic\\.so\\.1'); then
+    SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo -n"
+    if command -v apt-get >/dev/null 2>&1; then
+      $SUDO apt-get install -y -qq libatomic1 >/tmp/libatomic.log 2>&1 || true
+    elif command -v dnf >/dev/null 2>&1; then
+      $SUDO dnf install -y -q libatomic >/tmp/libatomic.log 2>&1 || true
+    elif command -v apk >/dev/null 2>&1; then
+      $SUDO apk add -q libatomic >/tmp/libatomic.log 2>&1 || true
+    fi
+    if "$LDC" -p 2>/dev/null | grep -q 'libatomic\\.so\\.1'; then
+      emit libatomic ok "installed libatomic, which Node 26 needs"
+    else
+      NODE_SPEC=24
+      emit libatomic skip "no libatomic and no way to install it without a password; using Node 24, which does not need it"
+    fi
+  fi
+  if "$MISE" use -g "node@$NODE_SPEC" >/tmp/mise-node.log 2>&1 && node -v >/dev/null 2>&1; then
     "$MISE" reshim >/dev/null 2>&1 || true
     export PATH="$HOME/.local/share/mise/shims:$PATH"
     hash -r 2>/dev/null || true
-    emit node ok "installed Node $(node -v 2>/dev/null || echo lts) via mise (node@lts)"
+    emit node ok "installed Node $(node -v 2>/dev/null || echo "$NODE_SPEC") via mise (node@$NODE_SPEC)"
   else
-    emit node fail "mise could not install node@lts: $(tail -n 3 /tmp/mise-node.log 2>/dev/null | tr '\\n' ' ')"
+    emit node fail "mise could not install a working node@$NODE_SPEC: $(tail -n 3 /tmp/mise-node.log 2>/dev/null | tr '\\n' ' ')"
     echo "RESULT|fail"; exit 0
   fi
 else
