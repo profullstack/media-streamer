@@ -62,7 +62,10 @@ FROM node:26-alpine AS runner
 WORKDIR /app
 
 # Install FFmpeg for video/audio transcoding, and build tools for reliq/torge
-RUN apk add --no-cache ffmpeg git curl make gcc musl-dev bash jq
+# openssh-client + openssh-keygen: the seedbox features shell out to `ssh` and
+# `ssh-keygen` (src/lib/seedbox). The image had neither, so "Install torlink" and every
+# other SSH action failed with ENOENT from the day the app moved into a container.
+RUN apk add --no-cache ffmpeg git curl make gcc musl-dev bash jq openssh-client openssh-keygen
 
 # Chromium for the SiriusXM device-grant mint. SiriusXM's gateway wants a
 # DEVICE_GRANT that only its web player's JavaScript mints, so the sign-in loads

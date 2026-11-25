@@ -15,12 +15,15 @@ import { AddTorrent } from './add-torrent';
 import { SeedboxManager } from './seedbox-manager';
 import { TorlinkStatus } from './torlink-status';
 import { RentOut } from './rent-out';
+import { QuickStart } from './quick-start';
 import { useAuth } from '@/hooks/use-auth';
 import { LEGAL_MODE } from '@/lib/legal-mode';
 
-type SeedboxTab = 'setup' | 'add' | 'status' | 'rent';
+type SeedboxTab = 'start' | 'setup' | 'add' | 'status' | 'rent';
 
 const TABS: { id: SeedboxTab; label: string; icon: typeof SettingsIcon }[] = [
+  // First: most people arriving here have no box connected, and often no box.
+  { id: 'start', label: 'Quick start', icon: PlusIcon },
   { id: 'setup', label: 'Setup', icon: SettingsIcon },
   { id: 'add', label: 'Add', icon: PlusIcon },
   { id: 'status', label: 'Torlink status', icon: DownloadIcon },
@@ -28,7 +31,7 @@ const TABS: { id: SeedboxTab; label: string; icon: typeof SettingsIcon }[] = [
 ];
 
 export function SeedboxTabs(): React.ReactElement {
-  const [tab, setTab] = useState<SeedboxTab>('setup');
+  const [tab, setTab] = useState<SeedboxTab>('start');
   // Renting a box out is a storefront, which legal mode keeps off for everyone but admins
   // (src/lib/legal-mode.ts): a tab whose every call answers 410 is not a feature.
   const { user } = useAuth();
@@ -55,6 +58,7 @@ export function SeedboxTabs(): React.ReactElement {
       </nav>
 
       <div className="min-w-0 flex-1">
+        {tab === 'start' && <QuickStart onReady={() => setTab('add')} />}
         {tab === 'setup' && <SeedboxManager />}
         {tab === 'add' && <AddTorrent />}
         {tab === 'status' && <TorlinkStatus />}

@@ -161,6 +161,8 @@ jobs:
           test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE:$SHA")" = "$SHA"
           # librespot (cargo install, stage 0) is the slow part; it must be in the runtime image.
           docker run --rm --entrypoint sh "$IMAGE:$SHA" -c 'test -x /usr/local/bin/librespot'
+          # The seedbox features shell out to these; the image shipped without them for weeks.
+          docker run --rm --entrypoint sh "$IMAGE:$SHA" -c 'command -v ssh && command -v ssh-keygen'
 
       # Keep the registry small: the newest 15 builds are plenty for rollbacks.
       - name: Prune old images

@@ -84,6 +84,8 @@ const INVITE_ONLY_OPEN = [
   '/pricing',
   '/features',
   '/api/supported-coins',
+  // Published server prices from r4ck.dev, shown on /features (src/lib/r4ck/offers.ts).
+  '/api/public/server-offers',
 ];
 
 export function openWhileInviteOnly(pathname: string): boolean {
