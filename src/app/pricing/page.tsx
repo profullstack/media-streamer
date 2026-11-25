@@ -13,6 +13,7 @@ import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { useSupportedCoins } from '@/hooks/use-supported-coins';
 import { PAID_FEATURES, WATCH_PARTY_HOST } from '@/lib/legal-mode';
+import { useAuth } from '@/hooks/use-auth';
 
 interface PlanFeature {
   text: string;
@@ -59,11 +60,14 @@ const PLAN_FEATURES: PlanFeature[] = [
   { text: 'Host watch parties (up to 50 people)', included: true },
   { text: 'News with AI summaries and audio', included: true },
   { text: 'RSS reader and Finance', included: true },
+  { text: 'No ads', included: true },
 ];
 
-const UPGRADE_LABELS: Record<string, string> = Object.fromEntries(
-  [...PAID_FEATURES, WATCH_PARTY_HOST].map((f) => [f.key, f.label])
-);
+const UPGRADE_LABELS: Record<string, string> = {
+  ...Object.fromEntries([...PAID_FEATURES, WATCH_PARTY_HOST].map((f) => [f.key, f.label])),
+  // The "Go ad-free" link beside the free account's sponsored line.
+  'no-ads': 'An ad-free account',
+};
 
 const plans: Plan[] = [
   {
@@ -109,6 +113,7 @@ export default function PricingPage(): React.ReactElement {
   // Shown on the page; the buyer picks on CoinPay's checkout (any of these, or PayPal).
   const { coins, isLoading: isLoadingCoins, error: coinsError } = useSupportedCoins();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const { isLoggedIn, isLoading: authLoading } = useAuth();
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +128,11 @@ export default function PricingPage(): React.ReactElement {
     if (plan.isTrial) {
       // Start trial - redirect to signup
       router.push('/signup?trial=true');
+      return;
+    }
+    // Signed out: a plan is bought from an account, so the way in comes first.
+    if (!authLoading && !isLoggedIn) {
+      router.push(`/signup?plan=${plan.id}`);
       return;
     }
     setSelectedPlan(plan);
@@ -192,6 +202,14 @@ export default function PricingPage(): React.ReactElement {
             Deposit $99 in your CoinPay wallet and get a free month:{' '}
             <a href="https://coinpayportal.com/pass" className="underline">CoinPay Pass</a>
           </p>
+          {!authLoading && !isLoggedIn ? (
+            <p className="text-text-secondary text-sm max-w-lg mx-auto mt-3">
+              Accounts are invite only. Have an invite?{' '}
+              <a href="/signup" className="text-accent-primary hover:underline">Create your account</a>
+              {' · '}
+              <a href="/login?redirect=%2Fpricing" className="text-accent-primary hover:underline">Sign in</a>
+            </p>
+          ) : null}
         </div>
 
         {/* Plans */}

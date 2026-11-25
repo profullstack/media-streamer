@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * CrawlProof ad units — shown ONLY to logged-out visitors.
+ * CrawlProof ad units, shown to anyone without a plan (see useShowsAds).
  *
  * The ad.js loader (added globally in the root layout) scans the DOM once on
  * load and does NOT watch for mutations. Our slots are auth-gated, so they
@@ -31,12 +31,23 @@ interface AdUnitProps {
 }
 
 /**
- * A single ad slot. Renders nothing while auth is resolving or for logged-in
- * users; renders the `data-cp-ad` div (which ad.js fills) for logged-out ones.
+ * Who sees ads: anyone without a plan. That is a signed-out visitor and a member on
+ * the free account (Anthony, 2026-11-25: "free tier shows crawlproof.com/ads ... make it
+ * tasteful"). A plan, a running trial and an admin see none: no ads is part of what a
+ * plan buys. Nothing renders while auth is still resolving, so a member with a plan
+ * never sees a unit flash in and out.
+ */
+export function useShowsAds(): boolean {
+  const { isLoading, isPremium, user } = useAuth();
+  return !isLoading && !isPremium && user?.is_admin !== true;
+}
+
+/**
+ * A single ad slot: the `data-cp-ad` div (which ad.js fills) for anyone without a plan,
+ * nothing for everybody else.
  */
 export function AdUnit({ format, className }: AdUnitProps): React.ReactElement | null {
-  const { isLoading, isLoggedIn } = useAuth();
-  const shouldRender = !isLoading && !isLoggedIn;
+  const shouldRender = useShowsAds();
 
   useEffect(() => {
     if (!shouldRender) return;

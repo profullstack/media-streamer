@@ -456,6 +456,9 @@ const PUBLIC_PATHS = [
   '/forgot-password',
   '/reset-password',
   '/pricing',
+  // The plan's sales pages: what it opens, and the coins the pricing page lists.
+  '/features',
+  '/api/supported-coins',
   '/terms',
   '/privacy',
   '/blog',

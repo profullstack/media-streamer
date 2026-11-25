@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
  * pasted invite says what BitTorrented is (src/components/home/invite-landing.tsx).
  */
 const DESCRIPTION =
-  'More than a tracker: BitTorrented finds torrents on the DHT, streams them in your browser as they arrive, and runs seedboxes that download and seed for you. Invite only.';
+  'One membership for your own media tools: Live TV from your own playlist, your own seedbox streamed in the browser, one-click live streaming, watch parties, news and feeds. From $4.99 a year, 3 days free. Invite only.';
 
 const BANNER = 'https://bittorrented.com/banner.png';
 

@@ -13,6 +13,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
 import { LEGAL_MODE } from '@/lib/legal-mode';
+import { FreeTierAd } from '@/components/ads/free-tier-ad';
 import { Header } from './header';
 import { useAuth } from '@/hooks/use-auth';
 import { useSiteFooter } from '@/components/layout/site-footer-context';
@@ -71,6 +72,8 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
 
         {/* Page content — never block on auth; children render immediately */}
         <main className={cn('flex-1 p-4 md:p-6', className)}>
+          {/* Free accounts: one quiet sponsored line on a few browsing pages (never with a plan) */}
+          <FreeTierAd />
           {children}
         </main>
 

@@ -1,50 +1,67 @@
 /**
- * What BitTorrented is, for someone who has never seen it.
+ * What BitTorrented is, and what a plan buys, for someone who is signed out.
  *
- * Anthony, 2026-10-06: someone got an invite and asked what it was for, and he had to
- * explain it is more than a tracker: the DHT, streaming, and seedboxes. This says that up
- * front, on the invite-only screen (signed out) and under the signup form, so an invite
- * link explains itself.
+ * Anthony, 2026-10-06: someone got an invite and asked what it was for. Anthony,
+ * 2026-11-25: "let's start heavily promoting the paid tier for logged out users too".
+ * So this is the pitch for the plan, on the invite-only screen, under the signup form and
+ * beside the login form: what a plan opens, what it costs, and how to get in.
+ *
+ * Every feature card comes from PAID_FEATURES (src/lib/legal-mode.ts), the list the proxy
+ * enforces, so this page cannot promise something the gate refuses. It used to pitch the
+ * DHT index, which legal mode retired.
  *
  * No hooks, so it renders from server and client pages alike. The copy stays inside the
- * standing rule (no piracy pitch): it describes the tools and says what they are for.
+ * standing rule (no piracy pitch): it describes the member's own tools.
  */
 
 import Link from 'next/link';
-import { Bitcoin, BookOpen, CirclePlay, House, Network, Podcast, Server, Ticket, Tv, Users } from 'lucide-react';
+import {
+  Bitcoin,
+  Check,
+  House,
+  LineChart,
+  Newspaper,
+  PartyPopper,
+  Podcast,
+  Radio,
+  Rss,
+  Server,
+  Ticket,
+  Tv,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
+import { PAID_FEATURES, WATCH_PARTY_HOST } from '@/lib/legal-mode';
 import { cn } from '@/lib/utils';
 
-const PILLARS = [
-  {
-    icon: Network,
-    title: 'Straight from the DHT',
-    body: 'No tracker in the middle. BitTorrented talks to the BitTorrent DHT directly, so a magnet link or an info hash is all it needs to find peers and read what is inside a torrent.',
-  },
-  {
-    icon: CirclePlay,
-    title: 'Stream, don’t wait',
-    body: 'Press play on a video, an album or an ebook while it is still arriving. Seeking, subtitles, picture in picture and resume across devices, all in the browser with no client to install.',
-  },
-  {
-    icon: Server,
-    title: 'Seedboxes that do the work',
-    body: 'Hand a torrent to a seedbox and it downloads and seeds on a fast server, not your laptop. Stream the finished files from anywhere and keep your ratio healthy while you sleep.',
-  },
+const ICONS: Record<string, LucideIcon> = {
+  'live-tv': Tv,
+  seedboxes: Server,
+  'go-live': Radio,
+  news: Newspaper,
+  rss: Rss,
+  finance: LineChart,
+  'watch-party': PartyPopper,
+};
+
+const PLAN_CARDS = [...PAID_FEATURES, WATCH_PARTY_HOST];
+
+const FREE = [
+  { icon: Podcast, label: 'Podcasts from any public feed' },
+  { icon: Users, label: 'Join watch parties with synced playback and chat' },
+  { icon: Ticket, label: '5 invites a month, and 7 Premium days for you and each friend' },
+  { icon: House, label: 'Read your own mailboxes in one place' },
 ];
 
-const EXTRAS = [
-  { icon: Users, label: 'Watch parties with synced playback and chat' },
-  { icon: Podcast, label: 'Podcasts from any public feed' },
-  { icon: BookOpen, label: 'Ebook reader for PDF and EPUB' },
-  { icon: Tv, label: 'Install it as an app, or cast to the TV' },
-  { icon: House, label: 'Family profiles on one membership' },
-  { icon: Bitcoin, label: 'Pay in crypto, no card needed' },
+const PLANS = [
+  { name: 'Premium', price: '$4.99', period: 'a year', note: 'Everything below, for one person' },
+  { name: 'Family', price: '$9.99', period: 'a year', note: 'Everything below, for up to 10 people' },
 ];
 
 const STEPS = [
   'A member sends you an invite link or code.',
-  'Create your account with it. The code is checked when you sign up.',
-  'You get 5 invites of your own every month, and unused ones carry over.',
+  'Create your account with it. You start with a 3-day trial of every plan feature.',
+  'Keep it for $4.99 a year, or stay on the free account. You get 5 invites of your own every month.',
 ];
 
 const button = 'inline-flex items-center justify-center rounded-lg px-5 py-3 font-medium transition-colors';
@@ -59,11 +76,11 @@ export function InviteLanding({ actions = true, className }: InviteLandingProps)
   return (
     <div className={cn('space-y-12 text-left', className)}>
       <section className="text-center space-y-4">
-        <p className="text-sm font-medium uppercase tracking-wider text-accent-primary">More than a tracker</p>
-        <h2 className="text-3xl sm:text-4xl font-bold leading-tight">BitTorrent, finished.</h2>
+        <p className="text-sm font-medium uppercase tracking-wider text-accent-primary">One membership, your own tools</p>
+        <h2 className="text-3xl sm:text-4xl font-bold leading-tight">Your TV, your seedbox, your stream. $4.99 a year.</h2>
         <p className="mx-auto max-w-xl text-lg text-text-secondary">
-          BitTorrented puts the whole torrent workflow in your browser: find it on the DHT, stream it the second it
-          starts, and let a seedbox handle the rest.
+          BitTorrented plays your own IPTV playlist, streams from your own seedbox, and puts your camera or screen live
+          in one click. No ads on a plan, no card needed, and the first 3 days are free.
         </p>
         {actions ? (
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
@@ -71,7 +88,16 @@ export function InviteLanding({ actions = true, className }: InviteLandingProps)
               <Ticket className="mr-2 h-5 w-5" aria-hidden />I have an invite
             </Link>
             <Link
-              href="/login?redirect=%2Finvite-only"
+              href="/pricing"
+              className={cn(
+                button,
+                'border border-accent-primary bg-accent-primary/10 text-text-primary hover:bg-accent-primary/20'
+              )}
+            >
+              See plans
+            </Link>
+            <Link
+              href="/login?redirect=%2Ffeatures"
               className={cn(
                 button,
                 'border border-border-default bg-bg-tertiary text-text-primary hover:border-accent-primary'
@@ -83,20 +109,46 @@ export function InviteLanding({ actions = true, className }: InviteLandingProps)
         ) : null}
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        {PILLARS.map(({ icon: Icon, title, body }) => (
-          <div key={title} className="rounded-xl border border-border-default bg-bg-secondary p-5">
-            <Icon className="mb-3 h-7 w-7 text-accent-primary" aria-hidden />
-            <h3 className="mb-2 font-semibold">{title}</h3>
-            <p className="text-sm text-text-secondary">{body}</p>
+      <section>
+        <h3 className="mb-4 text-center text-lg font-semibold">What a plan opens</h3>
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {PLAN_CARDS.map(({ key, label, blurb }) => {
+            const Icon = ICONS[key] ?? Check;
+            return (
+              <li key={key} className="rounded-xl border border-border-default bg-bg-secondary p-5">
+                <Icon className="mb-3 h-7 w-7 text-accent-primary" aria-hidden />
+                <h4 className="mb-2 font-semibold">{label}</h4>
+                <p className="text-sm text-text-secondary">{blurb}</p>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        {PLANS.map((plan) => (
+          <div key={plan.name} className="rounded-xl border border-accent-primary/50 bg-accent-primary/5 p-6 text-center">
+            <h3 className="text-lg font-semibold">{plan.name}</h3>
+            <p className="mt-1">
+              <span className="text-4xl font-bold">{plan.price}</span>{' '}
+              <span className="text-text-muted">{plan.period}</span>
+            </p>
+            <p className="mt-2 text-sm text-text-secondary">{plan.note}</p>
           </div>
         ))}
+        <p className="sm:col-span-2 flex items-center justify-center gap-2 text-center text-sm text-text-secondary">
+          <Bitcoin className="h-5 w-5 shrink-0 text-accent-primary" aria-hidden />
+          Pay with crypto or PayPal. 30-day money-back guarantee.{' '}
+          <Link href="/pricing" className="text-accent-primary hover:underline">
+            Compare plans
+          </Link>
+        </p>
       </section>
 
       <section>
-        <h3 className="mb-4 text-center text-lg font-semibold">Also in the box</h3>
+        <h3 className="mb-4 text-center text-lg font-semibold">Free with every account</h3>
         <ul className="grid gap-3 sm:grid-cols-2">
-          {EXTRAS.map(({ icon: Icon, label }) => (
+          {FREE.map(({ icon: Icon, label }) => (
             <li key={label} className="flex items-center gap-3 text-sm text-text-secondary">
               <Icon className="h-5 w-5 shrink-0 text-accent-primary" aria-hidden />
               {label}
@@ -106,9 +158,9 @@ export function InviteLanding({ actions = true, className }: InviteLandingProps)
       </section>
 
       <section className="rounded-xl border border-border-default bg-bg-secondary p-6">
-        <h3 className="mb-4 text-lg font-semibold">Why invite only?</h3>
+        <h3 className="mb-4 text-lg font-semibold">How to get in</h3>
         <p className="mb-4 text-sm text-text-secondary">
-          We are growing it slowly, one member vouching for the next, while we open features back up one at a time.
+          Accounts are invite only: we are growing it slowly, one member vouching for the next.
         </p>
         <ol className="space-y-2 text-sm">
           {STEPS.map((step, i) => (
@@ -123,8 +175,8 @@ export function InviteLanding({ actions = true, className }: InviteLandingProps)
       </section>
 
       <p className="text-center text-xs text-text-muted">
-        Built for things you are allowed to share: Linux ISOs, open courseware, Creative Commons media, public podcasts
-        and your own files. See the <Link href="/terms" className="underline">terms</Link>.
+        Built for things that are yours to play: your own playlists, your own seedbox, your own camera, public podcasts
+        and feeds. See the <Link href="/terms" className="underline">terms</Link>.
       </p>
     </div>
   );

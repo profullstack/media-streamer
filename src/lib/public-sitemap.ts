@@ -9,6 +9,8 @@ export type SitemapPost = { slug: string; date: string };
 
 const STATIC_PAGES: { path: string; changefreq: string; priority: string }[] = [
   { path: '/invite-only', changefreq: 'monthly', priority: '1.0' },
+  { path: '/pricing', changefreq: 'monthly', priority: '0.9' },
+  { path: '/features', changefreq: 'monthly', priority: '0.9' },
   { path: '/blog', changefreq: 'daily', priority: '0.8' },
   { path: '/signup', changefreq: 'monthly', priority: '0.6' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3' },
