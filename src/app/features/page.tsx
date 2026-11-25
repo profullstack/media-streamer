@@ -15,6 +15,7 @@ import { MainLayout } from '@/components/layout';
 import { useAuth } from '@/hooks/use-auth';
 import { PAID_FEATURES, WATCH_PARTY_HOST } from '@/lib/legal-mode';
 import { cn } from '@/lib/utils';
+import { ServerOffers } from '@/components/seedbox/server-offers';
 
 interface Card {
   key: string;
@@ -131,6 +132,9 @@ export default function FeaturesPage(): React.ReactElement {
             ))}
           </ul>
         </section>
+
+        {/* The seedbox is the member's own server; this is where to find one. */}
+        <ServerOffers compact />
       </div>
     </MainLayout>
   );
