@@ -14,8 +14,10 @@
  * own unit (the blog) are not named, or they would carry two.
  */
 
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
 import { AdUnit, useShowsAds } from './ad-unit';
 
 /** Browsing pages a free member can open. Each gets the one line. */
@@ -28,13 +30,40 @@ export function showsFreeTierAd(pathname: string): boolean {
 export function FreeTierAd(): React.ReactElement | null {
   const pathname = usePathname() ?? '';
   const showsAds = useShowsAds();
-  if (!showsAds || !showsFreeTierAd(pathname)) return null;
+  const active = showsAds && showsFreeTierAd(pathname);
+  const row = useRef<HTMLElement | null>(null);
+  const [filled, setFilled] = useState(false);
+
+  // The row takes no room until the network has actually put an ad in it. With an ad
+  // blocker, or nothing to serve, it used to leave a rule and a lone "Go ad-free" link
+  // above the page. It keeps its width while collapsed (height 0, not display:none),
+  // because the loader measures the slot's width to choose what to serve.
+  useEffect(() => {
+    const el = row.current;
+    if (!active || !el) return;
+    const check = (): void => setFilled(el.querySelector('[data-cp-ad] iframe') !== null);
+    const observer = new MutationObserver(check);
+    observer.observe(el, { childList: true, subtree: true });
+    check();
+    return () => observer.disconnect();
+  }, [active, pathname]);
+
+  if (!active) return null;
 
   return (
-    <aside aria-label="Sponsored" className="mb-4 flex items-center gap-3 border-b border-border-subtle pb-3">
+    <aside
+      ref={row}
+      aria-label="Sponsored"
+      aria-hidden={!filled}
+      className={cn(
+        'flex items-center gap-3',
+        filled ? 'mb-4 border-b border-border-subtle pb-3' : 'h-0 overflow-hidden opacity-0'
+      )}
+    >
       <AdUnit format="text_link" className="min-w-0 flex-1" />
       <Link
         href="/pricing?upgrade=no-ads"
+        tabIndex={filled ? undefined : -1}
         className="shrink-0 text-xs text-text-muted underline-offset-2 hover:text-accent-primary hover:underline"
       >
         Go ad-free
