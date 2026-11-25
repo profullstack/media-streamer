@@ -83,6 +83,9 @@ const ALLOWED = [
   // route (POST /api/watch-party). The film is whatever link the host hands the room.
   '/watch-party',
   '/api/watch-party',
+  // The torlink installer for a member's own machine (src/lib/seedbox/local-install.ts):
+  // a script that installs open-source software, with no content and no secret in it.
+  '/torlink',
   // site furniture
   '/.well-known',
   '/robots.txt',
