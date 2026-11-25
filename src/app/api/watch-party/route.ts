@@ -1,12 +1,11 @@
 /**
  * Watch Party API Route
  *
- * POST /api/watch-party - Create a new watch party
- * GET /api/watch-party?code=XXXXXX - Get party by code
+ * POST /api/watch-party - Create a new watch party (signed in, with a plan)
+ * GET /api/watch-party?code=XXXXXX[&member=ID] - Get party by code; `member` says "still here"
  * PATCH /api/watch-party - Update party media (host only)
  *
- * This is a simple in-memory implementation for demo purposes.
- * For production, parties should be stored in a database.
+ * Parties are kept by ./_store: in memory, copied to Redis so a deploy does not end them.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,17 +16,20 @@ import {
   type CreatePartyOptions,
   type PartySettings,
 } from '@/lib/watch-party';
-import { getParty, setParty, cleanupOldParties } from './_store';
-import { isHostOf } from './_view';
+import { getParty, setParty, cleanupOldParties, pruneStaleMembers, touchMember } from './_store';
+import { cleanMediaUrl, isHostOf, partyView } from './_view';
+import { canHostParty } from './_host';
 import { emitWebhook } from '@/lib/webhooks/hub';
 
 interface CreatePartyBody {
-  hostId?: string;
   hostName?: string;
   mediaUrl?: string;
   mediaTitle?: string;
   settings?: Partial<PartySettings>;
 }
+
+const cleanTitle = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim().slice(0, 200) : undefined;
 
 /**
  * POST /api/watch-party
@@ -38,29 +40,45 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json() as CreatePartyBody;
 
     // Validate required fields
-    if (!body.hostName || typeof body.hostName !== 'string') {
+    if (!body.hostName || typeof body.hostName !== 'string' || !body.hostName.trim()) {
       return NextResponse.json(
         { error: 'hostName is required' },
         { status: 400 }
       );
     }
 
-    // Whoever is signed in IS the host, ahead of anything the body claims.
-    //
-    // A party still needs no account -- an anonymous host gets a guest id as
-    // before -- but a signed-in one gets their real user id, and that is what
-    // makes the nixamp bridge possible: putting the party on nixamp has to be
-    // provably the host's doing, and a guest string proves nothing.
+    // Whoever is signed in IS the host: the party's hostId is their user id, which is
+    // what proves every later host action (playback, media, the nixamp bridge) by the
+    // session alone. The site is members-only, so there is no anonymous host any more.
     const user = await getCurrentUser();
-    const hostId =
-      user?.id ?? body.hostId ?? `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    if (!user) {
+      return NextResponse.json({ error: 'Sign in to start a watch party' }, { status: 401 });
+    }
+    if (!(await canHostParty(user.id))) {
+      return NextResponse.json(
+        {
+          error: 'paid_plan_required',
+          message: 'Hosting a watch party is part of a paid plan. Joining one is free.',
+          feature: 'watch-party',
+          upgradeUrl: '/pricing?upgrade=watch-party',
+        },
+        { status: 402 }
+      );
+    }
+
+    let mediaUrl = '';
+    if (body.mediaUrl) {
+      const cleaned = cleanMediaUrl(body.mediaUrl);
+      if (!cleaned) return NextResponse.json({ error: 'That link cannot be played. Use an https link.' }, { status: 400 });
+      mediaUrl = cleaned;
+    }
 
     // Create the party options
     const options: CreatePartyOptions = {
-      hostId,
-      hostName: body.hostName,
-      mediaUrl: body.mediaUrl ?? '',
-      mediaTitle: body.mediaTitle ?? 'Watch Party',
+      hostId: user.id,
+      hostName: body.hostName.trim().slice(0, 60),
+      mediaUrl,
+      mediaTitle: cleanTitle(body.mediaTitle) ?? 'Watch Party',
       settings: body.settings,
     };
 
@@ -73,22 +91,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Cleanup old parties
     cleanupOldParties();
 
-    // Only a signed-in host is an account that can have webhooks. The party
-    // code is what the host shares anyway; the media URL is left out.
-    if (user) {
-      await emitWebhook(
-        user.id,
-        'watch_party.started',
-        {
-          party_id: party.id,
-          code: party.code,
-          host_name: party.hostName,
-          media_title: party.mediaTitle,
-          created_at: party.createdAt.toISOString(),
-        },
-        { subject: `watch_party:${party.id}`, id: `evt_watch_party_started_${party.id}` }
-      );
-    }
+    // The party code is what the host shares anyway; the media URL is left out.
+    await emitWebhook(
+      user.id,
+      'watch_party.started',
+      {
+        party_id: party.id,
+        code: party.code,
+        host_name: party.hostName,
+        media_title: party.mediaTitle,
+        created_at: party.createdAt.toISOString(),
+      },
+      { subject: `watch_party:${party.id}`, id: `evt_watch_party_started_${party.id}` }
+    ).catch(() => undefined);
 
     console.log('[WatchParty] Created party:', {
       code: party.code,
@@ -96,21 +111,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       memberCount: party.members.length,
     });
 
-    return NextResponse.json({
-      success: true,
-      party: {
-        id: party.id,
-        code: party.code,
-        hostId: party.hostId,
-        hostName: party.hostName,
-        mediaUrl: party.mediaUrl,
-        mediaTitle: party.mediaTitle,
-        state: party.state,
-        memberCount: party.members.length,
-        settings: party.settings,
-        createdAt: party.createdAt.toISOString(),
-      },
-    });
+    return NextResponse.json({ success: true, party: partyView(party) });
   } catch (error) {
     console.error('[WatchParty] Error creating party:', error);
     return NextResponse.json(
@@ -143,7 +144,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const party = getParty(code);
+    let party = await getParty(code);
 
     if (!party) {
       return NextResponse.json(
@@ -160,27 +161,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      party: {
-        id: party.id,
-        code: party.code,
-        hostId: party.hostId,
-        hostName: party.hostName,
-        mediaUrl: party.mediaUrl,
-        mediaTitle: party.mediaTitle,
-        state: party.state,
-        memberCount: party.members.length,
-        members: party.members.map(m => ({
-          id: m.id,
-          name: m.name,
-          isHost: m.isHost,
-        })),
-        playback: party.playback,
-        settings: party.settings,
-        createdAt: party.createdAt.toISOString(),
-      },
-    });
+    // The poll doubles as "I am still here"; whoever stopped polling has left.
+    const member = searchParams.get('member');
+    if (member && party.members.some((m) => m.id === member)) touchMember(code, member);
+    const pruned = pruneStaleMembers(party);
+    if (pruned !== party) {
+      party = pruned;
+      setParty(code, party);
+    }
+
+    return NextResponse.json(
+      { success: true, party: partyView(party) },
+      { headers: { 'cache-control': 'no-store' } }
+    );
   } catch (error) {
     console.error('[WatchParty] Error getting party:', error);
     return NextResponse.json(
@@ -224,7 +217,10 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const party = getParty(code);
+    // Asked before the party is read, so nothing awaits between reading it and writing it
+    // back: a join landing in that gap used to be overwritten.
+    const user = await getCurrentUser();
+    const party = await getParty(code);
 
     if (!party) {
       return NextResponse.json(
@@ -235,7 +231,6 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 
     // Verify the requester is the host: the session for a signed-in host,
     // the guest id only for a guest-hosted party.
-    const user = await getCurrentUser();
     if (!isHostOf(party, user?.id, typeof body.hostId === 'string' ? body.hostId : undefined)) {
       return NextResponse.json(
         { error: 'Only the host can update party media' },
@@ -251,47 +246,34 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Build the stream URL from torrent and file info
-    let mediaUrl = body.mediaUrl ?? '';
+    // A file from the catalog, or a link the host pasted. An empty link clears the film.
+    let mediaUrl = '';
     if (body.torrentId && body.filePath) {
-      mediaUrl = `/api/stream?torrent=${body.torrentId}&file=${encodeURIComponent(body.filePath)}`;
+      mediaUrl = `/api/stream?torrent=${encodeURIComponent(body.torrentId)}&file=${encodeURIComponent(body.filePath)}`;
+    } else if (body.mediaUrl) {
+      const cleaned = cleanMediaUrl(body.mediaUrl);
+      if (!cleaned) {
+        return NextResponse.json({ error: 'That link cannot be played. Use an https link to a video or an HLS playlist.' }, { status: 400 });
+      }
+      mediaUrl = cleaned;
     }
 
-    // Update the party
-    party.mediaUrl = mediaUrl;
-    party.mediaTitle = body.mediaTitle ?? party.mediaTitle;
-    party.state = 'waiting'; // Reset to waiting when new media is selected
-
-    // Save the updated party
-    setParty(code, party);
+    // A new film starts at the beginning, paused, for everybody.
+    const updated = {
+      ...party,
+      mediaUrl,
+      mediaTitle: cleanTitle(body.mediaTitle) ?? party.mediaTitle,
+      state: 'waiting' as const,
+      playback: { isPlaying: false, currentTime: 0, duration: 0, lastUpdate: Date.now() },
+    };
+    setParty(code, updated);
 
     console.log('[WatchParty] Updated party media:', {
-      code: party.code,
-      mediaTitle: party.mediaTitle,
-      mediaUrl: party.mediaUrl,
+      code: updated.code,
+      mediaTitle: updated.mediaTitle,
     });
 
-    return NextResponse.json({
-      success: true,
-      party: {
-        id: party.id,
-        code: party.code,
-        hostId: party.hostId,
-        hostName: party.hostName,
-        mediaUrl: party.mediaUrl,
-        mediaTitle: party.mediaTitle,
-        state: party.state,
-        memberCount: party.members.length,
-        members: party.members.map(m => ({
-          id: m.id,
-          name: m.name,
-          isHost: m.isHost,
-        })),
-        playback: party.playback,
-        settings: party.settings,
-        createdAt: party.createdAt.toISOString(),
-      },
-    });
+    return NextResponse.json({ success: true, party: partyView(updated) });
   } catch (error) {
     console.error('[WatchParty] Error updating party:', error);
     return NextResponse.json(

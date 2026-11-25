@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useIptvChannelFavorites } from '@/hooks/use-favorites';
 import type { Channel } from '@/lib/iptv';
 import Link from 'next/link';
+import { LEGAL_MODE } from '@/lib/legal-mode';
 
 /**
  * Memoized channel card to prevent re-renders of the entire grid
@@ -132,7 +133,7 @@ function isPlaylistDataArray(data: unknown): data is PlaylistData[] {
 }
 
 export function LiveTvContent(): React.ReactElement {
-  const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+  const { isLoggedIn, isLoading: isAuthLoading, user } = useAuth();
   const { favorites, refetch: refetchFavorites, isLoading: isFavoritesLoading } = useIptvChannelFavorites();
   const [showFavorites, setShowFavorites] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -541,15 +542,21 @@ export function LiveTvContent(): React.ReactElement {
           <div>
             <h1 className="text-2xl font-bold text-text-primary">Live TV</h1>
             <p className="text-sm text-text-secondary">
-              Stream live channels from your IPTV playlists.{' '}
-              <Link href="/iptv" className="text-accent-primary hover:underline">
-                Get a Live TV pass
-              </Link>{' '}
-              on our line, or{' '}
-              <Link href="/live-tv/rent-out" className="text-accent-primary hover:underline">
-                rent out your line
-              </Link>{' '}
-              by the game.
+              Stream live channels from your IPTV playlists.
+              {/* Passes and renting a line out are storefronts; legal mode keeps them to admins. */}
+              {!LEGAL_MODE || user?.is_admin === true ? (
+                <>
+                  {' '}
+                  <Link href="/iptv" className="text-accent-primary hover:underline">
+                    Get a Live TV pass
+                  </Link>{' '}
+                  on our line, or{' '}
+                  <Link href="/live-tv/rent-out" className="text-accent-primary hover:underline">
+                    rent out your line
+                  </Link>{' '}
+                  by the game.
+                </>
+              ) : null}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -581,7 +588,7 @@ export function LiveTvContent(): React.ReactElement {
           </div>
         </div>
 
-        {isLoggedIn && !isAuthLoading && playlists.length === 0 ? (
+        {isLoggedIn && !isAuthLoading && playlists.length === 0 && (!LEGAL_MODE || user?.is_admin === true) ? (
           <IptvOfferCard direct />
         ) : null}
 

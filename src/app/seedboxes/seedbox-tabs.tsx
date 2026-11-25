@@ -15,6 +15,8 @@ import { AddTorrent } from './add-torrent';
 import { SeedboxManager } from './seedbox-manager';
 import { TorlinkStatus } from './torlink-status';
 import { RentOut } from './rent-out';
+import { useAuth } from '@/hooks/use-auth';
+import { LEGAL_MODE } from '@/lib/legal-mode';
 
 type SeedboxTab = 'setup' | 'add' | 'status' | 'rent';
 
@@ -27,11 +29,15 @@ const TABS: { id: SeedboxTab; label: string; icon: typeof SettingsIcon }[] = [
 
 export function SeedboxTabs(): React.ReactElement {
   const [tab, setTab] = useState<SeedboxTab>('setup');
+  // Renting a box out is a storefront, which legal mode keeps off for everyone but admins
+  // (src/lib/legal-mode.ts): a tab whose every call answers 410 is not a feature.
+  const { user } = useAuth();
+  const tabs = LEGAL_MODE && user?.is_admin !== true ? TABS.filter((t) => t.id !== 'rent') : TABS;
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
       <nav className="flex gap-2 lg:w-48 lg:shrink-0 lg:flex-col">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setTab(id)}

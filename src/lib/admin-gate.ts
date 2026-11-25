@@ -12,26 +12,52 @@
  */
 
 import { checkUserAdmin } from '@/lib/admin';
+import { isSubscriptionActive } from '@/lib/subscription/check';
 
 const AUTH_COOKIE_NAME = 'sb-auth-token';
 const VERIFY_TIMEOUT_MS = 3000;
 /** How long one verified answer is reused for the same access token. */
 const CACHE_MS = 60_000;
+/**
+ * A member without a plan is asked again much sooner: somebody coming back from the
+ * checkout should not be told "upgrade" for a minute after paying.
+ */
+const NO_PLAN_CACHE_MS = 10_000;
 
 export interface Access {
   /** A real, verified account. */
   member: boolean;
   admin: boolean;
+  /**
+   * An active plan (trial, Premium or Family), which is what opens the paid features in
+   * legal mode (src/lib/legal-mode.ts). Always true for an admin.
+   */
+  paid: boolean;
 }
 
-const NOBODY: Access = { member: false, admin: false };
+const NOBODY: Access = { member: false, admin: false, paid: false };
 
 const cache = new Map<string, Access & { until: number }>();
 
 function remember(key: string, access: Access, until = Date.now() + CACHE_MS): Access {
   if (cache.size > 1000) cache.clear();
+  if (access.member && !access.paid) until = Math.min(until, Date.now() + NO_PLAN_CACHE_MS);
   cache.set(key, { ...access, until });
   return access;
+}
+
+const view = (hit: Access): Access => ({ member: hit.member, admin: hit.admin, paid: hit.paid });
+
+type AdminCheck = (userId: string) => Promise<{ isAdmin: boolean }>;
+type PlanCheck = (userId: string) => Promise<boolean>;
+
+const hasActivePlan: PlanCheck = async (userId) => (await isSubscriptionActive(userId)).active;
+
+/** Admin first; a plan lookup that fails means "no plan", never "not a member". */
+async function accessOf(userId: string, check: AdminCheck, plan: PlanCheck): Promise<Access> {
+  const admin = (await check(userId)).isAdmin;
+  const paid = admin || (await plan(userId).catch(() => false));
+  return { member: true, admin, paid };
 }
 
 /**
@@ -80,16 +106,17 @@ async function verifiedUserId(token: string): Promise<string | null> {
 export async function requestAccess(
   cookies: CookieReader,
   authorization: string | null,
-  check: (userId: string) => Promise<{ isAdmin: boolean }> = checkUserAdmin
+  check: AdminCheck = checkUserAdmin,
+  plan: PlanCheck = hasActivePlan
 ): Promise<Access> {
   const token = accessTokenOf(cookies, authorization);
   if (!token) return NOBODY;
   const hit = cache.get(token);
-  if (hit && hit.until > Date.now()) return { member: hit.member, admin: hit.admin };
+  if (hit && hit.until > Date.now()) return view(hit);
   let access = NOBODY;
   try {
     const userId = await verifiedUserId(token);
-    if (userId) access = { member: true, admin: (await check(userId)).isAdmin };
+    if (userId) access = await accessOf(userId, check, plan);
   } catch {
     access = NOBODY;
   }
@@ -112,7 +139,8 @@ export async function isAdminRequest(
  */
 export async function castAccess(
   requestUrl: string,
-  check: (userId: string) => Promise<{ isAdmin: boolean }> = checkUserAdmin
+  check: AdminCheck = checkUserAdmin,
+  plan: PlanCheck = hasActivePlan
 ): Promise<Access> {
   const { CAST_TOKEN_PARAM, isCastablePath, verifyCastToken } = await import('@/lib/cast/token');
   let url: URL;
@@ -126,14 +154,14 @@ export async function castAccess(
   if (!token) return NOBODY;
   const key = `cast:${token}`;
   const hit = cache.get(key);
-  if (hit && hit.until > Date.now()) return { member: hit.member, admin: hit.admin };
+  if (hit && hit.until > Date.now()) return view(hit);
   let access = NOBODY;
   // Never remember a yes past the token's own expiry.
   let until = Date.now() + CACHE_MS;
   try {
     const claims = await verifyCastToken(token);
     if (claims) {
-      access = { member: true, admin: (await check(claims.userId)).isAdmin };
+      access = await accessOf(claims.userId, check, plan);
       until = Math.min(until, claims.expiresAt * 1000);
     }
   } catch {

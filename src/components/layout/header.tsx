@@ -36,9 +36,11 @@ export interface HeaderProps {
   userEmail?: string;
   displayName?: string;
   onLogout?: () => void;
+  /** The torrent search box. Off for members while legal mode is on. */
+  searchEnabled?: boolean;
 }
 
-export function Header({ className, isLoggedIn = false, isAdmin = false, userEmail, displayName, onLogout }: HeaderProps): React.ReactElement {
+export function Header({ className, isLoggedIn = false, isAdmin = false, userEmail, displayName, onLogout, searchEnabled = true }: HeaderProps): React.ReactElement {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('');
@@ -98,7 +100,9 @@ export function Header({ className, isLoggedIn = false, isAdmin = false, userEma
       <div className="w-12 md:hidden" />
 
       {/* Search Bar with Category Filter */}
-      <form onSubmit={handleSearch} className="flex flex-1 items-center justify-center">
+      {/* Torrent search is retired in legal mode: no box that only ever answers 410. */}
+      {!searchEnabled ? <div className="flex-1" /> : null}
+      <form onSubmit={handleSearch} className={cn('flex flex-1 items-center justify-center', !searchEnabled && 'hidden')}>
         <div className="relative flex w-full max-w-xl items-stretch">
           {/* Category Dropdown */}
           <div className="relative flex">

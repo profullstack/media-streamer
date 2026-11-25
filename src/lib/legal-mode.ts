@@ -49,6 +49,8 @@ const ALLOWED = [
   '/api/v1/logicsrc',
   // memberships and payments
   '/pricing',
+  // what a plan includes, with each paid feature linked or locked (src/app/features)
+  '/features',
   '/pay',
   '/api/payments',
   '/api/subscription',
@@ -77,6 +79,10 @@ const ALLOWED = [
   // podcasts: publishers distribute these freely by RSS; we play their feeds
   '/podcasts',
   '/api/podcasts',
+  // Watch parties: any member can join one; hosting needs a plan and is checked in the
+  // route (POST /api/watch-party). The film is whatever link the host hands the room.
+  '/watch-party',
+  '/api/watch-party',
   // site furniture
   '/.well-known',
   '/robots.txt',
@@ -90,14 +96,132 @@ const ALLOWED = [
   '/favicon.ico',
 ];
 
-/** Inside an allowed prefix but still off: managing and streaming from seedboxes. */
-const DENIED = ['/api/account/seedbox', '/api/account/seedboxes'];
+/**
+ * Paid features (Anthony, 2026-11-25: "move simpler features like seedbox iptv to paid
+ * accounts"). A member bought a plan and found nothing behind it, because legal mode
+ * answered 410 for every tool the pricing page listed. These are the member's own tools:
+ * their playlist, their seedbox, their feeds, their camera. Nothing here is an index we
+ * run or a line we resell, so the DHT index, the torrent and media browsers, radio,
+ * Spotify, Live TV passes and the rental storefronts all stay off.
+ *
+ * A path under one of these prefixes is served to an account with an active plan (trial,
+ * Premium or Family, the same test as requireActiveSubscription) and answers "upgrade"
+ * to any other member: a redirect to /pricing for a page, 402 for the API.
+ */
+export interface PaidFeature {
+  key: string;
+  label: string;
+  /** One line for the pricing page and /features. */
+  blurb: string;
+  /** Where the feature lives. */
+  href: string;
+  prefixes: string[];
+}
+
+export const PAID_FEATURES: PaidFeature[] = [
+  {
+    key: 'live-tv',
+    label: 'Live TV',
+    blurb: 'Add your own IPTV playlist (M3U or Xtream) and watch it here, with a guide and Chromecast.',
+    href: '/live-tv',
+    prefixes: ['/live-tv', '/api/iptv/playlists', '/api/iptv/channels', '/api/iptv/epg', '/api/iptv/cache', '/api/iptv-proxy', '/api/cast', '/api/favorites/iptv-channels'],
+  },
+  {
+    key: 'seedboxes',
+    label: 'Seedboxes',
+    blurb: 'Connect your own seedbox, send it torrents and stream the files straight from it.',
+    href: '/seedboxes',
+    prefixes: ['/seedboxes', '/api/account/seedbox', '/api/account/seedboxes', '/api/seedbox/add', '/api/seedbox/stream'],
+  },
+  {
+    key: 'go-live',
+    label: 'Go Live',
+    blurb: 'Broadcast your camera or screen on c0mpute Live in one click and share the watch link.',
+    href: '/live',
+    prefixes: ['/live', '/api/live'],
+  },
+  {
+    key: 'news',
+    label: 'News',
+    blurb: 'Headlines with AI summaries and read-aloud audio.',
+    href: '/news',
+    prefixes: ['/news', '/api/news'],
+  },
+  {
+    key: 'rss',
+    label: 'RSS Reader',
+    blurb: 'Follow any feed, import and export OPML, read without the clutter.',
+    href: '/rss',
+    prefixes: ['/rss', '/api/rss', '/reader', '/api/reader'],
+  },
+  {
+    key: 'finance',
+    label: 'Finance',
+    blurb: 'Watchlists, quotes, charts and reports, with your own broker keys.',
+    href: '/finance',
+    prefixes: ['/finance', '/api/finance'],
+  },
+];
+
+/** Hosting a watch party is a plan feature too; it is enforced in the route, not by path. */
+export const WATCH_PARTY_HOST = {
+  key: 'watch-party',
+  label: 'Host watch parties',
+  blurb: 'Start a party, pick what plays and keep up to 50 people on the same second. Joining is free for members.',
+  href: '/watch-party',
+};
+
+/** Off for everyone but admins, even inside an allowed or paid prefix: selling a line. */
+const DENIED = ['/live-tv/rent-out'];
 
 const under = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 
+/** The paid feature a path belongs to, or null. */
+export function paidFeatureFor(pathname: string): PaidFeature | null {
+  if (DENIED.some((p) => under(pathname, p))) return null;
+  return PAID_FEATURES.find((f) => f.prefixes.some((p) => under(pathname, p))) ?? null;
+}
+
+/** Served to every member, plan or not. */
 export function legallyServed(pathname: string): boolean {
   if (DENIED.some((p) => under(pathname, p))) return false;
+  // A paid prefix can sit inside an allowed one (/api/account/seedbox under /api/account).
+  if (paidFeatureFor(pathname)) return false;
   return ALLOWED.some((p) => under(pathname, p));
+}
+
+export type PathAccess = 'open' | 'paid' | 'gone';
+
+/** What legal mode says about a path for a member who is not an admin. */
+export function accessFor(pathname: string): PathAccess {
+  if (paidFeatureFor(pathname)) return 'paid';
+  return legallyServed(pathname) ? 'open' : 'gone';
+}
+
+/**
+ * A member without a plan asked for a paid feature. Pages go to the pricing page, which
+ * names the feature; the API answers 402 so a client can tell "upgrade" from "gone".
+ */
+export function upgradeResponse(
+  pathname: string,
+  feature: Pick<PaidFeature, 'key' | 'label'>,
+  requestUrl: string | URL
+): Response {
+  const headers = { 'cache-control': 'no-store' };
+  if (pathname.startsWith('/api/')) {
+    return Response.json(
+      {
+        error: 'paid_plan_required',
+        message: `${feature.label} is part of a paid plan.`,
+        feature: feature.key,
+        upgradeUrl: '/pricing',
+      },
+      { status: 402, headers }
+    );
+  }
+  // Absolute: Next.js answers 500 "Invalid URL" for a relative Location from the proxy.
+  const location = new URL(`/pricing?upgrade=${encodeURIComponent(feature.key)}`, requestUrl).toString();
+  return new Response(null, { status: 307, headers: { ...headers, location } });
 }
 
 const GONE_HTML = `<!doctype html>
@@ -118,7 +242,7 @@ const GONE_HTML = `<!doctype html>
 <main>
   <h1>This feature is no longer available</h1>
   <p>BitTorrented now only offers content it is licensed to distribute. This part of the site has been retired.</p>
-  <p><a href="/pricing">Membership</a> · <a href="/account">Your account</a></p>
+  <p><a href="/features">What your membership includes</a> · <a href="/account">Your account</a></p>
 </main>
 </body>
 </html>`;

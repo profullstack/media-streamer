@@ -128,7 +128,7 @@ function getFamilyInvitationHtml(
               </p>
               
               <ul style="margin: 0 0 30px; padding-left: 20px; color: #a0a0a0;">
-                <li style="margin-bottom: 10px;">Stream any torrent</li>
+                <li style="margin-bottom: 10px;">Your own seedbox, streamed here</li>
                 <li style="margin-bottom: 10px;">Live TV (IPTV)</li>
                 <li style="margin-bottom: 10px;">Podcasts</li>
                 <li style="margin-bottom: 10px;">Watch parties</li>

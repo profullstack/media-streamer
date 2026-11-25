@@ -13,6 +13,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { accessFor, paidFeatureFor } from '@/lib/legal-mode';
 import {
   HomeIcon,
   SearchIcon,
@@ -72,6 +73,7 @@ const mainNavItems: NavItem[] = [
   { href: '/radio', label: 'Live Radio', icon: RadioIcon, requiresAuth: true },
   { href: '/spotify', label: 'Spotify', icon: SpotifyIcon, requiresAuth: true },
   { href: '/watch-party', label: 'Watch Party', icon: PartyIcon },
+  { href: '/live', label: 'Go Live', icon: VideoIcon, requiresPaid: true },
 ];
 
 const accountNavItems: NavItem[] = [
@@ -99,10 +101,33 @@ interface SidebarProps {
   className?: string;
   isLoggedIn?: boolean;
   isPremium?: boolean;
+  /**
+   * Legal mode for someone who is not an admin (src/lib/legal-mode.ts): list only what is
+   * served, and send a paid feature to the pricing page when there is no plan. Without
+   * this a member saw two dozen links that all answered 410.
+   */
+  restricted?: boolean;
 }
 
-export function Sidebar({ className, isLoggedIn = false, isPremium = false }: SidebarProps): React.ReactElement {
+/** The nav as legal mode serves it: retired pages dropped, paid ones marked. */
+function restrictedNav(items: NavItem[], isPremium: boolean): NavItem[] {
+  return items.flatMap((item): NavItem[] => {
+    // The home page is the member's features page (the proxy redirects `/` there).
+    if (item.href === '/') return [{ ...item, href: '/features' }];
+    const access = accessFor(item.href);
+    if (access === 'gone') return [];
+    const feature = paidFeatureFor(item.href);
+    if (feature && !isPremium) {
+      return [{ ...item, href: `/pricing?upgrade=${feature.key}`, badge: 'Plan', requiresAuth: false, requiresPaid: false }];
+    }
+    return [{ ...item, requiresPaid: false }];
+  });
+}
+
+export function Sidebar({ className, isLoggedIn = false, isPremium = false, restricted = false }: SidebarProps): React.ReactElement {
   const pathname = usePathname();
+  const mainItems = restricted ? restrictedNav(mainNavItems, isPremium) : mainNavItems;
+  const accountItems = restricted ? restrictedNav(accountNavItems, isPremium) : accountNavItems;
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const toggleMobile = (): void => {
@@ -163,7 +188,7 @@ export function Sidebar({ className, isLoggedIn = false, isPremium = false }: Si
           <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
             {/* Main Navigation */}
             <div>
-              <NavSection items={mainNavItems} pathname={pathname} onItemClick={closeMobile} isLoggedIn={isLoggedIn} isPremium={isPremium} />
+              <NavSection items={mainItems} pathname={pathname} onItemClick={closeMobile} isLoggedIn={isLoggedIn} isPremium={isPremium} />
             </div>
 
             {/* Account */}
@@ -171,11 +196,11 @@ export function Sidebar({ className, isLoggedIn = false, isPremium = false }: Si
               <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
                 Account
               </h3>
-              <NavSection items={accountNavItems} pathname={pathname} onItemClick={closeMobile} isLoggedIn={isLoggedIn} isPremium={isPremium} />
+              <NavSection items={accountItems} pathname={pathname} onItemClick={closeMobile} isLoggedIn={isLoggedIn} isPremium={isPremium} />
             </div>
 
-            {/* External Links - Find Magnets */}
-            <div>
+            {/* External Links - Find Magnets: not in legal mode, which pitches no index */}
+            <div className={restricted ? 'hidden' : undefined}>
               <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
                 Find Magnets
               </h3>
