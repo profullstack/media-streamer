@@ -23,6 +23,8 @@ import { cn } from '@/lib/utils';
 import { createVideoSource } from '@/lib/video';
 import { useHousePlayer } from '@/components/video/use-house-player';
 import { PartyIcon, PlusIcon, UsersIcon } from '@/components/ui/icons';
+import { useAuth } from '@/hooks/use-auth';
+import { LEGAL_MODE } from '@/lib/legal-mode';
 
 interface PartyMember {
   id: string;
@@ -46,6 +48,8 @@ interface PartyData {
     allowGuestControl: boolean;
     chatEnabled: boolean;
   };
+  /** The server's clock when it wrote this; `playback.lastUpdate` is on the same clock. */
+  serverTime?: number;
 }
 
 interface TorrentItem {
@@ -77,10 +81,17 @@ const DRIFT_SECONDS = 2;
 
 const CODE_RE = /^[A-Z0-9]{6}$/;
 
-/** Where the host's player is now, given what they last said and when. */
-function expectedPosition(playback: NonNullable<PartyData['playback']>): number {
+/**
+ * Where the host's player is now, given what they last said and when.
+ *
+ * `lastUpdate` is the server's clock, so "how long ago" is measured on the server's
+ * clock too: `clockOffset` is server minus this device, taken from the party's
+ * `serverTime`. Comparing it with this device's own clock put a member whose clock was
+ * a minute out a minute away from everybody else, and re-seeked them on every poll.
+ */
+function expectedPosition(playback: NonNullable<PartyData['playback']>, clockOffset: number): number {
   if (!playback.isPlaying) return playback.currentTime;
-  const since = (Date.now() - playback.lastUpdate) / 1000;
+  const since = (Date.now() + clockOffset - playback.lastUpdate) / 1000;
   return playback.currentTime + (Number.isFinite(since) && since > 0 ? since : 0);
 }
 
@@ -89,8 +100,22 @@ export default function WatchPartyPage(): React.ReactElement {
   const [hostName, setHostName] = useState('');
   const [userName, setUserName] = useState('');
   const [viewState, setViewState] = useState<ViewState>('home');
-  const [party, setParty] = useState<PartyData | null>(null);
+  const [party, setPartyState] = useState<PartyData | null>(null);
+  // Server clock minus this device's, refreshed by every answer that carries serverTime.
+  const clockOffset = useRef(0);
+  const setParty = useCallback((next: PartyData | null) => {
+    if (next?.serverTime) clockOffset.current = next.serverTime - Date.now();
+    setPartyState(next);
+  }, []);
   const [userId, setUserId] = useState<string | null>(null);
+  const { isPremium, isLoading: authLoading, user } = useAuth();
+  // Hosting is part of a plan; joining is not (src/app/api/watch-party/_host.ts).
+  const canHost = !LEGAL_MODE || isPremium || user?.is_admin === true;
+  // The torrent catalog is retired for members in legal mode: only an admin can pick from it.
+  const canPickFromCatalog = !LEGAL_MODE || user?.is_admin === true;
+  const [mediaLink, setMediaLink] = useState('');
+  const [mediaLinkTitle, setMediaLinkTitle] = useState('');
+  const [needsPlan, setNeedsPlan] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
@@ -183,7 +208,7 @@ export default function WatchPartyPage(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [partyCode, userName]);
+  }, [partyCode, userName, setParty]);
 
   // A linked code joins on its own once there is a name to join as.
   const autoJoined = useRef(false);
@@ -210,7 +235,11 @@ export default function WatchPartyPage(): React.ReactElement {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hostName: hostName.trim(), mediaTitle: 'Watch Party' }),
       });
-      const data = (await response.json()) as { success?: boolean; party?: PartyData; error?: string };
+      const data = (await response.json()) as { success?: boolean; party?: PartyData; error?: string; message?: string };
+      if (response.status === 402) {
+        setNeedsPlan(true);
+        throw new Error(data.message ?? 'Hosting a watch party is part of a paid plan.');
+      }
       if (!response.ok || !data.success) throw new Error(data.error ?? 'Failed to create party');
       setParty(data.party ?? null);
       setUserId(data.party?.hostId ?? null);
@@ -221,9 +250,10 @@ export default function WatchPartyPage(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [hostName]);
+  }, [hostName, setParty]);
 
-  const handleLeaveParty = useCallback(() => {
+  /** Back to the start, without telling the server (the party is already gone, or we just said). */
+  const resetToHome = useCallback(() => {
     setParty(null);
     setUserId(null);
     setViewState('home');
@@ -231,8 +261,23 @@ export default function WatchPartyPage(): React.ReactElement {
     setLinkedCode(null);
     setBridged(null);
     setError(null);
+    setMediaLink('');
+    setMediaLinkTitle('');
     window.history.replaceState(null, '', '/watch-party');
-  }, []);
+  }, [setParty]);
+
+  // Leaving says so: a member comes off the list, and the host leaving ends the party.
+  const handleLeaveParty = useCallback(() => {
+    if (party) {
+      void fetch('/api/watch-party/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: party.code, userId }),
+        keepalive: true,
+      }).catch(() => undefined);
+    }
+    resetToHome();
+  }, [party, userId, resetToHome]);
 
   const isHost = party !== null && userId !== null && userId === party.hostId;
 
@@ -287,11 +332,12 @@ export default function WatchPartyPage(): React.ReactElement {
     let alive = true;
     const tick = async (): Promise<void> => {
       try {
-        const res = await fetch(`/api/watch-party?code=${code}`, { cache: 'no-store' });
+        const who = userId ? `&member=${encodeURIComponent(userId)}` : '';
+        const res = await fetch(`/api/watch-party?code=${code}${who}`, { cache: 'no-store' });
         if (!alive) return;
         if (res.status === 404 || res.status === 410) {
-          handleLeaveParty();
-          setError('That party has ended.');
+          resetToHome();
+          setError(res.status === 410 ? 'The host ended that party.' : 'That party has ended.');
           return;
         }
         if (!res.ok) return;
@@ -306,7 +352,7 @@ export default function WatchPartyPage(): React.ReactElement {
       alive = false;
       clearInterval(timer);
     };
-  }, [viewState, party?.code, handleLeaveParty]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewState, party?.code, userId, resetToHome, setParty]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A member's player follows the host's.
   useEffect(() => {
@@ -314,7 +360,7 @@ export default function WatchPartyPage(): React.ReactElement {
     const video = videoRef.current;
     if (!video) return;
     const playback = party.playback;
-    const target = expectedPosition(playback);
+    const target = expectedPosition(playback, clockOffset.current);
     if (Math.abs(video.currentTime - target) > DRIFT_SECONDS && Number.isFinite(target)) {
       followingRef.current = true;
       video.currentTime = target;
@@ -349,7 +395,37 @@ export default function WatchPartyPage(): React.ReactElement {
       console.error('Failed to update party media:', err);
       setError(err instanceof Error ? err.message : 'Failed to update party media');
     }
-  }, [party, userId]);
+  }, [party, userId, setParty]);
+
+  // A link the host has: a video file or an HLS playlist, played for the whole party.
+  const handleMediaLink = useCallback(async () => {
+    const link = mediaLink.trim();
+    if (!party || !userId || !link) return;
+    setError(null);
+    try {
+      let title = mediaLinkTitle.trim();
+      if (!title) {
+        try {
+          title = decodeURIComponent(new URL(link).pathname.split('/').filter(Boolean).pop() ?? '') || 'Watch Party';
+        } catch {
+          title = 'Watch Party';
+        }
+      }
+      const response = await fetch('/api/watch-party', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: party.code, hostId: userId, mediaUrl: link, mediaTitle: title }),
+      });
+      const data = (await response.json()) as { success?: boolean; party?: PartyData; error?: string };
+      if (!response.ok || !data.success) throw new Error(data.error ?? 'Failed to update party media');
+      setParty(data.party ?? null);
+      setMediaLink('');
+      setMediaLinkTitle('');
+      setSyncSignal((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update party media');
+    }
+  }, [party, userId, mediaLink, mediaLinkTitle, setParty]);
 
   const input = cn(
     'w-full rounded-lg border border-border-default bg-bg-tertiary px-4 py-3',
@@ -382,7 +458,7 @@ export default function WatchPartyPage(): React.ReactElement {
               onPress={handleLeaveParty}
               className="px-4 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
             >
-              Leave Party
+              {isHost ? 'End Party' : 'Leave Party'}
             </Focusable>
           </div>
 
@@ -415,7 +491,7 @@ export default function WatchPartyPage(): React.ReactElement {
                     <div className="text-4xl mb-4">🎬</div>
                     <p className="text-text-secondary mb-2">No media selected</p>
                     {isHost ? (
-                      <p className="text-sm text-text-muted">Select a file from the catalog to start watching</p>
+                      <p className="text-sm text-text-muted">Paste a link to a video below to start watching</p>
                     ) : (
                       <p className="text-sm text-text-muted">Waiting for {party.hostName} to pick something</p>
                     )}
@@ -437,14 +513,51 @@ export default function WatchPartyPage(): React.ReactElement {
               {isHost ? (
                 <div className="mt-4 p-4 rounded-lg bg-bg-secondary border border-border-subtle">
                   <p className="text-sm text-text-muted mb-2">Host Controls · your player is everybody&apos;s clock</p>
-                  <div className="flex gap-2 flex-wrap">
+                  <form
+                    className="mb-3 flex flex-wrap gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void handleMediaLink();
+                    }}
+                  >
+                    <input
+                      type="url"
+                      value={mediaLink}
+                      onChange={(e) => setMediaLink(e.target.value)}
+                      placeholder="https:// link to a video (MP4, WebM) or an HLS playlist (.m3u8)"
+                      aria-label="Video link"
+                      className={cn(input, 'min-w-0 flex-[2] py-2 text-sm')}
+                    />
+                    <input
+                      type="text"
+                      value={mediaLinkTitle}
+                      onChange={(e) => setMediaLinkTitle(e.target.value)}
+                      placeholder="Title (optional)"
+                      aria-label="Title"
+                      maxLength={200}
+                      className={cn(input, 'min-w-0 flex-1 py-2 text-sm')}
+                    />
                     <Focusable
                       as="button"
-                      onPress={() => setIsMediaModalOpen(true)}
-                      className="px-4 py-2 rounded-sm bg-accent-primary text-white text-sm hover:bg-accent-primary/90 transition-colors"
+                      onPress={() => void handleMediaLink()}
+                      className={cn(
+                        'px-4 py-2 rounded-sm bg-accent-primary text-white text-sm hover:bg-accent-primary/90 transition-colors',
+                        !mediaLink.trim() && 'opacity-50'
+                      )}
                     >
-                      {party.mediaUrl ? 'Change Media' : 'Select Media'}
+                      {party.mediaUrl ? 'Play this instead' : 'Play for everyone'}
                     </Focusable>
+                  </form>
+                  <div className="flex gap-2 flex-wrap">
+                    {canPickFromCatalog ? (
+                      <Focusable
+                        as="button"
+                        onPress={() => setIsMediaModalOpen(true)}
+                        className="px-4 py-2 rounded-sm bg-bg-tertiary text-text-primary text-sm"
+                      >
+                        {party.mediaUrl ? 'Change Media (catalog)' : 'Select Media (catalog)'}
+                      </Focusable>
+                    ) : null}
                     <Focusable
                       as="button"
                       onPress={() => onHostEvent()}
@@ -491,7 +604,13 @@ export default function WatchPartyPage(): React.ReactElement {
               </div>
 
               {party.settings.chatEnabled !== false ? (
-                <PartyChat partyCode={party.code} bridged={bridged} isHost={isHost} />
+                <PartyChat
+                  key={bridged ? 'nixamp' : 'party'}
+                  partyCode={party.code}
+                  bridged={bridged}
+                  isHost={isHost}
+                  memberId={userId}
+                />
               ) : null}
             </div>
           </div>
@@ -504,7 +623,7 @@ export default function WatchPartyPage(): React.ReactElement {
             </p>
           </div>
 
-          {isHost ? (
+          {isHost && canPickFromCatalog ? (
             <MediaSelectionModal
               isOpen={isMediaModalOpen}
               onClose={() => setIsMediaModalOpen(false)}
@@ -531,7 +650,17 @@ export default function WatchPartyPage(): React.ReactElement {
           </div>
 
           {error ? (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">{error}</div>
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+              {error}
+              {needsPlan ? (
+                <>
+                  {' '}
+                  <a href="/pricing?upgrade=watch-party" className="underline">
+                    See plans
+                  </a>
+                </>
+              ) : null}
+            </div>
           ) : null}
 
           <form
@@ -601,17 +730,25 @@ export default function WatchPartyPage(): React.ReactElement {
             <p className="text-sm text-text-secondary mb-4">
               Create a party and share the code with friends. You control playback, everyone watches in sync.
             </p>
-            <Focusable
-              as="button"
-              onPress={() => {
-                setError(null);
-                setViewState('create-form');
-              }}
-              className={primary}
-            >
-              <PartyIcon size={20} />
-              <span>Create New Party</span>
-            </Focusable>
+            {canHost || authLoading ? (
+              <Focusable
+                as="button"
+                onPress={() => {
+                  setError(null);
+                  setNeedsPlan(false);
+                  setViewState('create-form');
+                }}
+                className={primary}
+              >
+                <PartyIcon size={20} />
+                <span>Create New Party</span>
+              </Focusable>
+            ) : (
+              <a href="/pricing?upgrade=watch-party" className={primary}>
+                <PartyIcon size={20} />
+                <span>Hosting is part of a plan</span>
+              </a>
+            )}
           </div>
 
           <div className={cn('rounded-xl border border-border-subtle bg-bg-secondary p-6', 'hover:border-accent-primary/50 transition-colors', linkedCode && 'border-accent-secondary')}>

@@ -6,6 +6,11 @@ vi.mock('@/lib/admin', () => ({
   checkUserAdmin: vi.fn(async (id: string) => ({ isAdmin: id === 'admin-1', source: id === 'admin-1' ? 'user_profiles' : null })),
 }));
 
+// Likewise the plan: only the user id 'paid-1' has an active one.
+vi.mock('@/lib/subscription/check', () => ({
+  isSubscriptionActive: vi.fn(async (id: string) => ({ active: id === 'paid-1', tier: id === 'paid-1' ? 'premium' : 'trial', expired: id !== 'paid-1', trialExpired: id !== 'paid-1', expiresAt: null })),
+}));
+
 const { accessTokenOf, isAdminRequest, isSignInPath, requestAccess } = await import('./admin-gate');
 const { proxy } = await import('@/proxy');
 
@@ -22,6 +27,7 @@ function stubSupabase() {
     const auth = new Headers(init?.headers).get('authorization');
     if (auth === 'Bearer admin-token') return Response.json({ id: 'admin-1' });
     if (auth === 'Bearer member-token') return Response.json({ id: 'member-1' });
+    if (auth === 'Bearer paid-token') return Response.json({ id: 'paid-1' });
     return new Response('{}', { status: 401 });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -64,10 +70,53 @@ describe('admin gate', () => {
 
   it('counts any verified account as a member, and only checkUserAdmin as an admin', async () => {
     stubSupabase();
-    expect(await requestAccess(cookies('admin-token'), null)).toEqual({ member: true, admin: true });
-    expect(await requestAccess(cookies('member-token'), null)).toEqual({ member: true, admin: false });
-    expect(await requestAccess(cookies('forged-token'), null)).toEqual({ member: false, admin: false });
-    expect(await requestAccess(cookies(), null)).toEqual({ member: false, admin: false });
+    expect(await requestAccess(cookies('admin-token'), null)).toEqual({ member: true, admin: true, paid: true });
+    expect(await requestAccess(cookies('member-token'), null)).toEqual({ member: true, admin: false, paid: false });
+    expect(await requestAccess(cookies('paid-token'), null)).toEqual({ member: true, admin: false, paid: true });
+    expect(await requestAccess(cookies('forged-token'), null)).toEqual({ member: false, admin: false, paid: false });
+    expect(await requestAccess(cookies(), null)).toEqual({ member: false, admin: false, paid: false });
+  });
+
+  it('treats a plan lookup that fails as no plan, not as no account', async () => {
+    stubSupabase();
+    const access = await requestAccess(
+      cookies('member-token-2'),
+      'Bearer member-token',
+      async () => ({ isAdmin: false }),
+      async () => {
+        throw new Error('database down');
+      }
+    );
+    expect(access).toEqual({ member: true, admin: false, paid: false });
+  });
+
+  it('through the gate: paid features are an upgrade without a plan and served with one', async () => {
+    stubSupabase();
+    const as = (token: string, path: string) =>
+      proxy(new NextRequest(`https://bittorrented.com${path}`, { headers: { authorization: `Bearer ${token}` } }));
+
+    const page = await as('member-token', '/live-tv');
+    expect(page.status).toBe(307);
+    expect(page.headers.get('location')).toBe('https://bittorrented.com/pricing?upgrade=live-tv');
+    const api = await as('member-token', '/api/account/seedboxes');
+    expect(api.status).toBe(402);
+    expect(await api.json()).toMatchObject({ error: 'paid_plan_required', feature: 'seedboxes', upgradeUrl: '/pricing' });
+
+    for (const p of ['/live-tv', '/seedboxes', '/live', '/api/account/seedboxes', '/api/iptv/playlists', '/rss', '/news', '/finance']) {
+      const r = await as('paid-token', p);
+      expect([402, 410, 503], p).not.toContain(r.status);
+      expect(r.headers.get('location') ?? '', p).not.toContain('/pricing');
+    }
+
+    // A plan opens the member's own tools, not the index or the lines we used to resell.
+    for (const p of ['/dht', '/search', '/api/torrent-search', '/iptv', '/live-tv/rent-out', '/api/iptv/shares', '/api/seedbox/shares', '/radio']) {
+      expect((await as('paid-token', p)).status, p).toBe(410);
+    }
+
+    // Anyone can join a party; the home page is what the membership includes.
+    expect([402, 410]).not.toContain((await as('member-token', '/watch-party')).status);
+    const home = await as('member-token', '/');
+    expect(home.headers.get('location')).toBe('https://bittorrented.com/features');
   });
 
   it('fails closed when Supabase cannot be reached', async () => {

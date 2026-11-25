@@ -2,18 +2,22 @@
  * Watch Party Join API Route
  *
  * POST /api/watch-party/join - Join an existing watch party
+ *
+ * Who you are is your session, not a fresh guest id per request. It used to mint a new
+ * guest id every time, so a host who reloaded the page (or followed their own link)
+ * rejoined as a second, ordinary member: the host controls were gone, nobody could move
+ * playback, and the member list grew a duplicate on every reload.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import {
   joinWatchParty,
   validatePartyCode,
   type JoinPartyOptions,
 } from '@/lib/watch-party';
-
-// Import the parties map from the main route
-// Note: In production, this should be a database
-import { getParty, setParty } from '../_store';
+import { getParty, setParty, touchMember } from '../_store';
+import { partyView } from '../_view';
 
 interface JoinPartyBody {
   code?: string;
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (!body.userName || typeof body.userName !== 'string') {
+    if (!body.userName || typeof body.userName !== 'string' || !body.userName.trim()) {
       return NextResponse.json(
         { error: 'userName is required' },
         { status: 400 }
@@ -53,7 +57,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const party = getParty(code);
+    // Before the party is read: nothing may await between reading it and writing it back.
+    const user = await getCurrentUser();
+    const party = await getParty(code);
 
     if (!party) {
       return NextResponse.json(
@@ -70,52 +76,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Check if party is full
-    if (party.members.length >= party.settings.maxMembers) {
+    // The session's user id; a guest id only where there is no session (a guest id the
+    // caller kept from an earlier join is reused, so a reload is the same member).
+    const claimed = typeof body.userId === 'string' && /^guest_[a-z0-9_]{1,40}$/i.test(body.userId) ? body.userId : undefined;
+    const userId = user?.id ?? claimed ?? `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const already = party.members.some((m) => m.id === userId);
+
+    // Check if party is full: somebody coming back is not a new seat.
+    if (!already && party.members.length >= party.settings.maxMembers) {
       return NextResponse.json(
         { error: 'Party is full' },
         { status: 403 }
       );
     }
 
-    // Generate a guest ID if not provided
-    const userId = body.userId ?? `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
     const joinOptions: JoinPartyOptions = {
       userId,
-      userName: body.userName,
+      userName: body.userName.trim().slice(0, 60),
     };
 
-    // Join the party
+    // Join the party (a member who is already in, the host included, is left as they are)
     const updatedParty = joinWatchParty(party, joinOptions);
-    setParty(code, updatedParty);
+    if (updatedParty !== party) setParty(code, updatedParty);
+    touchMember(code, userId);
 
     console.log('[WatchParty] User joined party:', {
       code,
-      userName: body.userName,
       memberCount: updatedParty.members.length,
+      returning: already,
     });
 
     return NextResponse.json({
       success: true,
-      party: {
-        id: updatedParty.id,
-        code: updatedParty.code,
-        hostId: updatedParty.hostId,
-        hostName: updatedParty.hostName,
-        mediaUrl: updatedParty.mediaUrl,
-        mediaTitle: updatedParty.mediaTitle,
-        state: updatedParty.state,
-        memberCount: updatedParty.members.length,
-        members: updatedParty.members.map(m => ({
-          id: m.id,
-          name: m.name,
-          isHost: m.isHost,
-        })),
-        playback: updatedParty.playback,
-        settings: updatedParty.settings,
-      },
+      party: partyView(updatedParty),
       userId, // Return the user ID so they can identify themselves
+      isHost: userId === updatedParty.hostId,
     });
   } catch (error) {
     console.error('[WatchParty] Error joining party:', error);

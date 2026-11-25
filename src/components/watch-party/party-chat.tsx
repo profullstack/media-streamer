@@ -9,9 +9,10 @@
  * handle, so sending one takes the member's own nixamp connection, and the
  * box says so instead of pretending to send.
  *
- * Until the host puts the party on nixamp there is no room, so there is no
- * chat -- the panel says that too, rather than showing an input that goes
- * nowhere.
+ * Until the host puts the party on nixamp the box is the party's own chat
+ * (/api/watch-party/chat): the people on this page, no nixamp account needed.
+ * It used to be a disabled input reading "No room yet", which for a host
+ * without nixamp was a room with no chat at all.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,11 +31,16 @@ export interface PartyChatProps {
   /** Is the party on nixamp? Null while that is still being asked. */
   bridged: boolean | null;
   isHost: boolean;
+  /** Who is typing, as the party knows them (a guest's id; a member's session says it). */
+  memberId?: string | null;
 }
 
 const POLL_EVERY_MS = 4_000;
 
-export function PartyChat({ partyCode, bridged, isHost }: PartyChatProps): React.ReactElement {
+export function PartyChat({ partyCode, bridged, memberId }: PartyChatProps): React.ReactElement {
+  // Two rooms, one box: the nixamp room once the party is on nixamp, the party's own
+  // chat until then. There is always somewhere to type.
+  const source = bridged === null ? null : bridged ? 'nixamp' : 'party';
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -47,13 +53,15 @@ export function PartyChat({ partyCode, bridged, isHost }: PartyChatProps): React
   // Poll for what is new. `after` is the newest line's time, so a quiet room
   // costs one small request every few seconds and nothing is re-read.
   useEffect(() => {
-    if (!bridged) return;
+    if (!source) return;
+    // The page remounts this box (by key) when the party moves rooms, so each room's
+    // conversation starts from the top with nothing carried over.
     let alive = true;
     const read = async (): Promise<void> => {
       try {
-        const url = new URL('/api/watch-party/nixamp', window.location.origin);
+        const url = new URL(source === 'nixamp' ? '/api/watch-party/nixamp' : '/api/watch-party/chat', window.location.origin);
         url.searchParams.set('code', partyCode);
-        url.searchParams.set('chat', '1');
+        if (source === 'nixamp') url.searchParams.set('chat', '1');
         if (lastAt.current) url.searchParams.set('after', lastAt.current);
         const res = await fetch(url.toString(), { cache: 'no-store' });
         if (!res.ok) return;
@@ -77,7 +85,7 @@ export function PartyChat({ partyCode, bridged, isHost }: PartyChatProps): React
       alive = false;
       clearInterval(timer);
     };
-  }, [bridged, partyCode]);
+  }, [source, partyCode]);
 
   // Keep the newest line in view unless the reader has scrolled up to read.
   useEffect(() => {
@@ -89,14 +97,18 @@ export function PartyChat({ partyCode, bridged, isHost }: PartyChatProps): React
 
   const send = useCallback(async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sending || !source) return;
     setSending(true);
     setError(null);
     try {
-      const res = await fetch('/api/watch-party/nixamp', {
+      const res = await fetch(source === 'nixamp' ? '/api/watch-party/nixamp' : '/api/watch-party/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: partyCode, action: 'chat', body: text }),
+        body: JSON.stringify(
+          source === 'nixamp'
+            ? { code: partyCode, action: 'chat', body: text }
+            : { code: partyCode, userId: memberId ?? undefined, body: text }
+        ),
       });
       const body = (await res.json().catch(() => ({}))) as { message?: ChatLine; error?: string; connect?: string };
       if (!res.ok) {
@@ -116,23 +128,20 @@ export function PartyChat({ partyCode, bridged, isHost }: PartyChatProps): React
     } finally {
       setSending(false);
     }
-  }, [draft, sending, partyCode]);
+  }, [draft, sending, partyCode, source, memberId]);
 
   return (
     <div className="rounded-xl bg-bg-secondary border border-border-subtle p-4 flex flex-col h-80">
       <h3 className="font-semibold text-text-primary mb-1">Chat</h3>
       <p className="text-xs text-text-muted mb-2">
-        {bridged ? 'The nixamp room. Everybody in the party reads this, in every nixamp app.' : ''}
+        {source === 'nixamp'
+          ? 'The nixamp room. Everybody in the party reads this, in every nixamp app.'
+          : source === 'party'
+            ? 'Everybody in this party reads this.'
+            : ''}
       </p>
       <div ref={scroller} className="flex-1 overflow-y-auto mb-3 space-y-2 text-sm" aria-live="polite">
-        {bridged === false ? (
-          <p className="text-text-muted text-center py-8">
-            {isHost
-              ? 'Put this party on nixamp and the chat opens here and in every nixamp app.'
-              : 'Chat opens once the host puts this party on nixamp.'}
-          </p>
-        ) : null}
-        {bridged && loaded && lines.length === 0 ? (
+        {source && loaded && lines.length === 0 ? (
           <p className="text-text-muted text-center py-8">No messages yet. Say hi! 👋</p>
         ) : null}
         {lines.map((line) => (
@@ -153,9 +162,9 @@ export function PartyChat({ partyCode, bridged, isHost }: PartyChatProps): React
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          disabled={!bridged || sending}
+          disabled={!source || sending}
           maxLength={1000}
-          placeholder={bridged ? 'Type a message...' : 'No room yet'}
+          placeholder={source ? 'Type a message...' : 'Opening the chat...'}
           aria-label="Chat message"
           className={cn(
             'flex-1 rounded-lg border border-border-default bg-bg-tertiary px-3 py-2',
@@ -164,7 +173,7 @@ export function PartyChat({ partyCode, bridged, isHost }: PartyChatProps): React
             'disabled:opacity-50'
           )}
         />
-        <Focusable as="button" onPress={() => void send()} className={cn('px-4 py-2 rounded-lg bg-accent-primary text-white text-sm', (!bridged || sending) && 'opacity-50')}>
+        <Focusable as="button" onPress={() => void send()} className={cn('px-4 py-2 rounded-lg bg-accent-primary text-white text-sm', (!source || sending) && 'opacity-50')}>
           Send
         </Focusable>
       </form>

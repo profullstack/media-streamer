@@ -20,7 +20,7 @@ import { gateway, hasSessionCookie } from '@/lib/crawl-gateway';
 import { meter } from '@/lib/throttle';
 import { CAST_TOKEN_PARAM, isCastablePath, verifyCastToken } from '@/lib/cast/token';
 import { SITE_OFFLINE, offlineResponse, openWhileInviteOnly, stillServed } from '@/lib/site-offline';
-import { LEGAL_MODE, goneResponse, legallyServed } from '@/lib/legal-mode';
+import { LEGAL_MODE, goneResponse, legallyServed, paidFeatureFor, upgradeResponse } from '@/lib/legal-mode';
 import { type Access, castAccess, isSignInPath, requestAccess } from '@/lib/admin-gate';
 
 // =============================================================================
@@ -401,6 +401,8 @@ const PROFILE_EXEMPT_PATHS = [
   '/api/invites',
   '/auth',
   '/pricing',
+  // Where the home page sends a member in legal mode: account-level, like /pricing.
+  '/features',
   '/api/auth',
   '/api/profiles',
   // The nixamp OAuth round trip. Bouncing somebody to /select-profile in the
@@ -615,9 +617,16 @@ export async function proxy(request: NextRequest): Promise<Response> {
   // content stay off on the boxes themselves.
   if (LEGAL_MODE && !(await isAdmin())) {
     const path = request.nextUrl.pathname;
-    // The home page lists torrent media; until the licensed catalog replaces it, send people to membership.
-    if (path === '/') return asNext(NextResponse.redirect(new URL('/pricing', request.url)));
-    if (!legallyServed(path)) return asNext(goneResponse(path));
+    // The home page lists torrent media; until the licensed catalog replaces it, a member
+    // lands on what their membership includes (src/app/features).
+    if (path === '/') return asNext(NextResponse.redirect(new URL('/features', request.url)));
+    // The member's own tools are part of a plan: served with one, an upgrade without.
+    const feature = paidFeatureFor(path);
+    if (feature) {
+      if (!(await whoIs()).paid) return asNext(upgradeResponse(path, feature, request.url));
+    } else if (!legallyServed(path)) {
+      return asNext(goneResponse(path));
+    }
   }
 
   // --- 1. Crawl gateway: training crawlers pay, everyone else carries on ---

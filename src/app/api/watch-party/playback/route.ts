@@ -41,11 +41,13 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   if (!code || !validatePartyCode(code)) {
     return NextResponse.json({ error: 'A valid party code is required' }, { status: 400 });
   }
-  const party = getParty(code);
+  // The session first: nothing may await between reading the party and writing it back,
+  // or a join that lands in the gap is overwritten by this heartbeat.
+  const user = await getCurrentUser();
+  const party = await getParty(code);
   if (!party) return NextResponse.json({ error: 'Party not found' }, { status: 404 });
   if (party.state === 'ended') return NextResponse.json({ error: 'Party has ended' }, { status: 410 });
 
-  const user = await getCurrentUser();
   if (!isHostOf(party, user?.id, body.hostId)) {
     return NextResponse.json({ error: 'Only the host can move playback' }, { status: 403 });
   }

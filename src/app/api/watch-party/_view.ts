@@ -20,10 +20,40 @@ export interface PartyView {
   playback: WatchParty['playback'];
   settings: WatchParty['settings'];
   createdAt: string;
+  /**
+   * The server's clock when this was written. `playback.lastUpdate` is on the same clock,
+   * so a client works out "how long ago" from the two and never from its own clock: a
+   * laptop that is 40 seconds fast used to be seeked 40 seconds past the host.
+   */
+  serverTime: number;
+}
+
+/**
+ * What a party may play: an https link (a file or an HLS playlist the host has), or one
+ * of this site's own stream paths. Anything else, `javascript:` and plain http included
+ * (a browser refuses http media on an https page), is refused rather than stored.
+ */
+const OWN_STREAM_PATHS = ['/api/stream', '/api/stream/hls', '/api/seedbox/stream'];
+
+export function cleanMediaUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const url = value.trim();
+  if (!url || url.length > 2000) return null;
+  if (url.startsWith('/')) {
+    const path = url.split('?')[0] ?? '';
+    return !url.startsWith('//') && OWN_STREAM_PATHS.includes(path) ? url : null;
+  }
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function partyView(party: WatchParty): PartyView {
   return {
+    serverTime: Date.now(),
     id: party.id,
     code: party.code,
     hostId: party.hostId,

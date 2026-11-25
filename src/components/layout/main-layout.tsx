@@ -12,6 +12,7 @@ import { useCallback, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './sidebar';
+import { LEGAL_MODE } from '@/lib/legal-mode';
 import { Header } from './header';
 import { useAuth } from '@/hooks/use-auth';
 import { useSiteFooter } from '@/components/layout/site-footer-context';
@@ -54,7 +55,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <Sidebar isLoggedIn={isLoggedIn} isPremium={isPremium} />
+      <Sidebar isLoggedIn={isLoggedIn} isPremium={isPremium} restricted={Boolean(LEGAL_MODE) && user?.is_admin !== true} />
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col md:ml-64">
@@ -62,6 +63,7 @@ export function MainLayout({ children, className }: MainLayoutProps): React.Reac
         <Header
           isLoggedIn={isLoggedIn}
           isAdmin={user?.is_admin === true}
+          searchEnabled={!LEGAL_MODE || user?.is_admin === true}
           userEmail={user?.email}
           displayName={activeProfile?.name}
           onLogout={handleLogout}

@@ -7,12 +7,12 @@
  * No free tier - all users start with a 3-day trial.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { useSupportedCoins } from '@/hooks/use-supported-coins';
-import { IptvOfferCard } from '@/components/live-tv/iptv-offer-card';
+import { PAID_FEATURES, WATCH_PARTY_HOST } from '@/lib/legal-mode';
 
 interface PlanFeature {
   text: string;
@@ -47,22 +47,32 @@ const cryptoSymbols: Record<string, string> = {
   USDC_SOL: '$',
 };
 
+/**
+ * What a plan opens, in the words of the list the proxy enforces (src/lib/legal-mode.ts).
+ * This page used to promise torrent search and streaming, which legal mode answers 410:
+ * a member paid, found none of it and asked for the money back. It lists only what is on.
+ */
+const PLAN_FEATURES: PlanFeature[] = [
+  { text: 'Live TV from your own IPTV playlist', included: true },
+  { text: 'Your own seedbox, streamed here', included: true },
+  { text: 'Go live on c0mpute Live in one click', included: true },
+  { text: 'Host watch parties (up to 50 people)', included: true },
+  { text: 'News with AI summaries and audio', included: true },
+  { text: 'RSS reader and Finance', included: true },
+];
+
+const UPGRADE_LABELS: Record<string, string> = Object.fromEntries(
+  [...PAID_FEATURES, WATCH_PARTY_HOST].map((f) => [f.key, f.label])
+);
+
 const plans: Plan[] = [
   {
     id: 'trial',
     name: '3-Day Trial',
     price: '$0',
     period: 'for 3 days',
-    description: 'Try all premium features free for 3 days',
-    features: [
-      { text: 'Stream any torrent', included: true },
-      { text: 'Search torrents', included: true },
-      { text: 'Advanced video player', included: true },
-      { text: 'Download files', included: true },
-      { text: 'Watch parties (host)', included: true },
-      { text: 'Podcasts & Live TV (IPTV)', included: true },
-      { text: 'Full access for 3 days', included: true },
-    ],
+    description: 'Try every Premium feature free for 3 days',
+    features: [...PLAN_FEATURES, { text: 'Full access for 3 days', included: true }],
     cta: 'Start Free Trial',
     isTrial: true,
   },
@@ -71,16 +81,8 @@ const plans: Plan[] = [
     name: 'Premium',
     price: '$4.99',
     period: 'per year',
-    description: 'Everything you need for personal use',
-    features: [
-      { text: 'Stream any torrent', included: true },
-      { text: 'Search torrents', included: true },
-      { text: 'Advanced video player', included: true },
-      { text: 'Download files', included: true },
-      { text: 'Watch parties (host)', included: true },
-      { text: 'Podcasts & Live TV (IPTV)', included: true },
-      { text: 'Priority support', included: true },
-    ],
+    description: 'Your own tools, for personal use',
+    features: [...PLAN_FEATURES, { text: 'Priority support', included: true }],
     cta: 'Subscribe Now',
     popular: true,
   },
@@ -93,8 +95,7 @@ const plans: Plan[] = [
     features: [
       { text: 'Everything in Premium', included: true },
       { text: 'Up to 10 family members', included: true },
-      { text: 'Shared IPTV providers', included: true },
-      { text: 'Shared playlists', included: true },
+      { text: 'Shared Live TV playlists', included: true },
       { text: 'Family watch parties', included: true },
       { text: 'Individual profiles', included: true },
       { text: 'Priority support', included: true },
@@ -111,6 +112,12 @@ export default function PricingPage(): React.ReactElement {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ?upgrade=<feature key>: read after mount, so the page prerenders without it.
+  const [upgrade, setUpgrade] = useState<string | null>(null);
+  useEffect(() => {
+    const key = new URLSearchParams(window.location.search).get('upgrade') ?? '';
+    setUpgrade(UPGRADE_LABELS[key] ?? null);
+  }, []);
 
   const handlePlanSelect = (plan: Plan): void => {
     if (plan.isTrial) {
@@ -162,6 +169,16 @@ export default function PricingPage(): React.ReactElement {
   return (
     <MainLayout>
       <div className="space-y-12">
+        {/* Sent here by the gate: say which feature asked for a plan */}
+        {upgrade ? (
+          <div
+            role="status"
+            className="mx-auto max-w-2xl rounded-xl border border-accent-primary bg-accent-primary/10 p-4 text-center text-text-primary"
+          >
+            <strong>{upgrade}</strong> is part of a paid plan. Pick one below and it opens as soon as the payment confirms.
+          </div>
+        ) : null}
+
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-text-primary mb-3">
@@ -253,10 +270,12 @@ export default function PricingPage(): React.ReactElement {
           ))}
         </div>
 
-        {/* Live TV passes: a separate line, sold by the term, on top of any plan */}
-        <div className="max-w-4xl mx-auto">
-          <IptvOfferCard />
-        </div>
+        <p className="text-center text-sm text-text-secondary">
+          Every account keeps podcasts, email, invites and joining watch parties.{' '}
+          <a href="/features" className="text-accent-primary hover:underline">
+            See everything a plan includes
+          </a>
+        </p>
 
         {/* Payment Methods */}
         <div className="text-center">

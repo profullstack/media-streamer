@@ -13,6 +13,11 @@ import {
   getAllPartyCodes,
   getPartyCount,
   cleanupOldParties,
+  pruneStaleMembers,
+  touchMember,
+  addPartyChat,
+  readPartyChat,
+  MEMBER_STALE_MS,
 } from './_store';
 import type { WatchParty } from '@/lib/watch-party';
 
@@ -52,7 +57,7 @@ describe('Watch Party Store', () => {
       expect(hasParty('ABC123')).toBe(true);
     });
 
-    it('should overwrite existing party with same code', () => {
+    it('should overwrite existing party with same code', async () => {
       const party1 = createMockParty('ABC123');
       party1.hostName = 'Host1';
       setParty('ABC123', party1);
@@ -61,24 +66,72 @@ describe('Watch Party Store', () => {
       party2.hostName = 'Host2';
       setParty('ABC123', party2);
 
-      const retrieved = getParty('ABC123');
+      const retrieved = await getParty('ABC123');
       expect(retrieved?.hostName).toBe('Host2');
     });
   });
 
   describe('getParty', () => {
-    it('should return party when it exists', () => {
+    it('should return party when it exists', async () => {
       const party = createMockParty('ABC123');
       setParty('ABC123', party);
 
-      const retrieved = getParty('ABC123');
+      const retrieved = await getParty('ABC123');
       expect(retrieved).toBeDefined();
       expect(retrieved?.code).toBe('ABC123');
     });
 
-    it('should return undefined when party does not exist', () => {
-      const retrieved = getParty('NONEXISTENT');
+    it('should return undefined when party does not exist', async () => {
+      const retrieved = await getParty('NONEXISTENT');
       expect(retrieved).toBeUndefined();
+    });
+  });
+
+  describe('members who stop polling', () => {
+    const withMembers = (code = 'ABC123'): WatchParty => ({
+      ...createMockParty(code),
+      members: [
+        { id: 'host-1', name: 'Host', isHost: true, joinedAt: new Date() },
+        { id: 'm1', name: 'Ann', isHost: false, joinedAt: new Date() },
+        { id: 'm2', name: 'Bob', isHost: false, joinedAt: new Date() },
+      ],
+    });
+
+    it('drops a member who has not polled for 30 seconds, and never the host', () => {
+      const party = withMembers();
+      const t0 = 1_000_000;
+      touchMember('ABC123', 'm1', t0);
+      touchMember('ABC123', 'm2', t0);
+      touchMember('ABC123', 'm1', t0 + 25_000);
+      const pruned = pruneStaleMembers(party, t0 + MEMBER_STALE_MS + 1);
+      expect(pruned.members.map((m) => m.id)).toEqual(['host-1', 'm1']);
+    });
+
+    it('gives a member it has never heard from a full interval (a restart empties nobody)', () => {
+      const party = withMembers('FRESH1');
+      const t0 = 2_000_000;
+      expect(pruneStaleMembers(party, t0)).toBe(party);
+      expect(pruneStaleMembers(party, t0 + MEMBER_STALE_MS).members).toHaveLength(3);
+      expect(pruneStaleMembers(party, t0 + MEMBER_STALE_MS + 1).members.map((m) => m.id)).toEqual(['host-1']);
+    });
+  });
+
+  describe("the party's own chat", () => {
+    it('keeps lines in order and returns only what is new after a time', async () => {
+      const a = await addPartyChat('CHAT01', 'Ann', 'hi');
+      const b = await addPartyChat('CHAT01', 'Bob', 'hello');
+      expect(b.createdAt > a.createdAt).toBe(true); // strictly later, even in the same millisecond
+      expect((await readPartyChat('CHAT01')).map((l) => l.body)).toEqual(['hi', 'hello']);
+      expect((await readPartyChat('CHAT01', a.createdAt)).map((l) => l.body)).toEqual(['hello']);
+      expect(await readPartyChat('CHAT01', b.createdAt)).toEqual([]);
+      expect(await readPartyChat('OTHER1')).toEqual([]);
+    });
+
+    it('keeps the last 200 lines', async () => {
+      for (let i = 0; i < 205; i++) await addPartyChat('CHAT02', 'Ann', `line ${i}`);
+      const lines = await readPartyChat('CHAT02');
+      expect(lines).toHaveLength(200);
+      expect(lines[0]?.body).toBe('line 5');
     });
   });
 

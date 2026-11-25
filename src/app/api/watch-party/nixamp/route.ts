@@ -102,7 +102,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const code = cleanCode(body.code);
   if (!code) return NextResponse.json({ error: 'A valid party code is required' }, { status: 400 });
 
-  const party = getParty(code);
+  const party = await getParty(code);
   if (!party) return NextResponse.json({ error: 'Party not found' }, { status: 404 });
 
   const origin = new URL(request.url).origin;
