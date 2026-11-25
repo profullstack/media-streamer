@@ -31,8 +31,12 @@ const FREE: Card[] = [
 ];
 
 export default function FeaturesPage(): React.ReactElement {
-  const { isPremium, isLoading, user } = useAuth();
-  const paid: Card[] = [...PAID_FEATURES, WATCH_PARTY_HOST];
+  const { isPremium, isLoading, isLoggedIn, user } = useAuth();
+  const paid: Card[] = [
+    ...PAID_FEATURES,
+    WATCH_PARTY_HOST,
+    { key: 'no-ads', label: 'No ads', blurb: 'Free accounts see one quiet sponsored link on some pages. A plan removes them.', href: '/features' },
+  ];
   const onTrial = user?.subscription_tier === 'trial' && isPremium;
 
   return (
@@ -49,8 +53,22 @@ export default function FeaturesPage(): React.ReactElement {
                 ? onTrial
                   ? 'You are on the free trial, so everything below is open. Subscribe to keep it when the trial ends.'
                   : 'Everything below is open on your plan.'
-                : 'Your account is free and keeps the basics. A plan opens your own tools: your playlists, your seedbox, your feeds, your camera.'}
+                : isLoggedIn
+                  ? 'Your account is free and keeps the basics, with a few quiet sponsored links. A plan opens your own tools and removes the ads.'
+                  : 'A plan opens your own tools: your playlists, your seedbox, your feeds, your camera. $4.99 a year, 3 days free, no ads.'}
           </p>
+          {!isLoading && !isLoggedIn ? (
+            <p className="mt-3 text-sm text-text-secondary">
+              Accounts are invite only. Have an invite?{' '}
+              <Link href="/signup" className="text-accent-primary hover:underline">
+                Create your account
+              </Link>
+              {' · '}
+              <Link href="/login?redirect=%2Ffeatures" className="text-accent-primary hover:underline">
+                Sign in
+              </Link>
+            </p>
+          ) : null}
           {!isLoading && (!isPremium || onTrial) ? (
             <Link
               href="/pricing"

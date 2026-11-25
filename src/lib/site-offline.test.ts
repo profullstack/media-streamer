@@ -12,12 +12,24 @@ describe('bittorrented.com offline, invite only', () => {
 
   it('sends every other page to the invite-only screen', async () => {
     // Without an admin session; /login stays reachable so an admin can sign in (admin-gate.test.ts).
-    for (const path of ['/', '/search?q=x', '/dht', '/torrents/abc', '/pricing', '/account']) {
+    for (const path of ['/', '/search?q=x', '/dht', '/torrents/abc', '/account', '/live-tv', '/watch-party']) {
       const res = await get(path);
       expect(res.status).toBe(307);
       // Absolute, or Next.js answers 500 "Invalid URL" in production.
       expect(res.headers.get('location')).toBe('https://bittorrented.com/invite-only');
     }
+  });
+
+  it('shows a stranger what a plan costs and opens, and nothing behind it', async () => {
+    for (const path of ['/pricing', '/features', '/pricing?upgrade=live-tv']) {
+      const res = await get(path);
+      expect(res.status, path).not.toBe(503);
+      expect(res.headers.get('location') ?? '', path).not.toContain('/invite-only');
+      expect(res.headers.get('location') ?? '', path).not.toContain('/login');
+    }
+    // The pages are open; what they sell is not.
+    expect((await get('/api/iptv/playlists')).status).toBe(401);
+    expect((await get('/api/live/status')).status).toBe(401);
   });
 
   it('serves the invite-only screen, signup and the invites API to everyone', async () => {

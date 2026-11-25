@@ -77,6 +77,13 @@ const INVITE_ONLY_OPEN = [
   '/sitemaps',
   '/terms',
   '/privacy',
+  // What a plan costs and what it opens (Anthony, 2026-11-25: "start heavily promoting
+  // the paid tier for logged out users too"). Both are sales pages with nothing behind
+  // them: buying still takes an account, and an account still takes an invite. The coin
+  // list is what the pricing page shows as ways to pay.
+  '/pricing',
+  '/features',
+  '/api/supported-coins',
 ];
 
 export function openWhileInviteOnly(pathname: string): boolean {

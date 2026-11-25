@@ -251,6 +251,23 @@ export default function LoginPage(): React.ReactElement {
               Sign up
             </Link>
           </p>
+
+          {/* What a plan is, for whoever landed here without one */}
+          <div className="mt-6 rounded-xl border border-accent-primary/40 bg-accent-primary/5 p-4 text-center text-sm">
+            <p className="font-medium text-text-primary">A plan is $4.99 a year, with 3 days free.</p>
+            <p className="mt-1 text-text-secondary">
+              Live TV from your own playlist, your own seedbox, one-click live streaming, watch parties, and no ads.
+            </p>
+            <p className="mt-2">
+              <Link href="/pricing" className="font-medium text-accent-primary hover:underline">
+                See plans
+              </Link>
+              {' · '}
+              <Link href="/features" className="font-medium text-accent-primary hover:underline">
+                What is included
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </MainLayout>
