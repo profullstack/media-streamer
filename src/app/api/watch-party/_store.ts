@@ -52,7 +52,11 @@ function redis(): Redis | null {
     shared.redis = null;
     return null;
   }
-  const client = new Redis(url, { lazyConnect: false, maxRetriesPerRequest: 1, enableOfflineQueue: false });
+  // Commands wait for the connection (the offline queue). Without it the first read after
+  // a restart was sent before the socket was up, failed, and answered "party not found",
+  // which is exactly the moment the store exists for. A Redis that stays down fails each
+  // command after two tries and the party falls back to memory.
+  const client = new Redis(url, { maxRetriesPerRequest: 2, connectTimeout: 3000 });
   // Without a listener ioredis throws on a dropped connection; a party must not need Redis.
   client.on('error', () => undefined);
   shared.redis = client;

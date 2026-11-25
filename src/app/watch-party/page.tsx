@@ -330,16 +330,21 @@ export default function WatchPartyPage(): React.ReactElement {
     if (viewState !== 'party-room' || !party) return;
     const code = party.code;
     let alive = true;
+    let missing = 0;
     const tick = async (): Promise<void> => {
       try {
         const who = userId ? `&member=${encodeURIComponent(userId)}` : '';
         const res = await fetch(`/api/watch-party?code=${code}${who}`, { cache: 'no-store' });
         if (!alive) return;
+        // 410 is the host ending it. A lone 404 can be one bad read (the server coming
+        // back up), so the room is only left when the party is missing twice running.
+        if (res.status === 404 && ++missing < 2) return;
         if (res.status === 404 || res.status === 410) {
           resetToHome();
           setError(res.status === 410 ? 'The host ended that party.' : 'That party has ended.');
           return;
         }
+        missing = 0;
         if (!res.ok) return;
         const data = (await res.json()) as { party?: PartyData };
         if (data.party && alive) setParty(data.party);
